@@ -1,0 +1,38 @@
+name: contract-driven-gates
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * 1'
+
+jobs:
+  contract-and-fast-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect project profile
+        run: python .claude/skills/contract-driven-delivery/scripts/detect_project_profile.py . --write project-profile.generated.md || true
+      - name: Validate contracts
+        run: python .claude/skills/contract-driven-delivery/scripts/validate_contracts.py .
+      - name: Validate env contract
+        run: python .claude/skills/contract-driven-delivery/scripts/validate_env_contract.py contracts/env/env-contract.md
+      - name: Repository-specific fast gate
+        run: |
+          echo "Replace with repo commands: lint, typecheck, build, unit, contract tests"
+
+  e2e-critical:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Critical E2E placeholder
+        run: echo "Replace with Playwright/Cypress critical journey command"
+
+  scheduled-stress-soak:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stress/soak placeholder
+        run: echo "Replace with production-like stress/soak workflow"

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+assets/
+*.log
+.DS_Store
+skill.zip
+*.tgz
+project-profile.generated.md
