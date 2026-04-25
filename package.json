@@ -2,14 +2,34 @@
   "name": "contract-driven-delivery",
   "version": "1.0.0",
   "description": "Contract-driven delivery kit CLI — spec-first, test-first AI-assisted delivery for brownfield systems",
-  "keywords": ["contract-driven", "sdd", "tdd", "claude-code", "ai", "specs", "contracts"],
+  "keywords": [
+    "contract-driven",
+    "sdd",
+    "tdd",
+    "claude-code",
+    "ai",
+    "specs",
+    "contracts"
+  ],
   "license": "MIT",
   "author": "Contract-Driven Delivery Contributors",
   "type": "module",
-  "publishConfig": { "access": "public" },
-  "bin": { "cdd": "./bin/cdd.js" },
-  "exports": { ".": { "default": "./dist/cli/index.js" } },
-  "files": ["dist", "bin", "assets"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "cdd": "bin/cdd.js"
+  },
+  "exports": {
+    ".": {
+      "default": "./dist/cli/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "assets"
+  ],
   "scripts": {
     "build": "node build.js",
     "prepublishOnly": "node build.js"
