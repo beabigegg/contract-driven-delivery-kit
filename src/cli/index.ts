@@ -7,7 +7,7 @@ import { validate }  from '../commands/validate.js';
 const program = new Command();
 
 program
-  .name('cdd')
+  .name('cdd-kit')
   .description('Contract-Driven Delivery Kit CLI')
   .version('1.0.0');
 

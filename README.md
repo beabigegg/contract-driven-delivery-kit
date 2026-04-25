@@ -14,48 +14,48 @@ Requires Node.js 18+ and Python 3.8+.
 
 ## CLI Usage
 
-### `cdd init`
+### `cdd-kit init`
 
 Installs Claude Code agents and the `contract-driven-delivery` skill into `~/.claude`, and scaffolds project files (`contracts/`, `specs/templates/`, `tests/templates/`, `ci/`, `CLAUDE.md`, `AGENTS.md`) into the current repository.
 
 ```bash
-cdd init                  # global + local (recommended for first-time setup)
-cdd init --global-only    # only install agents/skill into ~/.claude
-cdd init --local-only     # only scaffold project files in current repo
-cdd init --force          # overwrite existing project files (CLAUDE.md is never overwritten)
+cdd-kit init                  # global + local (recommended for first-time setup)
+cdd-kit init --global-only    # only install agents/skill into ~/.claude
+cdd-kit init --local-only     # only scaffold project files in current repo
+cdd-kit init --force          # overwrite existing project files (CLAUDE.md is never overwritten)
 ```
 
-### `cdd update`
+### `cdd-kit update`
 
 Updates the agents and skill in `~/.claude` to the latest installed version. Does not touch project-level files like `contracts/` or `CLAUDE.md`.
 
 ```bash
-cdd update
+cdd-kit update
 ```
 
-### `cdd new <name>`
+### `cdd-kit new <name>`
 
 Creates a new change scaffold under `specs/changes/<name>/` with the required template files.
 
 ```bash
-cdd new add-user-auth             # required templates only
-cdd new add-user-auth --all       # include all optional templates
+cdd-kit new add-user-auth             # required templates only
+cdd-kit new add-user-auth --all       # include all optional templates
 ```
 
 Required templates: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
 
 Optional templates (with `--all`): `current-behavior.md`, `proposal.md`, `spec.md`, `design.md`, `contracts.md`, `qa-report.md`, `regression-report.md`, `archive.md`
 
-### `cdd validate`
+### `cdd-kit validate`
 
 Runs contract validation scripts against the current repository.
 
 ```bash
-cdd validate                # run all validators
-cdd validate --contracts    # validate API/data/CSS contracts
-cdd validate --env          # validate env contract
-cdd validate --ci           # validate CI gate policy
-cdd validate --spec         # validate spec traceability
+cdd-kit validate                # run all validators
+cdd-kit validate --contracts    # validate API/data/CSS contracts
+cdd-kit validate --env          # validate env contract
+cdd-kit validate --ci           # validate CI gate policy
+cdd-kit validate --spec         # validate spec traceability
 ```
 
 ## First-time setup in a repository
@@ -68,7 +68,7 @@ npm install -g contract-driven-delivery
 cd your-repo
 
 # 3. Deploy the kit
-cdd init
+cdd-kit init
 
 # 4. Open Claude Code and run the workflow
 # Ask Claude Code: "Use the contract-driven-delivery workflow.
@@ -134,7 +134,7 @@ A change is not done until:
 
 ```bash
 npm update -g contract-driven-delivery
-cdd update
+cdd-kit update
 ```
 
 ## License
