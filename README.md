@@ -40,6 +40,7 @@ Creates a new change scaffold under `specs/changes/<name>/` with the required te
 ```bash
 cdd-kit new add-user-auth             # required templates only
 cdd-kit new add-user-auth --all       # include all optional templates
+cdd-kit new add-user-auth --force     # re-scaffold even if directory already exists
 ```
 
 Required templates: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
@@ -75,6 +76,26 @@ cdd-kit init
 # Scan this repo, create a project profile, identify missing contracts,
 # and recommend the minimum standardization changes before feature work."
 ```
+
+## What to expect after `cdd-kit init`
+
+The first `cdd-kit validate` after `init` is expected to print contract placeholder warnings — six contract files are scaffolded but empty. Validation still exits 0; warnings are advisory.
+
+```text
+Warning: contracts present but appear empty: contracts/api/api-contract.md, ...
+Fill them in before relying on the gate.
+```
+
+To turn warnings off, fill each contract with real content (typical user-filled contracts run 500+ characters of meaningful text, well above the placeholder threshold). Recommended filling order:
+
+1. `contracts/env/env-contract.md` — list every env var your app reads, with `secret`, `default`, `validation` columns.
+2. `contracts/api/api-contract.md` — inventory every endpoint with method, path, request/response shape, and error format.
+3. `contracts/data/data-shape-contract.md` — required columns, types, nullability, and malformed-data behavior for each data surface.
+4. `contracts/css/css-contract.md` — design tokens, component states, and forbidden raw values.
+5. `contracts/business/business-rules.md` — current rules, decision tables, edge cases.
+6. `contracts/ci/ci-gate-contract.md` — gate tiers, promotion policy, rollback policy.
+
+`cdd-kit validate --contracts` re-runs only the contract check; use it incrementally as you fill each file.
 
 ## What this kit standardizes
 

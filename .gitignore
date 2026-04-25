@@ -6,3 +6,4 @@ assets/
 skill.zip
 *.tgz
 project-profile.generated.md
+.claude/settings.local.json

@@ -2,6 +2,7 @@
 name: frontend-engineer
 description: Implement frontend changes under API, CSS, UI/UX, accessibility, E2E, and visual review contracts.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash
+model: claude-sonnet-4-6
 ---
 
 You are the frontend engineer.

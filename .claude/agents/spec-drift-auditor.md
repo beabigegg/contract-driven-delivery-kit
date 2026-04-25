@@ -2,6 +2,7 @@
 name: spec-drift-auditor
 description: Audit drift across specs, contracts, implementation, tests, CI/CD gates, tasks, and archived learnings over multiple iterations.
 tools: Read, Grep, Glob, Bash
+model: claude-opus-4-7
 ---
 
 You are the spec drift auditor.

@@ -35,7 +35,13 @@ Ask Claude Code:
 Use the contract-driven-delivery workflow. Scan this repo, create a project profile, identify missing contracts, and recommend the minimum standardization changes before feature work.
 ```
 
-## 4. Required repository files
+## 4. Expected first-run output
+
+`cdd-kit validate` will warn that contracts are placeholders. This is normal — the six contract files are scaffolded but empty. Validation exits 0; warnings are advisory until you fill the contracts.
+
+See README.md → "What to expect after `cdd-kit init`" for the recommended filling order.
+
+## 5. Required repository files
 
 A mature repository should eventually contain:
 
@@ -50,6 +56,6 @@ contracts/ci/ci-gate-contract.md
 specs/changes/
 ```
 
-## 5. CI/CD setup
+## 6. CI/CD setup
 
 Start with the template in `ci/github-actions/contract-driven-gates.yml`. Adapt commands to the detected project profile. Keep fast gates required and long-running gates scheduled or manual until they pass a defined stability window.

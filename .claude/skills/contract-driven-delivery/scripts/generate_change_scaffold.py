@@ -15,8 +15,8 @@ def main():
     dest=root/'specs'/'changes'/args.change_id
     dest.mkdir(parents=True, exist_ok=False)
     mapping={
-        'change-request.md':'request.md',
-        'change-classification.md':'classification.md',
+        'change-request.md':'change-request.md',
+        'change-classification.md':'change-classification.md',
         'current-behavior.md':'current-behavior.md',
         'proposal.md':'proposal.md',
         'spec.md':'spec.md',

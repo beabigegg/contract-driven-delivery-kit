@@ -1,15 +1,21 @@
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { Command } from 'commander';
 import { init }      from '../commands/init.js';
 import { update }    from '../commands/update.js';
 import { newChange } from '../commands/new-change.js';
 import { validate }  from '../commands/validate.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string };
+
 const program = new Command();
 
 program
   .name('cdd-kit')
   .description('Contract-Driven Delivery Kit CLI')
-  .version('1.0.0');
+  .version(pkg.version);
 
 // ── cdd init ──────────────────────────────────────────────────────────────────
 program
@@ -32,15 +38,17 @@ program
 program
   .command('update')
   .description('Update ~/.claude agents and skill (does not touch project files)')
-  .action(() => update());
+  .option('--yes', 'Apply changes (default is dry-run)', false)
+  .action((opts) => update({ yes: opts.yes }));
 
 // ── cdd new <name> ────────────────────────────────────────────────────────────
 program
   .command('new <name>')
   .description('Scaffold a new change directory under specs/changes/<name>')
   .option('--all', 'Include optional templates in addition to required ones', false)
+  .option('--force', 'Overwrite existing template files in the change folder', false)
   .action((name: string, opts) =>
-    newChange(name, { all: opts.all }),
+    newChange(name, { all: opts.all, force: opts.force }),
   );
 
 // ── cdd validate ──────────────────────────────────────────────────────────────

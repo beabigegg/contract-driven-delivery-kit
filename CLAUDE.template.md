@@ -50,8 +50,8 @@ For a meaningful change, use or create:
 
 ```text
 specs/changes/<change-id>/
-├── request.md
-├── classification.md
+├── change-request.md
+├── change-classification.md
 ├── current-behavior.md
 ├── proposal.md
 ├── spec.md

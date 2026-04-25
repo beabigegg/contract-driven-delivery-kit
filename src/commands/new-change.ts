@@ -1,11 +1,12 @@
 import { join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
 import { ASSET } from '../utils/paths.js';
 import { copyFile, ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 
 export interface NewChangeOptions {
   all: boolean;
+  force: boolean;
 }
 
 const REQUIRED_TEMPLATES = [
@@ -16,16 +17,14 @@ const REQUIRED_TEMPLATES = [
   'tasks.md',
 ];
 
-const OPTIONAL_TEMPLATES = [
-  'current-behavior.md',
-  'proposal.md',
-  'spec.md',
-  'design.md',
-  'contracts.md',
-  'qa-report.md',
-  'regression-report.md',
-  'archive.md',
-];
+function listOptional(): string[] {
+  try {
+    const all = readdirSync(ASSET.specsTemplates).filter((f) => f.endsWith('.md'));
+    return all.filter((f) => !REQUIRED_TEMPLATES.includes(f));
+  } catch {
+    return [];
+  }
+}
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 
@@ -39,17 +38,22 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
   const changeDir = join(cwd, 'specs', 'changes', name);
 
   if (existsSync(changeDir)) {
-    log.warn(`Change directory already exists: ${changeDir}`);
-    log.warn('Aborting — remove or rename the directory to re-scaffold.');
-    return;
+    if (opts.force) {
+      log.warn(`Forcing re-scaffold of existing change directory: ${changeDir}`);
+      log.warn('Existing files will NOT be deleted; only template files will be overwritten.');
+    } else {
+      log.warn(`Change directory already exists: ${changeDir}`);
+      log.warn('Aborting — remove or rename the directory to re-scaffold.');
+      return;
+    }
   }
 
   log.blank();
   log.info(`Creating change scaffold: specs/changes/${name}`);
-  ensureDir(changeDir);
+  ensureDir(changeDir); // no-op if already exists (recursive: true)
 
   const templates = opts.all
-    ? [...REQUIRED_TEMPLATES, ...OPTIONAL_TEMPLATES]
+    ? [...REQUIRED_TEMPLATES, ...listOptional()]
     : [...REQUIRED_TEMPLATES];
 
   let written = 0;
@@ -60,7 +64,7 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
       log.warn(`Template not found, skipping: ${tmpl}`);
       continue;
     }
-    copyFile(src, dest, { overwrite: false });
+    copyFile(src, dest, { overwrite: opts.force });
     log.dim(tmpl);
     written += 1;
   }

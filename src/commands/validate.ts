@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 
@@ -15,6 +15,7 @@ interface ValidatorEntry {
   flag: keyof ValidateOptions;
   script: string;
   label: string;
+  args?: string[];
 }
 
 const VALIDATORS: ValidatorEntry[] = [
@@ -26,10 +27,8 @@ const VALIDATORS: ValidatorEntry[] = [
 
 function resolvePython(): string {
   for (const cmd of ['python3', 'python']) {
-    try {
-      execSync(`${cmd} --version`, { stdio: 'ignore' });
-      return cmd;
-    } catch { /* try next */ }
+    const r = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
+    if (r.status === 0) return cmd;
   }
   throw new Error('Python not found. Install Python 3.8+ and ensure it is on PATH.');
 }
@@ -60,12 +59,12 @@ export async function validate(opts: ValidateOptions): Promise<void> {
     }
 
     log.info(`Validating ${v.label}…`);
-    try {
-      execSync(`${py} "${scriptPath}"`, { stdio: 'inherit', cwd: process.cwd() });
-      log.ok(`${v.label} passed.`);
-    } catch {
+    const r = spawnSync(py, [scriptPath, ...(v.args ?? [])], { stdio: 'inherit', cwd: process.cwd() });
+    if (r.status !== 0) {
       log.error(`${v.label} validation failed.`);
       failed = true;
+    } else {
+      log.ok(`${v.label} passed.`);
     }
     log.blank();
   }
