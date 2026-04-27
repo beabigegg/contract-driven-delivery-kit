@@ -153,6 +153,22 @@ Frontend changes that alter UI output require:
 - CSS contract check
 - accessibility check for focus, keyboard, labels, and contrast
 
+## Orchestration enforcement
+
+Every change in `specs/changes/<change-id>/` must pass `cdd-kit gate <change-id>` before the implementation is committed. The gate enforces:
+
+1. All 5 required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`)
+2. Each artifact has more than 100 meaningful characters (not a stub template)
+3. `change-classification.md` contains a tier marker (`Tier 0`–`Tier 5`) or a risk label (`low`, `medium`, `high`, `critical`)
+4. All contract validators pass (`cdd-kit validate`)
+
+Run `cdd-kit install-hooks` once in each repository to install a pre-commit hook that enforces the gate automatically on every commit touching `specs/changes/`. This prevents the workflow from being silently skipped.
+
+```bash
+cdd-kit gate add-user-auth      # manual check
+cdd-kit install-hooks           # install automatic pre-commit enforcement
+```
+
 ## Forbidden practices
 
 - Do not implement before classifying the change.

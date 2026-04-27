@@ -6,6 +6,8 @@ import { init }      from '../commands/init.js';
 import { update }    from '../commands/update.js';
 import { newChange } from '../commands/new-change.js';
 import { validate }  from '../commands/validate.js';
+import { gate }      from '../commands/gate.js';
+import { installHooks } from '../commands/install-hooks.js';
 import { detectStack } from '../utils/stack-detect.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -70,6 +72,18 @@ program
       versions:  opts.versions,
     }),
   );
+
+// ── cdd gate <change-id> ──────────────────────────────────────────────────────
+program
+  .command('gate <change-id>')
+  .description('Run full orchestration gate for a change (required artifacts, content, tier, contracts)')
+  .action(async (id: string) => { await gate(id); });
+
+// ── cdd install-hooks ─────────────────────────────────────────────────────────
+program
+  .command('install-hooks')
+  .description('Install pre-commit hook that runs cdd-kit gate on staged changes')
+  .action(async () => { await installHooks(); });
 
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program

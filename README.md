@@ -63,6 +63,35 @@ cdd-kit validate --spec         # validate spec traceability
 - **API semantic**: checks endpoint table for valid HTTP methods, paths starting with `/`, and valid auth values.
 - **Env semantic**: checks variable table for secrets with default values (forbidden), and warns on required non-secret vars with no default.
 
+### `cdd-kit gate <change-id>`
+
+Validates that a change has completed the full orchestration workflow before it can be committed or shipped. Checks: directory exists, all 5 required artifacts are present, each has > 100 meaningful characters (not a stub), `change-classification.md` contains a tier or risk marker, and all contract validators pass.
+
+```bash
+cdd-kit gate add-user-auth
+# ✓  gate passed for change: add-user-auth
+```
+
+Failure examples:
+```
+✗  gate failed for change: feat-001
+✗    missing required artifact: tasks.md
+✗    change-classification.md: missing tier/risk marker (Tier 0-5 or low/medium/high/critical)
+```
+
+### `cdd-kit install-hooks`
+
+Installs a pre-commit Git hook that automatically runs `cdd-kit gate` for any change folder touched in the staged commit. Prevents skipping the orchestration workflow.
+
+```bash
+cdd-kit install-hooks
+# ✓  pre-commit hook installed at .git/hooks/pre-commit
+```
+
+- Idempotent: re-running updates the cdd-kit block in place without duplicating it.
+- Preserves existing hook content: if a pre-commit hook already exists, the cdd-kit block is prepended after the shebang line.
+- Bypass with `--no-verify` (not recommended; defeats AI process enforcement).
+
 ### `cdd-kit detect-stack`
 
 Detects the project tech stack from lockfiles and config files.
