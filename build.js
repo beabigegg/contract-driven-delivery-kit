@@ -10,6 +10,20 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// ── 0. Drift guard: scripts/ at repo root is forbidden ───────────────────────
+// The skill scripts at .claude/skills/contract-driven-delivery/scripts/ are
+// the single source of truth. A duplicate at ./scripts/ silently drifts and
+// is precisely the failure mode this kit is meant to prevent.
+const rootScripts = join(__dirname, 'scripts');
+if (existsSync(rootScripts)) {
+  console.error(
+    'Build aborted: ./scripts/ exists at repo root.\n' +
+    '  Skill scripts at .claude/skills/contract-driven-delivery/scripts/ are the single source of truth.\n' +
+    '  Remove ./scripts/ (or move new helpers into the skill scripts directory) and rebuild.'
+  );
+  process.exit(1);
+}
+
 // ── 1. Bundle TypeScript CLI ──────────────────────────────────────────────────
 // commander is CJS; bundling into ESM produces a dynamic-require shim that
 // crashes at runtime. Keep it external — it is listed in dependencies and npm

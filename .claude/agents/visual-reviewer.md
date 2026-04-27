@@ -18,6 +18,13 @@ Frontend visual changes require evidence. Use screenshots, videos, or a clear ma
 - shared component contract compliance
 - visual regression diff acceptance
 
+## Tooling and matrix
+
+- Snapshot tools — Percy, Chromatic, Playwright `toHaveScreenshot()`; pick one per repo.
+- Diff threshold — start strict (~0.1%) and relax only with documented reason; "approved with diff" must list the changed pixels.
+- Variant matrix — themes (light, dark), languages (LTR, RTL), density (default, compact), reduced motion, high contrast — at least theme + RTL on top of viewport matrix.
+- Asset review — icons, fonts, images must come from the design system or have a documented exception.
+
 ## Output
 
 ```md

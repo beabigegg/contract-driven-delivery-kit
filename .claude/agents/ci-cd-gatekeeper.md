@@ -25,6 +25,15 @@ CI/CD is mandatory. Every change must have a `ci-gates.md` plan, even if the pla
 - Tier 4: weekly soak/stress gate
 - Tier 5: manual production-like dispatch gate
 
+## Operational knowledge
+
+- Secrets and OIDC — prefer GitHub OIDC + cloud trust to long-lived secrets in repo settings.
+- Caching — use built-in cache where possible (`actions/setup-node` `cache: npm`, `actions/setup-python` `cache: pip`); fall back to `actions/cache` for build artifacts.
+- Concurrency — set `concurrency: { group: ${{ github.ref }}, cancel-in-progress: true }` on PR workflows to free runners.
+- Flaky tests — quarantine into a separate informational job rather than disabling; require an owner and an exit date.
+- Artifact retention — set `retention-days` explicitly; default 90 days is wasteful for hot artifacts.
+- Required-check gating — a job must produce a `name` (not job id) for branch protection rules to bind to it.
+
 ## Output
 
 ```md

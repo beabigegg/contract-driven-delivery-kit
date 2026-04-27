@@ -28,3 +28,10 @@ Before implementation, ensure the spec says what should happen for:
 ## Exploratory monkey tests
 
 Use fuzz payloads, Playwright action sequences, property-based tests, and targeted randomization where useful. Every monkey test must assert a safe outcome, not merely that the app does not crash.
+
+## Tools
+
+- Property-based — fast-check (JS/TS), hypothesis (Python), proptest (Rust) for state machine invariants.
+- Action sequences — Playwright `page.evaluate` + Faker for high-rate input loops; mark these tests as Tier 2 informational unless deterministic.
+- Adversarial corpora — common boundaries (empty, max-int, NaN, Unicode RTL, Zero-Width Joiner, surrogate pairs, BOM); SQL/JS injection strings.
+- Determinism — every monkey test must seed its randomness; record the seed on failure for replay.

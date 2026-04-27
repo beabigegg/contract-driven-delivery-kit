@@ -38,6 +38,14 @@ Invoke `spec-drift-auditor` at the following points (do not wait for issues to s
 - weekly during active multi-iteration development
 - whenever QA discovers that implemented behavior does not match any recorded spec
 
+## Evidence and decision thresholds
+
+- Evidence quality (lowest to highest) — claim < screenshot < log excerpt < CI run URL < linked artifact bundle < reproducible repo / steps.
+- `approved` — all required gates green, all required artifacts present, no unaddressed reviewer comments.
+- `approved-with-risk` — only when (a) the residual risk is documented in qa-report.md, (b) an owner is assigned, (c) a follow-up issue exists with a date.
+- `blocked` — any required gate failing, any contract claim unverified, any UI change without visual evidence.
+- Sign-off — single reviewer for low/medium risk; two reviewers (qa-reviewer + spec-architect) for high/critical.
+
 ## Output
 
 ```md

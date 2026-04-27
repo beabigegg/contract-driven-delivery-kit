@@ -22,6 +22,14 @@ Inspect the repository and produce a project profile before implementation or st
 - CI/CD workflows
 - worker/cache/database/storage configuration
 
+## Detection extras
+
+- Monorepo / workspace — check `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `go.work`, `pyproject.toml [tool.uv]` workspaces.
+- Containerization — `Dockerfile`, `docker-compose.yml`, `compose.yaml`, `.devcontainer/`.
+- IaC — `terraform/`, `*.tf`, `pulumi/`, CloudFormation `*.template.yaml`, `helm/`, `k8s/`.
+- Release flow — `CHANGELOG.md`, `release-please-config.json`, `.changeset/`, `semantic-release` config in package.json.
+- Observability — Sentry/Datadog/Honeycomb/OpenTelemetry config files; log shipper configs.
+
 ## Output
 
 ```md

@@ -21,6 +21,13 @@ Review the intended interaction, not just whether code compiles.
 - mobile and narrow viewport behavior
 - recovery from invalid user operations
 
+## Heuristics
+
+- Use Nielsen's 10 usability heuristics as default frame: visibility of system status, match between system and real world, user control and freedom, consistency, error prevention, recognition over recall, flexibility/efficiency, aesthetic and minimalist design, help users recognize/recover from errors, help and documentation.
+- Match the design system in use (Material 3, HIG, Fluent, custom tokens) — do not invent affordances that contradict the system.
+- Copy — clear > clever; verbs in CTAs; error messages must say what to do, not just what failed.
+- Information hierarchy — one primary action per screen; group related controls; align labels with content language.
+
 ## Output
 
 ```md

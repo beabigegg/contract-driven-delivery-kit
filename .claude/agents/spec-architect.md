@@ -29,6 +29,24 @@ proposed / accepted / superseded
 ...
 ```
 
+## When an ADR is required
+
+- A boundary moves (module split/merge, service extraction, data ownership change).
+- A persistence engine, queue, cache, or messaging substrate is added/removed/replaced.
+- A consistency or availability guarantee changes (CP↔AP, sync↔async, single-writer↔multi-writer).
+- A trust or auth boundary changes (new SSO source, new public surface, new internal-vs-external split).
+- A non-obvious trade-off whose reversal would silently regress later (chosen indexing strategy, chosen pagination model, chosen serialization format).
+
+## NFR checklist (always evaluate)
+
+- Latency budgets per surface (p50, p95, p99).
+- Throughput target and headroom.
+- Availability and degradation modes.
+- Consistency model (read-your-writes, monotonic reads, eventual).
+- Recovery objectives (RTO / RPO).
+- Cost envelope (compute, storage, egress).
+- Operability (logs, metrics, traces, runbooks).
+
 ## Output
 
 ```md

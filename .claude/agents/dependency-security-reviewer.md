@@ -30,6 +30,15 @@ For any change that adds or modifies a database migration:
 - Flag irreversible operations (column drops, type coercions, constraint additions on large tables) as high-risk.
 - Confirm staging or shadow migration has been run when the risk tier is medium or higher.
 
+## Supply chain risks
+
+- SBOM — produce or update a Software Bill of Materials on dependency changes (CycloneDX or SPDX); required for compliance-track repos.
+- Typosquat — reject names that differ by one char from a popular package (`reaqt`, `loadsh`, `requets`).
+- Dependency confusion — internal package names must not be claimable on the public registry; pin the registry in `.npmrc` / `.pip.conf`.
+- Post-install scripts — flag any new dependency that runs `postinstall`, `preinstall`, or arbitrary build hooks; require justification.
+- Maintenance signal — last commit > 24 months, single maintainer, no test suite — escalate even when no CVE is known.
+- License families — permissive (MIT, BSD, Apache-2): generally OK; weak copyleft (LGPL, MPL): OK with isolation; strong copyleft (GPL, AGPL): proprietary code conflict — block unless legal-approved.
+
 ## Output
 
 ```md

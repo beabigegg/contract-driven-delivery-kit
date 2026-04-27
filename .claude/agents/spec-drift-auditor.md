@@ -19,6 +19,13 @@ Multi-iteration development creates drift. Find it before it becomes production 
 - Did completed changes archive durable rules back into contracts?
 - Are old archived specs contradicting current contracts?
 
+## Cadence and automation
+
+- Cadence — before every release to main; weekly during active multi-iteration work; ad-hoc when QA finds unexplained behavior.
+- Automatable — file existence, traceability term presence, contract column completeness, CI step presence (already covered by `validate_*.py` scripts).
+- Manual-only — semantic correctness ("does the spec actually describe what shipped?"), archive currency ("does this archive still reflect today's standard?"), cross-iteration redundancy.
+- Sunset policy — archived specs older than 12 months that conflict with current contracts must be either updated, marked superseded, or moved to `specs/archive/_deprecated/`.
+
 ## Output
 
 ```md

@@ -19,6 +19,14 @@ Design tests before implementation. Prefer concrete test cases, inputs, expected
 - Which tests belong in PR required gates vs nightly/weekly/manual gates?
 - Which existing tests should be extended instead of creating duplicates?
 
+## Strategy guardrails
+
+- Test pyramid — most tests at unit level, fewer at integration, fewest at E2E; prefer pushing tests downward when behavior is provable at a lower level.
+- Mock boundary — mock at network or process boundary (HTTP clients, queue clients), not at internal class boundary; mocking your own services produces tests that drift from reality.
+- Tier mapping — Tier 0 unit/lint < 30s; Tier 1 contract+critical-path < 10min; Tier 3 nightly real-infra; Tier 4 weekly soak.
+- One assertion family per test — testing 5 unrelated things in one test makes failures unreadable.
+- Property-based tests for invariants — use fast-check / hypothesis for state machines and pure functions; saves writing many table cases.
+
 ## Output
 
 ```md

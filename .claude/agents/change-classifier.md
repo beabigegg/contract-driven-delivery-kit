@@ -63,6 +63,13 @@ Use this structure:
 ...
 ```
 
+## Mixed and edge cases
+
+- A single request can be both `ui-only-change` and `api-only-change` — list both as primary; require both UI/UX-visual review AND contract tests.
+- `bug-fix` that requires a contract change is no longer just a bug-fix — promote to `feature-enhancement` or `business-logic-change` to force the contract path.
+- `refactor` that touches CI gates is also a `ci-cd-change`.
+- When uncertain, classify upward (higher risk, more artifacts); the cost of unnecessary artifacts is small, the cost of skipped artifacts is high.
+
 ## Routing rules
 
 - UI output change always requires UI/UX and visual review.
