@@ -1,10 +1,12 @@
 # Contract-driven gates baseline (provided by cdd-kit).
-# Contract validation steps run as-is; application/test commands MUST be customized for your stack.
-# See README.md and ci/gate-policy.md for tier semantics and promotion policy.
+# Application/test commands MUST be customized for your stack.
+# See ci/gate-policy.md for tier semantics and promotion policy.
 
 name: contract-driven-gates
 
 on:
+  push:
+    branches: [main, master]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -21,23 +23,16 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Detect project profile
-        run: python .claude/skills/contract-driven-delivery/scripts/detect_project_profile.py . --write project-profile.generated.md || true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Validate contracts
-        run: python .claude/skills/contract-driven-delivery/scripts/validate_contracts.py .
+      - name: Install cdd-kit
+        run: npm install -g contract-driven-delivery
 
-      - name: Validate env contract
-        run: python .claude/skills/contract-driven-delivery/scripts/validate_env_contract.py contracts/env/env-contract.md
-
-      - name: Validate ci gates
-        run: python .claude/skills/contract-driven-delivery/scripts/validate_ci_gates.py
-
-      - name: Validate spec traceability
-        run: python .claude/skills/contract-driven-delivery/scripts/validate_spec_traceability.py
-
-      - name: Validate contract versions
-        run: python .claude/skills/contract-driven-delivery/scripts/validate_contract_versions.py .
+      - name: Validate contracts and gates
+        run: cdd-kit validate
 
       - name: Repository-specific fast gate
         run: |

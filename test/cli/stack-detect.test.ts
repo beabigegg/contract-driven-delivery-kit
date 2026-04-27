@@ -99,13 +99,16 @@ describe('cdd-kit init + stack detection integration', () => {
     const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
-    const ciYmlPath = join(tmpRepo, 'ci', 'github-actions', 'contract-driven-gates.yml');
+    const ciYmlPath = join(tmpRepo, '.github', 'workflows', 'contract-driven-gates.yml');
     const content = readFileSync(ciYmlPath, 'utf8');
 
     // Must contain the conda miniconda action
     expect(content).toMatch(/setup-miniconda/);
     // Must have the critical conda footgun fix
     expect(content).toMatch(/bash -el \{0\}/);
+    // Conda env name must be resolved from environment.yml (not left as placeholder)
+    expect(content).toMatch(/activate-environment:\s*["']?myenv["']?/);
+    expect(content).not.toMatch(/\{\{conda-env-name\}\}/);
     // Must NOT still contain the old placeholder echo
     expect(content).not.toMatch(/No stack-specific fast gate configured/);
     expect(content).not.toMatch(/No stack detected/);

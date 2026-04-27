@@ -69,10 +69,10 @@ approved / blocked / approved-with-risk
 
 ## Machine-Verifiable Evidence
 
-After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`
-with this exact structure (lines starting with `- ` are required):
+After completing your task, include an **## Agent Log** section at the end of your response with this exact structure (lines starting with `- ` are required). The calling skill will write this block to `specs/changes/<change-id>/agent-log/qa-reviewer.md`.
 
 ```
+## Agent Log
 # QA Reviewer Log
 - change-id: <id>
 - timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>

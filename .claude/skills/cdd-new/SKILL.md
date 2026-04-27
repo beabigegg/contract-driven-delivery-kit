@@ -13,6 +13,19 @@ If no description is provided, ask the user: "Please describe the change you wan
 
 ---
 
+## Write Responsibilities
+
+**This distinction is critical — follow it for every step:**
+
+| Agent type | Who writes artifact files | Who writes agent-log | Who ticks tasks.md |
+|------------|--------------------------|----------------------|--------------------|
+| Read-only agents (no Edit tool): `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer` | YOU (main Claude) | YOU (main Claude) | YOU (main Claude) |
+| Write-capable agents (have Edit): `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself | YOU (main Claude) |
+
+**Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.md` checkbox(es) from `[ ]` to `[x]`.
+
+---
+
 ## Step 1: Generate change-id and scaffold
 
 Derive a `change-id` from the description:
@@ -21,26 +34,162 @@ Derive a `change-id` from the description:
 
 Check that `specs/changes/<change-id>/` does not already exist. If it does, append `-2` (or next available suffix).
 
-Run the scaffold generator:
+**Create all scaffold files using Write (do NOT run a Python script; do NOT use Edit on pre-existing files):**
 
+Create `specs/changes/<change-id>/change-request.md` with the user's description filled in:
 ```
-python .claude/skills/contract-driven-delivery/scripts/generate_change_scaffold.py <change-id>
+# Change Request: <change-id>
+
+## Original Request
+<user's exact description, verbatim>
+
+## Business / User Goal
+<infer from the description>
+
+## Non-goals
+
+## Constraints
+
+## Known Context
+
+## Open Questions
+
+## Requested Delivery Date / Priority
+as soon as possible
 ```
 
-If the script is unavailable, manually create `specs/changes/<change-id>/` and copy these template files:
+Create `specs/changes/<change-id>/change-classification.md` with blank template:
+```
+# Change Classification
 
-| Source | Destination |
-|--------|-------------|
-| `.claude/skills/contract-driven-delivery/templates/change-request.md` | `specs/changes/<change-id>/change-request.md` |
-| `.claude/skills/contract-driven-delivery/templates/change-classification.md` | `specs/changes/<change-id>/change-classification.md` |
-| `.claude/skills/contract-driven-delivery/templates/test-plan.md` | `specs/changes/<change-id>/test-plan.md` |
-| `.claude/skills/contract-driven-delivery/templates/ci-gates.md` | `specs/changes/<change-id>/ci-gates.md` |
-| `.claude/skills/contract-driven-delivery/templates/tasks.md` | `specs/changes/<change-id>/tasks.md` |
+## Change Types
+- primary:
+- secondary:
 
-Fill in `change-request.md`:
-- `## Original Request` → the user's exact description
-- `## Business / User Goal` → infer from context
-- `## Requested Delivery Date / Priority` → "as soon as possible" if not specified
+## Risk Level
+- low / medium / high / critical
+
+## Impact Radius
+- isolated / module-level / cross-module / system-wide
+
+## Required Artifacts
+| artifact | required | reason |
+|---|---:|---|
+| current-behavior.md | | |
+| proposal.md | | |
+| spec.md | | |
+| design.md | | |
+| contracts.md | | |
+| test-plan.md | yes | every implementation change requires test planning |
+| ci-gates.md | yes | every implementation change requires CI/CD gate planning |
+| qa-report.md | | |
+| regression-report.md | | |
+
+## Required Contracts
+- API:
+- CSS/UI:
+- Env:
+- Data shape:
+- Business logic:
+- CI/CD:
+
+## Required Test Families
+- unit:
+- contract:
+- integration:
+- E2E:
+- visual:
+- data-boundary:
+- resilience:
+- fuzz/monkey:
+- stress:
+- soak:
+
+## Required Agents
+
+## Assumptions / Clarifications
+```
+
+Create `specs/changes/<change-id>/test-plan.md` with blank template:
+```
+# Test Plan: <change-id>
+
+## Scope
+
+## Unit Tests
+
+## Contract Tests
+
+## Integration Tests
+
+## E2E Tests
+
+## Resilience / Data-Boundary Tests
+
+## Stress / Soak Tests
+
+## Out of Scope
+```
+
+Create `specs/changes/<change-id>/ci-gates.md` with blank template:
+```
+# CI Gates: <change-id>
+
+## Required Gates (block merge if failing)
+
+## Informational Gates (report only)
+
+## Nightly / Weekly / Manual Gates
+
+## Promotion Policy
+```
+
+Create `specs/changes/<change-id>/tasks.md` with ALL checkboxes unchecked:
+```
+# Tasks: <change-id>
+
+## 1. Preparation
+- [ ] 1.1 Confirm classification and required artifacts
+- [ ] 1.2 Confirm contracts to update
+- [ ] 1.3 Confirm CI/CD gate plan
+
+## 2. Contract Updates
+- [ ] 2.1 API contract
+- [ ] 2.2 CSS/UI contract
+- [ ] 2.3 Env contract
+- [ ] 2.4 Data shape contract
+- [ ] 2.5 Business logic contract
+- [ ] 2.6 CI/CD contract
+
+## 3. Tests First
+- [ ] 3.1 Unit/contract tests
+- [ ] 3.2 Integration tests
+- [ ] 3.3 E2E/resilience tests
+- [ ] 3.4 Data-boundary/monkey tests
+- [ ] 3.5 Stress/soak tests if required
+
+## 4. Implementation
+- [ ] 4.1 Backend
+- [ ] 4.2 Frontend
+- [ ] 4.3 Env/deploy
+- [ ] 4.4 CI/CD workflows
+
+## 5. Review
+- [ ] 5.1 UI/UX review
+- [ ] 5.2 Visual review
+- [ ] 5.3 Contract review
+- [ ] 5.4 QA review
+
+## 6. Verification
+- [ ] 6.1 Local gates
+- [ ] 6.2 PR required gates
+- [ ] 6.3 Informational gates
+- [ ] 6.4 Nightly/weekly/manual gates if required
+
+## 7. Archive
+- [ ] 7.1 Archive change
+- [ ] 7.2 Promote durable learnings to contracts or CLAUDE.md
+```
 
 ---
 
@@ -51,61 +200,112 @@ Invoke `change-classifier` agent with:
 - The project profile at `specs/project-profile.md` (if it exists)
 - The existing contracts in `contracts/` (if any)
 
-The classifier must write a complete `specs/changes/<change-id>/change-classification.md` including:
-- Risk tier (Tier 0–5, or low / medium / high / critical)
-- Affected surfaces (API, UI, env, data, CI)
-- List of required agents
+**change-classifier is read-only** — it will return its output as text. After it responds:
 
-Wait for `change-classification.md` to be written before continuing.
+1. **YOU write** `specs/changes/<change-id>/change-classification.md` — replace the blank template with the classifier's classification output.
+2. **YOU write** `specs/changes/<change-id>/agent-log/change-classifier.md` — copy the Agent Log block from the classifier's response.
+3. **YOU tick** `tasks.md` item `1.1`.
+
+Wait until these three writes are done before continuing.
 
 ---
 
 ## Step 3: Read the tier and commission agents
 
-Read `change-classification.md` to determine the tier. Then invoke agents **in the exact order below**, waiting for each to complete its `specs/changes/<change-id>/agent-log/<agent-name>.md` before proceeding.
+Read `change-classification.md` to determine the tier. Then invoke agents **in the exact order below**.
+
+**For each read-only agent**: wait for its text response → YOU write its artifact file(s) → YOU write its agent-log → YOU tick relevant tasks.md item(s).
+
+**For each write-capable agent**: wait for it to confirm completion → YOU tick relevant tasks.md item(s).
+
+If any agent sets `status: blocked` in its log, halt immediately and report the agent's `next-action` to the user — do not proceed to subsequent agents.
+
+---
 
 ### Tier 4–5 (low risk: docs, prompts, config-only, no behavior change)
 
-1. `contract-reviewer` — confirm no contracts are touched or all touched ones are already updated
-2. `qa-reviewer` — confirm release readiness
+1. **`contract-reviewer`** (read-only) — confirm no contracts are touched or all touched ones are already updated.
+   - YOU write: `agent-log/contract-reviewer.md`
+   - YOU tick: `1.2`, applicable items in section 2
+
+2. **`qa-reviewer`** (read-only) — confirm release readiness.
+   - YOU write: `agent-log/qa-reviewer.md`
+   - YOU tick: `5.4`
+
+---
 
 ### Tier 2–3 (normal: feature, enhancement, bug fix with behavior change)
 
-1. `contract-reviewer` — update or create contracts in `contracts/` before any implementation starts
-2. `test-strategist` — author `specs/changes/<change-id>/test-plan.md`
-3. `spec-architect` — only if the classifier flagged an architectural boundary or cross-module impact
-4. `backend-engineer` — if the change touches server, API, data, or business logic
-5. `frontend-engineer` — if the change touches UI, components, or client-side behavior
-6. `ui-ux-reviewer` — if any UI change (run alongside or after frontend-engineer)
-7. `visual-reviewer` — if any UI change (run after ui-ux-reviewer)
-8. `dependency-security-reviewer` — if the change touches lockfiles, package manifests, or DB migrations
-9. `ci-cd-gatekeeper` — update `specs/changes/<change-id>/ci-gates.md`
-10. `qa-reviewer` — release readiness decision
+1. **`contract-reviewer`** (read-only) — update or create contracts in `contracts/` before any implementation starts.
+   - YOU write: `agent-log/contract-reviewer.md`
+   - YOU tick: `1.2`, applicable items in section 2
+
+2. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
+   - YOU tick: applicable items in section 3 based on what test families were planned
+
+3. **`spec-architect`** (write-capable) — only if the classifier flagged an architectural boundary or cross-module impact.
+   - YOU tick: `1.3` (if it produced a gate plan)
+
+4. **`backend-engineer`** (write-capable) — if the change touches server, API, data, or business logic. Writes implementation and its own agent-log.
+   - YOU tick: `4.1` and/or `4.3` based on scope
+
+5. **`frontend-engineer`** (write-capable) — if the change touches UI, components, or client-side behavior. Writes implementation and its own agent-log.
+   - YOU tick: `4.2`
+
+6. **`dependency-security-reviewer`** (read-only) — if the change touches lockfiles, package manifests, or DB migrations.
+   - YOU write: `agent-log/dependency-security-reviewer.md`
+   - YOU tick: applicable security-related items
+
+7. **`ui-ux-reviewer`** (read-only) — if any UI change (run alongside or after frontend-engineer).
+   - YOU write: `agent-log/ui-ux-reviewer.md`
+   - YOU tick: `5.1`
+
+8. **`visual-reviewer`** (read-only) — if any UI change (run after ui-ux-reviewer).
+   - YOU write: `agent-log/visual-reviewer.md`
+   - YOU tick: `5.2`
+
+9. **`ci-cd-gatekeeper`** (write-capable) — writes `specs/changes/<change-id>/ci-gates.md` directly.
+   - YOU tick: `1.3`, `4.4`, applicable items in section 6
+
+10. **`qa-reviewer`** (read-only) — release readiness decision (always last).
+    - YOU write: `agent-log/qa-reviewer.md`
+    - YOU tick: `5.4`
+
+---
 
 ### Tier 0–1 (high risk: production data, concurrency, queues, large queries, auth, payments, exports)
 
-All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backend-engineer`:
+All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backend-engineer` and before `dependency-security-reviewer`:
 
-- `e2e-resilience-engineer` — E2E, failure-injection, data-boundary tests
-- `monkey-test-engineer` — adversarial input, fuzz, rapid-UI-action tests
-- `stress-soak-engineer` — load, soak, and long-running stability tests
+- **`e2e-resilience-engineer`** (write-capable) — E2E, failure-injection, data-boundary tests. Writes its own agent-log.
+  - YOU tick: `3.3`
 
-**Agent commission rules**:
+- **`monkey-test-engineer`** (write-capable) — adversarial input, fuzz, rapid-UI-action tests. Writes its own agent-log.
+  - YOU tick: `3.4`
+
+- **`stress-soak-engineer`** (write-capable) — load, soak, and long-running stability tests. Writes its own agent-log.
+  - YOU tick: `3.5`
+
+---
+
+**Agent commission rules:**
 - Skip an agent only if the classifier explicitly marks its surface as "not affected"
-- If any agent sets `status: blocked` in its log, halt immediately and report the agent's `next-action` to the user — do not proceed to subsequent agents
-- If the change is UI-only with no backend, skip `backend-engineer`; if backend-only with no UI, skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
+- If backend-only with no UI: skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
+- If UI-only with no backend: skip `backend-engineer`
 
 ---
 
 ## Step 4: Run the gate
 
-After all required agents have completed:
+After all required agents have completed and all tasks.md items for their sections are ticked:
 
 ```
 cdd-kit gate <change-id>
 ```
 
-**If gate passes**: proceed to Step 5.
+**If gate passes**:
+- YOU tick: `tasks.md` item `6.1`
+- Proceed to Step 5.
 
 **If gate fails**:
 1. Read the gate error output carefully
@@ -127,6 +327,9 @@ Change ID: <change-id>
 Risk tier: <tier>
 Agents invoked: <list in order>
 Gate: PASSED
+
+Tasks completed:
+- [x] all applicable items checked in specs/changes/<change-id>/tasks.md
 
 All artifacts written to: specs/changes/<change-id>/
 
@@ -158,5 +361,12 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 - Never start implementation (backend/frontend-engineer) before `contract-reviewer` has completed for Tier 0–3 changes
 - Never skip `test-plan.md` for Tier 0–3 changes
 - Never skip `ci-gates.md` for any implementation change
-- Every agent must write its `agent-log/<name>.md` — the gate will reject changes missing it
+- Every agent must have its `agent-log/<name>.md` written — YOU write it for read-only agents after receiving their response; write-capable agents write their own
+- Tick the relevant `tasks.md` checkbox immediately after each agent completes — do not batch
 - `qa-reviewer` always runs last and makes the release-readiness decision
+
+---
+
+## After Completion
+
+The `/cdd-new` workflow is now complete. **Return to normal assistant mode immediately.** Answer any question the user asks — including questions unrelated to this change, new feature discussions, debugging help, or general conversation — without requiring them to use a specific command. The git commit shown in the report is a suggestion, not a required next step; do not wait for it before resuming normal behavior.

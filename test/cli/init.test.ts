@@ -33,6 +33,7 @@ describe('cdd-kit init', () => {
     expect(existsSync(join(tmpRepo, 'specs', 'templates')), 'specs/templates/ missing').toBe(true);
     expect(existsSync(join(tmpRepo, 'tests', 'templates')), 'tests/templates/ missing').toBe(true);
     expect(existsSync(join(tmpRepo, 'ci')), 'ci/ missing').toBe(true);
+    expect(existsSync(join(tmpRepo, '.github', 'workflows', 'contract-driven-gates.yml')), '.github/workflows/contract-driven-gates.yml missing').toBe(true);
     expect(existsSync(join(tmpRepo, 'CLAUDE.md')), 'CLAUDE.md missing').toBe(true);
     expect(existsSync(join(tmpRepo, 'AGENTS.md')), 'AGENTS.md missing').toBe(true);
   });

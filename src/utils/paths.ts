@@ -20,6 +20,7 @@ export const ASSET = {
   specsTemplates: join(ASSETS_DIR, 'specs-templates'),
   testsTemplates: join(ASSETS_DIR, 'tests-templates'),
   ci:             join(ASSETS_DIR, 'ci'),
+  githubWorkflows: join(ASSETS_DIR, 'github-workflows'),
   hooks:          join(ASSETS_DIR, 'hooks'),
   claudeTemplate: join(ASSETS_DIR, 'CLAUDE.template.md'),
   agentsTemplate: join(ASSETS_DIR, 'AGENTS.template.md'),

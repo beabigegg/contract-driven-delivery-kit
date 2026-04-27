@@ -12,6 +12,22 @@ export interface InitOptions {
 }
 
 /**
+ * Read the conda environment name from environment.yml in the project root.
+ * Returns 'base' if the file is missing or the name field cannot be parsed.
+ */
+function readCondaEnvName(cwd: string): string {
+  const envYml = join(cwd, 'environment.yml');
+  if (!existsSync(envYml)) return 'base';
+  try {
+    const content = readFileSync(envYml, 'utf8');
+    const match = content.match(/^name:\s*(.+)$/m);
+    return match ? match[1].trim() : 'base';
+  } catch {
+    return 'base';
+  }
+}
+
+/**
  * Load a CI template fragment for the given stack.
  * Returns null if the template file doesn't exist.
  */
@@ -173,6 +189,14 @@ export async function init(opts: InitOptions): Promise<void> {
       track(ciCreated);
       log.ok(`ci/ — ${ciCount} file(s) written.`);
 
+      const { count: wfCount, created: wfCreated } = copyDirTracked(
+        ASSET.githubWorkflows,
+        join(cwd, '.github', 'workflows'),
+        { overwrite: opts.force, label: '.github/workflows' },
+      );
+      track(wfCreated);
+      log.ok(`.github/workflows/ — ${wfCount} file(s) written.`);
+
       // ── Stack detection + CI yml patching ──────────────────────────────
       const detection = detectStack(cwd);
 
@@ -196,12 +220,18 @@ export async function init(opts: InitOptions): Promise<void> {
       }
 
       // Patch the fast-gate step in the generated CI yml
-      const ciYmlDest = join(cwd, 'ci', 'github-actions', 'contract-driven-gates.yml');
+      const ciYmlDest = join(cwd, '.github', 'workflows', 'contract-driven-gates.yml');
       if (existsSync(ciYmlDest)) {
         const template = loadCiTemplate(detection.primary);
         if (template) {
           const original = readFileSync(ciYmlDest, 'utf8');
-          const patched  = patchFastGateYml(original, template, detection.primary);
+          let patched  = patchFastGateYml(original, template, detection.primary);
+          // Replace conda env name placeholder with the actual name from environment.yml
+          if (detection.primary === 'conda' && patched.includes('{{conda-env-name}}')) {
+            const envName = readCondaEnvName(cwd);
+            patched = patched.replace(/\{\{conda-env-name\}\}/g, envName);
+            log.ok(`Conda environment name set to: ${envName}`);
+          }
           if (patched !== original) {
             writeFileSync(ciYmlDest, patched, 'utf8');
             log.ok(`CI fast-gate patched for stack: ${detection.primary}`);

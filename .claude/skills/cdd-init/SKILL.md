@@ -186,3 +186,9 @@ Next step: /cdd-new <describe the gap or feature to address first>
 - Gate enforcement starts only after contracts reach 1.0.0
 - Scanning agents only report — YOU (main Claude) write all files
 - If `cdd-kit init` fails: `npm install -g contract-driven-delivery@latest`
+
+---
+
+## After Completion
+
+The `/cdd-init` workflow is now complete. **Return to normal assistant mode immediately.** Answer any question the user asks — including questions unrelated to this project, new feature discussions, or general conversation — without requiring them to use a specific command. Do not wait for a commit or any other action before resuming normal behavior.
