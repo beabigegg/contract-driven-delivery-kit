@@ -30,8 +30,8 @@ def main():
         if len(meaningful_chars(text))<PLACEHOLDER_THRESHOLD:
             placeholders.append(p)
     if placeholders:
-        print('Warning: contracts present but appear empty: '+', '.join(placeholders))
+        print('Error: contracts present but appear empty: '+', '.join(placeholders))
         print('Fill them in before relying on the gate.')
-    else:
-        print('All required contract files are present.')
+        sys.exit(1)
+    print('All required contract files are present.')
 if __name__=='__main__': main()

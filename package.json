@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Contract-driven delivery kit CLI — spec-first, test-first AI-assisted delivery for brownfield systems",
   "keywords": [
     "contract-driven",
@@ -32,7 +32,9 @@
   ],
   "scripts": {
     "build": "node build.js",
-    "prepublishOnly": "node build.js"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "node build.js && vitest run"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -43,6 +45,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "esbuild": "^0.20.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
   }
 }
