@@ -1,31 +1,25 @@
-# Test Plan
+---
+change-id: <id>
+schema-version: 0.1.0
+last-changed: <date>
+risk: low | medium | high
+tier: 0 | 1 | 2 | 3 | 4 | 5
+---
 
-## Acceptance Criteria Mapping
-| requirement | test family | planned file/spec | expected evidence |
+# Test Plan: <change-id>
+
+## Acceptance Criteria → Test Mapping
+
+| criterion id | test family | test file path | tier |
 |---|---|---|---|
+| AC-1 | unit | tests/unit/test_xxx.py | 0 |
 
-## Unit Tests
+## Test Families Required
 
-## Contract Tests
+Mark all that apply: unit / contract / integration / e2e / data-boundary / resilience / monkey / stress / soak
 
-## Integration Tests
+## Out of Scope
 
-## E2E Tests
+## Notes
 
-## Visual Tests / Review
-
-## Data Boundary Tests
-
-## Resilience Tests
-
-## Fuzz / Monkey Operation Tests
-
-## Stress Tests
-
-## Soak Tests
-
-## Mutation Checks
-
-## Commands
-
-## CI/CD Gate Mapping
+(Keep this section under 10 lines. Implementation detail belongs in the test files themselves.)

@@ -5,6 +5,42 @@ description: Start a new tracked change. Scaffolds all required artifacts, class
 
 # cdd-new — New Change Request
 
+## Mental model
+
+- `contracts/` = the single source of truth (live — always reflects current system behaviour)
+- `tests/` = proof the contracts hold (live)
+- `specs/changes/<id>/` = why we decided this back then (passive archive — read only when investigating history, never as input to planning)
+- `CLAUDE.md` = what this project is and how to start work
+
+## Spec depth rules
+
+Every artifact under `specs/changes/<id>/` answers **WHAT** and **WHY**, not HOW.
+
+Soft caps (guidance, not gate-enforced):
+- `spec.md` ≤ 200 lines
+- `design.md` ≤ 150 lines
+- `test-plan.md` ≤ 100 lines
+- `ci-gates.md` ≤ 80 lines
+
+**Forbidden in spec artifacts** (these belong in code/tests, not specs):
+- SQL DDL or migration code → put in migrations/, reference the path
+- ORM model code (SQLAlchemy, Prisma, etc.) → put in source, reference the module
+- Full test function bodies, mock setup, fixture data, expected JSON payloads → put in tests/
+- Runnable code blocks > 10 lines belong in source files, not specs. Pseudocode and mapping tables are fine at any length.
+- Per-test input/output tables with more than 15 rows (data-boundary tests with up to 15 boundary cases are acceptable)
+
+**test-plan.md should contain:**
+- Acceptance criteria → test family mapping (table)
+- Test file paths and test names (one line per test, no implementation detail)
+- Tier assignment per family
+- Out-of-scope list
+
+**design.md should contain:**
+- Architecture summary (1 paragraph)
+- Affected components (table: component | file path | nature of change)
+- Key decisions and rejected alternatives (prose)
+- Migration/rollback strategy (prose, not SQL)
+
 ## Input
 
 The skill argument is the user's change description in natural language (e.g., "add JWT authentication to the API" or "redesign the dashboard homepage").
@@ -25,6 +61,14 @@ If no description is provided, ask the user: "Please describe the change you wan
 **Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.md` checkbox(es) from `[ ]` to `[x]`.
 
 ---
+
+## Artifact opt-in policy
+
+Only create optional artifacts (`current-behavior.md`, `proposal.md`, `spec.md`, `design.md`, `qa-report.md`, `regression-report.md`, `archive.md`) when the classifier's `change-classification.md` explicitly marks them as `yes`.
+
+If the classifier marks an artifact as `no` or leaves it blank, **do not create the file** — even if a review agent could contribute to it.
+
+The 5 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`.
 
 ## Step 1: Generate change-id and scaffold
 
