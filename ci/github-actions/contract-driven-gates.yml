@@ -36,6 +36,9 @@ jobs:
       - name: Validate spec traceability
         run: python .claude/skills/contract-driven-delivery/scripts/validate_spec_traceability.py
 
+      - name: Validate contract versions
+        run: python .claude/skills/contract-driven-delivery/scripts/validate_contract_versions.py .
+
       - name: Repository-specific fast gate
         run: |
           # TODO: add your stack-specific commands here.

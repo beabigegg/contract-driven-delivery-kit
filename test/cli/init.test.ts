@@ -1,7 +1,15 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, readdirSync, writeFileSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
+
+const PKG_VERSION = JSON.parse(
+  readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'),
+    'utf8',
+  ),
+).version as string;
 
 describe('cdd-kit init', () => {
   let tmpRepo: string;
@@ -98,8 +106,8 @@ describe('cdd-kit init', () => {
     expect(existsSync(join(tmpRepo, 'contracts'))).toBe(true);
   });
 
-  it('--version prints 1.0.3', () => {
+  it('--version prints the package.json version', () => {
     const r = runCli(['--version'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout.trim()).toContain('1.0.3');
+    expect(r.stdout.trim()).toContain(PKG_VERSION);
   });
 });

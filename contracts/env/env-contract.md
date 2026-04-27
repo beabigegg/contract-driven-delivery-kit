@@ -1,3 +1,10 @@
+---
+contract: env
+schema-version: 0.1.0
+last-changed: 2026-04-27
+breaking-change-policy: deprecate-2-minors
+---
+
 # Env Contract
 
 | name | scope | environments | required | secret | default | example | owner | validation | restart required | failure behavior |

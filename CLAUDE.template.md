@@ -65,6 +65,10 @@ specs/changes/<change-id>/
 └── archive.md
 ```
 
+## Contract versioning
+
+Contracts use semver via frontmatter; bump schema-version + add CHANGELOG entry on every contract change. Each contract file contains a YAML frontmatter block with `contract`, `schema-version`, `last-changed`, and `breaking-change-policy`. All changes at 1.0+ must be recorded in `contracts/CHANGELOG.md` using the format `## [<type> <version>] — <date>`. Major version bumps additionally require a `### Removed` or `### Changed (breaking)` section. The `validate_contract_versions.py` script enforces these rules automatically in CI and via `cdd-kit validate --versions`.
+
 ## Contract rules
 
 ### API

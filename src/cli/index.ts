@@ -59,12 +59,14 @@ program
   .option('--env',       'Validate env contract',               false)
   .option('--ci',        'Validate CI gate policy',             false)
   .option('--spec',      'Validate spec traceability',          false)
+  .option('--versions',  'Validate contract frontmatter and version bumps', false)
   .action((opts) =>
     validate({
       contracts: opts.contracts,
       env:       opts.env,
       ci:        opts.ci,
       spec:      opts.spec,
+      versions:  opts.versions,
     }),
   );
 

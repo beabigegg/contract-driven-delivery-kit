@@ -29,6 +29,7 @@ Record dependency or migration impacts in `contracts.md` only as contract-level 
 - Non-breaking — adding optional fields, adding new endpoints, widening a type, adding new enum values consumers ignore.
 - Deprecation policy — mark deprecated, keep working ≥ 2 minor versions or 90 days, log usage, then remove.
 - Consumer impact — list every known consumer (frontend, mobile, partners, internal jobs) before approving a contract change.
+- Versioning is now machine-enforced via `validate_contract_versions.py` — every contract has frontmatter with `schema-version`, and `contracts/CHANGELOG.md` tracks all changes.
 
 ## Output
 

@@ -9,6 +9,7 @@ export interface ValidateOptions {
   env: boolean;
   ci: boolean;
   spec: boolean;
+  versions: boolean;
 }
 
 interface ValidatorEntry {
@@ -23,6 +24,7 @@ const VALIDATORS: ValidatorEntry[] = [
   { flag: 'env',       script: 'validate_env_contract.py',      label: 'env contract'      },
   { flag: 'ci',        script: 'validate_ci_gates.py',          label: 'CI gates'          },
   { flag: 'spec',      script: 'validate_spec_traceability.py', label: 'spec traceability' },
+  { flag: 'versions',  script: 'validate_contract_versions.py', label: 'contract versions' },
 ];
 
 function resolvePython(): string {
@@ -43,7 +45,7 @@ export async function validate(opts: ValidateOptions): Promise<void> {
   }
 
   const scriptsDir = join(ASSET.skill, 'scripts');
-  const runAll = !opts.contracts && !opts.env && !opts.ci && !opts.spec;
+  const runAll = !opts.contracts && !opts.env && !opts.ci && !opts.spec && !opts.versions;
 
   log.blank();
   let failed = false;
