@@ -49,44 +49,41 @@ proposed / accepted / superseded
 
 ## Output
 
-```md
-# Architecture Impact Report
+Write to `specs/changes/<change-id>/design.md` using this structure:
+
+```markdown
+# Design: <change-id>
 
 ## Summary
-...
+(1 paragraph: what changes architecturally and why)
 
-## Architecture Impact
-- yes / no / uncertain
+## Affected Components
+| component | file path(s) | nature of change |
+|---|---|---|
 
-## Affected Areas
-- frontend:
-- backend:
-- database:
-- cache/queue:
-- auth/permission:
-- API contract:
-- CSS/UI system:
-- env/deploy:
-- CI/CD:
+## Key Decisions
+- **Decision**: rationale — rejected alternative: reason rejected
 
-## Options
-### Option A
-...
-### Option B
-...
+## Migration / Rollback
+(Prose description. SQL and code go in migration files, not here.)
 
-## Recommendation
-...
-
-## ADR Required
-yes (written to docs/adr/...) / no
-
-## Required Follow-up Artifacts
-...
-
-## Risks and Mitigations
-...
+## Open Risks
 ```
+
+## Output discipline
+
+Your output goes into `specs/changes/<id>/design.md`. It must capture architectural decisions — not implement them.
+
+- **DO** write: 1-paragraph architecture summary
+- **DO** write: affected components table (component | file path | nature of change)
+- **DO** write: key decisions and rejected alternatives in prose
+- **DO** write: migration/rollback strategy in prose
+- **DO NOT** write: SQL DDL or migration scripts (those go in migrations/)
+- **DO NOT** write: ORM model code, API handler code, or any runnable code block > 10 lines
+- **DO NOT** write: storage estimates, benchmark numbers, or detailed implementation steps
+
+Reference file paths instead of duplicating implementation content.
+Target: `design.md` ≤ 150 lines.
 
 ## Machine-Verifiable Evidence
 

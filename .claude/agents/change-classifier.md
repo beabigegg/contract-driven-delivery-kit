@@ -27,14 +27,22 @@ Use this structure:
 - isolated / module-level / cross-module / system-wide
 
 ## Required Artifacts
-- request.md:
-- current-behavior.md:
-- proposal.md:
-- spec.md:
-- design.md:
-- contracts.md:
-- test-plan.md:
-- ci-gates.md:
+
+The following 5 artifacts are always required for implementation changes:
+`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
+
+## Optional Artifacts (default: no — set yes only with explicit reason)
+
+| artifact | create? | reason |
+|---|---|---|
+| current-behavior.md | no | |
+| proposal.md | no | |
+| spec.md | no | |
+| design.md | no | |
+| qa-report.md | no | |
+| regression-report.md | no | |
+
+Note: `archive.md` is created during change close-out, not at classification time.
 
 ## Required Contracts
 - API:

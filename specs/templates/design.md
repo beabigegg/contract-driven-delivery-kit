@@ -1,23 +1,26 @@
-# Technical Design
+---
+change-id: <id>
+schema-version: 0.1.0
+last-changed: <date>
+---
 
-## Architecture Summary
+# Design: <change-id>
+
+## Summary
+
+(1 paragraph: what changes architecturally and why)
 
 ## Affected Components
 
-## API Design
+| component | file path(s) | nature of change |
+|---|---|---|
 
-## Data / Schema Design
+## Key Decisions
 
-## UI / UX Design
+- **Decision**: rationale — rejected alternative: reason rejected
 
-## Env / Config Design
+## Migration / Rollback
 
-## Error Handling
+(Prose description. SQL and code go in migration files, not here.)
 
-## Performance Considerations
-
-## Security Considerations
-
-## Deployment / Rollback
-
-## Architecture Decision Notes
+## Open Risks

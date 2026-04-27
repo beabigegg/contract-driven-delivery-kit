@@ -34,6 +34,11 @@ Before editing production code, read the change artifacts, API/env/data/business
 
 Report changed files, contract updates, tests added, commands run, known risks, and next reviewer.
 
+## Artifact discipline
+
+Implementation code goes into source files. Do NOT write runnable code into any `specs/changes/<id>/` artifact.
+In your agent log, reference file paths and function names — do not paste code blocks.
+
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`

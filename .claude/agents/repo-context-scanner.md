@@ -22,6 +22,9 @@ Inspect the repository and produce a project profile before implementation or st
 - CI/CD workflows
 - worker/cache/database/storage configuration
 
+**Do NOT read `specs/changes/` or `specs/archive/`.** Those are passive history records. Inspect only live sources: source code, package files, contracts/, tests/, CI workflows, and CLAUDE.md.
+Also do not read specs/templates/ — those are scaffolding stubs, not live project state.
+
 ## Detection extras
 
 - Monorepo / workspace — check `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `go.work`, `pyproject.toml [tool.uv]` workspaces.

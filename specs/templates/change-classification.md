@@ -11,17 +11,23 @@
 - isolated / module-level / cross-module / system-wide
 
 ## Required Artifacts
-| artifact | required | reason |
-|---|---:|---|
-| current-behavior.md |  |  |
-| proposal.md |  |  |
-| spec.md |  |  |
-| design.md |  |  |
-| contracts.md |  |  |
-| test-plan.md | yes | every implementation change requires test planning |
-| ci-gates.md | yes | every implementation change requires CI/CD gate planning |
-| qa-report.md |  |  |
-| regression-report.md |  |  |
+
+The following 5 artifacts are always required for implementation changes:
+`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
+
+Optional artifacts — only create when explicitly needed:
+
+| artifact | create? (yes / no) | reason |
+|---|---|---|
+| current-behavior.md | no | |
+| proposal.md | no | |
+| spec.md | no | |
+| design.md | no | |
+| qa-report.md | no | |
+| regression-report.md | no | |
+| archive.md | no | |
+
+Default is **no**. Change classifier must explicitly set `yes` with a reason.
 
 ## Required Contracts
 - API:
