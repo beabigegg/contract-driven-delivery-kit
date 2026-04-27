@@ -183,6 +183,19 @@ A change is not done until:
 - High-load or long-running features have stress or soak evidence.
 - The archive captures what should become durable project knowledge.
 
+## Stress / Soak runner support
+
+cdd-kit ships starter configs for three load runners. Pick one
+when filling out `tests/<change-id>/stress-test-plan.md`:
+
+| runner | best for | example |
+|--------|----------|---------|
+| k6 | JS-friendly, scriptable scenarios, native thresholds | tests/templates/stress/k6-example.js |
+| locust | Python teams, complex stateful scenarios | tests/templates/stress/locust-example.py |
+| artillery | declarative YAML, quick http flows | tests/templates/stress/artillery-example.yml |
+
+Soak templates live under `tests/templates/soak/`.
+
 ## Updating the kit
 
 ```bash
