@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { spawnSync } from 'child_process';
 import { log } from '../utils/logger.js';
@@ -60,6 +60,33 @@ export async function gate(changeId: string): Promise<void> {
     }
   }
 
+  // Step 5: agent-log validation
+  const agentLogDir = join(changeDir, 'agent-log');
+  if (existsSync(agentLogDir)) {
+    const logFiles = readdirSync(agentLogDir).filter(f => f.endsWith('.md'));
+    for (const f of logFiles) {
+      const content = readFileSync(join(agentLogDir, f), 'utf8');
+
+      // Extract status line
+      const statusMatch = content.match(/^\s*-\s*status:\s*(complete|needs-review|blocked)\s*$/m);
+      if (!statusMatch) {
+        errors.push(`agent-log/${f}: missing or invalid "status:" line (must be complete | needs-review | blocked)`);
+        continue;
+      }
+
+      const status = statusMatch[1];
+
+      // For blocked status, require next-action
+      if (status === 'blocked') {
+        const nextActionMatch = content.match(/^\s*-\s*next-action:\s*(.+)$/m);
+        if (!nextActionMatch || nextActionMatch[1].trim().toLowerCase() === 'none' || nextActionMatch[1].trim().length < 10) {
+          errors.push(`agent-log/${f}: status=blocked requires concrete "next-action:" line (>= 10 chars, not "none")`);
+        }
+      }
+    }
+  }
+  // agent-log dir not existing is OK (no agents have logged yet)
+
   if (errors.length > 0) {
     log.error(`gate failed for change: ${changeId}`);
     for (const e of errors) {
@@ -68,7 +95,7 @@ export async function gate(changeId: string): Promise<void> {
     process.exit(1);
   }
 
-  // Step 5: contract validators (delegate to cdd-kit validate)
+  // Step 6: contract validators (delegate to cdd-kit validate)
   log.info(`gate: running contract validators for ${changeId}…`);
   const r = spawnSync(process.execPath, [process.argv[1], 'validate'], {
     cwd,

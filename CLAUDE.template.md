@@ -160,7 +160,30 @@ Every change in `specs/changes/<change-id>/` must pass `cdd-kit gate <change-id>
 1. All 5 required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`)
 2. Each artifact has more than 100 meaningful characters (not a stub template)
 3. `change-classification.md` contains a tier marker (`Tier 0`–`Tier 5`) or a risk label (`low`, `medium`, `high`, `critical`)
-4. All contract validators pass (`cdd-kit validate`)
+4. Agent-log files in `specs/changes/<change-id>/agent-log/` are valid (if present)
+5. All contract validators pass (`cdd-kit validate`)
+
+## Agent-log rules
+
+Each agent writes a machine-verifiable log to `specs/changes/<change-id>/agent-log/<agent-name>.md` after completing its task. The gate validates these logs automatically.
+
+Required log structure:
+
+```
+# <Agent Display Name> Log
+- change-id: <id>
+- timestamp: <ISO 8601>
+- status: complete | needs-review | blocked
+- artifacts:
+  - <evidence-type>: <concrete pointer>
+- next-action: <one line, or "none">
+```
+
+Rules enforced by `cdd-kit gate`:
+- The `status:` line must be present and set to `complete`, `needs-review`, or `blocked`.
+- When `status: blocked`, the `next-action:` line must be a concrete action of at least 10 characters (not "none").
+- Missing or invalid logs cause the gate to fail with a descriptive error.
+- A missing `agent-log/` directory is acceptable (gate passes when no agents have logged yet).
 
 Run `cdd-kit install-hooks` once in each repository to install a pre-commit hook that enforces the gate automatically on every commit touching `specs/changes/`. This prevents the workflow from being silently skipped.
 

@@ -278,4 +278,91 @@ describe('cdd-kit gate', () => {
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/gate passed for change: feat-004/i);
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // agent-log validation tests (v1.6.0)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('6: gate passes with no agent-log/ dir (acceptable — no agents logged yet)', () => {
+    runCli(['new', 'feat-005'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-005');
+    writeValidChangeArtifacts(changeDir);
+    // No agent-log dir created — should not block the gate (step 5 only validates when dir exists)
+    // Gate will still fail at step 6 (contract validators) when contracts are absent,
+    // so we only assert the agent-log error does NOT appear.
+    const r = runCli(['gate', 'feat-005'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/agent-log/i);
+  });
+
+  it('7: gate passes with valid agent log (status: complete)', () => {
+    runCli(['new', 'feat-006'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006');
+    writeValidChangeArtifacts(changeDir);
+
+    // Write a valid agent log
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-006',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: complete',
+      '- artifacts:',
+      '  - files-changed: src/api/users.ts:10-45',
+      '  - tests-added: test/users.test.ts::should create user',
+      '  - test-output: 5 passed',
+      '  - contracts-touched: contracts/api/api-contract.md',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    // Gate will fail at contract-validator step (no contracts) but NOT at agent-log step
+    const r = runCli(['gate', 'feat-006'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/missing or invalid.*status/i);
+    expect(r.stdout + r.stderr).not.toMatch(/status=blocked/i);
+  });
+
+  it('8: gate fails on agent log missing status line', () => {
+    runCli(['new', 'feat-007'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-007');
+    writeValidChangeArtifacts(changeDir);
+
+    // Write agent log WITHOUT a status line
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-007',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- artifacts:',
+      '  - files-changed: src/api/users.ts:10-45',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-007'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing or invalid.*status/i);
+  });
+
+  it('9: gate fails on status=blocked with empty next-action', () => {
+    runCli(['new', 'feat-008'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-008');
+    writeValidChangeArtifacts(changeDir);
+
+    // Write agent log with status: blocked but next-action: none
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-008',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: blocked',
+      '- artifacts:',
+      '  - files-changed: none',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-008'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/status=blocked.*next-action/i);
+  });
 });

@@ -55,3 +55,35 @@ CI/CD is mandatory. Every change must have a `ci-gates.md` plan, even if the pla
 ## Merge Eligibility
 mergeable / blocked / informational-risk
 ```
+
+## Machine-Verifiable Evidence
+
+After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`
+with this exact structure (lines starting with `- ` are required):
+
+```
+# CI/CD Gatekeeper Log
+- change-id: <id>
+- timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
+- status: complete | needs-review | blocked
+- artifacts:
+  - <evidence-type>: <concrete pointer>
+  - <evidence-type>: <concrete pointer>
+- next-action: <one line, or "none">
+```
+
+### Required artifacts for this agent
+- `tiers-modified`: list of tier numbers
+- `gate-promotions`: list of `<gate>: <from-tier> → <to-tier>` or "none"
+- `workflow-files-changed`: list of paths
+- `required-status-checks`: list of check names
+
+### Rules
+- NEVER omit this log file. `cdd-kit gate` rejects changes whose agent-log
+  is missing the `status:` line or has an invalid status.
+- If you cannot complete the task, set `status: blocked` and write a
+  concrete `next-action` (NOT "investigate further" — write the actual
+  next step a human can act on).
+- Evidence must be concrete: file:line, command name + last-10-line stdout,
+  contract path + section, test name, etc. NEVER write "verified" or "OK"
+  without a pointer.

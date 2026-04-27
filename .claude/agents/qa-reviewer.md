@@ -66,3 +66,36 @@ Invoke `spec-drift-auditor` at the following points (do not wait for issues to s
 ## Decision
 approved / blocked / approved-with-risk
 ```
+
+## Machine-Verifiable Evidence
+
+After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`
+with this exact structure (lines starting with `- ` are required):
+
+```
+# QA Reviewer Log
+- change-id: <id>
+- timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
+- status: complete | needs-review | blocked
+- artifacts:
+  - <evidence-type>: <concrete pointer>
+  - <evidence-type>: <concrete pointer>
+- next-action: <one line, or "none">
+```
+
+### Required artifacts for this agent
+- `gate-results`: list of `<gate-name>: pass|fail`
+- `ci-run-url`: URL or "n/a (local-only)"
+- `evidence-quality`: lowest-evidence level seen (claim|screenshot|log|ci|repro)
+- `decision`: approved | blocked | approved-with-risk
+- `failure-routing`: list of `<failure-type> → <agent>` or "none"
+
+### Rules
+- NEVER omit this log file. `cdd-kit gate` rejects changes whose agent-log
+  is missing the `status:` line or has an invalid status.
+- If you cannot complete the task, set `status: blocked` and write a
+  concrete `next-action` (NOT "investigate further" — write the actual
+  next step a human can act on).
+- Evidence must be concrete: file:line, command name + last-10-line stdout,
+  contract path + section, test name, etc. NEVER write "verified" or "OK"
+  without a pointer.
