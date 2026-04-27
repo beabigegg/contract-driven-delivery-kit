@@ -29,43 +29,40 @@ Design tests before implementation. Prefer concrete test cases, inputs, expected
 
 ## Output
 
-```md
-# Test Plan
+Write to `specs/changes/<change-id>/test-plan.md` using this structure:
 
-## Acceptance Criteria Mapping
-| requirement | test family | test file/spec | expected evidence |
+```markdown
+# Test Plan: <change-id>
+
+## Acceptance Criteria → Test Mapping
+| criterion id | test family | test file path | tier |
 |---|---|---|---|
 
-## Unit Tests
-...
+## Test Families Required
+| family | tier | notes |
+|---|---|---|
+| (unit / contract / integration / e2e / data-boundary / resilience / monkey / stress / soak) | | |
 
-## Contract Tests
-...
+## Out of Scope
 
-## Integration Tests
-...
-
-## E2E Tests
-...
-
-## Data Boundary Tests
-...
-
-## Resilience Tests
-...
-
-## Monkey Operation Tests
-...
-
-## Stress / Soak Tests
-...
-
-## Mutation Checks
-...
-
-## Commands
-...
+## Notes
+(Keep under 10 lines. Implementation detail belongs in the test files themselves.)
 ```
+
+## Output discipline
+
+Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to test and WHY — not HOW to implement the tests.
+
+- **DO** write: acceptance criteria → test family mapping (table)
+- **DO** write: test file paths and test function names (one line each, no body)
+- **DO** write: tier assignment per test family
+- **DO NOT** write: full test function bodies
+- **DO NOT** write: mock setup details, fixture data, or expected JSON payloads
+- **DO NOT** write: per-test input/output tables with more than 15 rows
+- **DO NOT** write: example assertions or test helper code
+
+Implementation detail belongs in the test files, not in test-plan.md.
+Target: `test-plan.md` ≤ 100 lines.
 
 ## Machine-Verifiable Evidence
 

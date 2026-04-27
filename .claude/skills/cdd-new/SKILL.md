@@ -73,12 +73,16 @@ Read `change-classification.md` to determine the tier. Then invoke agents **in t
 
 1. `contract-reviewer` — update or create contracts in `contracts/` before any implementation starts
 2. `test-strategist` — author `specs/changes/<change-id>/test-plan.md`
-3. `spec-architect` — only if the classifier flagged an architectural boundary or cross-module impact
+3. `spec-architect` — only if `change-classification.md` contains `Architecture Review Required: yes`
 4. `backend-engineer` — if the change touches server, API, data, or business logic
+   > Note: `tasks.md` items 3.1–3.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion — failing tests first, implementation second. Items 3.3–3.5 are written by dedicated test engineers (Tier 0–1 only or when classifier explicitly requires them).
 5. `frontend-engineer` — if the change touches UI, components, or client-side behavior
 6. `ui-ux-reviewer` — if any UI change (run alongside or after frontend-engineer)
+   - **Only invoke if** classifier marks UI/CSS as affected.
 7. `visual-reviewer` — if any UI change (run after ui-ux-reviewer)
+   - **Only invoke if** classifier marks UI/CSS as affected.
 8. `dependency-security-reviewer` — if the change touches lockfiles, package manifests, or DB migrations
+   - **Only invoke if** `change-classification.md` lists lockfiles, package manifests, or DB migrations as affected.
 9. `ci-cd-gatekeeper` — update `specs/changes/<change-id>/ci-gates.md`
 10. `qa-reviewer` — release readiness decision
 
@@ -94,6 +98,8 @@ All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backe
 - Skip an agent only if the classifier explicitly marks its surface as "not affected"
 - If any agent sets `status: blocked` in its log, halt immediately and report the agent's `next-action` to the user — do not proceed to subsequent agents
 - If the change is UI-only with no backend, skip `backend-engineer`; if backend-only with no UI, skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
+
+**Resuming from blocked**: After the user resolves the blocking issue, re-invoke the blocked agent (do not restart from Step 1). Continue with the remaining agents in their original order.
 
 ---
 
@@ -113,6 +119,8 @@ cdd-kit gate <change-id>
 3. Re-invoke the specific agent responsible for that artifact with the exact fix required
 4. Re-run `cdd-kit gate <change-id>`
 5. Repeat until gate passes (max 3 iterations; if still failing after 3, report to user)
+
+**Terminal state after 3 failures**: Add a line at the top of `tasks.md` reading `status: gate-blocked` and report all blocking items to the user. The change is paused — do not proceed to Step 5.
 
 ---
 

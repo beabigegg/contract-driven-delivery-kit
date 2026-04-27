@@ -16,7 +16,7 @@ Before editing, read the change artifacts, API contract, CSS/UI contract, compon
 - Do not bypass shared component rules.
 - Handle loading, empty, error, disabled, long text, no permission, and slow network states when applicable.
 - Be aware of monkey-class bugs (double submit, rapid actions, navigation state, hidden tab); the actual preventive specs and tests are owned by monkey-test-engineer.
-- Add or update E2E/visual/data-boundary/resilience tests when UI behavior changes.
+- **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit and component tests BEFORE writing feature code. E2E, visual, and data-boundary tests are also your responsibility when UI behavior changes. Tasks.md items 3.1–3.2 include frontend test scope.
 
 ## Common pitfalls
 
