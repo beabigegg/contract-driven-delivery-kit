@@ -53,11 +53,43 @@ Runs contract validation scripts against the current repository.
 
 ```bash
 cdd-kit validate                # run all validators
-cdd-kit validate --contracts    # validate API/data/CSS contracts
+cdd-kit validate --contracts    # validate API/data/CSS contracts + semantic validators
 cdd-kit validate --env          # validate env contract
 cdd-kit validate --ci           # validate CI gate policy
 cdd-kit validate --spec         # validate spec traceability
 ```
+
+`--contracts` also chains two semantic validators:
+- **API semantic**: checks endpoint table for valid HTTP methods, paths starting with `/`, and valid auth values.
+- **Env semantic**: checks variable table for secrets with default values (forbidden), and warns on required non-secret vars with no default.
+
+### `cdd-kit detect-stack`
+
+Detects the project tech stack from lockfiles and config files.
+
+```bash
+cdd-kit detect-stack
+# Detected stack: conda
+# Candidates (in order): conda, pnpm
+# Polyglot: yes (config will be generated for conda)
+```
+
+## Supported stacks (stack detection)
+
+| Language   | Tool    | Detection signal                             |
+|------------|---------|----------------------------------------------|
+| Python     | conda   | `environment.yml`, `conda-lock.yml`, `meta.yaml` |
+| Python     | poetry  | `pyproject.toml` with `[tool.poetry]`        |
+| Python     | uv      | `pyproject.toml` (no poetry section)         |
+| Python     | pip     | `requirements.txt`                           |
+| JavaScript | pnpm    | `package.json` + `pnpm-lock.yaml`            |
+| JavaScript | bun     | `package.json` + `bun.lockb`                 |
+| JavaScript | yarn    | `package.json` + `yarn.lock`                 |
+| JavaScript | npm     | `package.json` (no lockfile match)           |
+| Go         | go      | `go.mod`                                     |
+| Rust       | rust    | `Cargo.toml`                                 |
+
+When multiple language families are detected (polyglot project), `cdd-kit init` generates CI config for the first detected stack and prints a warning.
 
 ## First-time setup in a repository
 

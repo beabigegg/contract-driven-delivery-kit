@@ -17,14 +17,24 @@ interface ValidatorEntry {
   script: string;
   label: string;
   args?: string[];
+  /** extra scripts to run in sequence after this entry's main script */
+  chain?: Array<{ script: string; label: string }>;
 }
 
 const VALIDATORS: ValidatorEntry[] = [
-  { flag: 'contracts', script: 'validate_contracts.py',         label: 'contracts'         },
-  { flag: 'env',       script: 'validate_env_contract.py',      label: 'env contract'      },
-  { flag: 'ci',        script: 'validate_ci_gates.py',          label: 'CI gates'          },
-  { flag: 'spec',      script: 'validate_spec_traceability.py', label: 'spec traceability' },
-  { flag: 'versions',  script: 'validate_contract_versions.py', label: 'contract versions' },
+  {
+    flag: 'contracts',
+    script: 'validate_contracts.py',
+    label: 'contracts',
+    chain: [
+      { script: 'validate_api_semantic.py',  label: 'API semantic'  },
+      { script: 'validate_env_semantic.py',  label: 'Env semantic'  },
+    ],
+  },
+  { flag: 'env',      script: 'validate_env_contract.py',      label: 'env contract'      },
+  { flag: 'ci',       script: 'validate_ci_gates.py',          label: 'CI gates'          },
+  { flag: 'spec',     script: 'validate_spec_traceability.py', label: 'spec traceability' },
+  { flag: 'versions', script: 'validate_contract_versions.py', label: 'contract versions' },
 ];
 
 function resolvePython(): string {
@@ -69,6 +79,27 @@ export async function validate(opts: ValidateOptions): Promise<void> {
       log.ok(`${v.label} passed.`);
     }
     log.blank();
+
+    // Run chained semantic scripts (only if flag is explicitly set or runAll)
+    if (v.chain) {
+      for (const chained of v.chain) {
+        const chainedPath = join(scriptsDir, chained.script);
+        if (!existsSync(chainedPath)) {
+          log.warn(`${chained.label}: script not found, skipping (${chained.script})`);
+          log.blank();
+          continue;
+        }
+        log.info(`Validating ${chained.label}…`);
+        const cr = spawnSync(py, [chainedPath], { stdio: 'inherit', cwd: process.cwd() });
+        if (cr.status !== 0) {
+          log.error(`${chained.label} validation failed.`);
+          failed = true;
+        } else {
+          log.ok(`${chained.label} passed.`);
+        }
+        log.blank();
+      }
+    }
   }
 
   if (failed) {

@@ -6,6 +6,7 @@ import { init }      from '../commands/init.js';
 import { update }    from '../commands/update.js';
 import { newChange } from '../commands/new-change.js';
 import { validate }  from '../commands/validate.js';
+import { detectStack } from '../utils/stack-detect.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string };
@@ -69,5 +70,26 @@ program
       versions:  opts.versions,
     }),
   );
+
+// ── cdd detect-stack ──────────────────────────────────────────────────────────
+program
+  .command('detect-stack')
+  .description('Detect the project tech stack and print the result')
+  .action(() => {
+    const cwd    = process.cwd();
+    const result = detectStack(cwd);
+
+    console.log(`Detected stack: ${result.primary}`);
+
+    if (result.candidates.length > 1) {
+      console.log(`Candidates (in order): ${result.candidates.join(', ')}`);
+    }
+
+    if (result.polyglot) {
+      console.log(
+        `Polyglot: yes (config will be generated for ${result.primary})`,
+      );
+    }
+  });
 
 program.parse();

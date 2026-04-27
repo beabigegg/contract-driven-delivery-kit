@@ -1,0 +1,11 @@
+- uses: conda-incubator/setup-miniconda@v3
+  with:
+    environment-file: environment.yml
+    activate-environment: ""  # 空字串讓 conda 從 environment.yml 讀 name
+    auto-activate-base: false
+- name: Lint + Type + Test
+  shell: bash -el {0}
+  run: |
+    ruff check . || true
+    mypy src/ || true
+    pytest

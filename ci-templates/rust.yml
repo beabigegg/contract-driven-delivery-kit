@@ -1,0 +1,12 @@
+- uses: dtolnay/rust-toolchain@stable
+  with:
+    components: clippy, rustfmt
+- uses: Swatinem/rust-cache@v2
+- name: Lint
+  run: |
+    cargo fmt --check || true
+    cargo clippy -- -D warnings || true
+- name: Build + Test
+  run: |
+    cargo build
+    cargo test

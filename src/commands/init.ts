@@ -1,13 +1,86 @@
 import { join } from 'path';
-import { rmSync } from 'fs';
-import { ASSET, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
+import { rmSync, readFileSync, writeFileSync, existsSync } from 'fs';
+import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
+import { detectStack, type StackKind } from '../utils/stack-detect.js';
 
 export interface InitOptions {
   globalOnly: boolean;
   localOnly: boolean;
   force: boolean;
+}
+
+/**
+ * Load a CI template fragment for the given stack.
+ * Returns null if the template file doesn't exist.
+ */
+function loadCiTemplate(stack: StackKind): string | null {
+  // Templates live in assets/ci-templates/ at package root
+  const templatePath = join(ASSETS_DIR, 'ci-templates', `${stack}.yml`);
+  if (!existsSync(templatePath)) return null;
+  try {
+    return readFileSync(templatePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Replace the placeholder fast-gate step inside the contract-driven-gates.yml
+ * with the stack-specific fragment. The replacement is surgical — only the
+ * "Repository-specific fast gate" step is replaced; the rest of the yml is
+ * preserved verbatim.
+ *
+ * Strategy: find the `      - name: Repository-specific fast gate` step and
+ * replace everything up to the next top-level step marker (line starting with
+ * `  ` + `-` at job-level, i.e. `      - ` prefix) or next job key.
+ * We use a line-scan rather than a YAML parser to avoid pulling in a heavy
+ * dependency and to preserve all comments and formatting exactly.
+ */
+function patchFastGateYml(baseYml: string, fragment: string, stack: StackKind): string {
+  const lines = baseYml.split('\n');
+
+  // Find the line index of the placeholder step name
+  const PLACEHOLDER_NAME = '      - name: Repository-specific fast gate';
+  const startIdx = lines.findIndex(l => l.startsWith(PLACEHOLDER_NAME));
+
+  if (startIdx === -1) {
+    // Placeholder already replaced or yml structure changed — leave as-is
+    return baseYml;
+  }
+
+  // Walk forward to find the end of this step (next step at same indent, or
+  // next job-level key, or EOF)
+  // Steps are indented 6 spaces ("      - "); the next step starts with "      - "
+  // but NOT at a deeper indent. We stop at the first line starting with "      - "
+  // that is NOT part of the current step's run block.
+  let endIdx = startIdx + 1;
+  while (endIdx < lines.length) {
+    const line = lines[endIdx];
+    // A new step at the same level starts with "      - " (6 spaces + "- ")
+    // OR a job-level key (2 spaces + non-space, like "  e2e-critical:")
+    if (
+      (line.startsWith('      - ') && endIdx > startIdx) ||
+      (line.match(/^  \S/) && !line.startsWith('      '))
+    ) {
+      break;
+    }
+    endIdx++;
+  }
+
+  // Build the replacement lines from the fragment
+  // Each fragment line is indented with 6 spaces (step level) to align with
+  // the existing workflow structure
+  const fragmentLines = fragment
+    .trimEnd()
+    .split('\n')
+    .map(l => (l === '' ? '' : '      ' + l));
+
+  const before = lines.slice(0, startIdx);
+  const after  = lines.slice(endIdx);
+
+  return [...before, ...fragmentLines, ...after].join('\n');
 }
 
 export async function init(opts: InitOptions): Promise<void> {
@@ -92,6 +165,42 @@ export async function init(opts: InitOptions): Promise<void> {
       );
       track(ciCreated);
       log.ok(`ci/ — ${ciCount} file(s) written.`);
+
+      // ── Stack detection + CI yml patching ──────────────────────────────
+      const detection = detectStack(cwd);
+
+      if (detection.polyglot) {
+        // Find second language family for the warning message
+        const PYTHON_STACKS: StackKind[] = ['conda', 'poetry', 'uv', 'pip'];
+        const JS_STACKS:     StackKind[] = ['pnpm', 'bun', 'yarn', 'npm'];
+        const other = detection.candidates.find(c => {
+          if (PYTHON_STACKS.includes(detection.primary as StackKind)) return !PYTHON_STACKS.includes(c);
+          if (JS_STACKS.includes(detection.primary as StackKind))     return !JS_STACKS.includes(c);
+          return c !== detection.primary;
+        });
+        log.warn(
+          `Polyglot detected: ${detection.primary} and ${other ?? detection.candidates[1]}. ` +
+          `Generated config for ${detection.primary}.`,
+        );
+      } else if (detection.primary !== 'unknown') {
+        log.info(`Detected stack: ${detection.primary}`);
+      } else {
+        log.warn('Could not detect stack — CI placeholder left in place.');
+      }
+
+      // Patch the fast-gate step in the generated CI yml
+      const ciYmlDest = join(cwd, 'ci', 'github-actions', 'contract-driven-gates.yml');
+      if (existsSync(ciYmlDest)) {
+        const template = loadCiTemplate(detection.primary);
+        if (template) {
+          const original = readFileSync(ciYmlDest, 'utf8');
+          const patched  = patchFastGateYml(original, template, detection.primary);
+          if (patched !== original) {
+            writeFileSync(ciYmlDest, patched, 'utf8');
+            log.ok(`CI fast-gate patched for stack: ${detection.primary}`);
+          }
+        }
+      }
 
       // CLAUDE.md — never overwrite
       const { written: claudeWritten, created: claudeCreated } = copyFileTracked(

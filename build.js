@@ -66,6 +66,7 @@ copy('contracts',                               'assets/contracts');
 copy('specs/templates',                         'assets/specs-templates');
 copy('tests/templates',                         'assets/tests-templates');
 copy('ci',                                      'assets/ci');
+copy('ci-templates',                             'assets/ci-templates');
 copy('CLAUDE.template.md',                      'assets/CLAUDE.template.md');
 copy('AGENTS.template.md',                      'assets/AGENTS.template.md');
 

@@ -26,11 +26,24 @@ Classify every request as one or more of:
 - `ci-cd-change`
 - `test-hardening-change`
 
+## Stack-aware CI
+
+`cdd-kit init` auto-detects the project tech stack and patches the fast-gate step in `ci/github-actions/contract-driven-gates.yml` with stack-specific commands. Supported stacks:
+
+- **Python**: conda (default/preferred), poetry, uv, pip
+- **JavaScript**: pnpm, bun, yarn, npm
+- **Go**: go
+- **Rust**: rust
+
+For Conda projects, the generated CI uses `conda-incubator/setup-miniconda@v3` with `shell: bash -el {0}` (required for Conda env activation in GitHub Actions). If `cdd-kit init` could not detect a stack, fill in the placeholder step manually.
+
+Run `cdd-kit detect-stack` at any time to see what the detector found.
+
 ## Required context discovery
 
 Inspect the repository before planning:
 
-- package manager and lockfiles
+- package manager and lockfiles (environment.yml for Conda, pyproject.toml for poetry/uv, etc.)
 - frontend framework and build tool
 - backend framework and app entrypoints
 - routing/controllers/API layers

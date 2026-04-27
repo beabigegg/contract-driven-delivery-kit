@@ -33,9 +33,14 @@ describe.skipIf(!hasPython())('cdd-kit validate', () => {
     // Status is non-zero on placeholder contracts; this test verifies the
     // --contracts flag scopes execution to the contracts validator only,
     // independent of pass/fail outcome.
+    // v1.3.0: --contracts also chains semantic validators (API semantic, Env semantic)
+    // but must NOT trigger the standalone --env, --ci, or --spec validators.
     const r = runCli(['validate', '--contracts'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout).toMatch(/contract/i);
-    expect(r.stdout).not.toMatch(/env contract|CI gates|spec traceability/i);
+    // The standalone validator log labels from validate.ts must not appear
+    expect(r.stdout).not.toMatch(/Validating env contract\b/i);
+    expect(r.stdout).not.toMatch(/Validating CI gates\b/i);
+    expect(r.stdout).not.toMatch(/Validating spec traceability\b/i);
   });
 
   it('validate --ci --spec runs CI-gates and spec-traceability validators only', () => {

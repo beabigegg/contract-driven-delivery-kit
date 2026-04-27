@@ -1,0 +1,12 @@
+- uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+- name: Install Poetry
+  run: pip install poetry
+- name: Install dependencies
+  run: poetry install --no-interaction
+- name: Lint + Type + Test
+  run: |
+    poetry run ruff check . || true
+    poetry run mypy src/ || true
+    poetry run pytest

@@ -1,0 +1,4 @@
+- name: Repository-specific fast gate (unconfigured)
+  run: |
+    # TODO: cdd-kit could not detect a stack. Add lint/typecheck/test here.
+    echo "No stack detected — fill this step in manually."
