@@ -60,9 +60,9 @@ const copy = (src, dest) => {
   console.log(`Copied ${src} → ${dest}`);
 };
 
-copy('.claude/agents',                          'assets/agents');
-copy('.claude/skills/contract-driven-delivery', 'assets/skill');
-copy('contracts',                               'assets/contracts');
+copy('.claude/agents',  'assets/agents');
+copy('.claude/skills', 'assets/skills');
+copy('contracts',      'assets/contracts');
 copy('specs/templates',                         'assets/specs-templates');
 copy('tests/templates',                         'assets/tests-templates');
 copy('ci',                                      'assets/ci');

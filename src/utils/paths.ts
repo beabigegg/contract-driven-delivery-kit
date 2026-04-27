@@ -14,7 +14,8 @@ export const SKILLS_HOME = join(CLAUDE_HOME, 'skills');
 
 export const ASSET = {
   agents:         join(ASSETS_DIR, 'agents'),
-  skill:          join(ASSETS_DIR, 'skill'),
+  skills:         join(ASSETS_DIR, 'skills'),
+  skill:          join(ASSETS_DIR, 'skills', 'contract-driven-delivery'),
   contracts:      join(ASSETS_DIR, 'contracts'),
   specsTemplates: join(ASSETS_DIR, 'specs-templates'),
   testsTemplates: join(ASSETS_DIR, 'tests-templates'),

@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { rmSync, readFileSync, writeFileSync, existsSync } from 'fs';
+import { rmSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
@@ -121,11 +121,18 @@ export async function init(opts: InitOptions): Promise<void> {
       track(agentCreated);
       log.ok(`${agentCount} agent file(s) installed.`);
 
-      const skillDest = join(SKILLS_HOME, 'contract-driven-delivery');
-      log.info(`Installing skill  → ${skillDest}`);
-      const { count: skillCount, created: skillCreated } = copyDirTracked(ASSET.skill, skillDest, { overwrite: true });
-      track(skillCreated);
-      log.ok(`${skillCount} skill file(s) installed.`);
+      const skillDirs = readdirSync(ASSET.skills, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name);
+      let totalSkillFiles = 0;
+      for (const skillName of skillDirs) {
+        const skillDest = join(SKILLS_HOME, skillName);
+        log.info(`Installing skill  → ${skillDest}`);
+        const { count, created } = copyDirTracked(join(ASSET.skills, skillName), skillDest, { overwrite: true });
+        track(created);
+        totalSkillFiles += count;
+      }
+      log.ok(`${totalSkillFiles} skill file(s) installed (${skillDirs.length} skills).`);
 
       log.blank();
     }
