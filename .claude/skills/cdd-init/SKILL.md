@@ -9,11 +9,13 @@ description: Initialize contract-driven delivery for a project. Handles both bra
 
 This skill sets up the contract-driven delivery system for a project. It auto-detects whether this is a new project or brownfield adoption and follows the appropriate path.
 
+**File creation rule**: Scanning agents (repo-context-scanner, spec-drift-auditor) only READ and REPORT — they have no write tools. After receiving their report, YOU (main Claude) create all files using Edit/Write.
+
 ---
 
 ## Step 1: Detect project type
 
-Run these commands from the repository root:
+Run from the repository root:
 
 ```
 cdd-kit detect-stack
@@ -32,43 +34,50 @@ Then check whether `specs/` directory already exists in the repo root.
 
 ```
 cdd-kit init
-```
-
-Creates: `specs/`, `contracts/` (if not present), CI template for detected stack.
-
-### A2. Install pre-commit hook
-
-```
 cdd-kit install-hooks
 ```
 
-### A3. Scan project baseline
+### A2. Scan project baseline
 
-Invoke `repo-context-scanner` agent to scan the repository and emit an initial project profile. Write output to `specs/project-profile.md`.
+Invoke `repo-context-scanner` agent. Ask it to report (NOT write):
+- Tech stack and build commands
+- Existing API endpoints (routes, controllers)
+- Existing env variables in use
+- Existing data models or report shapes
 
-### A4. Create stub contracts
+The agent returns its findings as text. YOU then write `specs/project-profile.md` from its output.
 
-For each surface the scanner found, create stub files in `contracts/` using frontmatter `version: 0.1.0` and `status: draft`:
+### A3. Create stub contracts (YOU write these)
 
-| Surface | File |
-|---------|------|
-| API endpoints found | `contracts/api.md` |
-| Env variables found | `contracts/env.md` |
-| Data/report shapes found | `contracts/data.md` (skip if none) |
+Based on the scanner's findings, create stub files in `contracts/`:
 
-Use the standard table format from `.claude/skills/contract-driven-delivery/references/api-contract-standard.md` and `env-contract-standard.md` as the column schema.
+| Surface found | File to create |
+|---------------|---------------|
+| API endpoints | `contracts/api.md` |
+| Env variables | `contracts/env.md` |
+| Data/report shapes | `contracts/data.md` (skip if none) |
 
-**Note**: 0.x contracts are informational only — `cdd-kit gate` does not enforce them until bumped to 1.0.0.
+Each file must have frontmatter:
+```
+---
+schema-version: 0.1.0
+status: draft
+last-changed: <today's date>
+---
+```
 
-### A5. Report to user
+Use column formats from `.claude/skills/contract-driven-delivery/references/api-contract-standard.md` and `env-contract-standard.md`.
 
-Output a summary:
+**0.x contracts are informational only — `cdd-kit gate` does not enforce them until bumped to 1.0.0.**
+
+### A4. Report to user
+
 ```
 ## cdd-init complete (new project)
 
 Stack detected: <stack>
 Files created:
-- specs/ (scaffold)
+- specs/project-profile.md
 - contracts/api.md (draft, v0.1.0)
 - contracts/env.md (draft, v0.1.0)
 Hook installed: .git/hooks/pre-commit
@@ -84,52 +93,68 @@ Next step: /cdd-new <describe your first feature or change>
 
 ```
 cdd-kit init
-```
-
-Will not overwrite existing files. Creates missing scaffold directories only.
-
-### B2. Install pre-commit hook
-
-```
 cdd-kit install-hooks
 ```
 
-Idempotent — safe to run even if hook already exists.
+`cdd-kit init` will not overwrite existing files.
 
-### B3. Scan existing project
+### B2. Scan existing project
 
-Invoke `repo-context-scanner` agent with full scope:
+Invoke `repo-context-scanner` agent. Ask it to report (NOT write):
 - Tech stack and commands
-- Existing contracts (if any)
-- Existing tests and CI/CD
-- Standardization gaps vs cdd-kit expectations
+- All existing API endpoints with method + path
+- All existing env variables (name, where used, whether secret)
+- Existing data models or shared data shapes
+- Existing tests and CI/CD setup
+- Gaps vs cdd-kit expectations
 
-Write output to `specs/project-profile.md`.
+The agent returns findings as text. YOU write `specs/project-profile.md` from its output.
 
-### B4. Reverse-engineer draft contracts
+### B3. Reverse-engineer draft contracts (YOU write these)
 
-For each existing surface discovered by the scanner, create or update draft contracts:
+Based on the scanner's findings, create or update draft contracts:
 
-- **API**: Read existing route definitions → list endpoints in `contracts/api.md` using the standard table format (method, path, auth, request shape, response shape). Set `version: 0.1.0`, `status: draft`.
-- **Env**: Read existing `.env.example`, config loaders, or runtime env reads → list variables in `contracts/env.md` (name, required, default, secret). Set `version: 0.1.0`, `status: draft`.
-- **Data**: If report shapes, DB schemas, or shared data types exist and are significant → list in `contracts/data.md`. Set `version: 0.1.0`, `status: draft`.
+**`contracts/api.md`** — list all discovered endpoints:
+```
+---
+schema-version: 0.1.0
+status: draft
+last-changed: <today>
+---
+| Method | Path | Auth | Request | Response |
+|--------|------|------|---------|----------|
+| ...    | ...  | ...  | ...     | ...      |
+```
 
-**Rules for brownfield reverse-engineering**:
-- Document what exists — do NOT prescribe what should exist
-- Mark all fields you are unsure about with `<!-- verify -->`
-- Do NOT bump any contract above 0.x during init
-- Do NOT delete or overwrite any existing `contracts/` files — append sections if a file exists
+**`contracts/env.md`** — list all discovered env variables:
+```
+---
+schema-version: 0.1.0
+status: draft
+last-changed: <today>
+---
+| Name | Required | Default | Secret |
+|------|----------|---------|--------|
+| ...  | ...      | ...     | ...    |
+```
 
-### B5. Run gap analysis
+**`contracts/data.md`** — only if significant data shapes exist.
 
-Invoke `spec-drift-auditor` to compare the current state against cdd-kit expectations. Ask it to produce:
+Rules:
+- Document what EXISTS — do not prescribe what should exist
+- Mark uncertain fields with `<!-- verify -->`
+- Do NOT bump above 0.x during init
+- Do NOT delete or overwrite existing `contracts/` files — append sections
+
+### B4. Run gap analysis
+
+Invoke `spec-drift-auditor` agent. Ask it to report (NOT write):
 1. What is already in place (contracts, tests, CI gates)
 2. What is missing and at what priority
 3. Recommended first tracked change to close the highest-risk gap
 
-### B6. Report to user
+### B5. Report to user
 
-Output a summary:
 ```
 ## cdd-init complete (brownfield adoption)
 
@@ -140,13 +165,13 @@ Contracts reverse-engineered (all at v0.1.0 draft):
 Hook installed: .git/hooks/pre-commit
 
 Gap report:
-## Existing (found)
+### Existing (found)
 - ...
 
-## Missing (needs work)
+### Missing (needs work)
 - ...
 
-## Recommended first tracked change
+### Recommended first tracked change
 - ...
 
 Next step: /cdd-new <describe the gap or feature to address first>
@@ -158,5 +183,6 @@ Next step: /cdd-new <describe the gap or feature to address first>
 
 - Never delete existing files
 - Never bump any contract version above 0.x during init
-- Gate enforcement (cdd-kit gate) is only required once contracts reach 1.0.0 — during init, draft contracts are informational
-- If `cdd-kit init` fails because the tool is not installed, instruct the user: `npm install -g contract-driven-delivery@latest`
+- Gate enforcement starts only after contracts reach 1.0.0
+- Scanning agents only report — YOU (main Claude) write all files
+- If `cdd-kit init` fails: `npm install -g contract-driven-delivery@latest`

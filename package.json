@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Contract-driven delivery kit CLI — spec-first, test-first AI-assisted delivery for brownfield systems",
   "keywords": [
     "contract-driven",
