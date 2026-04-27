@@ -39,7 +39,9 @@ Write to `specs/changes/<change-id>/test-plan.md` using this structure:
 |---|---|---|---|
 
 ## Test Families Required
-Mark all that apply: unit / contract / integration / e2e / data-boundary / resilience / monkey / stress / soak
+| family | tier | notes |
+|---|---|---|
+| (unit / contract / integration / e2e / data-boundary / resilience / monkey / stress / soak) | | |
 
 ## Out of Scope
 
@@ -56,7 +58,7 @@ Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to 
 - **DO** write: tier assignment per test family
 - **DO NOT** write: full test function bodies
 - **DO NOT** write: mock setup details, fixture data, or expected JSON payloads
-- **DO NOT** write: per-test input/output tables with more than 5 rows
+- **DO NOT** write: per-test input/output tables with more than 15 rows
 - **DO NOT** write: example assertions or test helper code
 
 Implementation detail belongs in the test files, not in test-plan.md.

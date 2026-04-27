@@ -52,12 +52,13 @@ By default, do NOT read `specs/changes/` history. Only read historical change re
 
 ## Machine-Verifiable Evidence
 
-After completing your task, include an **## Agent Log** section at the end of your response with this exact structure (lines starting with `- ` are required). The calling skill will write this block to `specs/changes/<change-id>/agent-log/spec-drift-auditor.md`.
+Write this block to `specs/audits/<YYYY-MM-DD>-drift-audit.md` (create the file yourself).
+Use this exact structure (lines starting with `- ` are required):
 
 ```
 ## Agent Log
 # Spec Drift Auditor Log
-- change-id: <id>
+- audit-id: <YYYY-MM-DD>-drift
 - timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
 - status: complete | needs-review | blocked
 - artifacts:
@@ -69,12 +70,11 @@ After completing your task, include an **## Agent Log** section at the end of yo
 ### Required artifacts for this agent
 - `surfaces-audited`: list (specs/contracts/code/tests/CI/tasks/archive)
 - `drift-items`: count + severity
-- `drift-summary-path`: path
+- `drift-summary-path`: `specs/audits/<YYYY-MM-DD>-drift-audit.md`
 - `next-audit-due`: ISO date
 
 ### Rules
-- NEVER omit this log file. `cdd-kit gate` rejects changes whose agent-log
-  is missing the `status:` line or has an invalid status.
+- NEVER omit this audit summary file. The drift-audit cadence (release / weekly / ad-hoc) requires this file as its persistence record; missing `status:` voids the audit.
 - If you cannot complete the task, set `status: blocked` and write a
   concrete `next-action` (NOT "investigate further" — write the actual
   next step a human can act on).

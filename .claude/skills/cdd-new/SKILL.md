@@ -287,24 +287,28 @@ If any agent sets `status: blocked` in its log, halt immediately and report the 
 2. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
    - YOU tick: applicable items in section 3 based on what test families were planned
 
-3. **`spec-architect`** (write-capable) — only if the classifier flagged an architectural boundary or cross-module impact.
+3. **`spec-architect`** (write-capable) — only if `change-classification.md` contains `Architecture Review Required: yes`.
    - YOU tick: `1.3` (if it produced a gate plan)
 
 4. **`backend-engineer`** (write-capable) — if the change touches server, API, data, or business logic. Writes implementation and its own agent-log.
    - YOU tick: `4.1` and/or `4.3` based on scope
+   - Note: `tasks.md` items 3.1–3.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion — failing tests first, implementation second. Items 3.3–3.5 are written by dedicated test engineers (Tier 0–1 only or when classifier explicitly requires them).
 
 5. **`frontend-engineer`** (write-capable) — if the change touches UI, components, or client-side behavior. Writes implementation and its own agent-log.
    - YOU tick: `4.2`
 
 6. **`dependency-security-reviewer`** (read-only) — if the change touches lockfiles, package manifests, or DB migrations.
+   - **Only invoke if** `change-classification.md` lists lockfiles, package manifests, or DB migrations as affected.
    - YOU write: `agent-log/dependency-security-reviewer.md`
    - YOU tick: applicable security-related items
 
 7. **`ui-ux-reviewer`** (read-only) — if any UI change (run alongside or after frontend-engineer).
+   - **Only invoke if** classifier marks UI/CSS as affected.
    - YOU write: `agent-log/ui-ux-reviewer.md`
    - YOU tick: `5.1`
 
 8. **`visual-reviewer`** (read-only) — if any UI change (run after ui-ux-reviewer).
+   - **Only invoke if** classifier marks UI/CSS as affected.
    - YOU write: `agent-log/visual-reviewer.md`
    - YOU tick: `5.2`
 
@@ -337,6 +341,8 @@ All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backe
 - If backend-only with no UI: skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
 - If UI-only with no backend: skip `backend-engineer`
 
+**Resuming from blocked**: After the user resolves the blocking issue, re-invoke the blocked agent (do not restart from Step 1). Continue with the remaining agents in their original order.
+
 ---
 
 ## Step 4: Run the gate
@@ -357,6 +363,8 @@ cdd-kit gate <change-id>
 3. Re-invoke the specific agent responsible for that artifact with the exact fix required
 4. Re-run `cdd-kit gate <change-id>`
 5. Repeat until gate passes (max 3 iterations; if still failing after 3, report to user)
+
+**Terminal state after 3 failures**: Add a line at the top of `tasks.md` reading `status: gate-blocked` and report all blocking items to the user. The change is paused — do not proceed to Step 5.
 
 ---
 

@@ -17,7 +17,7 @@ Before editing production code, read the change artifacts, API/env/data/business
 - Validate input at the boundary.
 - Return standardized errors, not raw exceptions.
 - Preserve backward compatibility unless the spec explicitly marks a breaking change.
-- Add tests before or alongside implementation according to the test plan.
+- **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.md` items 3.1–3.2 are your responsibility.
 - Update CI/CD workflows when required by `ci-gates.md`.
 
 ## Common pitfalls
