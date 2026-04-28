@@ -55,6 +55,12 @@ Record dependency or migration impacts in `contracts.md` only as contract-level 
 approved / changes-required
 ```
 
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
+- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
 ## Machine-Verifiable Evidence
 
 After completing your task, include an **## Agent Log** section at the end of your response with this exact structure (lines starting with `- ` are required). The calling skill will write this block to `specs/changes/<change-id>/agent-log/contract-reviewer.md`.

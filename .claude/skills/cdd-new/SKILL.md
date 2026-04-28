@@ -252,6 +252,8 @@ Invoke `change-classifier` agent with:
 
 Wait until these three writes are done before continuing.
 
+**After writing change-classification.md**: read the classifier's `## Tasks Not Applicable` list. For each listed task ID (e.g., `2.2`, `4.2`), update `tasks.md` to change that item from `[ ]` to `[-]`. Do this before invoking any other agent.
+
 ---
 
 ## Step 3: Read the tier and commission agents
@@ -263,6 +265,13 @@ Read `change-classification.md` to determine the tier. Then invoke agents **in t
 **For each write-capable agent**: wait for it to confirm completion → YOU tick relevant tasks.md item(s).
 
 If any agent sets `status: blocked` in its log, halt immediately and report the agent's `next-action` to the user — do not proceed to subsequent agents.
+
+**When invoking any agent, always begin the prompt with:**
+```
+CURRENT_CHANGE_ID: <change-id>
+Change directory: specs/changes/<change-id>/
+```
+This ensures the agent's Read scope restriction points to the correct directory.
 
 ---
 
@@ -286,6 +295,7 @@ If any agent sets `status: blocked` in its log, halt immediately and report the 
 
 2. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
    - YOU tick: applicable items in section 3 based on what test families were planned
+   - Provide the classifier's `## Inferred Acceptance Criteria` list to test-strategist. These become the `criterion id` column in the Acceptance Criteria → Test Mapping table.
 
 3. **`spec-architect`** (write-capable) — only if `change-classification.md` contains `Architecture Review Required: yes`.
    - YOU tick: `1.3` (if it produced a gate plan)

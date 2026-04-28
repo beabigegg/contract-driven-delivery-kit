@@ -30,6 +30,12 @@ Before editing production code, read the change artifacts, API/env/data/business
 - Read-after-write consistency — a write followed by an immediate read on a replica may return stale data.
 - Pagination — always sort by a stable column + tie-breaker (id), never offset-paginate over mutable data.
 
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
+- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
 ## Handoff
 
 Report changed files, contract updates, tests added, commands run, known risks, and next reviewer.

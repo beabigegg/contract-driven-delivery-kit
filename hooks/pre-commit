@@ -14,7 +14,7 @@ change_ids=$(echo "$staged" | grep -oE '^specs/changes/[^/]+' | sort -u | sed 's
 
 for id in $change_ids; do
   echo "[cdd-kit] running gate for change: $id"
-  if ! cdd-kit gate "$id"; then
+  if ! cdd-kit gate "$id" --strict; then
     echo "[cdd-kit] gate failed for $id — commit rejected."
     echo "[cdd-kit] fix issues above; --no-verify bypasses but defeats the kit."
     exit 1

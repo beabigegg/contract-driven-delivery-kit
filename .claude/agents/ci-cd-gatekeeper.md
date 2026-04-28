@@ -56,6 +56,12 @@ CI/CD is mandatory. Every change must have a `ci-gates.md` plan, even if the pla
 mergeable / blocked / informational-risk
 ```
 
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
+- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`
