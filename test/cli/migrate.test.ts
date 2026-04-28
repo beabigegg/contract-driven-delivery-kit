@@ -52,10 +52,10 @@ describe('cdd-kit migrate', () => {
 
   // ── tests ──────────────────────────────────────────────────────────────────
 
-  it('1: migrate on nonexistent change exits 1 and warns', () => {
+  it('1: migrate on nonexistent change exits 1 and reports change not found', () => {
     const r = runCli(['migrate', 'no-such-change'], { cwd: tmpRepo, home: tmpHome });
-    // Either exits with error or warns about not found
-    expect(r.stdout + r.stderr).toMatch(/not found|no such|skipping/i);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/not found/i);
   });
 
   it('2: migrate adds YAML frontmatter to tasks.md when missing', () => {
@@ -147,6 +147,40 @@ describe('cdd-kit migrate', () => {
       join(tmpRepo, 'specs', 'changes', 'old-005', 'tasks.md'), 'utf8'
     );
     expect(afterTasks).toBe(originalTasks);
+  });
+
+  it('9: migrate preserves gate-blocked status from bare body line and removes the duplicate', () => {
+    // Simulate a pre-v1.10 tasks.md with a bare "status: gate-blocked" line (no frontmatter)
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'old-008');
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      'status: gate-blocked',
+      '',
+      '# Tasks: old-008',
+      '- [x] 1.1 Done',
+      '- [ ] 1.2 Pending',
+    ].join('\n'), 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'), '# Classification\n**Risk Level:** medium\n', 'utf8');
+
+    runCli(['migrate', 'old-008'], { cwd: tmpRepo, home: tmpHome });
+
+    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
+    // Frontmatter must have the correct status
+    expect(tasks).toMatch(/^---\nchange-id: old-008\nstatus: gate-blocked\n---/);
+    // Body must NOT have a duplicate bare status line
+    const bodyAfterFrontmatter = tasks.replace(/^---[\s\S]*?---\n/, '');
+    expect(bodyAfterFrontmatter).not.toMatch(/^status:/m);
+  });
+
+  it('10: list shows "abandoned" status after cdd-kit abandon', () => {
+    makeOldChange('old-009');
+    // First migrate to new format (needed for abandon to work cleanly)
+    runCli(['migrate', 'old-009'], { cwd: tmpRepo, home: tmpHome });
+    // Then abandon the change
+    runCli(['abandon', 'old-009', '--reason', 'no longer needed'], { cwd: tmpRepo, home: tmpHome });
+    // List should show abandoned
+    const r = runCli(['list'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/old-009.*abandoned|abandoned.*old-009/i);
   });
 
   it('8: migrate --all migrates every change in specs/changes/', () => {

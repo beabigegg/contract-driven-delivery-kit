@@ -27,6 +27,7 @@ export async function listChanges(): Promise<void> {
       if (existsSync(tasksPath)) {
         const content = readFileSync(tasksPath, 'utf8');
         if (content.includes('status: gate-blocked')) status = 'gate-blocked';
+        else if (content.includes('status: abandoned')) status = 'abandoned';
         pending = (content.match(/^\s*-\s*\[ \]/gm) || []).length;
       }
       const pendingStr = pending > 0 ? ` (${pending} pending)` : '';

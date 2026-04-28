@@ -25,8 +25,17 @@ function migrateOne(changeId: string, changeDir: string, dryRun: boolean): Migra
     let modified = false;
 
     if (!norm.startsWith('---')) {
-      // Prepend frontmatter
-      content = `---\nchange-id: ${changeId}\nstatus: in-progress\n---\n\n` + content;
+      // Detect a bare "status: <value>" line in the body (pre-v1.10 gate-blocked terminal state)
+      const bareStatusMatch = norm.match(/^status:\s*(\S+)/m);
+      const inferredStatus = bareStatusMatch ? bareStatusMatch[1] : 'in-progress';
+
+      // Remove the bare status line so it doesn't conflict with the new frontmatter
+      if (bareStatusMatch) {
+        content = content.replace(/^status:\s*\S+[ \t]*\n?/m, '');
+      }
+
+      // Prepend frontmatter with the inferred status
+      content = `---\nchange-id: ${changeId}\nstatus: ${inferredStatus}\n---\n\n` + content;
       modified = true;
     }
 
@@ -99,6 +108,12 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
         .map(d => d.name),
     );
   } else if (changeId) {
+    // Validate specific change exists before proceeding
+    const specificDir = join(cwd, 'specs', 'changes', changeId);
+    if (!existsSync(specificDir)) {
+      log.error(`Change not found: specs/changes/${changeId}`);
+      process.exit(1);
+    }
     idsToMigrate.push(changeId);
   } else {
     log.error('Usage: cdd-kit migrate <change-id>  |  cdd-kit migrate --all  [--dry-run]');
