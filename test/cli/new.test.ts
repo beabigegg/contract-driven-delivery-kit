@@ -106,6 +106,14 @@ describe('cdd-kit new', () => {
     expect(afterContent).not.toContain('MY CUSTOM CONTENT THAT SHOULD BE REPLACED');
   });
 
+  it('new feat-005 --depends-on records upstream atomic dependencies', () => {
+    const r = runCli(['new', 'feat-005', '--depends-on', 'db-schema,api-contract'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', 'feat-005', 'tasks.md'), 'utf8');
+    expect(tasks).toMatch(/^depends-on:\s*\[db-schema, api-contract\]/m);
+  });
+
   it('new with no name argument exits non-zero', () => {
     const r = runCli(['new'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);

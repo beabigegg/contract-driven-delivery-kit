@@ -143,6 +143,66 @@ function isContextGovernedChange(changeDir: string): boolean {
   return /^context-governance:\s*v1\b/m.test(readFileSync(tasksPath, 'utf8'));
 }
 
+function parseDependsOn(content: string): string[] {
+  const lineMatch = content.match(/^depends-on:\s*(.+)$/m);
+  if (!lineMatch) return [];
+
+  const raw = lineMatch[1].trim();
+  if (!raw || raw === '[]') return [];
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    return raw.slice(1, -1).split(',').map(item => item.trim()).filter(Boolean);
+  }
+  return raw.split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function parseTaskStatus(content: string): string {
+  const match = content.match(/^status:\s*([a-zA-Z0-9_-]+)/m);
+  return match ? match[1].trim().toLowerCase() : 'in-progress';
+}
+
+function isArchivedChange(cwd: string, changeId: string): boolean {
+  const archiveRoot = join(cwd, 'specs', 'archive');
+  if (!existsSync(archiveRoot)) return false;
+
+  const years = readdirSync(archiveRoot, { withFileTypes: true }).filter(d => d.isDirectory());
+  return years.some(year => existsSync(join(archiveRoot, year.name, changeId)));
+}
+
+function validateDependencies(cwd: string, changeId: string, changeDir: string): string[] {
+  const tasksPath = join(changeDir, 'tasks.md');
+  if (!existsSync(tasksPath)) return [];
+
+  const dependencies = parseDependsOn(readFileSync(tasksPath, 'utf8'));
+  const errors: string[] = [];
+
+  for (const dep of dependencies) {
+    if (dep === changeId) {
+      errors.push(`tasks.md: change cannot depend on itself (${dep})`);
+      continue;
+    }
+
+    const upstreamDir = join(cwd, 'specs', 'changes', dep);
+    if (existsSync(upstreamDir)) {
+      const upstreamTasks = join(upstreamDir, 'tasks.md');
+      if (!existsSync(upstreamTasks)) {
+        errors.push(`dependency ${dep}: missing tasks.md`);
+        continue;
+      }
+      const status = parseTaskStatus(readFileSync(upstreamTasks, 'utf8'));
+      if (!['complete', 'completed', 'done'].includes(status)) {
+        errors.push(`dependency ${dep}: upstream change is not completed (status: ${status})`);
+      }
+      continue;
+    }
+
+    if (!isArchivedChange(cwd, dep)) {
+      errors.push(`dependency ${dep}: upstream change not found in specs/changes/ or specs/archive/`);
+    }
+  }
+
+  return errors;
+}
+
 interface FilesReadParseResult {
   present: boolean;
   files: string[];
@@ -217,6 +277,8 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   const hasManifest = existsSync(manifestPath);
   let allowedPaths: string[] = [];
   let approvedExpansions: string[] = [];
+
+  errors.push(...validateDependencies(cwd, changeId, changeDir));
 
   if (hasManifest) {
     const manifest = parseContextManifest(readFileSync(manifestPath, 'utf8'));

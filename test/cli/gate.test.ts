@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
 
@@ -878,5 +878,51 @@ describe('cdd-kit gate', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/files-read path must be repo-relative/i);
     expect(r.stdout + r.stderr).toMatch(/files-read path must not contain "\.\."/i);
+  });
+
+  it('25: gate blocks atomic changes when upstream dependency is still in progress', () => {
+    runCli(['new', 'dep-db'], { cwd: tmpRepo, home: tmpHome });
+    runCli(['new', 'feat-dependent', '--depends-on', 'dep-db'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-dependent');
+    writeValidChangeArtifacts(changeDir);
+
+    const tasksPath = join(changeDir, 'tasks.md');
+    writeFileSync(tasksPath, [
+      '---',
+      'change-id: feat-dependent',
+      'status: in-progress',
+      'context-governance: v1',
+      'depends-on: [dep-db]',
+      '---',
+      '',
+      '# Tasks',
+      '',
+      'This change has enough task context to pass stub checks.',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-dependent'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/dependency dep-db: upstream change is not completed/i);
+  });
+
+  it('26: gate allows atomic changes when upstream dependency is completed', () => {
+    writeValidContracts(tmpRepo);
+    runCli(['new', 'dep-api'], { cwd: tmpRepo, home: tmpHome });
+    runCli(['new', 'feat-after-api', '--depends-on', 'dep-api'], { cwd: tmpRepo, home: tmpHome });
+
+    const upstreamTasksPath = join(tmpRepo, 'specs', 'changes', 'dep-api', 'tasks.md');
+    const upstreamTasks = readFileSync(upstreamTasksPath, 'utf8').replace('status: in-progress', 'status: completed');
+    writeFileSync(upstreamTasksPath, upstreamTasks, 'utf8');
+
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-after-api');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    const targetTasksPath = join(changeDir, 'tasks.md');
+    const targetTasks = readFileSync(targetTasksPath, 'utf8')
+      .replace('context-governance: v1', 'context-governance: v1\ndepends-on: [dep-api]');
+    writeFileSync(targetTasksPath, targetTasks, 'utf8');
+
+    const r = runCli(['gate', 'feat-after-api'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/dependency dep-api/i);
   });
 });

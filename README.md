@@ -253,6 +253,7 @@ Checks:
 - `change-classification.md` contains a tier or risk marker
 - `agent-log/*.md` files all have `status: complete` (not blocked)
 - For context-governed changes, `agent-log/*.md` files include a structured `- files-read:` list and those repo-relative paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
+- Atomic `depends-on` upstream changes are completed or archived before dependent work gates
 - Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
 - Tier 0–3 changes have `contract-reviewer` and `qa-reviewer` logs
 - All contract validators pass
@@ -377,7 +378,10 @@ Scaffolds an empty change directory. Normally you use `/cdd-new` (the Claude Cod
 cdd-kit new add-user-auth
 cdd-kit new add-user-auth --all     # include optional templates too
 cdd-kit new add-user-auth --force   # overwrite existing directory
+cdd-kit new add-user-api --depends-on add-user-db
 ```
+
+For larger requests, split the work into atomic changes on the same feature branch and use `--depends-on` to record upstream order. `cdd-kit gate` blocks a dependent change until each upstream change is either archived or has `status: completed` in its `tasks.md` frontmatter.
 
 ---
 

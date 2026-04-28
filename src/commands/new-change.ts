@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { ASSET } from '../utils/paths.js';
 import { copyFile, ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
@@ -7,6 +7,7 @@ import { log } from '../utils/logger.js';
 export interface NewChangeOptions {
   all: boolean;
   force: boolean;
+  dependsOn?: string;
 }
 
 const REQUIRED_TEMPLATES = [
@@ -29,10 +30,30 @@ function listOptional(): string[] {
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 
+function parseDependsOn(raw?: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function formatDependsOn(ids: string[]): string {
+  if (ids.length === 0) return 'depends-on: []';
+  return `depends-on: [${ids.join(', ')}]`;
+}
+
 export async function newChange(name: string, opts: NewChangeOptions): Promise<void> {
   if (!SAFE_NAME.test(name)) {
     log.error(`Invalid change name: "${name}". Use letters, numbers, hyphens, or underscores (max 64 chars).`);
     process.exit(1);
+  }
+  const dependencies = parseDependsOn(opts.dependsOn);
+  for (const dep of dependencies) {
+    if (!SAFE_NAME.test(dep)) {
+      log.error(`Invalid dependency name: "${dep}". Use letters, numbers, hyphens, or underscores (max 64 chars).`);
+      process.exit(1);
+    }
   }
 
   const cwd = process.cwd();
@@ -68,6 +89,16 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
     copyFile(src, dest, { overwrite: opts.force });
     log.dim(tmpl);
     written += 1;
+  }
+
+  if (dependencies.length > 0) {
+    const tasksPath = join(changeDir, 'tasks.md');
+    if (existsSync(tasksPath)) {
+      const tasks = readFileSync(tasksPath, 'utf8');
+      const nextTasks = tasks.replace(/^depends-on:\s*.*$/m, formatDependsOn(dependencies));
+      writeFileSync(tasksPath, nextTasks, 'utf8');
+      log.dim(`depends-on: ${dependencies.join(', ')}`);
+    }
   }
 
   log.blank();

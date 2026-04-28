@@ -53,8 +53,9 @@ program
   .description('Scaffold a new change directory under specs/changes/<name>')
   .option('--all', 'Include optional templates in addition to required ones', false)
   .option('--force', 'Overwrite existing template files in the change folder', false)
+  .option('--depends-on <change-ids>', 'Comma-separated upstream change ids that must complete first')
   .action((name: string, opts) =>
-    newChange(name, { all: opts.all, force: opts.force }),
+    newChange(name, { all: opts.all, force: opts.force, dependsOn: opts.dependsOn }),
   );
 
 // ── cdd validate ──────────────────────────────────────────────────────────────
