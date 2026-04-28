@@ -219,18 +219,22 @@ cdd-kit init --provider both  # scaffold Claude Code + Codex guidance
 cdd-kit init --force          # overwrite existing project files
 ```
 
-Creates: `contracts/`, `specs/templates/`, `CLAUDE.md`, `AGENTS.md`, `hooks/`
+Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`, `AGENTS.md`, and/or `CODEX.md`), `hooks/`
 
 ---
 
 ### `cdd-kit update`
 
-Updates agents and skill in `~/.claude` to the latest installed version. Does not touch `contracts/` or `CLAUDE.md`.
+Updates provider assets to the latest installed version. By default, `update` reads `.cdd/model-policy.json` and updates only the matching provider adapter. It does not overwrite project guidance files such as `CLAUDE.md`, `AGENTS.md`, or `CODEX.md`.
 
 ```bash
 cdd-kit update
 cdd-kit update --yes          # apply without confirmation
+cdd-kit update --provider codex
+cdd-kit update --provider both
 ```
+
+Codex currently has no global assets to update, so Codex-only projects report that they are already up to date. Run `cdd-kit init --local-only --provider codex` if a project is missing `CODEX.md`.
 
 ---
 
@@ -464,7 +468,8 @@ your-repo/
 │   └── templates/
 ├── tests/
 ├── CLAUDE.md                        ← Claude's project guide (edit this)
-└── AGENTS.md                        ← agent roster (auto-managed)
+├── AGENTS.md                        ← agent roster (auto-managed)
+└── CODEX.md                         ← Codex project guide when initialized for Codex
 ```
 
 ---

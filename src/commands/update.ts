@@ -7,7 +7,10 @@ import { homedir } from 'os';
 
 export interface UpdateOptions {
   yes: boolean;
+  provider?: 'auto' | 'claude' | 'codex' | 'both';
 }
+
+type Provider = 'claude' | 'codex' | 'both';
 
 function fileHash(filePath: string): string {
   const buf = readFileSync(filePath);
@@ -73,21 +76,54 @@ function backupDir(dir: string, backupDest: string): void {
   walk(dir, backupDest);
 }
 
+function inferProvider(cwd: string, requested: UpdateOptions['provider']): Provider {
+  if (requested && !['auto', 'claude', 'codex', 'both'].includes(requested)) {
+    log.error(`Invalid provider: ${requested}. Use auto, claude, codex, or both.`);
+    process.exit(1);
+  }
+  if (requested && requested !== 'auto') return requested;
+
+  const modelPolicyPath = join(cwd, '.cdd', 'model-policy.json');
+  if (existsSync(modelPolicyPath)) {
+    try {
+      const policy = JSON.parse(readFileSync(modelPolicyPath, 'utf8')) as { provider?: string };
+      if (policy.provider === 'claude' || policy.provider === 'codex' || policy.provider === 'both') {
+        return policy.provider;
+      }
+    } catch {
+      log.warn('could not parse .cdd/model-policy.json; falling back to provider inference');
+    }
+  }
+
+  if (existsSync(join(cwd, 'CODEX.md')) && existsSync(join(cwd, 'CLAUDE.md'))) return 'both';
+  if (existsSync(join(cwd, 'CODEX.md'))) return 'codex';
+  return 'claude';
+}
+
 export async function update(opts: UpdateOptions): Promise<void> {
   log.blank();
 
+  const cwd = process.cwd();
+  const provider = inferProvider(cwd, opts.provider ?? 'auto');
+  const updateClaudeAssets = provider === 'claude' || provider === 'both';
   const skillDest = join(SKILLS_HOME, 'contract-driven-delivery');
 
-  const agentDiff = diffDir(ASSET.agents, AGENTS_HOME);
-  const skillDiff = diffDir(ASSET.skill, skillDest);
+  const agentDiff = updateClaudeAssets ? diffDir(ASSET.agents, AGENTS_HOME) : [];
+  const skillDiff = updateClaudeAssets ? diffDir(ASSET.skill, skillDest) : [];
 
   const toWrite = [...agentDiff, ...skillDiff].filter((e) => e.action !== 'skip');
   const toAdd   = toWrite.filter((e) => e.action === 'add');
   const toOver  = toWrite.filter((e) => e.action === 'overwrite');
   const toSkip  = [...agentDiff, ...skillDiff].filter((e) => e.action === 'skip');
 
-  log.info(`Dry-run diff — agents: ${AGENTS_HOME}`);
-  log.info(`Dry-run diff — skill:  ${skillDest}`);
+  log.info(`Provider: ${provider}`);
+  if (updateClaudeAssets) {
+    log.info(`Dry-run diff — agents: ${AGENTS_HOME}`);
+    log.info(`Dry-run diff — skill:  ${skillDest}`);
+  } else {
+    log.info('Codex provider has no global cdd-kit assets to update.');
+    log.info('Project files are preserved; run cdd-kit init --local-only --provider codex to add missing local guidance.');
+  }
   log.blank();
   if (toAdd.length)  log.info(`  + ${toAdd.length} file(s) would be added`);
   if (toOver.length) log.warn(`  ~ ${toOver.length} file(s) would be overwritten (user edits lost without backup)`);
@@ -119,13 +155,15 @@ export async function update(opts: UpdateOptions): Promise<void> {
   log.ok(`Backup complete: ${backupRoot}`);
 
   log.blank();
-  log.info(`Updating agents → ${AGENTS_HOME}`);
-  const agentCount = applyDir(agentDiff);
-  log.ok(`${agentCount} agent file(s) updated.`);
+  if (updateClaudeAssets) {
+    log.info(`Updating agents → ${AGENTS_HOME}`);
+    const agentCount = applyDir(agentDiff);
+    log.ok(`${agentCount} agent file(s) updated.`);
 
-  log.info(`Updating skill  → ${skillDest}`);
-  const skillCount = applyDir(skillDiff);
-  log.ok(`${skillCount} skill file(s) updated.`);
+    log.info(`Updating skill  → ${skillDest}`);
+    const skillCount = applyDir(skillDiff);
+    log.ok(`${skillCount} skill file(s) updated.`);
+  }
 
   log.blank();
   log.info('Project files (contracts/, specs/, tests/, ci/) were not changed.');

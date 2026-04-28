@@ -42,9 +42,10 @@ program
 // ── cdd update ────────────────────────────────────────────────────────────────
 program
   .command('update')
-  .description('Update ~/.claude agents and skill (does not touch project files)')
+  .description('Update provider assets for the current project (does not overwrite project guidance files)')
   .option('--yes', 'Apply changes (default is dry-run)', false)
-  .action((opts) => update({ yes: opts.yes }));
+  .option('--provider <provider>', 'Provider adapter to update: auto, claude, codex, or both', 'auto')
+  .action((opts) => update({ yes: opts.yes, provider: opts.provider }));
 
 // ── cdd new <name> ────────────────────────────────────────────────────────────
 program

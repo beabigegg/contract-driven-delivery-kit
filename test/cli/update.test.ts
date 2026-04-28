@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
@@ -99,5 +99,26 @@ describe('cdd-kit update', () => {
     expect(existsSync(backedUpFile), `backup file ${agentFiles[0]} missing`).toBe(true);
     const backedUpContent = readFileSync(backedUpFile, 'utf8');
     expect(backedUpContent).toBe('MODIFIED');
+  });
+
+  it('update auto-detects codex provider and does not create ~/.claude assets', () => {
+    rmSync(join(tmpHome, '.claude'), { recursive: true, force: true });
+    writeFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), JSON.stringify({
+      provider: 'codex',
+      generated_at: '2026-04-28T00:00:00.000Z',
+      roles: {},
+    }, null, 2) + '\n', 'utf8');
+
+    const r = runCli(['update', '--yes'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/Provider: codex/i);
+    expect(r.stdout + r.stderr).toMatch(/no global cdd-kit assets/i);
+    expect(existsSync(join(tmpHome, '.claude'))).toBe(false);
+  });
+
+  it('update rejects invalid provider values', () => {
+    const r = runCli(['update', '--provider', 'bad-provider'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/Invalid provider: bad-provider/i);
   });
 });
