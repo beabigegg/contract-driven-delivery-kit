@@ -52,6 +52,30 @@ describe('cdd-kit init', () => {
     expect(existsSync(skillFile), 'SKILL.md missing').toBe(true);
   });
 
+  it('--provider codex scaffolds CODEX.md and skips Claude project files', () => {
+    const r = runCli(['init', '--local-only', '--provider', 'codex'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    expect(existsSync(join(tmpRepo, 'CODEX.md')), 'CODEX.md missing').toBe(true);
+    expect(existsSync(join(tmpRepo, 'CLAUDE.md')), 'CLAUDE.md should not be created for codex-only').toBe(false);
+    expect(existsSync(join(tmpRepo, 'AGENTS.md')), 'AGENTS.md should not be created for codex-only').toBe(false);
+
+    const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
+    expect(policy.provider).toBe('codex');
+  });
+
+  it('--provider both scaffolds Claude and Codex project files', () => {
+    const r = runCli(['init', '--local-only', '--provider', 'both'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    expect(existsSync(join(tmpRepo, 'CLAUDE.md'))).toBe(true);
+    expect(existsSync(join(tmpRepo, 'AGENTS.md'))).toBe(true);
+    expect(existsSync(join(tmpRepo, 'CODEX.md'))).toBe(true);
+
+    const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
+    expect(policy.provider).toBe('both');
+  });
+
   it('init (no flags) scaffolds both local project and global home', () => {
     const r = runCli(['init'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);

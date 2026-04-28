@@ -9,6 +9,7 @@ export interface InitOptions {
   globalOnly: boolean;
   localOnly: boolean;
   force: boolean;
+  provider: 'claude' | 'codex' | 'both';
 }
 
 /**
@@ -104,9 +105,15 @@ export async function init(opts: InitOptions): Promise<void> {
     log.error('--global-only and --local-only are mutually exclusive.');
     process.exit(1);
   }
+  if (!['claude', 'codex', 'both'].includes(opts.provider)) {
+    log.error(`Invalid provider: ${opts.provider}. Use claude, codex, or both.`);
+    process.exit(1);
+  }
 
   const cwd = process.cwd();
   const createdPaths: string[] = [];
+  const installClaude = opts.provider === 'claude' || opts.provider === 'both';
+  const installCodex = opts.provider === 'codex' || opts.provider === 'both';
 
   function track(paths: string[]): void {
     createdPaths.push(...paths);
@@ -131,7 +138,7 @@ export async function init(opts: InitOptions): Promise<void> {
 
   try {
     // ── Global: install agents + skill into ~/.claude ───────────────────────
-    if (!opts.localOnly) {
+    if (!opts.localOnly && installClaude) {
       log.info(`Installing agents → ${AGENTS_HOME}`);
       const { count: agentCount, created: agentCreated } = copyDirTracked(ASSET.agents, AGENTS_HOME, { overwrite: true });
       track(agentCreated);
@@ -150,6 +157,9 @@ export async function init(opts: InitOptions): Promise<void> {
       }
       log.ok(`${totalSkillFiles} skill file(s) installed (${skillDirs.length} skills).`);
 
+      log.blank();
+    } else if (!opts.localOnly && installCodex) {
+      log.info('No global assets for provider: codex.');
       log.blank();
     }
 
@@ -196,6 +206,15 @@ export async function init(opts: InitOptions): Promise<void> {
       );
       track(cddConfigCreated);
       log.ok(`.cdd/ - ${cddConfigCount} file(s) written.`);
+
+      const modelPolicyPath = join(cwd, '.cdd', 'model-policy.json');
+      if (existsSync(modelPolicyPath)) {
+        writeFileSync(modelPolicyPath, JSON.stringify({
+          provider: opts.provider,
+          generated_at: new Date().toISOString(),
+          roles: {},
+        }, null, 2) + '\n', 'utf8');
+      }
 
       const { count: wfCount, created: wfCreated } = copyDirTracked(
         ASSET.githubWorkflows,
@@ -248,22 +267,34 @@ export async function init(opts: InitOptions): Promise<void> {
       }
 
       // CLAUDE.md — never overwrite
-      const { written: claudeWritten, created: claudeCreated } = copyFileTracked(
-        ASSET.claudeTemplate,
-        join(cwd, 'CLAUDE.md'),
-        { overwrite: false, label: 'CLAUDE.md' },
-      );
-      if (claudeCreated) track([join(cwd, 'CLAUDE.md')]);
-      if (claudeWritten) log.ok('CLAUDE.md created.');
+      if (installClaude) {
+        const { written: claudeWritten, created: claudeCreated } = copyFileTracked(
+          ASSET.claudeTemplate,
+          join(cwd, 'CLAUDE.md'),
+          { overwrite: false, label: 'CLAUDE.md' },
+        );
+        if (claudeCreated) track([join(cwd, 'CLAUDE.md')]);
+        if (claudeWritten) log.ok('CLAUDE.md created.');
 
-      // AGENTS.md — never overwrite
-      const { written: agentsWritten, created: agentsCreated } = copyFileTracked(
-        ASSET.agentsTemplate,
-        join(cwd, 'AGENTS.md'),
-        { overwrite: false, label: 'AGENTS.md' },
-      );
-      if (agentsCreated) track([join(cwd, 'AGENTS.md')]);
-      if (agentsWritten) log.ok('AGENTS.md created.');
+        // AGENTS.md — never overwrite
+        const { written: agentsWritten, created: agentsCreated } = copyFileTracked(
+          ASSET.agentsTemplate,
+          join(cwd, 'AGENTS.md'),
+          { overwrite: false, label: 'AGENTS.md' },
+        );
+        if (agentsCreated) track([join(cwd, 'AGENTS.md')]);
+        if (agentsWritten) log.ok('AGENTS.md created.');
+      }
+
+      if (installCodex) {
+        const { written: codexWritten, created: codexCreated } = copyFileTracked(
+          ASSET.codexTemplate,
+          join(cwd, 'CODEX.md'),
+          { overwrite: false, label: 'CODEX.md' },
+        );
+        if (codexCreated) track([join(cwd, 'CODEX.md')]);
+        if (codexWritten) log.ok('CODEX.md created.');
+      }
 
       log.blank();
     }
@@ -275,6 +306,10 @@ export async function init(opts: InitOptions): Promise<void> {
 
   log.ok('Done.');
   log.blank();
-  log.info('Use the contract-driven-delivery skill in Claude Code to scan this repo.');
+  if (opts.provider === 'codex') {
+    log.info('Use CODEX.md and cdd-kit commands to run the contract-driven workflow.');
+  } else {
+    log.info('Use the contract-driven-delivery skill in Claude Code to scan this repo.');
+  }
   log.blank();
 }

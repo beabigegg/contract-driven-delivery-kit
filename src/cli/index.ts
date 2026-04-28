@@ -29,11 +29,13 @@ program
   .option('--global-only', 'Only install into ~/.claude, skip project files', false)
   .option('--local-only',  'Only scaffold project files, skip ~/.claude',    false)
   .option('--force',       'Overwrite existing project files',               false)
+  .option('--provider <provider>', 'Provider adapter to scaffold: claude, codex, or both', 'claude')
   .action((opts) =>
     init({
       globalOnly: opts.globalOnly,
       localOnly:  opts.localOnly,
       force:      opts.force,
+      provider:   opts.provider,
     }),
   );
 

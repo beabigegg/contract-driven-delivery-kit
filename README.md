@@ -1,6 +1,6 @@
 # Contract-Driven Delivery Kit
 
-**cdd-kit** is a Claude Code development kit that turns AI agents into a disciplined engineering team: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification — automatically orchestrated by Claude Code skills.
+**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification.
 
 Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps) who want AI to do all the implementation while they stay in the spec-author and reviewer seat.
 
@@ -214,6 +214,8 @@ Installs agents and skill into `~/.claude` and scaffolds project files.
 cdd-kit init                  # global + local (recommended)
 cdd-kit init --global-only    # only install into ~/.claude
 cdd-kit init --local-only     # only scaffold project files
+cdd-kit init --provider codex # scaffold Codex-oriented project guidance
+cdd-kit init --provider both  # scaffold Claude Code + Codex guidance
 cdd-kit init --force          # overwrite existing project files
 ```
 

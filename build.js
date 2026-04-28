@@ -70,6 +70,7 @@ copy('github-workflows',                        'assets/github-workflows');
 copy('ci-templates',                             'assets/ci-templates');
 copy('hooks',                                   'assets/hooks');
 copy('CLAUDE.template.md',                      'assets/CLAUDE.template.md');
+copy('CODEX.template.md',                       'assets/CODEX.template.md');
 copy('AGENTS.template.md',                      'assets/AGENTS.template.md');
 copy('.cdd',                                    'assets/cdd');
 
