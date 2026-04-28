@@ -15,6 +15,26 @@ Provide the `change-id`. If unsure, run `cdd-kit list` to see active changes.
 
 ---
 
+## Step 0: Detect format version
+
+Before reading state, check if `specs/changes/<change-id>/tasks.md` starts with `---` (YAML frontmatter).
+
+If it does NOT start with `---`, this change was created with a pre-v1.11 version of cdd-kit. Run:
+
+```
+cdd-kit migrate <change-id>
+```
+
+Then commit the migration:
+```
+git add specs/changes/<change-id>/tasks.md specs/changes/<change-id>/change-classification.md
+git commit -m "chore: migrate <change-id> to v1.11 format"
+```
+
+If there are many mid-flight changes, suggest `cdd-kit migrate --all` instead.
+
+---
+
 ## Step 1: Read current state
 
 Read `specs/changes/<change-id>/tasks.md`:

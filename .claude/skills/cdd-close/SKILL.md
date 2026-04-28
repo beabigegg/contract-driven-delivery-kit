@@ -22,13 +22,25 @@ If not provided, ask: "Which change-id do you want to close?"
 
 ---
 
+## Abandon path
+
+If the user wants to **abandon** this change (not close as complete):
+
+```
+cdd-kit abandon <change-id> --reason "<reason>"
+```
+
+This marks `tasks.md` as `status: abandoned` and records it in `specs/archive/INDEX.md`. The directory is preserved for git history. Do NOT run the rest of this skill after abandoning.
+
+---
+
 ## Step 1: Confirm gate status
 
 Run: `cdd-kit gate <change-id>`
 
 If gate fails: stop and report failures. Do NOT archive a change that hasn't passed gate.
 
-Exception: if `tasks.md` contains `status: gate-blocked`, the change was abandoned. Ask the user: "This change was gate-blocked. Archive as abandoned? (yes/no)"
+Exception: if `tasks.md` contains `status: gate-blocked`, ask the user: "This change was gate-blocked. Abandon it? (yes/no)". If yes, run `cdd-kit abandon <change-id> --reason "gate-blocked after 3 attempts"` and stop.
 
 ---
 

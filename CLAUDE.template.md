@@ -23,4 +23,20 @@ This repository follows the Contract-Driven Delivery workflow.
 - `specs/changes/<id>/` records why decisions were made (passive archive — read only when investigating history).
 - To start any non-trivial change, use `/cdd-new <description>` in Claude Code.
 
+## CDD Kit Commands
+
+| command | when to use |
+|---|---|
+| `/cdd-new <description>` | start a new tracked change (scaffolds all artifacts, runs full agent flow) |
+| `/cdd-resume <id>` | continue an in-progress change after a session break |
+| `/cdd-close <id>` | close a completed change: promote learnings, archive |
+| `cdd-kit list` | show all active changes and their status |
+| `cdd-kit gate <id>` | verify a change is gate-ready (run before PR) |
+| `cdd-kit gate <id> --strict` | full gate with pending-task enforcement (pre-commit default) |
+| `cdd-kit archive <id>` | physically move a completed change to `specs/archive/<year>/` |
+| `cdd-kit abandon <id> --reason <text>` | mark a change as abandoned; preserves directory for git history |
+| `cdd-kit migrate <id> \| --all` | upgrade pre-v1.11 change directories to new format (frontmatter + tier format) |
+| `cdd-kit validate` | run all contract validators |
+| `cdd-kit detect-stack` | detect the project tech stack |
+
 Run `cdd-kit detect-stack` to verify the detected tech stack.
