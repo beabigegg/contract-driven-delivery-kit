@@ -64,7 +64,9 @@ If no description is provided, ask the user: "Please describe the change you wan
 
 ## Artifact opt-in policy
 
-Only create optional artifacts (`current-behavior.md`, `proposal.md`, `spec.md`, `design.md`, `qa-report.md`, `regression-report.md`, `archive.md`) when the classifier's `change-classification.md` explicitly marks them as `yes`.
+Only create optional artifacts (`current-behavior.md`, `proposal.md`, `spec.md`, `design.md`, `qa-report.md`, `regression-report.md`) when the classifier's `change-classification.md` explicitly marks them as `yes`.
+
+Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` — it is not part of the classifier's opt-in surface.
 
 If the classifier marks an artifact as `no` or leaves it blank, **do not create the file** — even if a review agent could contribute to it.
 
@@ -116,18 +118,25 @@ Create `specs/changes/<change-id>/change-classification.md` with blank template:
 ## Impact Radius
 - isolated / module-level / cross-module / system-wide
 
+## Tier
+- 0 / 1 / 2 / 3 / 4 / 5
+
+## Architecture Review Required
+- yes / no
+- reason: (fill only if yes)
+
 ## Required Artifacts
-| artifact | required | reason |
-|---|---:|---|
-| current-behavior.md | | |
-| proposal.md | | |
-| spec.md | | |
-| design.md | | |
-| contracts.md | | |
-| test-plan.md | yes | every implementation change requires test planning |
-| ci-gates.md | yes | every implementation change requires CI/CD gate planning |
-| qa-report.md | | |
-| regression-report.md | | |
+Always required: change-request.md, change-classification.md, test-plan.md, ci-gates.md, tasks.md
+
+## Optional Artifacts (default: no — set yes only with explicit reason)
+| artifact | create? | reason |
+|---|---|---|
+| current-behavior.md | no | |
+| proposal.md | no | |
+| spec.md | no | |
+| design.md | no | |
+| qa-report.md | no | |
+| regression-report.md | no | |
 
 ## Required Contracts
 - API:
@@ -158,21 +167,19 @@ Create `specs/changes/<change-id>/test-plan.md` with blank template:
 ```
 # Test Plan: <change-id>
 
-## Scope
+## Acceptance Criteria → Test Mapping
+| criterion id | test family | test file path | tier |
+|---|---|---|---|
 
-## Unit Tests
-
-## Contract Tests
-
-## Integration Tests
-
-## E2E Tests
-
-## Resilience / Data-Boundary Tests
-
-## Stress / Soak Tests
+## Test Families Required
+| family | tier | notes |
+|---|---|---|
+| (unit / contract / integration / e2e / data-boundary / resilience / monkey / stress / soak) | | |
 
 ## Out of Scope
+
+## Notes
+(Keep under 10 lines. Implementation detail belongs in the test files themselves.)
 ```
 
 Create `specs/changes/<change-id>/ci-gates.md` with blank template:
@@ -190,6 +197,13 @@ Create `specs/changes/<change-id>/ci-gates.md` with blank template:
 
 Create `specs/changes/<change-id>/tasks.md` with ALL checkboxes unchecked:
 ```
+---
+change-id: <change-id>
+status: in-progress
+---
+
+<!-- [x]=done [-]=N/A [ ]=pending -->
+
 # Tasks: <change-id>
 
 ## 1. Preparation
@@ -422,3 +436,5 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 ## After Completion
 
 The `/cdd-new` workflow is now complete. **Return to normal assistant mode immediately.** Answer any question the user asks — including questions unrelated to this change, new feature discussions, debugging help, or general conversation — without requiring them to use a specific command. The git commit shown in the report is a suggestion, not a required next step; do not wait for it before resuming normal behavior.
+
+When the change is merged and ready to close, run `/cdd-close <change-id>` to promote learnings and archive the change directory.

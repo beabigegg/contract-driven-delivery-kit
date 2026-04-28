@@ -10,14 +10,18 @@
 ## Impact Radius
 - isolated / module-level / cross-module / system-wide
 
+## Tier
+- 0 / 1 / 2 / 3 / 4 / 5
+
+## Architecture Review Required
+- yes / no
+- reason: (fill only if yes)
+
 ## Required Artifacts
+Always required: change-request.md, change-classification.md, test-plan.md, ci-gates.md, tasks.md
 
-The following 5 artifacts are always required for implementation changes:
-`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
-
-Optional artifacts — only create when explicitly needed:
-
-| artifact | create? (yes / no) | reason |
+## Optional Artifacts (default: no — set yes only with explicit reason)
+| artifact | create? | reason |
 |---|---|---|
 | current-behavior.md | no | |
 | proposal.md | no | |
@@ -25,9 +29,6 @@ Optional artifacts — only create when explicitly needed:
 | design.md | no | |
 | qa-report.md | no | |
 | regression-report.md | no | |
-| archive.md | no | |
-
-Default is **no**. Change classifier must explicitly set `yes` with a reason.
 
 ## Required Contracts
 - API:

@@ -95,3 +95,10 @@ with this exact structure (lines starting with `- ` are required):
 - Evidence must be concrete: file:line, command name + last-10-line stdout,
   contract path + section, test name, etc. NEVER write "verified" or "OK"
   without a pointer.
+
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, `specs/changes/<current-change-id>/`
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
+Read only the current change's directory. Do NOT glob `specs/changes/**` — it pulls historical data into context and wastes tokens.

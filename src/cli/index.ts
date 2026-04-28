@@ -79,6 +79,24 @@ program
   .description('Run full orchestration gate for a change (required artifacts, content, tier, contracts)')
   .action(async (id: string) => { await gate(id); });
 
+// ── cdd archive <change-id> ───────────────────────────────────────────────────
+program
+  .command('archive <change-id>')
+  .description('Archive a completed change (moves specs/changes/<id> to specs/archive/<year>/<id>)')
+  .action(async (changeId: string) => {
+    const { archive } = await import('../commands/archive.js');
+    await archive(changeId);
+  });
+
+// ── cdd list ──────────────────────────────────────────────────────────────────
+program
+  .command('list')
+  .description('List active changes in specs/changes/')
+  .action(async () => {
+    const { listChanges } = await import('../commands/list-changes.js');
+    await listChanges();
+  });
+
 // ── cdd install-hooks ─────────────────────────────────────────────────────────
 program
   .command('install-hooks')

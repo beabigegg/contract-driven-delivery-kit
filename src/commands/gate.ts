@@ -60,7 +60,22 @@ export async function gate(changeId: string): Promise<void> {
     }
   }
 
-  // Step 5: agent-log validation
+  // Step 5: task completion check (warnings only — does not block)
+  const warnings: string[] = [];
+  const tasksPath = join(changeDir, 'tasks.md');
+  if (existsSync(tasksPath)) {
+    const tasksContent = readFileSync(tasksPath, 'utf8');
+    const pending = (tasksContent.match(/^\s*-\s*\[ \]/gm) || []).length;
+    const done    = (tasksContent.match(/^\s*-\s*\[x\]/gim) || []).length;
+    const na      = (tasksContent.match(/^\s*-\s*\[-\]/gm) || []).length;
+    if (done + na === 0) {
+      warnings.push('tasks.md: no tasks have been marked done ([x]) or N/A ([-]) — has work started?');
+    } else if (pending > 0) {
+      warnings.push(`tasks.md: ${pending} task(s) still pending ([ ]) — change may not be complete`);
+    }
+  }
+
+  // Step 6: agent-log validation
   const agentLogDir = join(changeDir, 'agent-log');
   if (existsSync(agentLogDir)) {
     const logFiles = readdirSync(agentLogDir).filter(f => f.endsWith('.md'));
@@ -95,7 +110,7 @@ export async function gate(changeId: string): Promise<void> {
     process.exit(1);
   }
 
-  // Step 6: contract validators (delegate to cdd-kit validate)
+  // Step 7: contract validators (delegate to cdd-kit validate)
   log.info(`gate: running contract validators for ${changeId}…`);
   const r = spawnSync(process.execPath, [process.argv[1], 'validate'], {
     cwd,
@@ -104,6 +119,11 @@ export async function gate(changeId: string): Promise<void> {
   if (r.status !== 0) {
     log.error(`gate failed for change: ${changeId} (validators returned non-zero)`);
     process.exit(1);
+  }
+
+  // Emit task warnings after all blocking checks pass
+  for (const w of warnings) {
+    log.warn(`  ${w}`);
   }
 
   log.ok(`gate passed for change: ${changeId}`);
