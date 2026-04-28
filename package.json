@@ -1,15 +1,18 @@
 {
   "name": "contract-driven-delivery",
   "version": "1.11.0",
-  "description": "Contract-driven delivery kit CLI — spec-first, test-first AI-assisted delivery for brownfield systems",
+  "description": "Claude Code kit that turns AI agents into a disciplined engineering team: contracts-first, test-first, spec-first. Every change is classified, contracted, TDD-ed, implemented, and gate-verified by an orchestrated multi-agent flow.",
   "keywords": [
     "contract-driven",
+    "claude-code",
+    "ai-agents",
     "sdd",
     "tdd",
-    "claude-code",
-    "ai",
     "specs",
-    "contracts"
+    "contracts",
+    "brownfield",
+    "multi-agent",
+    "cdd-kit"
   ],
   "license": "MIT",
   "author": "Contract-Driven Delivery Contributors",

@@ -1,96 +1,375 @@
 # Contract-Driven Delivery Kit
 
-A reusable Claude Code development kit for brownfield full-stack systems that need specification-driven development, test-driven development, strict contracts, CI/CD gates, visual review, E2E, resilience, fuzz/monkey, stress, and soak testing.
+**cdd-kit** is a Claude Code development kit that turns AI agents into a disciplined engineering team: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification — automatically orchestrated by Claude Code skills.
 
-This kit is designed for internal production systems such as dashboards, reporting systems, workflow tools, and data-heavy web apps. It is repo-informed but repo-agnostic: install it once, deploy it into any repository, and apply the same delivery discipline without repeating instructions every time.
+Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps) who want AI to do all the implementation while they stay in the spec-author and reviewer seat.
 
-## Install via npm
+---
+
+## Install
 
 ```bash
 npm install -g contract-driven-delivery
 ```
 
-Requires Node.js 18+ and Python 3.8+.
+Requires **Node.js 18+** and **Python 3.8+** (for contract validators).
 
-## CLI Usage
+---
+
+## Quick Start
+
+```bash
+# 1. Install globally
+npm install -g contract-driven-delivery
+
+# 2. Go to your repo
+cd your-repo
+
+# 3. Deploy the kit
+cdd-kit init
+
+# 4. Open Claude Code in your repo and tell Claude:
+# "Use /cdd-new to set up the project. My system is a <brief description>."
+```
+
+---
+
+## How to Direct Claude Code
+
+> All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills — not shell commands.
+
+### Starting a new project (first time)
+
+After `cdd-kit init`, open Claude Code and say:
+
+```
+Scan this repo and create a project profile. Tell me what contracts are
+missing and what the minimum setup should be before we start any feature work.
+```
+
+Claude will:
+1. Run `cdd-kit detect-stack` to detect the tech stack
+2. Read your existing code structure
+3. Create `specs/project-profile.md`
+4. Identify gaps in `contracts/` and recommend filling order
+
+Then fill your contracts in this order (Claude can help draft them):
+
+| Contract | File | What it captures |
+|---|---|---|
+| Env | `contracts/env/env-contract.md` | Every env var, secret flag, default, validation |
+| API | `contracts/api/api-contract.md` | Every endpoint: method, path, auth, schemas, errors |
+| Data | `contracts/data/data-shape-contract.md` | Schemas, types, nullability, bad-data behavior |
+| CSS/UI | `contracts/css/css-contract.md` | Design tokens, component states, forbidden raw values |
+| Business | `contracts/business/business-rules.md` | Rules, edge cases, decision tables |
+| CI/CD | `contracts/ci/ci-gate-contract.md` | Gate tiers, promotion policy, rollback policy |
+
+---
+
+### Starting a new task / feature / bug fix
+
+Type this in Claude Code:
+
+```
+/cdd-new add JWT authentication to the API
+```
+
+or
+
+```
+/cdd-new redesign the user dashboard to show real-time metrics
+```
+
+or
+
+```
+/cdd-new fix the order export timeout when result set exceeds 10 000 rows
+```
+
+**What happens:**
+1. Claude generates a `change-id` (e.g. `add-jwt-auth`) and scaffolds `specs/changes/add-jwt-auth/`
+2. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
+3. Agents run in order: contracts → test plan → spec/architecture review (if needed) → backend engineer → frontend engineer → CI/CD gates → QA
+4. Each agent produces machine-verifiable evidence (agent-log files)
+5. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
+6. Claude reports a summary and the suggested git commit
+
+**You stay in control by:**
+- Reviewing the `change-classification.md` before implementation starts
+- Checking the `test-plan.md` to confirm the right test families are planned
+- Reading the final `agent-log/qa-reviewer.md` for the release-readiness verdict
+
+---
+
+### Updating architecture or contracts
+
+```
+/cdd-new update the API contract to add pagination to all list endpoints
+```
+
+```
+/cdd-new migrate the database from MySQL to PostgreSQL
+```
+
+```
+/cdd-new add Redis caching layer to the reporting queries
+```
+
+The change-classifier will detect that these are architectural or contract-level changes, assign a higher risk tier (0–2), and automatically require:
+- Architecture review (`spec-architect` agent)
+- E2E, resilience, stress, and monkey tests
+- Updated contracts before any implementation begins
+
+---
+
+### Resuming an interrupted task
+
+If a session was cut off or you need to return to an in-progress change:
+
+```
+/cdd-resume add-jwt-auth
+```
+
+or, if you're unsure of the change-id:
+
+```
+What changes are currently in progress? (cdd-kit list)
+```
+
+**What happens:**
+1. Claude reads `tasks.md` and `agent-log/` to determine what was completed
+2. Reports the current state (which agents ran, which tasks are pending)
+3. Asks if you want to continue from the next pending agent
+4. Resumes the full agent flow from where it stopped, with no duplication
+
+> If you're upgrading from an older version and your change was created before v1.11.0, Claude will automatically run `cdd-kit migrate <change-id>` to upgrade the format before resuming.
+
+---
+
+### Closing a completed change
+
+After the PR is merged:
+
+```
+/cdd-close add-jwt-auth
+```
+
+**What happens:**
+1. Runs `cdd-kit gate` to confirm the change still passes
+2. Synthesizes `archive.md` — a permanent record of what changed, what tests were added, and what lessons were found
+3. Invokes `contract-reviewer` to propose any durable learnings back into `contracts/`
+4. Runs `cdd-kit archive add-jwt-auth` — moves the change from `specs/changes/` to `specs/archive/2026/`
+5. Reduces the active context that future Claude sessions need to load
+
+---
+
+### Abandoning a change
+
+If you decide not to proceed with a change:
+
+```
+/cdd-close add-jwt-auth
+```
+
+Then when Claude asks for confirmation, say "abandon it." Claude will run:
+
+```bash
+cdd-kit abandon add-jwt-auth --reason "decided to use a third-party auth service instead"
+```
+
+The directory stays on disk for git history, but `cdd-kit list` will show it as `abandoned`.
+
+---
+
+### Checking the status of all active changes
+
+Type to Claude:
+
+```
+What changes are currently in progress?
+```
+
+Claude will run `cdd-kit list`, which shows:
+
+```
+Active changes:
+  add-jwt-auth       [in-progress]  (3 pending)
+  fix-export-timeout [gate-blocked]
+  redesign-dashboard [in-progress]  (12 pending)
+```
+
+---
+
+## CLI Reference
+
+These are shell commands — not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
 
 ### `cdd-kit init`
 
-Installs Claude Code agents and the `contract-driven-delivery` skill into `~/.claude`, and scaffolds project files (`contracts/`, `specs/templates/`, `tests/templates/`, `ci/`, `CLAUDE.md`, `AGENTS.md`) into the current repository.
+Installs agents and skill into `~/.claude` and scaffolds project files.
 
 ```bash
-cdd-kit init                  # global + local (recommended for first-time setup)
-cdd-kit init --global-only    # only install agents/skill into ~/.claude
-cdd-kit init --local-only     # only scaffold project files in current repo
-cdd-kit init --force          # overwrite existing project files (CLAUDE.md is never overwritten)
+cdd-kit init                  # global + local (recommended)
+cdd-kit init --global-only    # only install into ~/.claude
+cdd-kit init --local-only     # only scaffold project files
+cdd-kit init --force          # overwrite existing project files
 ```
+
+Creates: `contracts/`, `specs/templates/`, `CLAUDE.md`, `AGENTS.md`, `hooks/`
+
+---
 
 ### `cdd-kit update`
 
-Updates the agents and skill in `~/.claude` to the latest installed version. Does not touch project-level files like `contracts/` or `CLAUDE.md`.
+Updates agents and skill in `~/.claude` to the latest installed version. Does not touch `contracts/` or `CLAUDE.md`.
 
 ```bash
 cdd-kit update
+cdd-kit update --yes          # apply without confirmation
 ```
 
-### `cdd-kit new <name>`
-
-Creates a new change scaffold under `specs/changes/<name>/` with the required template files.
-
-```bash
-cdd-kit new add-user-auth             # required templates only
-cdd-kit new add-user-auth --all       # include all optional templates
-cdd-kit new add-user-auth --force     # re-scaffold even if directory already exists
-```
-
-Required templates: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
-
-Optional templates (with `--all`): `current-behavior.md`, `proposal.md`, `spec.md`, `design.md`, `contracts.md`, `qa-report.md`, `regression-report.md`, `archive.md`
-
-### `cdd-kit validate`
-
-Runs contract validation scripts against the current repository.
-
-```bash
-cdd-kit validate                # run all validators
-cdd-kit validate --contracts    # validate API/data/CSS contracts + semantic validators
-cdd-kit validate --env          # validate env contract
-cdd-kit validate --ci           # validate CI gate policy
-cdd-kit validate --spec         # validate spec traceability
-```
-
-`--contracts` also chains two semantic validators:
-- **API semantic**: checks endpoint table for valid HTTP methods, paths starting with `/`, and valid auth values.
-- **Env semantic**: checks variable table for secrets with default values (forbidden), and warns on required non-secret vars with no default.
+---
 
 ### `cdd-kit gate <change-id>`
 
-Validates that a change has completed the full orchestration workflow before it can be committed or shipped. Checks: directory exists, all 5 required artifacts are present, each has > 100 meaningful characters (not a stub), `change-classification.md` contains a tier or risk marker, and all contract validators pass.
+The single quality gate for a change. Blocks merge if anything is missing or incomplete.
 
 ```bash
-cdd-kit gate add-user-auth
-# ✓  gate passed for change: add-user-auth
+cdd-kit gate add-jwt-auth
+cdd-kit gate add-jwt-auth --strict
 ```
 
-Failure examples:
+Checks:
+- All 5 required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`)
+- Each artifact has sufficient content (not a stub): change-classification ≥ 200 chars, test-plan ≥ 200, ci-gates ≥ 150, others ≥ 100
+- `change-classification.md` contains a tier or risk marker
+- `agent-log/*.md` files all have `status: complete` (not blocked)
+- Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
+- Tier 0–3 changes have `contract-reviewer` and `qa-reviewer` logs
+- All contract validators pass
+
+`--strict` additionally:
+- Treats any pending `[ ]` tasks (except section 7 archive items) as errors
+- Validates that every file path listed in `agent-log` artifact pointers actually exists on disk
+
+Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks`).
+
 ```
+✓  gate passed for change: add-jwt-auth
+
 ✗  gate failed for change: feat-001
-✗    missing required artifact: tasks.md
-✗    change-classification.md: missing tier/risk marker (Tier 0-5 or low/medium/high/critical)
+✗    change-classification.md: appears to be a stub (< 200 meaningful chars)
+✗    Tier 1 change requires agent-log/e2e-resilience-engineer.md
+✗    1 task(s) still pending (use [-] for N/A items, [x] for done)
 ```
+
+---
+
+### `cdd-kit list`
+
+Lists all active changes in `specs/changes/` with status and pending task count.
+
+```bash
+cdd-kit list
+```
+
+```
+Active changes:
+  add-jwt-auth       [in-progress]  (3 pending)
+  fix-export-timeout [gate-blocked]
+  old-experiment     [abandoned]
+```
+
+---
+
+### `cdd-kit archive <change-id>`
+
+Physically moves a completed change from `specs/changes/` to `specs/archive/<year>/`.
+
+```bash
+cdd-kit archive add-jwt-auth
+# ✓  Archived: specs/changes/add-jwt-auth → specs/archive/2026/add-jwt-auth
+# ✓  Index updated: specs/archive/INDEX.md
+```
+
+Warns (but does not block) if `tasks.md` has pending items or `status: gate-blocked`. Use after `/cdd-close` — the skill runs this automatically at the end.
+
+---
+
+### `cdd-kit abandon <change-id>`
+
+Marks a change as abandoned. Updates `tasks.md` status to `abandoned`, records the reason in `specs/archive/INDEX.md`. The directory stays on disk for git history.
+
+```bash
+cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
+# ✓  Change add-jwt-auth marked as abandoned.
+```
+
+---
+
+### `cdd-kit migrate <change-id> | --all`
+
+Upgrades pre-v1.11.0 change directories to the current format.
+
+```bash
+cdd-kit migrate add-jwt-auth        # migrate one change
+cdd-kit migrate --all               # migrate all changes in specs/changes/
+cdd-kit migrate --all --dry-run     # preview without writing
+```
+
+What it upgrades:
+- `tasks.md`: adds YAML frontmatter (`change-id`, `status: in-progress`) and `[x]/[-]/[ ]` legend if missing
+- `change-classification.md`: detects old `**Tier:** Tier N` format and appends the new `## Tier\n- N` section so tier-based gate checks activate
+
+Run this after upgrading from v1.10 or earlier if you have mid-flight changes.
+
+```bash
+cdd-kit migrate --all
+git add specs/changes/
+git commit -m "chore: migrate changes to v1.11.0 format"
+```
+
+---
+
+### `cdd-kit validate`
+
+Runs contract validation scripts.
+
+```bash
+cdd-kit validate                # all validators
+cdd-kit validate --contracts    # API, CSS, data-shape (+ semantic checks)
+cdd-kit validate --env          # env contract
+cdd-kit validate --ci           # CI gate policy
+cdd-kit validate --spec         # spec traceability
+cdd-kit validate --versions     # contract frontmatter schema versions
+```
+
+---
+
+### `cdd-kit new <name>`
+
+Scaffolds an empty change directory. Normally you use `/cdd-new` (the Claude Code skill) instead, which runs this and then orchestrates all agents. Use `cdd-kit new` only if you want an empty scaffold without agent orchestration.
+
+```bash
+cdd-kit new add-user-auth
+cdd-kit new add-user-auth --all     # include optional templates too
+cdd-kit new add-user-auth --force   # overwrite existing directory
+```
+
+---
 
 ### `cdd-kit install-hooks`
 
-Installs a pre-commit Git hook that automatically runs `cdd-kit gate` for any change folder touched in the staged commit. Prevents skipping the orchestration workflow.
+Installs a pre-commit Git hook that auto-runs `cdd-kit gate --strict` on any staged change directory.
 
 ```bash
 cdd-kit install-hooks
 # ✓  pre-commit hook installed at .git/hooks/pre-commit
 ```
 
-- Idempotent: re-running updates the cdd-kit block in place without duplicating it.
-- Preserves existing hook content: if a pre-commit hook already exists, the cdd-kit block is prepended after the shebang line.
-- Bypass with `--no-verify` (not recommended; defeats AI process enforcement).
+Idempotent. Preserves existing hook content. Bypass with `--no-verify` is possible but defeats enforcement.
+
+---
 
 ### `cdd-kit detect-stack`
 
@@ -99,138 +378,99 @@ Detects the project tech stack from lockfiles and config files.
 ```bash
 cdd-kit detect-stack
 # Detected stack: conda
-# Candidates (in order): conda, pnpm
 # Polyglot: yes (config will be generated for conda)
 ```
 
-## Supported stacks (stack detection)
+| Language | Tool | Detection signal |
+|---|---|---|
+| Python | conda | `environment.yml`, `conda-lock.yml` |
+| Python | poetry | `pyproject.toml` with `[tool.poetry]` |
+| Python | uv | `pyproject.toml` (no poetry section) |
+| Python | pip | `requirements.txt` |
+| JS/TS | pnpm | `pnpm-lock.yaml` |
+| JS/TS | bun | `bun.lockb` |
+| JS/TS | yarn | `yarn.lock` |
+| JS/TS | npm | `package.json` (fallback) |
+| Go | go | `go.mod` |
+| Rust | rust | `Cargo.toml` |
 
-| Language   | Tool    | Detection signal                             |
-|------------|---------|----------------------------------------------|
-| Python     | conda   | `environment.yml`, `conda-lock.yml`, `meta.yaml` |
-| Python     | poetry  | `pyproject.toml` with `[tool.poetry]`        |
-| Python     | uv      | `pyproject.toml` (no poetry section)         |
-| Python     | pip     | `requirements.txt`                           |
-| JavaScript | pnpm    | `package.json` + `pnpm-lock.yaml`            |
-| JavaScript | bun     | `package.json` + `bun.lockb`                 |
-| JavaScript | yarn    | `package.json` + `yarn.lock`                 |
-| JavaScript | npm     | `package.json` (no lockfile match)           |
-| Go         | go      | `go.mod`                                     |
-| Rust       | rust    | `Cargo.toml`                                 |
+---
 
-When multiple language families are detected (polyglot project), `cdd-kit init` generates CI config for the first detected stack and prints a warning.
-
-## First-time setup in a repository
-
-```bash
-# 1. Install the CLI globally
-npm install -g contract-driven-delivery
-
-# 2. Navigate to your repository
-cd your-repo
-
-# 3. Deploy the kit
-cdd-kit init
-
-# 4. Open Claude Code and run the workflow
-# Ask Claude Code: "Use the contract-driven-delivery workflow.
-# Scan this repo, create a project profile, identify missing contracts,
-# and recommend the minimum standardization changes before feature work."
-```
-
-## What to expect after `cdd-kit init`
-
-The first `cdd-kit validate` after `init` is expected to print contract placeholder warnings — six contract files are scaffolded but empty. Validation still exits 0; warnings are advisory.
-
-```text
-Warning: contracts present but appear empty: contracts/api/api-contract.md, ...
-Fill them in before relying on the gate.
-```
-
-To turn warnings off, fill each contract with real content (typical user-filled contracts run 500+ characters of meaningful text, well above the placeholder threshold). Recommended filling order:
-
-1. `contracts/env/env-contract.md` — list every env var your app reads, with `secret`, `default`, `validation` columns.
-2. `contracts/api/api-contract.md` — inventory every endpoint with method, path, request/response shape, and error format.
-3. `contracts/data/data-shape-contract.md` — required columns, types, nullability, and malformed-data behavior for each data surface.
-4. `contracts/css/css-contract.md` — design tokens, component states, and forbidden raw values.
-5. `contracts/business/business-rules.md` — current rules, decision tables, edge cases.
-6. `contracts/ci/ci-gate-contract.md` — gate tiers, promotion policy, rollback policy.
-
-`cdd-kit validate --contracts` re-runs only the contract check; use it incrementally as you fill each file.
-
-## What this kit standardizes
-
-- Change classification before implementation
-- SDD artifacts for every meaningful change
-- TDD and test-first handoff rules
-- API, CSS/UI, environment, data-shape, business-rule, and CI/CD contracts
-- Required CI/CD gate planning for every change
-- E2E, resilience, data-boundary, monkey-operation, stress, and soak testing
-- Visual and UI/UX review for frontend changes
-- Spec drift audits across multiple iterations
-- Archiving completed changes back into durable standards
-
-## Core workflow
-
-1. Classify the change.
-2. Scan the repository context.
-3. Decide the required artifact path.
-4. Write or update specs, contracts, tests, and CI gate plan before implementation.
-5. Implement through the right engineer agents.
-6. Run local and CI gates.
-7. Run visual, E2E, resilience, stress, soak, or monkey testing as required.
-8. Archive stable learnings back into contracts and standards.
-
-## Change folder structure
-
-```text
-specs/changes/<change-id>/
-├── change-request.md        (required)
-├── change-classification.md (required)
-├── test-plan.md             (required)
-├── ci-gates.md              (required)
-├── tasks.md                 (required)
-├── current-behavior.md
-├── proposal.md
-├── spec.md
-├── design.md
-├── contracts.md
-├── qa-report.md
-├── regression-report.md
-└── archive.md
-```
-
-## Definition of done
-
-A change is not done until:
-
-- Required specs and contracts are updated.
-- Required tests exist and are mapped to acceptance criteria.
-- Required CI/CD gates are present and green or explicitly marked as informational with promotion policy.
-- UI changes have visual evidence.
-- Data/reporting changes have data-boundary and bad-shape coverage.
-- High-load or long-running features have stress or soak evidence.
-- The archive captures what should become durable project knowledge.
-
-## Stress / Soak runner support
-
-cdd-kit ships starter configs for three load runners. Pick one
-when filling out `tests/<change-id>/stress-test-plan.md`:
-
-| runner | best for | example |
-|--------|----------|---------|
-| k6 | JS-friendly, scriptable scenarios, native thresholds | tests/templates/stress/k6-example.js |
-| locust | Python teams, complex stateful scenarios | tests/templates/stress/locust-example.py |
-| artillery | declarative YAML, quick http flows | tests/templates/stress/artillery-example.yml |
-
-Soak templates live under `tests/templates/soak/`.
-
-## Updating the kit
+## Upgrading from v1.10 or earlier
 
 ```bash
 npm update -g contract-driven-delivery
 cdd-kit update
+
+# If you have mid-flight changes:
+cdd-kit migrate --all
+git add specs/changes/
+git commit -m "chore: migrate changes to v1.11.0 format"
 ```
+
+**What changed in v1.11.0:**
+- `gate --strict` and pre-commit enforcement
+- Tier-based agent-log requirements (Tier 0–1 must have E2E/monkey/stress logs)
+- `cdd-kit abandon`, `cdd-kit archive`, `cdd-kit list`, `cdd-kit migrate` commands
+- `/cdd-resume` and `/cdd-close` Claude Code skills
+- `change-classifier` outputs Acceptance Criteria + Tasks Not Applicable
+- All agents require `CURRENT_CHANGE_ID` injection (handled automatically by skills)
+
+---
+
+## Directory structure after `cdd-kit init`
+
+```
+your-repo/
+├── contracts/
+│   ├── api/api-contract.md          ← what endpoints exist and how they behave
+│   ├── css/css-contract.md          ← design tokens, component states
+│   ├── data/data-shape-contract.md  ← schemas, types, nullability
+│   ├── env/env-contract.md          ← every env var, secret flags, defaults
+│   ├── business/business-rules.md   ← rules, edge cases, decision tables
+│   └── ci/ci-gate-contract.md       ← gate tiers, promotion, rollback
+├── specs/
+│   ├── project-profile.md           ← overall system description
+│   ├── changes/                     ← active in-progress changes
+│   │   └── <change-id>/
+│   │       ├── change-request.md    (required)
+│   │       ├── change-classification.md (required)
+│   │       ├── test-plan.md         (required)
+│   │       ├── ci-gates.md          (required)
+│   │       ├── tasks.md             (required)
+│   │       └── agent-log/           ← machine-verifiable evidence per agent
+│   ├── archive/                     ← completed and abandoned changes
+│   │   ├── INDEX.md
+│   │   └── 2026/<change-id>/
+│   └── templates/
+├── tests/
+├── CLAUDE.md                        ← Claude's project guide (edit this)
+└── AGENTS.md                        ← agent roster (auto-managed)
+```
+
+---
+
+## Risk tiers and what each triggers
+
+| Tier | Risk level | Example changes | Extra agents |
+|---|---|---|---|
+| 0–1 | High / critical | Auth, payments, migrations, concurrency | E2E + monkey + stress/soak |
+| 2–3 | Medium | Feature with API change, bug fix with behavior change | Contract review + QA |
+| 4–5 | Low | Docs, prompts, config only, no behavior change | Contract review + QA |
+
+---
+
+## Task notation in `tasks.md`
+
+```markdown
+- [x] 1.1 Confirm classification       ← done
+- [-] 2.2 CSS/UI contract              ← N/A (not applicable to this change)
+- [ ] 4.1 Backend implementation       ← pending
+```
+
+`cdd-kit gate --strict` treats any `[ ]` (except section 7 archive tasks) as an error. Use `[-]` for items that are genuinely not applicable to a given change.
+
+---
 
 ## License
 
