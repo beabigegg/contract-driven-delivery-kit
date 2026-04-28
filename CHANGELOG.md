@@ -16,6 +16,9 @@
 - All agents: require `CURRENT_CHANGE_ID: <id>` header in every prompt; ask caller if not provided.
 - `cdd-new` skill: injects `CURRENT_CHANGE_ID` into every agent call, auto-marks N/A tasks with `[-]` from classifier output, and passes AC list to test-strategist.
 
+### Added (migration)
+- `cdd-kit migrate <change-id> | --all [--dry-run]`: upgrades existing change directories from pre-v1.11 format. Adds YAML frontmatter + `[x]/[-]/[ ]` legend to `tasks.md`; converts old `**Tier:** Tier N` to `## Tier\n- N` in `change-classification.md` so tier-based gate checks activate. Run after upgrading if you have mid-flight changes.
+
 ### Fixed
 - Tier detection regex tightened to `/^## Tier\s*\n\s*-\s*(\d)\s*$/m` — prevents matching unfilled classifier template (`- 0 / 1 / 2 / 3 / 4 / 5`).
 - Agent read-scope placeholder `<current-change-id>` replaced with runtime `CURRENT_CHANGE_ID` injection pattern.
