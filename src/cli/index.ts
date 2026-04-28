@@ -146,4 +146,12 @@ program
     }
   });
 
+program
+  .command('context-scan')
+  .description('Deterministically scan project context and generate specs/context maps')
+  .action(async () => {
+    const { contextScan } = await import('../commands/context-scan.js');
+    await contextScan();
+  });
+
 program.parse();

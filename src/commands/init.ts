@@ -189,6 +189,14 @@ export async function init(opts: InitOptions): Promise<void> {
       track(ciCreated);
       log.ok(`ci/ — ${ciCount} file(s) written.`);
 
+      const { count: cddConfigCount, created: cddConfigCreated } = copyDirTracked(
+        ASSET.cddConfig,
+        join(cwd, '.cdd'),
+        { overwrite: opts.force, label: '.cdd' },
+      );
+      track(cddConfigCreated);
+      log.ok(`.cdd/ - ${cddConfigCount} file(s) written.`);
+
       const { count: wfCount, created: wfCreated } = copyDirTracked(
         ASSET.githubWorkflows,
         join(cwd, '.github', 'workflows'),

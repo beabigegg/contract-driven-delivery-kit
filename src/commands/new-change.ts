@@ -15,6 +15,7 @@ const REQUIRED_TEMPLATES = [
   'test-plan.md',
   'ci-gates.md',
   'tasks.md',
+  'context-manifest.md',
 ];
 
 function listOptional(): string[] {

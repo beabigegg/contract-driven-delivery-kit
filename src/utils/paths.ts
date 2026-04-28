@@ -24,4 +24,5 @@ export const ASSET = {
   hooks:          join(ASSETS_DIR, 'hooks'),
   claudeTemplate: join(ASSETS_DIR, 'CLAUDE.template.md'),
   agentsTemplate: join(ASSETS_DIR, 'AGENTS.template.md'),
+  cddConfig:      join(ASSETS_DIR, 'cdd'),
 };

@@ -9,6 +9,7 @@ const REQUIRED_TEMPLATES = [
   'test-plan.md',
   'ci-gates.md',
   'tasks.md',
+  'context-manifest.md',
 ];
 
 describe('cdd-kit new', () => {
@@ -30,7 +31,7 @@ describe('cdd-kit new', () => {
     cleanupDir(tmpHome);
   });
 
-  it('new feat-001 creates all 5 required templates', () => {
+  it('new feat-001 creates all required templates and marks context governance v1', () => {
     const r = runCli(['new', 'feat-001'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
@@ -40,6 +41,9 @@ describe('cdd-kit new', () => {
     for (const tmpl of REQUIRED_TEMPLATES) {
       expect(existsSync(join(changeDir, tmpl)), `${tmpl} missing`).toBe(true);
     }
+
+    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
+    expect(tasks).toMatch(/^context-governance:\s*v1\b/m);
   });
 
   it('new feat-002 --all creates required + at least 1 optional template', () => {

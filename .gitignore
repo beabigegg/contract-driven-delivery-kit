@@ -10,4 +10,4 @@ project-profile.generated.md
 coverage/
 test-tmp/
 .npmrc
-
+.claude/worktrees/

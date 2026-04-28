@@ -4,6 +4,8 @@
 
 Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps) who want AI to do all the implementation while they stay in the spec-author and reviewer seat.
 
+**Context Governance v1** adds a manifest-driven audit layer for AI agents. New changes include `context-manifest.md`, `agent-log` entries are expected to report `files-read`, and `cdd-kit gate` audits those reads against allowed and forbidden paths. This is governance and review support, not a sandbox.
+
 ---
 
 ## Install
@@ -240,10 +242,11 @@ cdd-kit gate add-jwt-auth --strict
 ```
 
 Checks:
-- All 5 required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`)
+- All required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content (not a stub): change-classification ≥ 200 chars, test-plan ≥ 200, ci-gates ≥ 150, others ≥ 100
 - `change-classification.md` contains a tier or risk marker
 - `agent-log/*.md` files all have `status: complete` (not blocked)
+- For context-governed changes, `agent-log/*.md` files include `- files-read:` and those paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
 - Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
 - Tier 0–3 changes have `contract-reviewer` and `qa-reviewer` logs
 - All contract validators pass
@@ -251,6 +254,7 @@ Checks:
 `--strict` additionally:
 - Treats any pending `[ ]` tasks (except section 7 archive items) as errors
 - Validates that every file path listed in `agent-log` artifact pointers actually exists on disk
+- Treats legacy changes missing `context-manifest.md` or `files-read` audit data as errors
 
 Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks`).
 

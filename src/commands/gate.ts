@@ -9,6 +9,7 @@ const REQUIRED_FILES = [
   'test-plan.md',
   'ci-gates.md',
   'tasks.md',
+  'context-manifest.md',
 ];
 
 const TIER_PATTERN = /\b(tier\s*[0-5]|low|medium|high|critical)\b/i;
@@ -20,6 +21,7 @@ const MIN_CHARS: Record<string, number> = {
   'ci-gates.md': 150,
   'change-request.md': 100,
   'tasks.md': 100,
+  'context-manifest.md': 50,
 };
 
 function meaningfulChars(text: string): number {
@@ -36,6 +38,121 @@ export interface GateOptions {
   strict?: boolean;
 }
 
+interface ContextPolicy {
+  forbiddenPaths: string[];
+  audit: {
+    requireFilesRead: boolean;
+    unknownFilesRead: string;
+  };
+}
+
+function stripHtmlComments(text: string): string {
+  return text.replace(/<!--[\s\S]*?-->/g, '');
+}
+
+function pathMatches(relPath: string, patterns: string[], currentChangeId?: string): boolean {
+  const normalized = relPath.replace(/\\/g, '/').replace(/^\.\//, '');
+
+  return patterns.some(rawPattern => {
+    const pattern = rawPattern.replace(/\\/g, '/').replace(/^\.\//, '');
+
+    if (pattern === 'specs/changes/*' && currentChangeId) {
+      const current = `specs/changes/${currentChangeId}`;
+      if (normalized === current || normalized.startsWith(`${current}/`)) return false;
+      return normalized.startsWith('specs/changes/');
+    }
+
+    if (pattern.endsWith('/**')) {
+      const base = pattern.slice(0, -3);
+      return normalized === base || normalized.startsWith(`${base}/`);
+    }
+
+    if (pattern.endsWith('/*')) {
+      const base = pattern.slice(0, -2);
+      if (!normalized.startsWith(`${base}/`)) return false;
+      return !normalized.slice(base.length + 1).includes('/');
+    }
+
+    return normalized === pattern || normalized.startsWith(`${pattern}/`);
+  });
+}
+
+function parseListSection(content: string, heading: string): string[] {
+  const clean = stripHtmlComments(content);
+  const match = clean.match(new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?:\\n## |$)`));
+  if (!match) return [];
+
+  return match[1]
+    .split(/\r?\n/)
+    .map(line => line.replace(/^\s*-\s*/, '').trim())
+    .filter(item => item && item !== '-' && item.toLowerCase() !== 'none');
+}
+
+function parseContextManifest(content: string): { allowedPaths: string[]; approvedExpansions: string[]; pendingExpansions: number } {
+  const clean = stripHtmlComments(content);
+  const requestMatch = clean.match(/## Context Expansion Requests\s*\n([\s\S]*?)(?:\n## |$)/);
+  const pendingExpansions = requestMatch
+    ? (requestMatch[1].match(/^\s*-\s*status:\s*pending\b/gim) || []).length
+    : 0;
+
+  return {
+    allowedPaths: parseListSection(content, 'Allowed Paths'),
+    approvedExpansions: parseListSection(content, 'Approved Expansions'),
+    pendingExpansions,
+  };
+}
+
+function loadContextPolicy(cwd: string): ContextPolicy {
+  const defaults: ContextPolicy = {
+    forbiddenPaths: [
+      '.claude/worktrees/**',
+      '.git/**',
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      'assets/**',
+      'specs/archive/**',
+      'specs/changes/*',
+    ],
+    audit: {
+      requireFilesRead: true,
+      unknownFilesRead: 'warn-for-legacy-fail-for-new',
+    },
+  };
+
+  const policyPath = join(cwd, '.cdd', 'context-policy.json');
+  if (!existsSync(policyPath)) return defaults;
+
+  try {
+    const custom = JSON.parse(readFileSync(policyPath, 'utf8')) as Partial<ContextPolicy>;
+    return {
+      ...defaults,
+      ...custom,
+      forbiddenPaths: Array.from(new Set([...(defaults.forbiddenPaths), ...(custom.forbiddenPaths ?? [])])),
+      audit: { ...defaults.audit, ...(custom.audit ?? {}) },
+    };
+  } catch {
+    log.warn('could not parse .cdd/context-policy.json; using default context policy');
+    return defaults;
+  }
+}
+
+function isContextGovernedChange(changeDir: string): boolean {
+  const tasksPath = join(changeDir, 'tasks.md');
+  if (!existsSync(tasksPath)) return false;
+  return /^context-governance:\s*v1\b/m.test(readFileSync(tasksPath, 'utf8'));
+}
+
+function parseFilesRead(content: string): string[] | null {
+  const match = content.match(/- files-read:\s*\n([\s\S]*?)(?:\n- |\n#|$)/);
+  if (!match) return null;
+
+  return match[1]
+    .split(/\r?\n/)
+    .map(line => line.replace(/^\s*-\s*/, '').trim())
+    .filter(item => item && item !== 'none' && item !== 'unknown');
+}
+
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
   const strict = opts.strict ?? false;
   const cwd = process.cwd();
@@ -48,9 +165,34 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   const errors: string[] = [];
   const warnings: string[] = [];
+  const contextPolicy = loadContextPolicy(cwd);
+  const isNewChange = isContextGovernedChange(changeDir);
+  const manifestPath = join(changeDir, 'context-manifest.md');
+  const hasManifest = existsSync(manifestPath);
+  let allowedPaths: string[] = [];
+  let approvedExpansions: string[] = [];
+
+  if (hasManifest) {
+    const manifest = parseContextManifest(readFileSync(manifestPath, 'utf8'));
+    allowedPaths = manifest.allowedPaths;
+    approvedExpansions = manifest.approvedExpansions;
+    if (manifest.pendingExpansions > 0) {
+      errors.push(`context-manifest.md: has ${manifest.pendingExpansions} pending context expansion request(s)`);
+    }
+  }
 
   // Step 2: required files
   for (const f of REQUIRED_FILES) {
+    if (f === 'context-manifest.md') {
+      if (!hasManifest) {
+        if (isNewChange || strict) {
+          errors.push('missing required artifact: context-manifest.md');
+        } else {
+          warnings.push('missing context-manifest.md (legacy change; run cdd-kit migrate after upgrading)');
+        }
+      }
+      continue;
+    }
     if (!existsSync(join(changeDir, f))) {
       errors.push(`missing required artifact: ${f}`);
     }
@@ -59,6 +201,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   if (errors.length === 0) {
     // Step 3: stub check (Fix 1d: per-artifact minimum char counts)
     for (const f of REQUIRED_FILES) {
+      if (f === 'context-manifest.md' && !hasManifest) continue;
       const content = readFileSync(join(changeDir, f), 'utf8');
       const minChars = MIN_CHARS[f] ?? 100;
       if (meaningfulChars(content) < minChars) {
@@ -99,6 +242,32 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     const logFiles = readdirSync(agentLogDir).filter(f => f.endsWith('.md'));
     for (const f of logFiles) {
       const content = readFileSync(join(agentLogDir, f), 'utf8');
+      const filesRead = parseFilesRead(content);
+
+      if (!filesRead) {
+        if (contextPolicy.audit.requireFilesRead) {
+          const msg = `agent-log/${f}: missing "- files-read:" section`;
+          if (isNewChange || strict || contextPolicy.audit.unknownFilesRead !== 'warn-for-legacy-fail-for-new') {
+            errors.push(msg);
+          } else {
+            warnings.push(`${msg} (legacy warning only)`);
+          }
+        }
+      } else {
+        for (const pathRead of filesRead) {
+          if (pathMatches(pathRead, contextPolicy.forbiddenPaths, changeId)) {
+            errors.push(`agent-log/${f}: read forbidden path -> ${pathRead}`);
+          }
+          if (
+            hasManifest &&
+            allowedPaths.length > 0 &&
+            !pathMatches(pathRead, allowedPaths) &&
+            !pathMatches(pathRead, approvedExpansions)
+          ) {
+            errors.push(`agent-log/${f}: read unauthorized path -> ${pathRead} (not in allowed paths or approved expansions)`);
+          }
+        }
+      }
 
       // Extract status line
       const statusMatch = content.match(/^\s*-\s*status:\s*(complete|needs-review|blocked)\s*$/m);

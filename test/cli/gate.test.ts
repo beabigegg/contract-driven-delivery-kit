@@ -202,6 +202,41 @@ function writeValidChangeArtifacts(changeDir: string): void {
   writeFileSync(join(changeDir, 'tasks.md'), `# Tasks\n\n${filler}\n\n1. Implement the new user management API endpoints\n2. Add unit tests for all new business logic\n3. Update the API contract documentation\n4. Run integration tests against the test database\n5. Review changes with the team before merging\n`, 'utf8');
 }
 
+function writeContextGovernanceFiles(changeDir: string): void {
+  const filler = 'This is a meaningful description of the context policy. '.repeat(4);
+  writeFileSync(join(changeDir, 'tasks.md'), [
+    '---',
+    'change-id: test-change',
+    'status: in-progress',
+    'context-governance: v1',
+    '---',
+    '',
+    '# Tasks',
+    '',
+    filler,
+    '',
+    '- [x] 1.1 Confirm classification and required artifacts',
+    '- [x] 1.2 Confirm contracts to update',
+    '- [x] 1.3 Confirm CI/CD gate plan',
+  ].join('\n'), 'utf8');
+
+  writeFileSync(join(changeDir, 'context-manifest.md'), [
+    '# Context Manifest',
+    '',
+    filler,
+    '',
+    '## Allowed Paths',
+    '- src/api/users.ts',
+    '- specs/changes/test-change/',
+    '',
+    '## Approved Expansions',
+    '-',
+    '',
+    '## Context Expansion Requests',
+    '-',
+  ].join('\n'), 'utf8');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -653,5 +688,149 @@ describe('cdd-kit gate', () => {
     // (gate may fail at contract validator, but NOT due to pending tasks)
     const r = runCli(['gate', 'feat-011', '--strict'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending/i);
+  });
+
+  it('16: new context-governed change fails when context-manifest.md is missing', () => {
+    runCli(['new', 'feat-cg-missing'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-missing');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    rmSync(join(changeDir, 'context-manifest.md'));
+
+    const r = runCli(['gate', 'feat-cg-missing'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing required artifact: context-manifest\.md/i);
+  });
+
+  it('17: legacy change warns when context-manifest.md is missing, but strict mode fails', () => {
+    runCli(['new', 'feat-legacy-cg'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-legacy-cg');
+    writeValidChangeArtifacts(changeDir);
+    rmSync(join(changeDir, 'context-manifest.md'));
+
+    const normal = runCli(['gate', 'feat-legacy-cg'], { cwd: tmpRepo, home: tmpHome });
+    expect(normal.stdout + normal.stderr).toMatch(/missing context-manifest\.md \(legacy change/i);
+    expect(normal.stdout + normal.stderr).not.toMatch(/missing required artifact: context-manifest\.md/i);
+
+    const strict = runCli(['gate', 'feat-legacy-cg', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(strict.status).not.toBe(0);
+    expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: context-manifest\.md/i);
+  });
+
+  it('18: new context-governed change fails when agent-log omits files-read', () => {
+    runCli(['new', 'feat-cg-files-read'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-files-read');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-cg-files-read',
+      '- status: complete',
+      '- artifacts:',
+      '  - files-changed: src/api/users.ts:1',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-files-read'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing "- files-read:" section/i);
+  });
+
+  it('19: gate fails when files-read hits forbidden path', () => {
+    runCli(['new', 'feat-cg-forbidden'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-forbidden');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-cg-forbidden',
+      '- status: complete',
+      '- files-read:',
+      '  - node_modules/pkg/index.js',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-forbidden'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/read forbidden path -> node_modules\/pkg\/index\.js/i);
+  });
+
+  it('20: gate fails when files-read is outside manifest allowed paths', () => {
+    runCli(['new', 'feat-cg-unauthorized'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-unauthorized');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-cg-unauthorized',
+      '- status: complete',
+      '- files-read:',
+      '  - src/secret/file.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-unauthorized'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/read unauthorized path -> src\/secret\/file\.ts/i);
+  });
+
+  it('21: gate allows approved expansion paths and current change paths', () => {
+    runCli(['new', 'feat-cg-approved'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-approved');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    writeFileSync(join(changeDir, 'context-manifest.md'), [
+      '# Context Manifest',
+      '',
+      '## Allowed Paths',
+      '- specs/changes/feat-cg-approved/',
+      '',
+      '## Approved Expansions',
+      '- src/secret/file.ts',
+    ].join('\n'), 'utf8');
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-cg-approved',
+      '- status: complete',
+      '- files-read:',
+      '  - src/secret/file.ts',
+      '  - specs/changes/feat-cg-approved/test-plan.md',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-approved'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/read forbidden path -> specs\/changes\/feat-cg-approved/i);
+    expect(r.stdout + r.stderr).not.toMatch(/read unauthorized path -> src\/secret\/file\.ts/i);
+  });
+
+  it('22: gate fails when context expansion request is pending', () => {
+    runCli(['new', 'feat-cg-pending'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-pending');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    writeFileSync(join(changeDir, 'context-manifest.md'), [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '- status: pending',
+      '  requested_paths:',
+      '    - src/other/file.ts',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-pending'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/context-manifest\.md: has 1 pending context expansion request/i);
   });
 });

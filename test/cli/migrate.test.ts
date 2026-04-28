@@ -67,6 +67,7 @@ describe('cdd-kit migrate', () => {
     expect(tasks).toMatch(/^---/);
     expect(tasks).toMatch(/change-id: old-001/);
     expect(tasks).toMatch(/status: in-progress/);
+    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'old-001', 'context-manifest.md'))).toBe(true);
   });
 
   it('3: migrate adds legend comment to tasks.md when missing', () => {
@@ -122,6 +123,7 @@ describe('cdd-kit migrate', () => {
 
     writeFileSync(join(changeDir, 'tasks.md'), originalTasks, 'utf8');
     writeFileSync(join(changeDir, 'change-classification.md'), originalClassif, 'utf8');
+    writeFileSync(join(changeDir, 'context-manifest.md'), '# Context Manifest\n\n## Allowed Paths\n- specs/changes/new-001/\n', 'utf8');
 
     const r = runCli(['migrate', 'new-001'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);
