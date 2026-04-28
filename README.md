@@ -423,6 +423,33 @@ cdd-kit detect-stack
 
 ---
 
+### `cdd-kit context-scan`
+
+Builds deterministic, low-token context indexes for classifiers and orchestrators.
+
+```bash
+cdd-kit context-scan
+```
+
+Outputs:
+- `specs/context/project-map.md`: ASCII directory tree with schema metadata, visible file/dir counts, and excluded paths from `.cdd/context-policy.json`
+- `specs/context/contracts-index.md`: contract inventory table plus deterministic details from YAML frontmatter or `<!-- cdd: ... -->` metadata
+
+Recommended contract metadata:
+
+```yaml
+---
+contract: api
+summary: User API endpoint rules and compatibility policy.
+owner: backend-team
+surface: user-management
+---
+```
+
+The classifier should read these two files before proposing `context-manifest.md` allowed paths.
+
+---
+
 ## Upgrading from v1.10 or earlier
 
 ```bash
