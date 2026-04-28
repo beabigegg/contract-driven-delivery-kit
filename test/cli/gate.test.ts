@@ -833,4 +833,50 @@ describe('cdd-kit gate', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/context-manifest\.md: has 1 pending context expansion request/i);
   });
+
+  it('23: gate fails when files-read has malformed entries', () => {
+    runCli(['new', 'feat-cg-bad-files-read'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-bad-files-read');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-cg-bad-files-read',
+      '- status: complete',
+      '- files-read:',
+      'src/api/users.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-bad-files-read'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid files-read entry format: src\/api\/users\.ts/i);
+  });
+
+  it('24: gate fails when files-read uses absolute or parent-traversal paths', () => {
+    runCli(['new', 'feat-cg-invalid-paths'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-invalid-paths');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-cg-invalid-paths',
+      '- status: complete',
+      '- files-read:',
+      '  - C:/Users/example/secret.txt',
+      '  - ../outside.txt',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-invalid-paths'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/files-read path must be repo-relative/i);
+    expect(r.stdout + r.stderr).toMatch(/files-read path must not contain "\.\."/i);
+  });
 });

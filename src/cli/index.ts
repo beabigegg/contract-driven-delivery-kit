@@ -107,7 +107,8 @@ program
   .description('Upgrade existing change directories to v1.11.0 format (tasks.md frontmatter + tier format)')
   .option('--all', 'Migrate all changes in specs/changes/', false)
   .option('--dry-run', 'Show what would change without writing files', false)
-  .action(async (changeId?: string, opts: { all?: boolean; dryRun?: boolean } = {}) => {
+  .option('--enable-context-governance', 'Opt legacy changes into context-governance: v1 hard gate behavior', false)
+  .action(async (changeId?: string, opts: { all?: boolean; dryRun?: boolean; enableContextGovernance?: boolean } = {}) => {
     const { migrate } = await import('../commands/migrate.js');
     await migrate(changeId, opts);
   });

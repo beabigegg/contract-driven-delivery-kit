@@ -49,6 +49,8 @@ with this exact structure (lines starting with `- ` are required):
 - change-id: <id>
 - timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
 - status: complete | needs-review | blocked
+- files-read:
+  - <repo-relative path read through tools>
 - artifacts:
   - <evidence-type>: <concrete pointer>
   - <evidence-type>: <concrete pointer>

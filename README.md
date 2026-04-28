@@ -248,7 +248,7 @@ Checks:
 - Each artifact has sufficient content (not a stub): change-classification ≥ 200 chars, test-plan ≥ 200, ci-gates ≥ 150, others ≥ 100
 - `change-classification.md` contains a tier or risk marker
 - `agent-log/*.md` files all have `status: complete` (not blocked)
-- For context-governed changes, `agent-log/*.md` files include `- files-read:` and those paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
+- For context-governed changes, `agent-log/*.md` files include a structured `- files-read:` list and those repo-relative paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
 - Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
 - Tier 0–3 changes have `contract-reviewer` and `qa-reviewer` logs
 - All contract validators pass
@@ -321,11 +321,24 @@ Upgrades pre-v1.11.0 change directories to the current format.
 cdd-kit migrate add-jwt-auth        # migrate one change
 cdd-kit migrate --all               # migrate all changes in specs/changes/
 cdd-kit migrate --all --dry-run     # preview without writing
+cdd-kit migrate --all --enable-context-governance
 ```
 
 What it upgrades:
 - `tasks.md`: adds YAML frontmatter (`change-id`, `status: in-progress`) and `[x]/[-]/[ ]` legend if missing
 - `change-classification.md`: detects old `**Tier:** Tier N` format and appends the new `## Tier\n- N` section so tier-based gate checks activate
+- `context-manifest.md`: adds a legacy manifest scaffold by default so old changes can continue with warning-only context audit behavior
+- `--enable-context-governance`: explicitly adds `context-governance: v1` and a context-governed manifest scaffold, making missing manifest or malformed `files-read` data hard gate failures
+
+`agent-log/*.md` must use this `files-read` format for context-governed changes:
+
+```md
+- files-read:
+  - contracts/api/api-contract.md
+  - src/server/routes/users.ts
+```
+
+Paths must be repo-relative. Absolute paths and `..` parent traversal are rejected.
 
 Run this after upgrading from v1.10 or earlier if you have mid-flight changes.
 

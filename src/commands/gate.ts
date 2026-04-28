@@ -143,14 +143,60 @@ function isContextGovernedChange(changeDir: string): boolean {
   return /^context-governance:\s*v1\b/m.test(readFileSync(tasksPath, 'utf8'));
 }
 
-function parseFilesRead(content: string): string[] | null {
-  const match = content.match(/- files-read:\s*\n([\s\S]*?)(?:\n- |\n#|$)/);
-  if (!match) return null;
+interface FilesReadParseResult {
+  present: boolean;
+  files: string[];
+  errors: string[];
+}
 
-  return match[1]
-    .split(/\r?\n/)
-    .map(line => line.replace(/^\s*-\s*/, '').trim())
-    .filter(item => item && item !== 'none' && item !== 'unknown');
+function parseFilesRead(content: string): FilesReadParseResult {
+  const clean = stripHtmlComments(content);
+  const allLines = clean.split(/\r?\n/);
+  const startIndex = allLines.findIndex(line => /^\s*-\s*files-read:\s*$/.test(line));
+  if (startIndex === -1) return { present: false, files: [], errors: [] };
+
+  const files: string[] = [];
+  const errors: string[] = [];
+  const lines: string[] = [];
+
+  for (let i = startIndex + 1; i < allLines.length; i++) {
+    const line = allLines[i];
+    if (/^-\s*[a-zA-Z][\w-]*:\s*/.test(line) || /^#/.test(line)) break;
+    lines.push(line);
+  }
+
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue;
+
+    const itemMatch = rawLine.match(/^\s{2,}-\s+(.+?)\s*$/);
+    if (!itemMatch) {
+      errors.push(`invalid files-read entry format: ${rawLine.trim()}`);
+      continue;
+    }
+
+    const item = itemMatch[1].trim();
+    if (!item || item === '-' || item.toLowerCase() === 'none' || item.toLowerCase() === 'unknown') {
+      continue;
+    }
+
+    const normalized = item.replace(/\\/g, '/').replace(/^\.\//, '');
+    if (/^[a-zA-Z]:\//.test(normalized) || normalized.startsWith('/')) {
+      errors.push(`files-read path must be repo-relative: ${item}`);
+      continue;
+    }
+    if (normalized.split('/').includes('..')) {
+      errors.push(`files-read path must not contain "..": ${item}`);
+      continue;
+    }
+
+    files.push(normalized);
+  }
+
+  if (files.length === 0 && errors.length === 0) {
+    errors.push('files-read section must list repo-relative paths or omit the section for legacy changes');
+  }
+
+  return { present: true, files, errors };
 }
 
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
@@ -244,7 +290,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       const content = readFileSync(join(agentLogDir, f), 'utf8');
       const filesRead = parseFilesRead(content);
 
-      if (!filesRead) {
+      if (!filesRead.present) {
         if (contextPolicy.audit.requireFilesRead) {
           const msg = `agent-log/${f}: missing "- files-read:" section`;
           if (isNewChange || strict || contextPolicy.audit.unknownFilesRead !== 'warn-for-legacy-fail-for-new') {
@@ -254,7 +300,10 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
           }
         }
       } else {
-        for (const pathRead of filesRead) {
+        for (const parseError of filesRead.errors) {
+          errors.push(`agent-log/${f}: ${parseError}`);
+        }
+        for (const pathRead of filesRead.files) {
           if (pathMatches(pathRead, contextPolicy.forbiddenPaths, changeId)) {
             errors.push(`agent-log/${f}: read forbidden path -> ${pathRead}`);
           }
