@@ -85,6 +85,16 @@ Note: `archive.md` is created during change close-out, not at classification tim
 ## Required Agents
 ...
 
+## Inferred Acceptance Criteria
+(List 3-8 testable acceptance criteria derived from the change request. Format: `AC-N: <criterion>`. These will be used by test-strategist to populate the Acceptance Criteria → Test Mapping table.)
+- AC-1:
+- AC-2:
+- AC-3:
+
+## Tasks Not Applicable
+(List task IDs from tasks.md that are NOT applicable to this change, using the format `2.2, 2.3, 4.2`. Main Claude will mark these as [-] in tasks.md.)
+- not-applicable:
+
 ## Clarifications or Assumptions
 ...
 ```

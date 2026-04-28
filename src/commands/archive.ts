@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { existsSync, mkdirSync, renameSync, readFileSync, writeFileSync, appendFileSync } from 'fs';
+import { existsSync, mkdirSync, renameSync, readFileSync, writeFileSync, appendFileSync, cpSync, rmSync } from 'fs';
 import { log } from '../utils/logger.js';
 
 export async function archive(changeId: string): Promise<void> {
@@ -40,8 +40,18 @@ export async function archive(changeId: string): Promise<void> {
     mkdirSync(archiveBase, { recursive: true });
   }
 
-  // Move the change directory
-  renameSync(changeDir, archiveDir);
+  // Move the change directory (Fix 3: cross-volume fallback)
+  try {
+    renameSync(changeDir, archiveDir);
+  } catch (err: any) {
+    if (err.code === 'EXDEV') {
+      // Cross-device move: copy then delete
+      cpSync(changeDir, archiveDir, { recursive: true });
+      rmSync(changeDir, { recursive: true, force: true });
+    } else {
+      throw err;
+    }
+  }
   log.ok(`Archived: specs/changes/${changeId} → specs/archive/${archiveYear}/${changeId}`);
 
   // Append to INDEX.md

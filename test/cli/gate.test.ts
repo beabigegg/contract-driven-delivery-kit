@@ -365,4 +365,293 @@ describe('cdd-kit gate', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/status=blocked.*next-action/i);
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // --strict flag tests (Fix 1a + 1e)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('10: gate without --strict: pending tasks produce warning but do NOT fail', () => {
+    runCli(['new', 'feat-009'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-009');
+
+    // Write all artifacts with sufficient content
+    writeValidChangeArtifacts(changeDir);
+
+    // Overwrite tasks.md with pending items (simulates in-progress work)
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '# Tasks: feat-009',
+      '',
+      '## 1. Preparation',
+      '- [x] 1.1 Confirm classification',
+      '- [ ] 1.2 Confirm contracts',
+      '',
+      '## 7. Archive',
+      '- [ ] 7.1 Archive change',
+      '- [ ] 7.2 Promote learnings',
+    ].join('\n'), 'utf8');
+
+    // Without --strict, pending tasks should only warn, not fail at this step
+    // (gate may still fail at contract validator step, but NOT due to pending tasks)
+    const r = runCli(['gate', 'feat-009'], { cwd: tmpRepo, home: tmpHome });
+    // The gate may or may not pass overall (depends on contracts), but the
+    // pending-tasks error message should NOT appear
+    expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending.*use \[-\]/i);
+  });
+
+  it('11: gate with --strict: pending non-archive tasks cause failure', () => {
+    runCli(['new', 'feat-010'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-010');
+
+    writeValidChangeArtifacts(changeDir);
+
+    // Overwrite tasks.md with a pending non-archive item
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '# Tasks: feat-010',
+      '',
+      '## 1. Preparation',
+      '- [x] 1.1 Confirm classification',
+      '- [ ] 1.2 Confirm contracts',
+      '',
+      '## 7. Archive',
+      '- [ ] 7.1 Archive change',
+      '- [ ] 7.2 Promote learnings',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-010', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/task\(s\) still pending/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Fix 1b: artifact pointer validation in --strict mode
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('13: gate --strict fails when agent-log artifact pointer references a missing file', () => {
+    runCli(['new', 'feat-013'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-013');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-013',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: complete',
+      '- artifacts:',
+      '  - test-plan-path: specs/changes/feat-013/does-not-exist.md',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-013', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/artifact pointer not found/i);
+  });
+
+  it('13b: gate without --strict ignores missing artifact pointer (pointer check is strict-only)', () => {
+    runCli(['new', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-013b');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-013b',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: complete',
+      '- artifacts:',
+      '  - test-plan-path: specs/changes/feat-013b/does-not-exist.md',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/artifact pointer not found/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Fix 1c: tier-based agent-log requirements
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('14: gate fails when Tier 1 change is missing required e2e/monkey/stress agent-logs', () => {
+    runCli(['new', 'feat-014'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-014');
+
+    // Write classification with new ## Tier\n- 1 format (Tier 1 = high-risk)
+    const classificationContent = [
+      '# Change Classification',
+      '',
+      '## Change Types',
+      '- primary: feature',
+      '- secondary: api',
+      '',
+      '## Risk Level',
+      '- high',
+      '',
+      '## Tier',
+      '- 1',
+      '',
+      '## Impact Radius',
+      '- cross-module',
+      '',
+      'This is a high-risk change that touches multiple components and requires careful review. ',
+      'The change introduces new API endpoints with authentication requirements. ',
+      'All changes must be reviewed by the security team before deployment. ',
+      'Performance testing is required before each deployment to production environment. ',
+      'The change follows the established patterns for API development in this codebase. ',
+    ].join('\n');
+    writeFileSync(join(changeDir, 'change-classification.md'), classificationContent, 'utf8');
+
+    const filler = 'This is a meaningful description of the change. '.repeat(4);
+    writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature to support the new requirements. The change is additive only with no breaking changes.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nUnit tests will cover all new business logic. Integration tests verify the API endpoints. E2E tests cover all user-facing flows affected by this change.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n## Required Gates\n| tier | gate | trigger | workflow | description |\n|---|---|---|---|---|\n| 1 | lint | PR | ci.yml | Linting |\n\n## Promotion Policy\nAll tier-1 gates must pass before merge.\n\n## Rollback Policy\nAutomatic rollback on error. ${filler}\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.md'), `# Tasks\n\n${filler}\n\n1. Implement endpoints\n2. Add tests\n3. Update docs\n4. Integration tests\n5. Team review\n`, 'utf8');
+
+    // Create agent-log with only backend-engineer — missing e2e, monkey, stress
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-014',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: complete',
+      '- artifacts:',
+      '  - files-changed: src/api/users.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-014'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/e2e-resilience-engineer/i);
+    expect(r.stdout + r.stderr).toMatch(/monkey-test-engineer/i);
+    expect(r.stdout + r.stderr).toMatch(/stress-soak-engineer/i);
+  });
+
+  it('14b: gate tier regex does NOT trigger on unfilled template placeholder (- 0 / 1 / 2 / 3 / 4 / 5)', () => {
+    runCli(['new', 'feat-014b'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-014b');
+    writeValidChangeArtifacts(changeDir);
+
+    // Overwrite with classification that has the literal template placeholder (unfilled)
+    const filler = 'This is a meaningful description of the change. '.repeat(4);
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification',
+      '',
+      '**Risk Level:** medium',
+      '**Tier:** Tier 1',
+      '',
+      '## Tier',
+      '- 0 / 1 / 2 / 3 / 4 / 5',
+      '',
+      filler,
+      'This change is classified as medium risk. Rollback is straightforward by reverting the feature flag.',
+    ].join('\n'), 'utf8');
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-014b',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: complete',
+      '- artifacts:',
+      '  - files-changed: src/api/users.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    // Literal template should NOT trigger tier-based agent-log requirement
+    const r = runCli(['gate', 'feat-014b'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/e2e-resilience-engineer/i);
+    expect(r.stdout + r.stderr).not.toMatch(/monkey-test-engineer/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Fix 1d: per-artifact minimum char counts
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('15: gate fails when change-classification.md has fewer than 200 meaningful chars', () => {
+    runCli(['new', 'feat-015'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015');
+
+    // Write classification with ~110 meaningful chars (above 100-char threshold for tasks.md but below 200-char threshold for change-classification.md)
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification',
+      '',
+      '**Risk Level:** medium',
+      '**Tier:** Tier 1',
+      '',
+      'Adds user management feature.',
+      'Additive only, no breaking changes.',
+      'Feature flag rollback option.',
+    ].join('\n'), 'utf8');
+
+    const filler = 'This is a meaningful description of the change. '.repeat(4);
+    writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature to support the new requirements. The change is additive only with no breaking changes.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nUnit tests will cover all new business logic. Integration tests verify the API endpoints. E2E tests cover all user-facing flows affected by this change.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n## Required Gates\n| tier | gate | trigger | workflow | description |\n|---|---|---|---|---|\n| 1 | lint | PR | ci.yml | Linting |\n\n## Promotion Policy\nAll tier-1 gates must pass. ${filler}\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.md'), `# Tasks\n\n${filler}\n\n1. Implement endpoints\n2. Add tests\n3. Update docs\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-015'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/change-classification\.md.*stub|stub.*change-classification\.md/i);
+  });
+
+  it('15b: gate fails when test-plan.md has fewer than 200 meaningful chars (same threshold as classification)', () => {
+    runCli(['new', 'feat-015b'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015b');
+
+    const filler = 'This is a meaningful description of the change. '.repeat(4);
+    writeFileSync(join(changeDir, 'change-classification.md'), `# Change Classification\n\n**Risk Level:** medium\n**Tier:** Tier 1\n\n${filler}\n\nThis change is classified as low risk. Rollback is straightforward by reverting the feature flag.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature. The change is additive only.\n`, 'utf8');
+
+    // Write test-plan.md with only ~150 meaningful chars (below 200 threshold)
+    writeFileSync(join(changeDir, 'test-plan.md'), [
+      '# Test Plan',
+      '',
+      'Unit tests will cover all new business logic paths.',
+      'Integration tests will verify the API endpoints work.',
+      'E2E tests will cover the main user flows.',
+    ].join('\n'), 'utf8');
+
+    writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n## Required Gates\n| tier | gate | trigger | workflow | description |\n|---|---|---|---|---|\n| 1 | lint | PR | ci.yml | Linting |\n\n## Promotion Policy\nAll tier-1 gates must pass. ${filler}\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.md'), `# Tasks\n\n${filler}\n\n1. Implement endpoints\n2. Add tests\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-015b'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/test-plan\.md.*stub|stub.*test-plan\.md/i);
+  });
+
+  it('12: gate with --strict: only section-7 pending tasks are exempt from pending check', () => {
+    runCli(['new', 'feat-011'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-011');
+
+    writeValidChangeArtifacts(changeDir);
+
+    // tasks.md where ONLY 7.x items are pending — non-archive all done
+    // Must have enough meaningful chars to pass the 100-char stub threshold
+    const filler = 'Completed task description with sufficient detail. '.repeat(3);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      `# Tasks: feat-011`,
+      '',
+      filler,
+      '',
+      '## 1. Preparation',
+      '- [x] 1.1 Confirm classification and required artifacts',
+      '- [x] 1.2 Confirm contracts to update',
+      '- [x] 1.3 Confirm CI/CD gate plan',
+      '',
+      '## 2. Contract Updates',
+      '- [x] 2.1 API contract updated successfully',
+      '',
+      '## 7. Archive',
+      '- [ ] 7.1 Archive change',
+      '- [ ] 7.2 Promote durable learnings to contracts or CLAUDE.md',
+    ].join('\n'), 'utf8');
+
+    // Strict mode but all non-archive tasks are done — pending check should pass
+    // (gate may fail at contract validator, but NOT due to pending tasks)
+    const r = runCli(['gate', 'feat-011', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending/i);
+  });
 });

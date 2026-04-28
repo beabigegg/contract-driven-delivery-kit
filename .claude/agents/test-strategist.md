@@ -64,6 +64,12 @@ Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to 
 Implementation detail belongs in the test files, not in test-plan.md.
 Target: `test-plan.md` ≤ 100 lines.
 
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
+- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`

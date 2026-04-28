@@ -6,7 +6,7 @@ import { init }      from '../commands/init.js';
 import { update }    from '../commands/update.js';
 import { newChange } from '../commands/new-change.js';
 import { validate }  from '../commands/validate.js';
-import { gate }      from '../commands/gate.js';
+import { gate } from '../commands/gate.js';
 import { installHooks } from '../commands/install-hooks.js';
 import { detectStack } from '../utils/stack-detect.js';
 
@@ -77,15 +77,26 @@ program
 program
   .command('gate <change-id>')
   .description('Run full orchestration gate for a change (required artifacts, content, tier, contracts)')
-  .action(async (id: string) => { await gate(id); });
+  .option('--strict', 'Treat pending tasks (except section 7) as errors, and validate artifact pointers', false)
+  .action(async (id: string, opts: { strict?: boolean }) => { await gate(id, { strict: opts.strict }); });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────
 program
   .command('archive <change-id>')
-  .description('Archive a completed change (moves specs/changes/<id> to specs/archive/<year>/<id>)')
+  .description('Move a completed change from specs/changes/ to specs/archive/<year>/')
   .action(async (changeId: string) => {
     const { archive } = await import('../commands/archive.js');
     await archive(changeId);
+  });
+
+// ── cdd abandon <change-id> ───────────────────────────────────────────────────
+program
+  .command('abandon <change-id>')
+  .description('Mark a change as abandoned (updates tasks.md status, records in INDEX.md)')
+  .option('--reason <text>', 'reason for abandonment')
+  .action(async (changeId: string, opts: { reason?: string }) => {
+    const { abandon } = await import('../commands/abandon.js');
+    await abandon(changeId, opts);
   });
 
 // ── cdd list ──────────────────────────────────────────────────────────────────

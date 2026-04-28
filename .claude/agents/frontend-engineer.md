@@ -28,6 +28,12 @@ Before editing, read the change artifacts, API contract, CSS/UI contract, compon
 - Bundle size — dynamic import heavy routes; avoid full lodash / moment imports.
 - Note: avoid double-submit / rapid-action implementation bugs — but do not author monkey tests here; that is `monkey-test-engineer`'s scope.
 
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
+- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
 ## Handoff
 
 Report changed screens, component states covered, screenshots/videos if generated, tests added, commands run, and remaining UI risks.

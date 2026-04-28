@@ -40,22 +40,43 @@ Check section 7:
 - `7.1 Archive change` — will be ticked after Step 4
 - `7.2 Promote durable learnings to contracts or CLAUDE.md` — must be done NOW
 
-If `7.2` is `[ ]`, proceed to Step 3. If already `[x]` or `[-]`, skip Step 3.
+If `7.2` is `[ ]`, proceed to Step 2.5. If already `[x]` or `[-]`, skip Steps 2.5 and 3.
+
+---
+
+## Step 2.5: Create archive.md
+
+Read `specs/changes/<change-id>/agent-log/` (all log files) and `specs/changes/<change-id>/qa-report.md` (if exists).
+
+Synthesize a `specs/changes/<change-id>/archive.md` file with:
+- **Change Summary**: 1 paragraph what was changed and why
+- **Final Behavior**: what the system now does differently
+- **Final Contracts Updated**: list from agent-log evidence
+- **Final Tests Added / Updated**: list from agent-log evidence
+- **Final CI/CD Gates**: list from ci-gates.md
+- **Production Reality Findings**: any surprises or deviations from the plan (from qa-reviewer agent-log)
+- **Lessons Promoted to Standards**: (leave blank — to be filled in Step 3)
+- **Follow-up Work**: any known issues deferred
+
+This file is the source for Step 3's learning promotion.
 
 ---
 
 ## Step 3: Promote learnings (task 7.2)
 
-Read `specs/changes/<change-id>/archive.md` if it exists.
+Read `specs/changes/<change-id>/archive.md` section `## Lessons Promoted to Standards`.
 
-Look at section "## Lessons Promoted to Standards" and "## Production Reality Findings".
+If there are lessons to promote, invoke `contract-reviewer` with:
+- The archive.md lessons section
+- Instruction: "Review these lessons and propose specific additions to the relevant contract files. For each lesson, output: target file, target section, proposed text (≤ 5 lines), schema-version bump required (yes/no)."
 
-For each non-trivial lesson:
-- If it's a contract rule → add to the relevant `contracts/` file
-- If it's a project-wide convention → add to `CLAUDE.md`
-- If it's already documented → mark `[-]` (already covered)
+After contract-reviewer responds:
+1. Apply each proposed addition to the contract file (YOU write)
+2. Run `cdd-kit validate --contracts` to confirm format is preserved
+3. Fill in `## Lessons Promoted to Standards` in archive.md with what was promoted
+4. Tick `7.2` in tasks.md
 
-After promoting, tick `7.2` in tasks.md: change `[ ]` to `[x]`.
+If there are no lessons to promote, mark `[-]` for 7.2 with rationale.
 
 ---
 

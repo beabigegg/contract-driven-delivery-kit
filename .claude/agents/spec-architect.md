@@ -85,6 +85,12 @@ Your output goes into `specs/changes/<id>/design.md`. It must capture architectu
 Reference file paths instead of duplicating implementation content.
 Target: `design.md` ≤ 150 lines.
 
+## Read scope
+
+- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
+- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
+- Forbidden: other `specs/changes/` directories, `specs/archive/`
+
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to `specs/changes/<change-id>/agent-log/<your-agent-name>.md`
