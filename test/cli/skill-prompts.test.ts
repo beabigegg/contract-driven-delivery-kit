@@ -29,4 +29,16 @@ describe('CDD skill prompt integration', () => {
     expect(classifier).toMatch(/Do not invent paths/);
     expect(classifier).toMatch(/## Context Manifest Draft/);
   });
+
+  it('cdd-resume resumes from manifest and logs without broad repository scans', () => {
+    const resume = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-resume', 'SKILL.md'), 'utf8');
+
+    expect(resume).toMatch(/context-manifest\.md/);
+    expect(resume).toMatch(/agent-log\/\*\.md/);
+    expect(resume).toMatch(/Do not run broad repository search during resume/);
+    expect(resume).toMatch(/If any request has `status: pending`, stop before invoking agents/);
+    expect(resume).toMatch(/Pending context expansions/);
+    expect(resume).toMatch(/Read only paths allowed by the context manifest and approved expansions/);
+    expect(resume).toMatch(/Context Expansion Request instead of reading outside the manifest/);
+  });
 });
