@@ -72,7 +72,7 @@ If the classifier marks an artifact as `no` or leaves it blank, **do not create 
 
 The 5 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`.
 
-## Step 1: Generate change-id and scaffold
+## Step 1: Generate change-id, scaffold, and scan context
 
 Derive a `change-id` from the description:
 - kebab-case, max 5 words
@@ -80,9 +80,28 @@ Derive a `change-id` from the description:
 
 Check that `specs/changes/<change-id>/` does not already exist. If it does, append `-2` (or next available suffix).
 
-**Create all scaffold files using Write (do NOT run a Python script; do NOT use Edit on pre-existing files):**
+Create the scaffold with the CLI so every provider gets the same templates:
 
-Create `specs/changes/<change-id>/change-request.md` with the user's description filled in:
+```bash
+cdd-kit new <change-id>
+```
+
+Then build deterministic context indexes before invoking any classifier:
+
+```bash
+cdd-kit context-scan
+```
+
+Verify these files exist:
+- `specs/changes/<change-id>/context-manifest.md`
+- `specs/context/project-map.md`
+- `specs/context/contracts-index.md`
+
+Do not use broad search or ad hoc reads to classify the change before `context-scan` has completed.
+
+The generated scaffold contains the artifacts below. Fill `change-request.md` with the user's request before invoking the classifier.
+
+Update `specs/changes/<change-id>/change-request.md` with the user's description filled in:
 ```
 # Change Request: <change-id>
 
@@ -104,7 +123,7 @@ Create `specs/changes/<change-id>/change-request.md` with the user's description
 as soon as possible
 ```
 
-Create `specs/changes/<change-id>/change-classification.md` with blank template:
+`specs/changes/<change-id>/change-classification.md` starts from this blank template:
 ```
 # Change Classification
 
@@ -163,7 +182,7 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 ## Assumptions / Clarifications
 ```
 
-Create `specs/changes/<change-id>/test-plan.md` with blank template:
+`specs/changes/<change-id>/test-plan.md` starts from this blank template:
 ```
 # Test Plan: <change-id>
 
@@ -182,7 +201,7 @@ Create `specs/changes/<change-id>/test-plan.md` with blank template:
 (Keep under 10 lines. Implementation detail belongs in the test files themselves.)
 ```
 
-Create `specs/changes/<change-id>/ci-gates.md` with blank template:
+`specs/changes/<change-id>/ci-gates.md` starts from this blank template:
 ```
 # CI Gates: <change-id>
 
@@ -195,11 +214,13 @@ Create `specs/changes/<change-id>/ci-gates.md` with blank template:
 ## Promotion Policy
 ```
 
-Create `specs/changes/<change-id>/tasks.md` with ALL checkboxes unchecked:
+`specs/changes/<change-id>/tasks.md` starts with ALL checkboxes unchecked:
 ```
 ---
 change-id: <change-id>
 status: in-progress
+context-governance: v1
+depends-on: []
 ---
 
 <!-- [x]=done [-]=N/A [ ]=pending -->
@@ -255,16 +276,28 @@ status: in-progress
 
 Invoke `change-classifier` agent with:
 - The user's change description
-- The project profile at `specs/project-profile.md` (if it exists)
-- The existing contracts in `contracts/` (if any)
+- `specs/changes/<change-id>/change-request.md`
+- `specs/changes/<change-id>/context-manifest.md`
+- `specs/context/project-map.md`
+- `specs/context/contracts-index.md`
+
+Do not authorize the classifier to read `contracts/`, `src/`, `tests/`, or broad repository search during initial classification. It must use the context indexes to propose candidate paths.
+
+The classifier must include a `## Context Manifest Draft` section with:
+- affected surfaces
+- allowed paths for each required agent work packet
+- required contracts
+- required tests
+- any context expansion requests that must be approved before implementation
 
 **change-classifier is read-only** — it will return its output as text. After it responds:
 
 1. **YOU write** `specs/changes/<change-id>/change-classification.md` — replace the blank template with the classifier's classification output.
 2. **YOU write** `specs/changes/<change-id>/agent-log/change-classifier.md` — copy the Agent Log block from the classifier's response.
-3. **YOU tick** `tasks.md` item `1.1`.
+3. **YOU update** `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft`.
+4. **YOU tick** `tasks.md` item `1.1`.
 
-Wait until these three writes are done before continuing.
+Wait until these four writes are done before continuing.
 
 **After writing change-classification.md**: read the classifier's `## Tasks Not Applicable` list. For each listed task ID (e.g., `2.2`, `4.2`), update `tasks.md` to change that item from `[ ]` to `[-]`. Do this before invoking any other agent.
 
