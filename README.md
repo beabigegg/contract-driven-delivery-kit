@@ -238,6 +238,35 @@ Codex currently has no global assets to update, so Codex-only projects report th
 
 ---
 
+### `cdd-kit doctor`
+
+Inspects repo-level cdd-kit health without writing files.
+
+```bash
+cdd-kit doctor
+cdd-kit doctor --strict
+cdd-kit doctor --provider codex
+```
+
+Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors, which is useful before publishing or merging an upgrade PR.
+
+---
+
+### `cdd-kit upgrade`
+
+Adds missing repo-level cdd-kit files after upgrading the npm package. It preserves existing contracts and guidance files; default mode is a dry run.
+
+```bash
+cdd-kit upgrade
+cdd-kit upgrade --yes
+cdd-kit upgrade --provider codex --yes
+cdd-kit upgrade --provider both --yes
+```
+
+Use this for old repos that already have `contracts/` or `specs/` but are missing new assets such as `.cdd/context-policy.json`, `.cdd/model-policy.json`, `CODEX.md`, or newer templates. Use `cdd-kit migrate` separately for existing `specs/changes/<change-id>/` directories.
+
+---
+
 ### `cdd-kit gate <change-id>`
 
 The single quality gate for a change. Blocks merge if anything is missing or incomplete.
@@ -352,6 +381,18 @@ cdd-kit migrate --all
 git add specs/changes/
 git commit -m "chore: migrate changes to v1.11.0 format"
 ```
+
+---
+
+### `cdd-kit context approve <change-id> <request-id>`
+
+Approves a pending Context Expansion Request in `context-manifest.md` and adds its `requested_paths` to `## Approved Expansions`.
+
+```bash
+cdd-kit context approve add-jwt-auth CER-001
+```
+
+This keeps expansion history explicit while avoiding manual manifest editing. Agents still have to report `files-read` in `agent-log/*.md`; `cdd-kit gate` audits those paths against the manifest.
 
 ---
 

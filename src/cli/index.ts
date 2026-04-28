@@ -47,6 +47,26 @@ program
   .option('--provider <provider>', 'Provider adapter to update: auto, claude, codex, or both', 'auto')
   .action((opts) => update({ yes: opts.yes, provider: opts.provider }));
 
+program
+  .command('doctor')
+  .description('Inspect cdd-kit repo health, provider guidance, and context index freshness')
+  .option('--strict', 'Treat warnings as errors', false)
+  .option('--provider <provider>', 'Provider adapter to inspect: auto, claude, codex, or both', 'auto')
+  .action(async (opts: { strict?: boolean; provider?: string }) => {
+    const { doctor } = await import('../commands/doctor.js');
+    await doctor({ strict: opts.strict, provider: opts.provider as never });
+  });
+
+program
+  .command('upgrade')
+  .description('Add missing cdd-kit repo-level files without overwriting existing project files')
+  .option('--yes', 'Apply changes (default is dry-run)', false)
+  .option('--provider <provider>', 'Provider adapter to scaffold: auto, claude, codex, or both', 'auto')
+  .action(async (opts: { yes?: boolean; provider?: string }) => {
+    const { upgrade } = await import('../commands/upgrade.js');
+    await upgrade({ yes: opts.yes, provider: opts.provider as never });
+  });
+
 // ── cdd new <name> ────────────────────────────────────────────────────────────
 program
   .command('new <name>')
@@ -157,6 +177,18 @@ program
   .action(async () => {
     const { contextScan } = await import('../commands/context-scan.js');
     await contextScan();
+  });
+
+const context = program
+  .command('context')
+  .description('Manage context governance manifests');
+
+context
+  .command('approve <change-id> <request-id>')
+  .description('Approve a pending Context Expansion Request and add its paths to Approved Expansions')
+  .action(async (changeId: string, requestId: string) => {
+    const { approveContextExpansion } = await import('../commands/context.js');
+    await approveContextExpansion(changeId, requestId);
   });
 
 program.parse();

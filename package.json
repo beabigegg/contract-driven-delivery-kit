@@ -32,7 +32,9 @@
   "files": [
     "dist",
     "bin",
-    "assets"
+    "assets",
+    "CHANGELOG.md",
+    "docs"
   ],
   "scripts": {
     "build": "node build.js",

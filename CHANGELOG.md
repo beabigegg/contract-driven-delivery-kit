@@ -1,6 +1,25 @@
 # Changelog
 
-## [1.11.0] — 2026-04-27
+## [1.11.0] - 2026-04-28
+
+### Added
+- Context Governance v1 for new changes: `context-manifest.md`, `files-read` audit expectations, default forbidden paths, and legacy-vs-new gate behavior.
+- Provider adapter scaffold for Claude Code and Codex: `init --provider claude|codex|both`, provider-aware `update`, and `.cdd/model-policy.json`.
+- `cdd-kit context-scan`: deterministic `specs/context/project-map.md` and `specs/context/contracts-index.md` indexes for lower-token classification.
+- `cdd-kit doctor`: repo health checks for missing config, provider guidance, stale context indexes, and contract summary gaps.
+- `cdd-kit upgrade`: dry-run-first repo-level upgrade command that adds missing cdd-kit files without overwriting existing project guidance or contracts.
+- `cdd-kit context approve <change-id> <request-id>`: approves pending expansion requests and records approved paths in the manifest.
+- Atomic change dependencies with `cdd-kit new --depends-on` and gate blocking until upstream changes complete or archive.
+- `/cdd-new`, `/cdd-resume`, and `/cdd-close` prompt hardening for manifest-scoped reads, hot/warm/cold data handling, and context index usage.
+
+### Changed
+- `cdd-kit migrate` can add legacy or context-governed manifests and opt old changes into `context-governance: v1`.
+- README now describes provider-neutral usage, context governance, upgrade flow, and context expansion approval.
+
+### Notes
+- Context Governance audits and discourages unauthorized reads. It is not a runtime sandbox and still depends on agent-log evidence plus gate review.
+
+## [1.11.0] - 2026-04-27
 
 ### Added
 - `cdd-kit gate --strict`: pending `[ ]` tasks are errors in strict mode; pre-commit hook now uses `--strict` by default. Section-7 archive tasks (7.1, 7.2) are exempt.
