@@ -41,4 +41,19 @@ describe('CDD skill prompt integration', () => {
     expect(resume).toMatch(/Read only paths allowed by the context manifest and approved expansions/);
     expect(resume).toMatch(/Context Expansion Request instead of reading outside the manifest/);
   });
+
+  it('cdd-close promotes only evidence-backed durable learnings to hot sources', () => {
+    const close = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-close', 'SKILL.md'), 'utf8');
+
+    expect(close).toMatch(/Hot \/ Warm \/ Cold Data Rules/);
+    expect(close).toMatch(/Cold data is historical evidence, not current requirements/);
+    expect(close).toMatch(/Do not read `specs\/archive\/` while closing a change/);
+    expect(close).toMatch(/Archive prose alone is not enough to change hot data/);
+    expect(close).toMatch(/promote-to-contract/);
+    expect(close).toMatch(/promote-to-guidance/);
+    expect(close).toMatch(/do-not-promote/);
+    expect(close).toMatch(/NEVER promote a lesson without an evidence path from this change/);
+    expect(close).toMatch(/cdd-kit context-scan/);
+    expect(close).toMatch(/CLAUDE\.md\/CODEX\.md/);
+  });
 });
