@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.16.0] - 2026-04-30
+
+### Visual narration: per-agent stage badges
+
+- `/cdd-new` skill now instructs main Claude to prefix every agent
+  invocation announcement with a colored emoji badge tagging the role and
+  stage. Non-engineer users can scan the chat stream and see "we're at
+  review now, not implementation" without reading prompts.
+- Six color buckets:
+  - 🟣 decision (classifier, architect — opus-class)
+  - 🔵 implementation (backend, frontend, ci-cd, sonnet-class)
+  - 🟡 test planning (test-strategist)
+  - 🟠 heavy testing (e2e, monkey, stress — Tier 0–1 only; orange = scope warning)
+  - 🟢 review (read-only verdicts)
+  - ⚫ audits & scans (background, read-only)
+- `/cdd-resume` references the same badge table so resumed flows look
+  consistent.
+
+### Notes
+
+This is the only PR in the v1.13 follow-up series that changes the visible
+chat narration. Prompt-only; no code or test changes.
+
 ## [1.15.0] - 2026-04-30
 
 ### Workflow safety net (defaults that protect non-engineers)

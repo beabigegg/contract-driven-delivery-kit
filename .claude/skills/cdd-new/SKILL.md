@@ -235,6 +235,58 @@ Change directory: specs/changes/<change-id>/
 ```
 This ensures the agent's Read scope restriction points to the correct directory.
 
+### Agent stage badges (UI v1)
+
+When you announce that you are about to invoke an agent, prefix the
+announcement with the matching emoji + role tag from the table below. This
+helps a non-engineer scanning the chat stream tell what stage they are in
+without reading the full prompt. Use the badges only in your own narration to
+the user; do not put them inside the prompt sent to the agent.
+
+| Stage | Agent | Badge |
+|---|---|---|
+| Decision | `change-classifier` | 🟣 `[classifier]` |
+| Decision | `spec-architect` | 🟣 `[architect]` |
+| Implementation | `backend-engineer` | 🔵 `[backend]` |
+| Implementation | `frontend-engineer` | 🔵 `[frontend]` |
+| Implementation | `ci-cd-gatekeeper` | 🔵 `[ci-cd]` |
+| Implementation | `test-strategist` | 🟡 `[test-plan]` |
+| Heavy testing (Tier 0–1 only) | `e2e-resilience-engineer` | 🟠 `[e2e]` |
+| Heavy testing (Tier 0–1 only) | `monkey-test-engineer` | 🟠 `[monkey]` |
+| Heavy testing (Tier 0–1 only) | `stress-soak-engineer` | 🟠 `[stress]` |
+| Review | `contract-reviewer` | 🟢 `[contracts]` |
+| Review | `qa-reviewer` | 🟢 `[qa]` |
+| Review | `ui-ux-reviewer` | 🟢 `[ui-ux]` |
+| Review | `visual-reviewer` | 🟢 `[visual]` |
+| Review | `dependency-security-reviewer` | 🟢 `[deps-sec]` |
+| Audit | `spec-drift-auditor` | ⚫ `[drift]` |
+| Audit | `repo-context-scanner` | ⚫ `[repo-scan]` |
+
+Color semantics:
+- 🟣 purple: deciding what we will do (heavy model, opus-class)
+- 🔵 blue: writing code (sonnet-class implementation)
+- 🟡 yellow: planning tests (sonnet-class)
+- 🟠 orange: heavy testing — only appears for Tier 0–1, signals high-risk scope
+- 🟢 green: reviewing what was done (no code writes; just verdicts)
+- ⚫ neutral: audits and scans (read-only background work)
+
+Format: emoji is followed by a single space, then the bracket-tag, then the
+human-readable narration.
+
+Examples:
+
+```
+🟣 [classifier] Reading the request and project map…
+🟢 [contracts] Confirming the API contract is unchanged. (read-only)
+🔵 [backend] Implementing the JWT issuance endpoint and writing failing
+            tests first per TDD policy.
+🟠 [stress] Tier 1 high-risk change — running soak test for 30 min.
+```
+
+These badges are pure narration. They MUST NOT be sent inside the agent's
+prompt; the agent's behavior is defined by the agent prompt files in
+`.claude/agents/<name>.md`, not by this badge.
+
 ---
 
 ### Tier 4–5 (low risk: docs, prompts, config-only, no behavior change)
