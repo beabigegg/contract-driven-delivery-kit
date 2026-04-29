@@ -94,6 +94,66 @@ describe('cdd-kit doctor', () => {
     expect(existsSync(join(tmpRepo, '.cdd'))).toBe(false);
   });
 
+  it('PR3-5.1: --fix auto-runs context-scan when indexes are missing', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    // Indexes don't exist yet.
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'project-map.md'))).toBe(false);
+
+    const r = runCli(['doctor', '--fix'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/fixed: ran context-scan/i);
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'project-map.md'))).toBe(true);
+  });
+
+  it('PR3-5.2: --fix populates empty model-policy roles', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    // Reset model-policy to empty roles.
+    writeFileSync(join(tmpRepo, '.cdd', 'model-policy.json'),
+      JSON.stringify({ provider: 'claude', generated_at: null, roles: {} }, null, 2) + '\n', 'utf8');
+
+    const r = runCli(['doctor', '--fix'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/fixed: populated.*model-policy/i);
+
+    const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
+    expect(Object.keys(policy.roles).length).toBeGreaterThan(10);
+    expect(policy.roles['change-classifier']).toMatch(/claude-opus-4-7/);
+  });
+
+  it('PR3-5.3: --fix refreshes legacy indexes missing inputs-digest', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    mkdirSync(join(tmpRepo, 'specs', 'context'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'specs', 'context', 'project-map.md'), [
+      '---',
+      'artifact: project-map',
+      'generated-by: cdd-kit context-scan',
+      'schema-version: 1',
+      `root: legacy-repo`,
+      '---',
+      '',
+      '# Project Map',
+    ].join('\n'), 'utf8');
+    writeFileSync(join(tmpRepo, 'specs', 'context', 'contracts-index.md'), [
+      '---',
+      'artifact: contracts-index',
+      'generated-by: cdd-kit context-scan',
+      'schema-version: 1',
+      'missing-summary-count: 0',
+      '---',
+      '',
+      '# Contracts Index',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['doctor', '--fix'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/fixed: ran context-scan/i);
+    expect(readFileSync(join(tmpRepo, 'specs', 'context', 'project-map.md'), 'utf8')).toMatch(/^inputs-digest:/m);
+    expect(readFileSync(join(tmpRepo, 'specs', 'context', 'contracts-index.md'), 'utf8')).toMatch(/^inputs-digest:/m);
+  });
+
   it('can emit machine-readable json for CI', () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);

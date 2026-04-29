@@ -8,6 +8,7 @@ export interface DoctorOptions {
   strict?: boolean;
   provider?: ProviderOption;
   json?: boolean;
+  fix?: boolean;
 }
 
 interface Finding {
@@ -233,8 +234,101 @@ function buildDoctorReport(cwd: string, opts: DoctorOptions): DoctorReport {
   };
 }
 
+async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fixed: string[]; remaining: Finding[] }> {
+  const fixed: string[] = [];
+  const remaining: Finding[] = [];
+
+  for (const finding of report.findings) {
+    if (finding.level !== 'warning') {
+      remaining.push(finding);
+      continue;
+    }
+
+    // Stale or missing context indexes → run context-scan
+    if (/specs\/context indexes are missing|inputs changed|older cdd-kit|older than/i.test(finding.message)) {
+      try {
+        const { contextScan } = await import('./context-scan.js');
+        await contextScan();
+        fixed.push(`ran context-scan to refresh specs/context/`);
+        continue;
+      } catch (err) {
+        remaining.push({ level: 'warning', message: `${finding.message} (auto-fix failed: ${(err as Error).message})` });
+        continue;
+      }
+    }
+
+    // model-policy has no role bindings → write defaults
+    // (check this BEFORE the generic .cdd/* upgrade-suggestion, because the
+    //  no-role-bindings message also mentions "run cdd-kit upgrade")
+    if (/model-policy\.json has no role bindings/i.test(finding.message)) {
+      const policyPath = join(cwd, '.cdd', 'model-policy.json');
+      try {
+        let existing: Record<string, unknown> = {};
+        try { existing = JSON.parse(readFileSync(policyPath, 'utf8')); } catch { /* ok */ }
+        const merged = {
+          ...existing,
+          roles: {
+            'change-classifier': 'claude-opus-4-7',
+            'spec-architect': 'claude-opus-4-7',
+            'qa-reviewer': 'claude-opus-4-7',
+            'contract-reviewer': 'claude-sonnet-4-6',
+            'test-strategist': 'claude-sonnet-4-6',
+            'backend-engineer': 'claude-sonnet-4-6',
+            'frontend-engineer': 'claude-sonnet-4-6',
+            'ci-cd-gatekeeper': 'claude-sonnet-4-6',
+            'e2e-resilience-engineer': 'claude-sonnet-4-6',
+            'monkey-test-engineer': 'claude-sonnet-4-6',
+            'stress-soak-engineer': 'claude-sonnet-4-6',
+            'ui-ux-reviewer': 'claude-sonnet-4-6',
+            'visual-reviewer': 'claude-sonnet-4-6',
+            'dependency-security-reviewer': 'claude-sonnet-4-6',
+            'spec-drift-auditor': 'claude-sonnet-4-6',
+            'repo-context-scanner': 'claude-haiku-4-5',
+          },
+        };
+        const { writeFileSync } = await import('fs');
+        writeFileSync(policyPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');
+        fixed.push(`populated .cdd/model-policy.json with default role bindings`);
+        continue;
+      } catch (err) {
+        remaining.push({ level: 'warning', message: `${finding.message} (auto-fix failed: ${(err as Error).message})` });
+        continue;
+      }
+    }
+
+    // .cdd/* missing → suggest upgrade (don't run upgrade automatically;
+    // it can write provider-specific files the user might not want)
+    if (/\.cdd\/.*is missing|run cdd-kit upgrade/i.test(finding.message)) {
+      remaining.push({
+        level: 'warning',
+        message: `${finding.message} (run \`cdd-kit upgrade --yes\` manually — too invasive for --fix)`,
+      });
+      continue;
+    }
+
+    // Anything else → not auto-fixable
+    remaining.push(finding);
+  }
+
+  return { fixed, remaining };
+}
+
 export async function doctor(opts: DoctorOptions = {}): Promise<void> {
-  const report = buildDoctorReport(process.cwd(), opts);
+  const cwd = process.cwd();
+  let report = buildDoctorReport(cwd, opts);
+
+  if (opts.fix && !opts.json) {
+    log.blank();
+    log.info('Doctor --fix: attempting safe auto-resolutions…');
+    const { fixed, remaining } = await attemptAutoFixes(cwd, report);
+    for (const f of fixed) log.ok(`fixed: ${f}`);
+    if (fixed.length > 0) {
+      // Re-run report to refresh state
+      report = buildDoctorReport(cwd, opts);
+    } else {
+      log.info('no auto-fixable findings');
+    }
+  }
 
   if (opts.json) {
     console.log(JSON.stringify(report, null, 2));

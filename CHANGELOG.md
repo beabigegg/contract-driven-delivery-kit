@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.15.0] - 2026-04-30
+
+### Workflow safety net (defaults that protect non-engineers)
+
+- `cdd-kit new` auto-runs `context-scan` when `specs/context/*.md` indexes are
+  missing or stale (B5 hash-based check). Avoids classifier wasting a round
+  on outdated paths. New `--skip-scan` for advanced users.
+- `cdd-kit gate` now lints `tasks.md` frontmatter:
+  - Requires `change-id` and `status`.
+  - Validates `status` against known set (`in-progress`, `completed`,
+    `gate-blocked`, `abandoned`, `needs-review`, `complete`, `done`).
+  - Warns on unknown keys with did-you-mean suggestions (e.g. `Tier:` →
+    `did you mean tier?`). Catches the typo class that previously caused
+    silent enforcement skips.
+- `cdd-kit gate` now detects `depends-on` cycles via DFS and reports the
+  full cycle path (e.g. `feat-a → feat-b → feat-c → feat-a`).
+- `cdd-kit doctor --fix`: auto-resolves the safe subset of warnings
+  - regenerates stale or missing `specs/context/*.md` indexes
+  - populates empty `model-policy.json` roles with defaults
+  - leaves invasive fixes (`.cdd/*` missing → suggests `cdd-kit upgrade`)
+    for the user to confirm
+- `cdd-kit gate`: artifact-pointer existence check now runs **by default**
+  (previously `--strict`-only). Use `--lax` to skip for legacy repos with
+  unfixed agent logs.
+
+### Tests
+
+- 11 new tests across `gate.test.ts` (frontmatter lint, DAG cycle, default
+  pointer check), `new.test.ts` (auto-scan), `doctor.test.ts` (--fix).
+- Updated `gate.test.ts` test 13b — its premise inverted by PR-3 #6.
+- Updated `writeValidChangeArtifacts` helper to include required frontmatter.
+
+## [1.14.0] - 2026-04-30
+
+### Agent efficiency for non-engineer users
+
+- `/cdd-new` Step 0: request-quality pre-lint. Refuses to run when the user's
+  request is missing affected-surface, desired-behavior, or success-criterion.
+  Avoids one full classifier round-trip on ambiguous requests.
+- `change-classifier`: atomic-split detection. Mega-requests crossing 2+
+  change-types or 3+ surfaces now return an `## Atomic Split Proposal` table
+  with suggested `cdd-kit new --depends-on` commands instead of a single
+  Tier 0/1 monolith. Estimated 40-60% token saving on multi-feature requests.
+- `references/agent-log-protocol.md`: every agent must self-validate its log
+  block before sending its response. Prevents the round-trip where gate
+  catches a malformed log and forces a full agent re-run.
+- `/cdd-new` Step 4 fix-back: structured error-to-agent routing table. Each
+  gate error class now has a defined re-invocation owner and a templated
+  prompt prefix that includes the verbatim gate error. No more "blind retry".
+
+### Notes
+
+This release is prompt-only (no code changes in `src/`). Improvements are
+qualitative for the AI agent flow, not exposed as new CLI flags.
+
 ## [1.13.0] - 2026-04-29
 
 ### Token-budget reductions

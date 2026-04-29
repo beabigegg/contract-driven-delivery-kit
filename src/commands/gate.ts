@@ -36,6 +36,7 @@ function meaningfulChars(text: string): number {
 
 export interface GateOptions {
   strict?: boolean;
+  lax?: boolean;
 }
 
 interface ContextPolicy {
@@ -141,6 +142,51 @@ function isContextGovernedChange(changeDir: string): boolean {
   const tasksPath = join(changeDir, 'tasks.md');
   if (!existsSync(tasksPath)) return false;
   return /^context-governance:\s*v1\b/m.test(readFileSync(tasksPath, 'utf8'));
+}
+
+const KNOWN_FRONTMATTER_KEYS = new Set([
+  'change-id',
+  'status',
+  'tier',
+  'archive-tasks',
+  'context-governance',
+  'depends-on',
+  // Allowed but informational only:
+  'token-budget',
+  'created',
+  'completed',
+]);
+
+const VALID_TASK_STATUSES = new Set(['in-progress', 'completed', 'complete', 'done', 'gate-blocked', 'abandoned', 'needs-review']);
+
+function lintFrontmatter(content: string, errors: string[], warnings: string[]): void {
+  const fm = parseTaskFrontmatter(content);
+
+  // change-id is required
+  if (!fm['change-id']) {
+    errors.push('tasks.md frontmatter: missing required `change-id`');
+  }
+  // status is required
+  if (!fm.status) {
+    errors.push('tasks.md frontmatter: missing required `status`');
+  } else if (!VALID_TASK_STATUSES.has(fm.status.toLowerCase())) {
+    errors.push(`tasks.md frontmatter: invalid status \`${fm.status}\` (expected one of: ${[...VALID_TASK_STATUSES].join(', ')})`);
+  }
+  // tier, when present, must parse to 0-5
+  if (fm.tier !== undefined && fm.tier !== '') {
+    const n = parseInt(fm.tier, 10);
+    if (Number.isNaN(n) || n < 0 || n > 5) {
+      errors.push(`tasks.md frontmatter: invalid tier \`${fm.tier}\` (expected 0-5)`);
+    }
+  }
+  // Unknown keys → warning (typo guard, e.g. Tier vs tier)
+  for (const key of Object.keys(fm)) {
+    if (!KNOWN_FRONTMATTER_KEYS.has(key)) {
+      const lower = key.toLowerCase();
+      const suggestion = KNOWN_FRONTMATTER_KEYS.has(lower) ? ` (did you mean \`${lower}\`?)` : '';
+      warnings.push(`tasks.md frontmatter: unknown key \`${key}\`${suggestion}`);
+    }
+  }
 }
 
 function parseTaskFrontmatter(content: string): Record<string, string> {
@@ -299,12 +345,50 @@ function isArchivedChange(cwd: string, changeId: string): boolean {
   return years.some(year => existsSync(join(archiveRoot, year.name, changeId)));
 }
 
+function detectDependencyCycle(cwd: string, startChangeId: string): string[] | null {
+  // DFS from the start change. Returns the cycle path if one exists,
+  // including startChangeId at both ends (e.g. ['A', 'B', 'A']).
+  const visited = new Set<string>();
+  const stack: string[] = [];
+
+  function visit(id: string): string[] | null {
+    if (stack.includes(id)) {
+      // Cycle: return the slice from first occurrence onwards + the closing node.
+      return [...stack.slice(stack.indexOf(id)), id];
+    }
+    if (visited.has(id)) return null;
+    visited.add(id);
+    stack.push(id);
+
+    const tasksPath = join(cwd, 'specs', 'changes', id, 'tasks.md');
+    if (existsSync(tasksPath)) {
+      const deps = parseDependsOn(readFileSync(tasksPath, 'utf8'));
+      for (const dep of deps) {
+        const found = visit(dep);
+        if (found) return found;
+      }
+    }
+    // Archived/missing changes are leaves; gate already errors on missing.
+
+    stack.pop();
+    return null;
+  }
+
+  return visit(startChangeId);
+}
+
 function validateDependencies(cwd: string, changeId: string, changeDir: string): string[] {
   const tasksPath = join(changeDir, 'tasks.md');
   if (!existsSync(tasksPath)) return [];
 
   const dependencies = parseDependsOn(readFileSync(tasksPath, 'utf8'));
   const errors: string[] = [];
+
+  // PR-3 #4: cycle detection across the full depends-on graph
+  const cycle = detectDependencyCycle(cwd, changeId);
+  if (cycle) {
+    errors.push(`depends-on cycle detected: ${cycle.join(' → ')}`);
+  }
 
   for (const dep of dependencies) {
     if (dep === changeId) {
@@ -392,6 +476,7 @@ function parseFilesRead(content: string): FilesReadParseResult {
 
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
   const strict = opts.strict ?? false;
+  const lax = opts.lax ?? false;
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', changeId);
 
@@ -456,10 +541,11 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     }
   }
 
-  // Step 4b: tasks.md pending check (Fix 1a + 1e + B2)
+  // Step 4b: tasks.md frontmatter lint (PR-3 #3) + pending check (Fix 1a + 1e + B2)
   const tasksPath = join(changeDir, 'tasks.md');
   if (existsSync(tasksPath)) {
     const tasksContent = readFileSync(tasksPath, 'utf8');
+    lintFrontmatter(tasksContent, errors, warnings);
     const archiveTaskIds = new Set(getArchiveTaskIds(tasksContent));
     const pendingMatches = tasksContent.match(/^\s*-\s*\[ \]\s+([\d.]+)?[^\n]*/gm) || [];
     const nonArchivePending = pendingMatches.filter(line => {
@@ -556,15 +642,14 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
         }
       }
 
-      // Fix 1b: artifact pointer validation in strict mode
-      if (strict) {
+      // PR-3 #6: artifact pointer validation now runs by default.
+      // --lax skips it for legacy repos still cleaning up old logs.
+      if (!lax) {
         const artifactsMatch = content.match(/- artifacts:([\s\S]*?)(?:\n- |\n#|$)/);
         if (artifactsMatch) {
           const artifactLines = artifactsMatch[1].split('\n').filter(l => l.trim().startsWith('-'));
           for (const line of artifactLines) {
-            // Extract pointer value (part after the colon)
             const pointer = line.replace(/^\s*-\s*[\w-]+:\s*/, '').trim();
-            // If it looks like a path (contains / and not a URL)
             const pathPart = pointer.split(':')[0];
             if (pathPart.includes('/') && !pointer.startsWith('http')) {
               const abs = join(cwd, pathPart);

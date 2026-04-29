@@ -199,7 +199,14 @@ function writeValidChangeArtifacts(changeDir: string): void {
 
   writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n## Required Gates\n| tier | gate | trigger | workflow | description |\n|---|---|---|---|---|\n| 1 | lint | PR | ci.yml | Linting |\n| 2 | unit-tests | PR | ci.yml | Unit tests |\n\n## Promotion Policy\nAll tier-1 gates must pass before merge.\n\n## Rollback Policy\nAutomatic rollback if error rate exceeds threshold within 10 minutes.\n\n${filler}\n`, 'utf8');
 
-  writeFileSync(join(changeDir, 'tasks.md'), `# Tasks\n\n${filler}\n\n1. Implement the new user management API endpoints\n2. Add unit tests for all new business logic\n3. Update the API contract documentation\n4. Run integration tests against the test database\n5. Review changes with the team before merging\n`, 'utf8');
+  writeFileSync(join(changeDir, 'tasks.md'), [
+    '---',
+    `change-id: ${changeDir.split(/[/\\]/).pop()}`,
+    'status: in-progress',
+    '---',
+    '',
+    `# Tasks\n\n${filler}\n\n1. Implement the new user management API endpoints\n2. Add unit tests for all new business logic\n3. Update the API contract documentation\n4. Run integration tests against the test database\n5. Review changes with the team before merging\n`,
+  ].join('\n'), 'utf8');
 }
 
 function writeContextGovernanceFiles(changeDir: string): void {
@@ -483,7 +490,7 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/artifact pointer not found/i);
   });
 
-  it('13b: gate without --strict ignores missing artifact pointer (pointer check is strict-only)', () => {
+  it('13b: gate --lax skips artifact pointer check (legacy escape hatch, PR-3 #6)', () => {
     runCli(['new', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-013b');
     writeValidChangeArtifacts(changeDir);
@@ -500,8 +507,14 @@ describe('cdd-kit gate', () => {
       '- next-action: none',
     ].join('\n'), 'utf8');
 
-    const r = runCli(['gate', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/artifact pointer not found/i);
+    // Default mode: missing pointer is now an error (PR-3 #6 flipped the default).
+    const def = runCli(['gate', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
+    expect(def.status).not.toBe(0);
+    expect(def.stdout + def.stderr).toMatch(/artifact pointer not found/i);
+
+    // --lax mode: skipped.
+    const lax = runCli(['gate', 'feat-013b', '--lax'], { cwd: tmpRepo, home: tmpHome });
+    expect(lax.stdout + lax.stderr).not.toMatch(/artifact pointer not found/i);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1098,6 +1111,163 @@ describe('cdd-kit gate', () => {
 
     const r = runCli(['gate', 'feat-archive-default', '--strict'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PR-3 #3: tasks.md frontmatter lint
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('PR3-3.1: missing change-id in tasks.md frontmatter fails gate', () => {
+    runCli(['new', 'feat-fm-no-change-id'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-fm-no-change-id');
+    writeValidChangeArtifacts(changeDir);
+    const filler = 'Description content. '.repeat(8);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'status: in-progress',
+      'tier: 3',
+      '---',
+      '',
+      `# Tasks\n${filler}`,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-fm-no-change-id'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing required `change-id`/i);
+  });
+
+  it('PR3-3.2: invalid status value fails gate', () => {
+    runCli(['new', 'feat-fm-bad-status'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-fm-bad-status');
+    writeValidChangeArtifacts(changeDir);
+    const filler = 'Description content. '.repeat(8);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-fm-bad-status',
+      'status: kinda-done',
+      'tier: 3',
+      '---',
+      '',
+      `# Tasks\n${filler}`,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-fm-bad-status'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid status `kinda-done`/i);
+  });
+
+  it('PR3-3.3: typo `Tier:` (capital T) emits a typo-suggestion warning', () => {
+    runCli(['new', 'feat-fm-typo'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-fm-typo');
+    writeValidChangeArtifacts(changeDir);
+    const filler = 'Description content. '.repeat(8);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-fm-typo',
+      'status: in-progress',
+      'Tier: 1',  // capital T — wrong
+      '---',
+      '',
+      `# Tasks\n${filler}`,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-fm-typo'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/unknown key `Tier`.*did you mean `tier`/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PR-3 #4: depends-on cycle detection
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('PR3-4.1: 2-node depends-on cycle is detected', () => {
+    runCli(['new', 'feat-cycle-a'], { cwd: tmpRepo, home: tmpHome });
+    runCli(['new', 'feat-cycle-b'], { cwd: tmpRepo, home: tmpHome });
+    const dirA = join(tmpRepo, 'specs', 'changes', 'feat-cycle-a');
+    const dirB = join(tmpRepo, 'specs', 'changes', 'feat-cycle-b');
+    writeValidChangeArtifacts(dirA);
+    writeValidChangeArtifacts(dirB);
+
+    // A depends on B
+    writeFileSync(join(dirA, 'tasks.md'), [
+      '---',
+      'change-id: feat-cycle-a',
+      'status: in-progress',
+      'tier: 3',
+      'depends-on: [feat-cycle-b]',
+      '---',
+      '',
+      '# Tasks',
+      'A description content here is enough to clear stub.'.repeat(3),
+    ].join('\n'), 'utf8');
+    // B depends on A → cycle
+    writeFileSync(join(dirB, 'tasks.md'), [
+      '---',
+      'change-id: feat-cycle-b',
+      'status: in-progress',
+      'tier: 3',
+      'depends-on: [feat-cycle-a]',
+      '---',
+      '',
+      '# Tasks',
+      'B description content here is enough to clear stub.'.repeat(3),
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cycle-a'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/depends-on cycle detected.*feat-cycle-a.*feat-cycle-b.*feat-cycle-a/i);
+  });
+
+  it('PR3-4.2: 3-node A→B→C→A cycle is detected', () => {
+    for (const id of ['cyc-a', 'cyc-b', 'cyc-c']) {
+      runCli(['new', id], { cwd: tmpRepo, home: tmpHome });
+      writeValidChangeArtifacts(join(tmpRepo, 'specs', 'changes', id));
+    }
+    const writeWithDep = (id: string, dep: string) => writeFileSync(
+      join(tmpRepo, 'specs', 'changes', id, 'tasks.md'),
+      [
+        '---',
+        `change-id: ${id}`,
+        'status: in-progress',
+        'tier: 3',
+        `depends-on: [${dep}]`,
+        '---',
+        '',
+        '# Tasks',
+        'Description content padding here for stub.'.repeat(3),
+      ].join('\n'),
+      'utf8',
+    );
+    writeWithDep('cyc-a', 'cyc-b');
+    writeWithDep('cyc-b', 'cyc-c');
+    writeWithDep('cyc-c', 'cyc-a');
+
+    const r = runCli(['gate', 'cyc-a'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/depends-on cycle detected/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PR-3 #6: artifact pointer validation default-on
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('PR3-6.1: missing artifact pointer fails gate by default (no --strict needed)', () => {
+    runCli(['new', 'feat-default-pointer'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-default-pointer');
+    writeValidChangeArtifacts(changeDir);
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-default-pointer',
+      '- status: complete',
+      '- artifacts:',
+      '  - test-plan-path: specs/changes/feat-default-pointer/missing.md',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-default-pointer'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/artifact pointer not found/i);
   });
 
   // ─────────────────────────────────────────────────────────────────────────

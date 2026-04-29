@@ -62,6 +62,38 @@ gate does not enforce those today; they are a discipline contract enforced by
 `qa-reviewer` and `contract-reviewer`. If you add a required artifact in an
 agent prompt, also update the qa-reviewer checklist.
 
+## Self-validation before submitting your response
+
+**Every agent MUST self-validate its draft Agent Log block before finishing.**
+A malformed log block forces `cdd-kit gate` to fail, which forces the skill
+to re-invoke you, which costs the user another full agent round. Self-lint is
+~5 seconds; a re-run is minutes and dollars.
+
+Before sending your final response, re-read your `## Agent Log` block and
+verify each item:
+
+- [ ] **All four required keys exist**: `status`, `files-read`, `artifacts`,
+      `next-action`. (Plus `change-id`, `timestamp` at the top.)
+- [ ] **`status` is one of**: `complete`, `needs-review`, `blocked` — not
+      `done`, `OK`, `pending`, `wip`, or anything else.
+- [ ] **Every `artifacts:` line has a concrete pointer**:
+      - GOOD: `tests-added: tests/foo.test.ts::should reject empty body`
+      - GOOD: `files-changed: src/api/users.ts:45-67`
+      - GOOD: `test-output: 5 passed (last 10 lines: …)`
+      - BAD: `tests-added: verified`
+      - BAD: `files-changed: yes`
+      - BAD: `contract: OK`
+      Reject any line whose value would not let a reviewer click through.
+- [ ] **If `status: blocked`, `next-action`** is ≥ 10 chars, is NOT `none`,
+      `investigate further`, `tbd`, or `n/a`, and names the actual next step
+      a human can act on.
+- [ ] **Every `files-read:` entry**: repo-relative path, no leading `/`,
+      no `..`, no `~`. If you read your own change directory only, write
+      `- specs/changes/<change-id>/`.
+
+If any check fails, **fix the block before sending your response**. Do not
+ship a known-bad log and rely on the gate to catch it.
+
 ## Gate enforcement summary
 
 `cdd-kit gate` rejects an agent log when any of these are true:
