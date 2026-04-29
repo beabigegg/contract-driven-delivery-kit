@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { spawnSync } from 'child_process';
 import { log } from '../utils/logger.js';
+import { validate } from './validate.js';
 
 const REQUIRED_FILES = [
   'change-request.md',
@@ -143,21 +143,152 @@ function isContextGovernedChange(changeDir: string): boolean {
   return /^context-governance:\s*v1\b/m.test(readFileSync(tasksPath, 'utf8'));
 }
 
-function parseDependsOn(content: string): string[] {
-  const lineMatch = content.match(/^depends-on:\s*(.+)$/m);
-  if (!lineMatch) return [];
-
-  const raw = lineMatch[1].trim();
-  if (!raw || raw === '[]') return [];
-  if (raw.startsWith('[') && raw.endsWith(']')) {
-    return raw.slice(1, -1).split(',').map(item => item.trim()).filter(Boolean);
+function parseTaskFrontmatter(content: string): Record<string, string> {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) return {};
+  const out: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const colon = line.indexOf(':');
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim();
+    if (!key) continue;
+    out[key] = line.slice(colon + 1).trim();
   }
-  return raw.split(',').map(item => item.trim()).filter(Boolean);
+  return out;
+}
+
+function parseListField(raw: string | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '[]') return [];
+  const inner = trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
+  return inner
+    .split(',')
+    .map(item => item.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
+
+function parseDependsOn(content: string): string[] {
+  return parseListField(parseTaskFrontmatter(content)['depends-on']);
 }
 
 function parseTaskStatus(content: string): string {
-  const match = content.match(/^status:\s*([a-zA-Z0-9_-]+)/m);
-  return match ? match[1].trim().toLowerCase() : 'in-progress';
+  const fm = parseTaskFrontmatter(content);
+  return (fm.status ?? 'in-progress').toLowerCase();
+}
+
+interface TierResolution {
+  tier: number | null;
+  source: 'tasks-frontmatter' | 'classification-structured' | 'classification-bold' | 'none';
+  classificationPresent: boolean;
+  classificationHasLooseMarker: boolean;
+}
+
+function resolveTier(changeDir: string): TierResolution {
+  const classifPath = join(changeDir, 'change-classification.md');
+  const classificationPresent = existsSync(classifPath);
+  const classificationText = classificationPresent ? readFileSync(classifPath, 'utf8') : '';
+  const classificationHasLooseMarker = classificationPresent && TIER_PATTERN.test(classificationText);
+
+  const tasksPath = join(changeDir, 'tasks.md');
+  if (existsSync(tasksPath)) {
+    const fm = parseTaskFrontmatter(readFileSync(tasksPath, 'utf8'));
+    const raw = fm.tier;
+    if (raw && raw !== '') {
+      const n = parseInt(raw, 10);
+      if (!Number.isNaN(n) && n >= 0 && n <= 5) {
+        return { tier: n, source: 'tasks-frontmatter', classificationPresent, classificationHasLooseMarker };
+      }
+    }
+  }
+
+  if (classificationPresent) {
+    const structured = classificationText.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
+    if (structured) {
+      const n = parseInt(structured[1], 10);
+      if (!Number.isNaN(n) && n >= 0 && n <= 5) {
+        return { tier: n, source: 'classification-structured', classificationPresent, classificationHasLooseMarker };
+      }
+    }
+    const bold = classificationText.match(/\*\*Tier:\*\*\s*Tier\s*(\d)\b/i);
+    if (bold) {
+      const n = parseInt(bold[1], 10);
+      if (!Number.isNaN(n) && n >= 0 && n <= 5) {
+        return { tier: n, source: 'classification-bold', classificationPresent, classificationHasLooseMarker };
+      }
+    }
+  }
+
+  return { tier: null, source: 'none', classificationPresent, classificationHasLooseMarker };
+}
+
+const DEFAULT_ARCHIVE_TASKS = ['7.1', '7.2'];
+
+function getArchiveTaskIds(content: string): string[] {
+  const fm = parseTaskFrontmatter(content);
+  const parsed = parseListField(fm['archive-tasks']);
+  return parsed.length > 0 ? parsed : DEFAULT_ARCHIVE_TASKS;
+}
+
+function enforceTierRequirements(
+  changeDir: string,
+  agentLogDir: string | null,
+  errors: string[],
+  warnings: string[],
+): void {
+  const resolution = resolveTier(changeDir);
+
+  if (resolution.tier === null) {
+    if (resolution.classificationPresent && !resolution.classificationHasLooseMarker) {
+      errors.push(
+        'change-classification.md: missing tier marker. Set `tier: <0-5>` in tasks.md frontmatter (preferred) or include `## Tier\\n- N` in change-classification.md.'
+      );
+    }
+    return;
+  }
+
+  // Legacy bold-only format (`**Tier:** Tier N`) is allowed for back-compat but
+  // does NOT trigger tier-specific agent enforcement — that would silently
+  // promote legacy changes. Warn and stop here so users migrate.
+  if (resolution.source === 'classification-bold') {
+    warnings.push(
+      'tier marker is bold-text only (legacy format); set `tier: <0-5>` in tasks.md frontmatter so tier-specific agent requirements are enforced.'
+    );
+    return;
+  }
+
+  const tier = resolution.tier;
+  const agentLogFiles = agentLogDir && existsSync(agentLogDir)
+    ? readdirSync(agentLogDir).map(f => f.replace('.md', ''))
+    : [];
+
+  if (tier <= 1) {
+    for (const required of ['e2e-resilience-engineer', 'monkey-test-engineer', 'stress-soak-engineer']) {
+      if (!agentLogFiles.includes(required)) {
+        errors.push(`Tier ${tier} change requires agent-log/${required}.md (high-risk change — E2E/monkey/stress testing mandatory)`);
+      }
+    }
+  }
+  if (tier <= 3) {
+    for (const required of ['contract-reviewer', 'qa-reviewer']) {
+      if (!agentLogFiles.includes(required)) {
+        errors.push(`Tier ${tier} change requires agent-log/${required}.md`);
+      }
+    }
+  }
+
+  // Drift signal: if both sources present, warn when they disagree.
+  if (resolution.source === 'tasks-frontmatter' && resolution.classificationPresent) {
+    const text = readFileSync(join(changeDir, 'change-classification.md'), 'utf8');
+    const structured = text.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
+    const bold = text.match(/\*\*Tier:\*\*\s*Tier\s*(\d)\b/i);
+    const classifTier = structured ? parseInt(structured[1], 10) : (bold ? parseInt(bold[1], 10) : NaN);
+    if (!Number.isNaN(classifTier) && classifTier !== tier) {
+      warnings.push(
+        `tier mismatch: tasks.md frontmatter says ${tier}, change-classification.md says ${classifTier} (frontmatter wins; reconcile classification).`
+      );
+    }
+  }
 }
 
 function isArchivedChange(cwd: string, changeId: string): boolean {
@@ -317,26 +448,28 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       }
     }
 
-    // Step 4: tier marker
+    // Step 4: tier marker (B1: prefer tasks.md frontmatter, fall back to legacy classification text)
     const classifPath = join(changeDir, 'change-classification.md');
-    if (existsSync(classifPath)) {
-      const text = readFileSync(classifPath, 'utf8');
-      if (!TIER_PATTERN.test(text)) {
-        errors.push('change-classification.md: missing tier/risk marker (Tier 0-5 or low/medium/high/critical)');
-      }
+    const tierResolution = resolveTier(changeDir);
+    if (tierResolution.tier === null && existsSync(classifPath) && !tierResolution.classificationHasLooseMarker) {
+      errors.push('change-classification.md: missing tier/risk marker (set tier in tasks.md frontmatter, or include Tier 0-5 / low|medium|high|critical in change-classification.md)');
     }
   }
 
-  // Step 4b: tasks.md pending check (Fix 1a + 1e)
+  // Step 4b: tasks.md pending check (Fix 1a + 1e + B2)
   const tasksPath = join(changeDir, 'tasks.md');
   if (existsSync(tasksPath)) {
     const tasksContent = readFileSync(tasksPath, 'utf8');
-    // Fix 1e: exclude 7.1 and 7.2 (Archive section) from pending count
-    // Use a literal space (not \s*) after [ ] to avoid backtracking that defeats the negative lookahead
-    const nonArchivePending = (tasksContent.match(/^\s*-\s*\[ \] (?!7\.[12])/gm) || []).length;
+    const archiveTaskIds = new Set(getArchiveTaskIds(tasksContent));
+    const pendingMatches = tasksContent.match(/^\s*-\s*\[ \]\s+([\d.]+)?[^\n]*/gm) || [];
+    const nonArchivePending = pendingMatches.filter(line => {
+      const idMatch = line.match(/\[ \]\s+([\d.]+)/);
+      const id = idMatch?.[1];
+      if (!id) return true;
+      return !archiveTaskIds.has(id);
+    }).length;
     if (nonArchivePending > 0) {
       if (strict) {
-        // Fix 1a: in strict mode, pending tasks are an error
         errors.push(`${nonArchivePending} task(s) still pending (use [-] for N/A items, [x] for done). Run gate without --strict during development.`);
       } else {
         warnings.push(`${nonArchivePending} task(s) still pending (warning only in non-strict mode)`);
@@ -376,6 +509,32 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
             !pathMatches(pathRead, approvedExpansions)
           ) {
             errors.push(`agent-log/${f}: read unauthorized path -> ${pathRead} (not in allowed paths or approved expansions)`);
+          }
+        }
+
+        // B3: reconcile self-reported files-read against runtime hook log.
+        // The hook (.cdd/runtime/<change-id>-files-read.jsonl) records actual
+        // tool reads. Any path in the runtime log that the agent did NOT
+        // declare is suspicious and reported as a warning (or strict error).
+        const runtimeLog = join(cwd, '.cdd', 'runtime', `${changeId}-files-read.jsonl`);
+        if (existsSync(runtimeLog)) {
+          const runtimePaths = readFileSync(runtimeLog, 'utf8')
+            .split('\n')
+            .filter(Boolean)
+            .map(line => {
+              try { return (JSON.parse(line) as { path?: string }).path; } catch { return undefined; }
+            })
+            .filter((p): p is string => Boolean(p))
+            .map(p => p.replace(/\\/g, '/').replace(/^\.\//, ''));
+
+          const declared = new Set(filesRead.files);
+          const undeclared = runtimePaths.filter(p => !declared.has(p));
+          if (undeclared.length > 0) {
+            const sample = undeclared.slice(0, 5).join(', ');
+            const more = undeclared.length > 5 ? ` (+${undeclared.length - 5} more)` : '';
+            const msg = `agent-log/${f}: runtime log shows ${undeclared.length} read(s) not declared in files-read: ${sample}${more}`;
+            if (strict) errors.push(msg);
+            else warnings.push(msg);
           }
         }
       }
@@ -418,58 +577,13 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       }
     }
 
-    // Fix 1c: tier-based required agent-log validation
-    const classifPath = join(changeDir, 'change-classification.md');
-    if (existsSync(classifPath)) {
-      const classificationContent = readFileSync(classifPath, 'utf8');
-      const tierMatch = classificationContent.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
-      const tier = tierMatch ? parseInt(tierMatch[1]) : null;
-
-      if (tier !== null) {
-        const agentLogFiles = readdirSync(agentLogDir).map(f => f.replace('.md', ''));
-
-        if (tier <= 1) {
-          // Tier 0-1: must have e2e, monkey, stress agent logs
-          for (const required of ['e2e-resilience-engineer', 'monkey-test-engineer', 'stress-soak-engineer']) {
-            if (!agentLogFiles.includes(required)) {
-              errors.push(`Tier ${tier} change requires agent-log/${required}.md (high-risk change — E2E/monkey/stress testing mandatory)`);
-            }
-          }
-        }
-        if (tier <= 3) {
-          // Tier 0-3: must have contract-reviewer and qa-reviewer
-          for (const required of ['contract-reviewer', 'qa-reviewer']) {
-            if (!agentLogFiles.includes(required)) {
-              errors.push(`Tier ${tier} change requires agent-log/${required}.md`);
-            }
-          }
-        }
-      }
-    }
+    // Tier-based agent-log validation (Fix 1c + B1)
+    enforceTierRequirements(changeDir, agentLogDir, errors, warnings);
   }
-  // Fix 1c: also check tier even when agent-log dir doesn't exist yet
+  // Also check tier even when agent-log dir doesn't exist yet
   else {
-    const classifPath = join(changeDir, 'change-classification.md');
-    if (existsSync(classifPath)) {
-      const classificationContent = readFileSync(classifPath, 'utf8');
-      const tierMatch = classificationContent.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
-      const tier = tierMatch ? parseInt(tierMatch[1]) : null;
-
-      if (tier !== null) {
-        if (tier <= 1) {
-          for (const required of ['e2e-resilience-engineer', 'monkey-test-engineer', 'stress-soak-engineer']) {
-            errors.push(`Tier ${tier} change requires agent-log/${required}.md (high-risk change — E2E/monkey/stress testing mandatory)`);
-          }
-        }
-        if (tier <= 3) {
-          for (const required of ['contract-reviewer', 'qa-reviewer']) {
-            errors.push(`Tier ${tier} change requires agent-log/${required}.md`);
-          }
-        }
-      }
-    }
+    enforceTierRequirements(changeDir, null, errors, warnings);
   }
-  // agent-log dir not existing with no tier requirement is OK (no agents have logged yet)
 
   // Emit warnings
   for (const w of warnings) {
@@ -484,15 +598,13 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     process.exit(1);
   }
 
-  // Step 6: contract validators (delegate to cdd-kit validate)
-  // Fix 9: skip --spec (spec traceability already covered by steps 2-4 above)
+  // Step 6: contract validators (B9: in-process call, no subprocess)
+  // Skip --spec (already covered by steps 2-4 above).
   log.info(`gate: running contract validators for ${changeId}…`);
-  const r = spawnSync(process.execPath, [process.argv[1], 'validate', '--contracts', '--env', '--ci', '--versions'], {
-    cwd,
-    stdio: 'inherit',
-  });
-  if (r.status !== 0) {
-    log.error(`gate failed for change: ${changeId} (validators returned non-zero)`);
+  try {
+    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true });
+  } catch (err) {
+    log.error(`gate failed for change: ${changeId} (validators threw): ${(err as Error).message}`);
     process.exit(1);
   }
 

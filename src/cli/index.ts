@@ -139,9 +139,15 @@ program
   .option('--all', 'Migrate all changes in specs/changes/', false)
   .option('--dry-run', 'Show what would change without writing files', false)
   .option('--enable-context-governance', 'Opt legacy changes into context-governance: v1 hard gate behavior', false)
-  .action(async (changeId?: string, opts: { all?: boolean; dryRun?: boolean; enableContextGovernance?: boolean } = {}) => {
+  .option('--no-backup', 'Skip the per-session backup at .cdd/migrate-backup/<stamp>/ (not recommended)')
+  .action(async (changeId?: string, opts: { all?: boolean; dryRun?: boolean; enableContextGovernance?: boolean; backup?: boolean } = {}) => {
     const { migrate } = await import('../commands/migrate.js');
-    await migrate(changeId, opts);
+    await migrate(changeId, {
+      all: opts.all,
+      dryRun: opts.dryRun,
+      enableContextGovernance: opts.enableContextGovernance,
+      noBackup: opts.backup === false,
+    });
   });
 
 // ── cdd list ──────────────────────────────────────────────────────────────────
@@ -183,9 +189,10 @@ program
 program
   .command('context-scan')
   .description('Deterministically scan project context and generate specs/context maps')
-  .action(async () => {
+  .option('--surface <path>', 'Limit project-map tree to a sub-directory (e.g. --surface src/server)')
+  .action(async (opts: { surface?: string }) => {
     const { contextScan } = await import('../commands/context-scan.js');
-    await contextScan();
+    await contextScan({ surface: opts.surface });
   });
 
 const context = program
@@ -203,19 +210,45 @@ context
   });
 
 context
-  .command('approve <change-id> <request-id>')
-  .description('Approve a pending Context Expansion Request and add its paths to Approved Expansions')
-  .action(async (changeId: string, requestId: string) => {
-    const { approveContextExpansion } = await import('../commands/context.js');
-    await approveContextExpansion(changeId, requestId);
+  .command('approve <change-id> [request-id]')
+  .description('Approve a pending Context Expansion Request (or all with --all-pending)')
+  .option('--all-pending', 'Approve every pending Context Expansion Request for this change', false)
+  .action(async (changeId: string, requestId: string | undefined, opts: { allPending?: boolean }) => {
+    const { approveContextExpansion, approveAllPending } = await import('../commands/context.js');
+    if (opts.allPending) {
+      if (requestId) {
+        console.error('--all-pending cannot be combined with a request-id');
+        process.exit(1);
+      }
+      await approveAllPending(changeId);
+    } else {
+      if (!requestId) {
+        console.error('request-id is required (or pass --all-pending)');
+        process.exit(1);
+      }
+      await approveContextExpansion(changeId, requestId);
+    }
   });
 
 context
-  .command('reject <change-id> <request-id>')
-  .description('Reject a pending Context Expansion Request')
-  .action(async (changeId: string, requestId: string) => {
-    const { rejectContextExpansion } = await import('../commands/context.js');
-    await rejectContextExpansion(changeId, requestId);
+  .command('reject <change-id> [request-id]')
+  .description('Reject a pending Context Expansion Request (or all with --all-pending)')
+  .option('--all-pending', 'Reject every pending Context Expansion Request for this change', false)
+  .action(async (changeId: string, requestId: string | undefined, opts: { allPending?: boolean }) => {
+    const { rejectContextExpansion, rejectAllPending } = await import('../commands/context.js');
+    if (opts.allPending) {
+      if (requestId) {
+        console.error('--all-pending cannot be combined with a request-id');
+        process.exit(1);
+      }
+      await rejectAllPending(changeId);
+    } else {
+      if (!requestId) {
+        console.error('request-id is required (or pass --all-pending)');
+        process.exit(1);
+      }
+      await rejectContextExpansion(changeId, requestId);
+    }
   });
 
 context

@@ -905,6 +905,282 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/dependency dep-db: upstream change is not completed/i);
   });
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // B1: tier source moved to tasks.md frontmatter (with classification fallback)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('B1.1: tasks.md frontmatter `tier: 1` triggers tier-1 agent requirements', () => {
+    runCli(['new', 'feat-fm-tier'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-fm-tier');
+    writeValidChangeArtifacts(changeDir);
+
+    // Replace tasks.md with frontmatter that sets tier: 1, no `## Tier` in classification.
+    const filler = 'Description content. '.repeat(8);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-fm-tier',
+      'status: in-progress',
+      'tier: 1',
+      'archive-tasks: ["7.1", "7.2"]',
+      '---',
+      '',
+      '# Tasks',
+      '',
+      filler,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-fm-tier'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/e2e-resilience-engineer/i);
+    expect(r.stdout + r.stderr).toMatch(/monkey-test-engineer/i);
+    expect(r.stdout + r.stderr).toMatch(/stress-soak-engineer/i);
+  });
+
+  it('B1.2: bold-only `**Tier:** Tier 1` no longer silently triggers enforcement (legacy warn)', () => {
+    runCli(['new', 'feat-bold-legacy'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-bold-legacy');
+    writeValidChangeArtifacts(changeDir);  // bold `**Tier:** Tier 1`
+
+    // No `## Tier\n- N`, no frontmatter tier — legacy bold only.
+    const r = runCli(['gate', 'feat-bold-legacy'], { cwd: tmpRepo, home: tmpHome });
+    // Should NOT enforce tier-1 agent requirements since the source is bold-only.
+    expect(r.stdout + r.stderr).not.toMatch(/Tier 1 change requires agent-log\/e2e-resilience-engineer/i);
+    // But should warn about needing migration.
+    expect(r.stdout + r.stderr).toMatch(/legacy format|set `tier:.*tasks\.md frontmatter/i);
+  });
+
+  it('B1.3: missing tier marker entirely fails gate (silent-skip prevention)', () => {
+    runCli(['new', 'feat-no-tier'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-no-tier');
+
+    const filler = 'Description content. '.repeat(8);
+    // Classification with NO tier marker at all (no bold, no structured)
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification',
+      '',
+      filler,
+      '',
+      'No tier mentioned anywhere in this file.',
+    ].join('\n'), 'utf8');
+    writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n${filler}\n`, 'utf8');
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n${filler}\n`, 'utf8');
+    writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n${filler}\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.md'), `---\nchange-id: feat-no-tier\nstatus: in-progress\n---\n\n# Tasks\n${filler}\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-no-tier'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing tier marker|missing tier\/risk marker/i);
+  });
+
+  it('B1.4: frontmatter tier wins over classification tier when both present (warn on drift)', () => {
+    runCli(['new', 'feat-tier-drift'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-tier-drift');
+    writeValidChangeArtifacts(changeDir);
+
+    // Classification says structured Tier 2, frontmatter says Tier 4.
+    const filler = 'Description content. '.repeat(8);
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification',
+      '',
+      filler,
+      '',
+      '## Tier',
+      '- 2',
+      '',
+    ].join('\n'), 'utf8');
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-tier-drift',
+      'status: in-progress',
+      'tier: 4',
+      '---',
+      '',
+      '# Tasks',
+      '',
+      filler,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-tier-drift'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/tier mismatch.*frontmatter says 4.*classification.*2/i);
+    // tier 4 → no e2e/monkey/stress requirement
+    expect(r.stdout + r.stderr).not.toMatch(/Tier 4 change requires agent-log\/e2e-resilience-engineer/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // B2: archive-tasks frontmatter replaces hard-coded 7.[12]
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('B2.1: custom archive-tasks frontmatter exempts listed task IDs in --strict', () => {
+    runCli(['new', 'feat-archive-custom'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-archive-custom');
+    writeValidChangeArtifacts(changeDir);
+
+    const filler = 'Completed task description. '.repeat(3);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-archive-custom',
+      'status: in-progress',
+      'tier: 3',
+      'archive-tasks: ["8.1", "8.2", "8.3"]',
+      '---',
+      '',
+      '# Tasks',
+      '',
+      filler,
+      '',
+      '## 1. Preparation',
+      '- [x] 1.1 Done',
+      '',
+      '## 8. Close',
+      '- [ ] 8.1 Archive',
+      '- [ ] 8.2 Promote',
+      '- [ ] 8.3 Notify',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-archive-custom', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending/i);
+  });
+
+  it('B2.2: tasks not in archive-tasks list still trigger pending error in --strict', () => {
+    runCli(['new', 'feat-archive-strict'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-archive-strict');
+    writeValidChangeArtifacts(changeDir);
+
+    const filler = 'Completed task description. '.repeat(3);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-archive-strict',
+      'status: in-progress',
+      'tier: 3',
+      'archive-tasks: ["8.1"]',
+      '---',
+      '',
+      '# Tasks',
+      '',
+      filler,
+      '',
+      '## 1. Preparation',
+      '- [ ] 1.1 Pending non-archive task',
+      '',
+      '## 8. Close',
+      '- [ ] 8.1 Archive (exempt)',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-archive-strict', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/1 task\(s\) still pending/i);
+  });
+
+  it('B2.3: missing archive-tasks frontmatter falls back to default 7.1, 7.2', () => {
+    runCli(['new', 'feat-archive-default'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-archive-default');
+    writeValidChangeArtifacts(changeDir);
+
+    const filler = 'Completed task description. '.repeat(3);
+    writeFileSync(join(changeDir, 'tasks.md'), [
+      '---',
+      'change-id: feat-archive-default',
+      'status: in-progress',
+      'tier: 3',
+      '---',
+      '',
+      '# Tasks',
+      '',
+      filler,
+      '',
+      '## 1. Preparation',
+      '- [x] 1.1 Done',
+      '',
+      '## 7. Archive',
+      '- [ ] 7.1 Archive',
+      '- [ ] 7.2 Promote',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-archive-default', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending/i);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // B3: runtime files-read reconciliation
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('B3.1: runtime log reads not declared in files-read produce a warning (non-strict)', () => {
+    runCli(['new', 'feat-runtime-recon'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-runtime-recon');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-runtime-recon',
+      '- status: complete',
+      '- files-read:',
+      '  - src/api/users.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    // Runtime hook recorded an extra undeclared read.
+    const runtimeDir = join(tmpRepo, '.cdd', 'runtime');
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(join(runtimeDir, 'feat-runtime-recon-files-read.jsonl'), [
+      '{"ts":"2026-04-29T00:00:00Z","change":"feat-runtime-recon","path":"src/api/users.ts"}',
+      '{"ts":"2026-04-29T00:00:01Z","change":"feat-runtime-recon","path":"specs/changes/feat-runtime-recon/test-plan.md"}',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-runtime-recon'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/runtime log shows 1 read\(s\) not declared/i);
+  });
+
+  it('B3.2: runtime undeclared reads become errors in --strict mode', () => {
+    runCli(['new', 'feat-runtime-strict'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-runtime-strict');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-runtime-strict',
+      '- status: complete',
+      '- files-read:',
+      '  - src/api/users.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const runtimeDir = join(tmpRepo, '.cdd', 'runtime');
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(join(runtimeDir, 'feat-runtime-strict-files-read.jsonl'),
+      '{"ts":"2026-04-29T00:00:00Z","change":"feat-runtime-strict","path":"src/secret.ts"}\n', 'utf8');
+
+    const r = runCli(['gate', 'feat-runtime-strict', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/runtime log shows.*not declared/i);
+  });
+
+  it('B3.3: runtime log absent → no reconciliation, no warning', () => {
+    runCli(['new', 'feat-no-runtime'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-no-runtime');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: feat-no-runtime',
+      '- status: complete',
+      '- files-read:',
+      '  - src/api/users.ts',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-no-runtime'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/runtime log shows/i);
+  });
+
   it('26: gate allows atomic changes when upstream dependency is completed', () => {
     writeValidContracts(tmpRepo);
     runCli(['new', 'dep-api'], { cwd: tmpRepo, home: tmpHome });

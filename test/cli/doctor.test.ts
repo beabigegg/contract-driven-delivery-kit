@@ -37,13 +37,13 @@ describe('cdd-kit doctor', () => {
     expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
   });
 
-  it('warns when contracts-index is older than contracts', async () => {
+  it('warns when contracts/* changes after context-scan (hash drift)', async () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);
     const scan = runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
     expect(scan.status, scan.stderr).toBe(0);
 
-    await new Promise(resolve => setTimeout(resolve, 20));
+    // Hash-based check is mtime-independent (works even on git-clone where mtime resets)
     writeFileSync(join(tmpRepo, 'contracts', 'api', 'new-contract.md'), [
       '---',
       'summary: New API behavior.',
@@ -54,7 +54,27 @@ describe('cdd-kit doctor', () => {
 
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/contracts-index\.md is older than contracts/i);
+    expect(r.stdout + r.stderr).toMatch(/contracts-index\.md inputs changed/i);
+  });
+
+  it('B5: hash-based freshness ignores mtime resets (regression)', async () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+    const scan = runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
+    expect(scan.status, scan.stderr).toBe(0);
+
+    // Simulate a git clone: touch every input but keep content unchanged.
+    const { utimesSync } = await import('fs');
+    const future = new Date(Date.now() + 10_000);
+    for (const f of ['contracts/api/api-contract.md', '.cdd/context-policy.json']) {
+      const p = join(tmpRepo, f);
+      if (existsSync(p)) utimesSync(p, future, future);
+    }
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/inputs changed/i);
+    expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
   });
 
   it('auto-detects codex provider and checks CODEX.md', () => {

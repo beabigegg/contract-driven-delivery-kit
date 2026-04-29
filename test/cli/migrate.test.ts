@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
@@ -105,6 +105,8 @@ describe('cdd-kit migrate', () => {
       '---',
       'change-id: new-001',
       'status: in-progress',
+      'tier: 2',
+      'archive-tasks: ["7.1", "7.2"]',
       '---',
       '',
       '<!-- [x]=done [-]=N/A [ ]=pending -->',
@@ -169,7 +171,7 @@ describe('cdd-kit migrate', () => {
 
     const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
     // Frontmatter must have the correct status
-    expect(tasks).toMatch(/^---\nchange-id: old-008\nstatus: gate-blocked\n---/);
+    expect(tasks).toMatch(/^---\nchange-id: old-008\nstatus: gate-blocked\n[\s\S]*?\n---/);
     // Body must NOT have a duplicate bare status line
     const bodyAfterFrontmatter = tasks.replace(/^---[\s\S]*?---\n/, '');
     expect(bodyAfterFrontmatter).not.toMatch(/^status:/m);
@@ -198,6 +200,52 @@ describe('cdd-kit migrate', () => {
       expect(tasks).toMatch(/^---/);
       expect(tasks).toMatch(/status: in-progress/);
     }
+  });
+
+  it('B4.1: migrate creates a backup at .cdd/migrate-backup/<stamp>/<change-id>/', () => {
+    makeOldChange('old-backup');
+    runCli(['migrate', 'old-backup'], { cwd: tmpRepo, home: tmpHome });
+
+    const backupRoot = join(tmpRepo, '.cdd', 'migrate-backup');
+    expect(existsSync(backupRoot)).toBe(true);
+    const stamps = readdirSync(backupRoot);
+    expect(stamps.length).toBeGreaterThan(0);
+    const backupChangeDir = join(backupRoot, stamps[0], 'old-backup');
+    expect(existsSync(backupChangeDir)).toBe(true);
+    expect(existsSync(join(backupChangeDir, 'tasks.md'))).toBe(true);
+  });
+
+  it('B4.2: migrate --no-backup skips backup directory creation', () => {
+    makeOldChange('old-no-backup');
+    runCli(['migrate', 'old-no-backup', '--no-backup'], { cwd: tmpRepo, home: tmpHome });
+
+    const backupRoot = join(tmpRepo, '.cdd', 'migrate-backup');
+    expect(existsSync(backupRoot)).toBe(false);
+  });
+
+  it('B1.5: migrate backfills tier into tasks.md frontmatter when classification has structured Tier', () => {
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'old-backfill-tier');
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(changeDir, 'tasks.md'), '# Tasks\n- [ ] 1.1 Pending\n', 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      '# Change Classification\n\n## Tier\n- 1\n', 'utf8');
+
+    runCli(['migrate', 'old-backfill-tier'], { cwd: tmpRepo, home: tmpHome });
+    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
+    expect(tasks).toMatch(/^tier: 1/m);
+    expect(tasks).toMatch(/^archive-tasks: \["7\.1", "7\.2"\]/m);
+  });
+
+  it('B1.6: migrate backfills tier from legacy bold **Tier:** Tier N format', () => {
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'old-bold-tier');
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(changeDir, 'tasks.md'), '# Tasks\n- [ ] 1.1 Pending\n', 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      '# Change Classification\n\n**Tier:** Tier 3\n', 'utf8');
+
+    runCli(['migrate', 'old-bold-tier'], { cwd: tmpRepo, home: tmpHome });
+    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
+    expect(tasks).toMatch(/^tier: 3/m);
   });
 
   it('11: migrate --enable-context-governance opts a legacy change into context-governance v1', () => {

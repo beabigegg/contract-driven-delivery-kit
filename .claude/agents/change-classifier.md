@@ -32,6 +32,28 @@ Use `project-map.md` to identify candidate source/test paths and `contracts-inde
 
 When in doubt, classify upward.
 
+### Tier 5 fast-path (token budget protection)
+
+If, after reading the change-request and project-map, ALL of the following are
+true, output Tier 5 and skip the heavy artifact list:
+
+- Only `*.md`, `*.txt`, `prompts/*`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`,
+  `README*` are touched (no source, no tests, no contracts).
+- No env var, secret, or runtime configuration change.
+- No public API behavior change.
+
+Tier 5 fast-path output minima:
+- `## Tier` → `- 5`
+- `## Required Agents` → `contract-reviewer` (read-only confirmation that no
+  contracts are touched) and `qa-reviewer` (release readiness, ~1 paragraph).
+- `## Optional Artifacts` → all `no`.
+- `## Required Tests` → all blank.
+
+This exists because previously every doc-only change paid 8–12 agent
+invocations of token cost. The fast-path bounds it to 2 read-only reviews. If
+unsure whether the fast-path applies, classify Tier 4 instead and proceed
+through the normal flow.
+
 ## Output
 
 Use this structure:
@@ -144,21 +166,10 @@ Note: `archive.md` is created during change close-out, not at classification tim
 
 ## Machine-Verifiable Evidence
 
-After completing your task, include an **## Agent Log** section at the end of your response with this exact structure (lines starting with `- ` are required). The calling skill will write this block to `specs/changes/<change-id>/agent-log/change-classifier.md`.
-
-```
-## Agent Log
-# Change Classifier Log
-- change-id: <id>
-- timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
-- status: complete | needs-review | blocked
-- files-read:
-  - <repo-relative path read through tools>
-- artifacts:
-  - <evidence-type>: <concrete pointer>
-  - <evidence-type>: <concrete pointer>
-- next-action: <one line, or "none">
-```
+After completing your task, write or append to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.md`. Required fields,
+field rules, and gate-enforcement behavior are defined once in
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
 - `tier`: Tier 0-5
@@ -166,16 +177,6 @@ After completing your task, include an **## Agent Log** section at the end of yo
 - `required-artifacts`: list
 - `required-reviewers`: list of agent names
 - `context-manifest-draft`: allowed paths and agent work packets based only on `project-map.md` and `contracts-index.md`
-
-### Rules
-- NEVER omit this log file. `cdd-kit gate` rejects changes whose agent-log
-  is missing the `status:` line or has an invalid status.
-- If you cannot complete the task, set `status: blocked` and write a
-  concrete `next-action` (NOT "investigate further" — write the actual
-  next step a human can act on).
-- Evidence must be concrete: file:line, command name + last-10-line stdout,
-  contract path + section, test name, etc. NEVER write "verified" or "OK"
-  without a pointer.
 
 ## Mixed and edge cases
 

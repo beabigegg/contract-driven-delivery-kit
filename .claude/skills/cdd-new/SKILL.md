@@ -99,176 +99,21 @@ Verify these files exist:
 
 Do not use broad search or ad hoc reads to classify the change before `context-scan` has completed.
 
-The generated scaffold contains the artifacts below. Fill `change-request.md` with the user's request before invoking the classifier.
+The generated scaffold contains the artifacts listed in the table below. **All
+templates are written from disk by `cdd-kit new` — do not paste template bodies
+into this prompt.** The on-disk source of truth lives in `specs/templates/` of
+the kit and is bundled into every install.
 
-Update `specs/changes/<change-id>/change-request.md` with the user's description filled in:
-```
-# Change Request: <change-id>
-
-## Original Request
-<user's exact description, verbatim>
-
-## Business / User Goal
-<infer from the description>
-
-## Non-goals
-
-## Constraints
-
-## Known Context
-
-## Open Questions
-
-## Requested Delivery Date / Priority
-as soon as possible
-```
-
-`specs/changes/<change-id>/change-classification.md` starts from this blank template:
-```
-# Change Classification
-
-## Change Types
-- primary:
-- secondary:
-
-## Risk Level
-- low / medium / high / critical
-
-## Impact Radius
-- isolated / module-level / cross-module / system-wide
-
-## Tier
-- 0 / 1 / 2 / 3 / 4 / 5
-
-## Architecture Review Required
-- yes / no
-- reason: (fill only if yes)
-
-## Required Artifacts
-Always required: change-request.md, change-classification.md, test-plan.md, ci-gates.md, tasks.md
-
-## Optional Artifacts (default: no — set yes only with explicit reason)
-| artifact | create? | reason |
+| File | Source | Your job |
 |---|---|---|
-| current-behavior.md | no | |
-| proposal.md | no | |
-| spec.md | no | |
-| design.md | no | |
-| qa-report.md | no | |
-| regression-report.md | no | |
+| `change-request.md` | `specs/templates/change-request.md` | Fill the `## Original Request` section with the user's exact description before invoking the classifier; leave the rest blank |
+| `change-classification.md` | `specs/templates/change-classification.md` | Replace blank template with classifier output (Step 2) |
+| `test-plan.md` | `specs/templates/test-plan.md` | `test-strategist` writes this directly |
+| `ci-gates.md` | `specs/templates/ci-gates.md` | `ci-cd-gatekeeper` writes this directly |
+| `tasks.md` | `specs/templates/tasks.md` | Tick checkboxes as agents complete; backfill `tier:` frontmatter from classifier (Step 2.4) |
+| `context-manifest.md` | `specs/templates/context-manifest.md` | Replace from classifier `## Context Manifest Draft` (Step 2) |
 
-## Required Contracts
-- API:
-- CSS/UI:
-- Env:
-- Data shape:
-- Business logic:
-- CI/CD:
-
-## Required Test Families
-- unit:
-- contract:
-- integration:
-- E2E:
-- visual:
-- data-boundary:
-- resilience:
-- fuzz/monkey:
-- stress:
-- soak:
-
-## Required Agents
-
-## Assumptions / Clarifications
-```
-
-`specs/changes/<change-id>/test-plan.md` starts from this blank template:
-```
-# Test Plan: <change-id>
-
-## Acceptance Criteria → Test Mapping
-| criterion id | test family | test file path | tier |
-|---|---|---|---|
-
-## Test Families Required
-| family | tier | notes |
-|---|---|---|
-| (unit / contract / integration / e2e / data-boundary / resilience / monkey / stress / soak) | | |
-
-## Out of Scope
-
-## Notes
-(Keep under 10 lines. Implementation detail belongs in the test files themselves.)
-```
-
-`specs/changes/<change-id>/ci-gates.md` starts from this blank template:
-```
-# CI Gates: <change-id>
-
-## Required Gates (block merge if failing)
-
-## Informational Gates (report only)
-
-## Nightly / Weekly / Manual Gates
-
-## Promotion Policy
-```
-
-`specs/changes/<change-id>/tasks.md` starts with ALL checkboxes unchecked:
-```
----
-change-id: <change-id>
-status: in-progress
-context-governance: v1
-depends-on: []
----
-
-<!-- [x]=done [-]=N/A [ ]=pending -->
-
-# Tasks: <change-id>
-
-## 1. Preparation
-- [ ] 1.1 Confirm classification and required artifacts
-- [ ] 1.2 Confirm contracts to update
-- [ ] 1.3 Confirm CI/CD gate plan
-
-## 2. Contract Updates
-- [ ] 2.1 API contract
-- [ ] 2.2 CSS/UI contract
-- [ ] 2.3 Env contract
-- [ ] 2.4 Data shape contract
-- [ ] 2.5 Business logic contract
-- [ ] 2.6 CI/CD contract
-
-## 3. Tests First
-- [ ] 3.1 Unit/contract tests
-- [ ] 3.2 Integration tests
-- [ ] 3.3 E2E/resilience tests
-- [ ] 3.4 Data-boundary/monkey tests
-- [ ] 3.5 Stress/soak tests if required
-
-## 4. Implementation
-- [ ] 4.1 Backend
-- [ ] 4.2 Frontend
-- [ ] 4.3 Env/deploy
-- [ ] 4.4 CI/CD workflows
-
-## 5. Review
-- [ ] 5.1 UI/UX review
-- [ ] 5.2 Visual review
-- [ ] 5.3 Contract review
-- [ ] 5.4 QA review
-
-## 6. Verification
-- [ ] 6.1 Local gates
-- [ ] 6.2 PR required gates
-- [ ] 6.3 Informational gates
-- [ ] 6.4 Nightly/weekly/manual gates if required
-
-## 7. Archive
-- [ ] 7.1 Archive change
-- [ ] 7.2 Promote durable learnings to contracts or CLAUDE.md
-```
+If `cdd-kit new` reports a missing template, run `cdd-kit upgrade --yes`.
 
 ---
 
@@ -290,14 +135,27 @@ The classifier must include a `## Context Manifest Draft` section with:
 - required tests
 - any context expansion requests that must be approved before implementation
 
-**change-classifier is read-only** — it will return its output as text. After it responds:
+**change-classifier is read-only** — it will return its output as text.
+
+### Classifier output lint (B8): refuse stub responses
+
+Before writing any files, verify the classifier response contains:
+
+- `## Tier` followed by `- N` where N is a single digit 0-5 (NOT `0 / 1 / 2 / 3 / 4 / 5` — that is the unfilled placeholder).
+- `## Required Agents` with at least one agent name.
+- `## Inferred Acceptance Criteria` with at least one filled `AC-1: …` line.
+
+If any of these are missing or still hold the literal placeholder text, STOP. Re-prompt the classifier with the missing pieces named explicitly. Do NOT write classification.md — gate will reject it as a stub anyway and you will have wasted the round-trip.
+
+### When the classifier output passes lint
 
 1. **YOU write** `specs/changes/<change-id>/change-classification.md` — replace the blank template with the classifier's classification output.
 2. **YOU write** `specs/changes/<change-id>/agent-log/change-classifier.md` — copy the Agent Log block from the classifier's response.
 3. **YOU update** `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft`.
-4. **YOU tick** `tasks.md` item `1.1`.
+4. **YOU update** `tasks.md` frontmatter: set `tier: <N>` to the classifier's tier digit. This is now the authoritative source for `cdd-kit gate` tier-based agent enforcement (the classification.md `## Tier` section is fallback only).
+5. **YOU tick** `tasks.md` item `1.1`.
 
-Wait until these four writes are done before continuing.
+Wait until these five writes are done before continuing.
 
 **After writing change-classification.md**: read the classifier's `## Tasks Not Applicable` list. For each listed task ID (e.g., `2.2`, `4.2`), update `tasks.md` to change that item from `[ ]` to `[-]`. Do this before invoking any other agent.
 

@@ -46,15 +46,7 @@ Run `cdd-kit detect-stack` to verify the detected tech stack.
 For context-governed changes, read `specs/changes/<change-id>/context-manifest.md` before using file-reading or broad search tools.
 
 - Read only paths allowed by the manifest or approved expansions.
-- If more context is needed, stop and write a Context Expansion Request in the manifest.
-- Record every file read through tools in the relevant `agent-log/*.md` under `- files-read:`.
-
-Required `agent-log/*.md` format:
-
-```md
-- files-read:
-  - contracts/api/api-contract.md
-  - src/server/routes/users.ts
-```
-
-Every entry must be a repo-relative path. Do not omit files, use absolute paths, or use `..`.
+- If more context is needed, stop and write a Context Expansion Request in the manifest (`cdd-kit context request`).
+- The full agent-log format (including `files-read:` schema) is defined in
+  `~/.claude/skills/contract-driven-delivery/references/agent-log-protocol.md`.
+  Read that once; do not paraphrase it elsewhere.

@@ -187,6 +187,21 @@ export async function listContextExpansions(changeId: string, json = false): Pro
   }
 }
 
+function applyApproval(content: string, request: ContextRequest): string {
+  for (const path of request.paths) {
+    const validationError = validateRepoRelativePath(path);
+    if (validationError) {
+      log.error(validationError);
+      process.exit(1);
+    }
+  }
+  const approved = approvedExpansionSet(content);
+  for (const path of request.paths) approved.add(path);
+  let next = replaceSection(content, 'Approved Expansions', [...approved].sort().map(p => `- ${p}`));
+  next = setRequestStatus(next, request.requestId, 'approved');
+  return next;
+}
+
 export async function approveContextExpansion(changeId: string, requestId: string): Promise<void> {
   const content = readManifest(changeId);
   const request = parseRequests(content).find(item => item.requestId === requestId && item.status === 'pending');
@@ -198,27 +213,57 @@ export async function approveContextExpansion(changeId: string, requestId: strin
     log.error(`context expansion request has no requested_paths: ${requestId}`);
     process.exit(1);
   }
-  for (const path of request.paths) {
-    const validationError = validateRepoRelativePath(path);
-    if (validationError) {
-      log.error(validationError);
-      process.exit(1);
-    }
-  }
 
-  const approved = approvedExpansionSet(content);
-  for (const path of request.paths) approved.add(path);
-
-  let next = replaceSection(content, 'Approved Expansions', [...[...approved].sort().map(path => `- ${path}`)]);
-  next = setRequestStatus(next, requestId, 'approved');
+  const next = applyApproval(content, request);
   writeManifest(changeId, next);
 
   log.ok(`approved context expansion ${requestId} for ${changeId}`);
   for (const path of request.paths) log.info(`  ${path}`);
 }
 
+export async function approveAllPending(changeId: string): Promise<void> {
+  let content = readManifest(changeId);
+  const pending = parseRequests(content).filter(r => r.status === 'pending');
+
+  if (pending.length === 0) {
+    log.info(`no pending context expansion requests for ${changeId}`);
+    return;
+  }
+
+  const skipped: string[] = [];
+  let approvedCount = 0;
+  for (const request of pending) {
+    if (request.paths.length === 0) {
+      skipped.push(`${request.requestId} (no requested_paths)`);
+      continue;
+    }
+    content = applyApproval(content, request);
+    approvedCount += 1;
+  }
+  writeManifest(changeId, content);
+
+  log.ok(`approved ${approvedCount} pending context expansion request(s) for ${changeId}`);
+  for (const reason of skipped) {
+    log.warn(`  skipped ${reason}`);
+  }
+}
+
 export async function rejectContextExpansion(changeId: string, requestId: string): Promise<void> {
   const next = setRequestStatus(readManifest(changeId), requestId, 'rejected');
   writeManifest(changeId, next);
   log.ok(`rejected context expansion ${requestId} for ${changeId}`);
+}
+
+export async function rejectAllPending(changeId: string): Promise<void> {
+  let content = readManifest(changeId);
+  const pending = parseRequests(content).filter(r => r.status === 'pending');
+  if (pending.length === 0) {
+    log.info(`no pending context expansion requests for ${changeId}`);
+    return;
+  }
+  for (const request of pending) {
+    content = setRequestStatus(content, request.requestId, 'rejected');
+  }
+  writeManifest(changeId, content);
+  log.ok(`rejected ${pending.length} pending context expansion request(s) for ${changeId}`);
 }

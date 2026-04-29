@@ -113,6 +113,90 @@ describe('cdd-kit context', () => {
     expect(payload.requests[0].status).toBe('pending');
   });
 
+  it('B7.1: --all-pending approves every pending request in one command', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '- request-id: CER-A',
+      '  requested_paths:',
+      '    - src/a.ts',
+      '  status: pending',
+      '- request-id: CER-B',
+      '  requested_paths:',
+      '    - src/b.ts',
+      '  status: pending',
+      '- request-id: CER-C',
+      '  requested_paths:',
+      '    - src/c.ts',
+      '  status: approved',
+      '',
+      '## Approved Expansions',
+      '-',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['context', 'approve', 'feat-context', '--all-pending'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/approved 2 pending/i);
+
+    const manifest = readFileSync(manifestPath, 'utf8');
+    expect(manifest).toContain('- src/a.ts');
+    expect(manifest).toContain('- src/b.ts');
+    // The previously-approved CER-C should NOT be in Approved Expansions (it was already approved with no path movement here)
+  });
+
+  it('B7.2: --all-pending rejects every pending request in one command', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '- request-id: CER-X',
+      '  requested_paths:',
+      '    - src/x.ts',
+      '  status: pending',
+      '- request-id: CER-Y',
+      '  requested_paths:',
+      '    - src/y.ts',
+      '  status: pending',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['context', 'reject', 'feat-context', '--all-pending'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/rejected 2 pending/i);
+
+    const list = runCli(['context', 'list', 'feat-context', '--json'], { cwd: tmpRepo, home: tmpHome });
+    const payload = JSON.parse(list.stdout);
+    expect(payload.requests.every((r: { status: string }) => r.status === 'rejected')).toBe(true);
+  });
+
+  it('B7.3: --all-pending with no pending requests reports info, exit 0', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '-',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['context', 'approve', 'feat-context', '--all-pending'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/no pending context expansion requests/i);
+  });
+
+  it('B7.4: --all-pending with explicit request-id is rejected', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, '# Context Manifest\n\n## Context Expansion Requests\n-\n', 'utf8');
+
+    const r = runCli(['context', 'approve', 'feat-context', 'CER-Z', '--all-pending'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/cannot be combined with a request-id/i);
+  });
+
   it('can reject pending requests without approving paths', () => {
     const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
     writeFileSync(manifestPath, [

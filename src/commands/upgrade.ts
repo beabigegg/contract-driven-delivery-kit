@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
@@ -113,11 +113,16 @@ export async function upgrade(opts: UpgradeOptions = {}): Promise<void> {
 
   const modelPolicyPath = join(cwd, '.cdd', 'model-policy.json');
   if (existsSync(modelPolicyPath)) {
-    writeFileSync(modelPolicyPath, JSON.stringify({
+    // Preserve existing roles map; only update provider/generated_at metadata.
+    let existing: Record<string, unknown> = {};
+    try { existing = JSON.parse(readFileSync(modelPolicyPath, 'utf8')); } catch { /* fall through */ }
+    const merged = {
+      ...existing,
       provider,
       generated_at: new Date().toISOString(),
-      roles: {},
-    }, null, 2) + '\n', 'utf8');
+      roles: existing.roles && typeof existing.roles === 'object' ? existing.roles : {},
+    };
+    writeFileSync(modelPolicyPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');
   }
 
   log.blank();
