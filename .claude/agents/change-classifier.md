@@ -32,6 +32,65 @@ Use `project-map.md` to identify candidate source/test paths and `contracts-inde
 
 When in doubt, classify upward.
 
+### Atomic-split detection (BEFORE producing classification)
+
+Non-engineer users often hand in mega-requests like "redesign the dashboard
+and add JWT auth and migrate sessions". Running these as a single Tier 0/1
+change burns 10+ agents in series, couples unrelated rollback risk, and
+leaves no good fix-back path when one piece blocks.
+
+Before producing a single classification, check these triggers:
+
+- **Cross-feature**: 2+ unrelated change-types ("primary" categories) in one
+  request (e.g. `feature-add` + `migration` + `ui-redesign`).
+- **Cross-surface**: 3+ distinct surfaces touched (auth + UI + DB + email +
+  export).
+- **Contract-heavy**: ≥ 5 of the 6 contracts (api / css / env / data /
+  business / ci) need changes.
+- **Task-heavy**: estimated > 10 task-IDs across sections 3-4 of `tasks.md`.
+
+If **any one trigger fires**, output `## Atomic Split Proposal` INSTEAD of the
+normal classification, in this exact shape:
+
+```md
+## Atomic Split Proposal
+
+This request spans <N> independent risk surfaces. Running it as one change
+would require <N> agents in series and couple unrelated rollback risk.
+
+Recommended atomic split (each is a separate `cdd-kit new`):
+
+| change-id | scope | tier | depends-on |
+|---|---|---|---|
+| <kebab-id-1> | <one-line scope> | <0-5> | (none) |
+| <kebab-id-2> | <one-line scope> | <0-5> | <kebab-id-1> |
+| <kebab-id-3> | <one-line scope> | <0-5> | <kebab-id-1> |
+
+Suggested commands (run in order):
+
+\`\`\`bash
+cdd-kit new <kebab-id-1>
+cdd-kit new <kebab-id-2> --depends-on <kebab-id-1>
+cdd-kit new <kebab-id-3> --depends-on <kebab-id-1>
+\`\`\`
+
+Estimated token savings vs single Tier 0/1 monolith: ~40-60% (parallel
+review-agent overlap removed, smaller per-change context).
+
+If you want to proceed as a single monolithic change anyway, reply with
+`force-monolithic` and I will produce the normal Tier <X> classification
+instead.
+```
+
+When emitting an Atomic Split Proposal, **also include the standard
+`## Agent Log` block** at the end so `cdd-kit gate` can record this run, but
+mark `status: needs-review` and include `next-action: wait-for-user-approval`.
+Do NOT produce other artifacts (no test-plan, no manifest draft) until the
+user picks a path.
+
+If no trigger fires, skip this section entirely and produce the normal
+classification.
+
 ### Tier 5 fast-path (token budget protection)
 
 If, after reading the change-request and project-map, ALL of the following are

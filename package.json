@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "Contract-driven delivery kit for AI coding agents: contracts-first, test-first, spec-first. Every change is classified, contracted, TDD-ed, implemented, and gate-verified by an orchestrated agent flow.",
   "keywords": [
     "contract-driven",

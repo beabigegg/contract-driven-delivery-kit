@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.14.0] - 2026-04-30
+
+### Agent efficiency for non-engineer users
+
+- `/cdd-new` Step 0: request-quality pre-lint. Refuses to run when the user's
+  request is missing affected-surface, desired-behavior, or success-criterion.
+  Avoids one full classifier round-trip on ambiguous requests.
+- `change-classifier`: atomic-split detection. Mega-requests crossing 2+
+  change-types or 3+ surfaces now return an `## Atomic Split Proposal` table
+  with suggested `cdd-kit new --depends-on` commands instead of a single
+  Tier 0/1 monolith. Estimated 40-60% token saving on multi-feature requests.
+- `references/agent-log-protocol.md`: every agent must self-validate its log
+  block before sending its response. Prevents the round-trip where gate
+  catches a malformed log and forces a full agent re-run.
+- `/cdd-new` Step 4 fix-back: structured error-to-agent routing table. Each
+  gate error class now has a defined re-invocation owner and a templated
+  prompt prefix that includes the verbatim gate error. No more "blind retry".
+
+### Notes
+
+This release is prompt-only (no code changes in `src/`). Improvements are
+qualitative for the AI agent flow, not exposed as new CLI flags.
+
 ## [1.13.0] - 2026-04-29
 
 ### Token-budget reductions

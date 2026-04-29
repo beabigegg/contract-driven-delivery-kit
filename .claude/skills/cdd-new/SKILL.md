@@ -49,6 +49,42 @@ If no description is provided, ask the user: "Please describe the change you wan
 
 ---
 
+## Step 0: Request quality check (BEFORE classifier)
+
+Non-engineers often submit ambiguous requests like "fix the slow report" or
+"make it nicer". These cost a full classifier round-trip when the right move is
+to ask back. Before scaffolding anything, verify the request contains all
+three elements below. Rephrase the request internally in this shape:
+
+| Element | Example | Required? |
+|---|---|---|
+| 1. Affected surface | "the order export page", "the JWT login flow" | always |
+| 2. Desired behavior change | "complete in <10s", "support 2FA via TOTP" | always |
+| 3. Observable success criterion | "1000-row export finishes without timeout", "user with 2FA can log in end-to-end" | always |
+
+If any element is missing or ambiguous, **STOP. Do NOT call `cdd-kit new` or
+the classifier.** Ask the user back in this exact shape:
+
+```
+Before I start a tracked change, I need to lock down three things:
+
+  Affected surface:       <best guess from request, or empty>
+  Desired behavior:       <best guess, or empty>
+  Success criterion:      <empty — please fill>
+
+Could you confirm or fill in the missing pieces?
+```
+
+Only proceed to Step 1 once all three are answered or the user explicitly says
+"proceed without success criterion". Record the user's clarifications verbatim
+in `change-request.md` § Original Request.
+
+The cost of this step: 1 short message round-trip. The cost of skipping it:
+one full classifier+contract-reviewer cycle, often 5-10× more tokens, plus an
+inevitable re-classification when the agents discover the ambiguity.
+
+---
+
 ## Write Responsibilities
 
 **This distinction is critical — follow it for every step:**
@@ -136,6 +172,27 @@ The classifier must include a `## Context Manifest Draft` section with:
 - any context expansion requests that must be approved before implementation
 
 **change-classifier is read-only** — it will return its output as text.
+
+### If the classifier returns `## Atomic Split Proposal`
+
+The classifier has decided this request is too big for a single change. Do
+NOT proceed with the rest of `/cdd-new`. Instead:
+
+1. Show the user the full `## Atomic Split Proposal` table verbatim.
+2. Ask: "Run these as separate changes (recommended), or force a single
+   monolithic change?"
+3. If user picks "separate":
+   - For each row in the proposal table, run `cdd-kit new <change-id>` with
+     the listed `--depends-on`.
+   - Then say: "I created N change directories. Want me to run `/cdd-new`
+     against the first one now?" — wait for confirmation; do not auto-loop.
+4. If user picks "force monolithic":
+   - Re-invoke change-classifier with `force-monolithic` appended to the
+     change-request and proceed with whatever Tier the classifier returns.
+5. Delete the partially-scaffolded change directory you created in Step 1
+   if the user picked "separate" and the originally-derived change-id is
+   not in the proposal — it would otherwise sit empty and confuse `cdd-kit
+   list`.
 
 ### Classifier output lint (B8): refuse stub responses
 
@@ -272,14 +329,50 @@ cdd-kit gate <change-id>
 - YOU tick: `tasks.md` item `6.1`
 - Proceed to Step 5.
 
-**If gate fails**:
-1. Read the gate error output carefully
-2. Identify which artifact is missing, stub, or invalid
-3. Re-invoke the specific agent responsible for that artifact with the exact fix required
-4. Re-run `cdd-kit gate <change-id>`
-5. Repeat until gate passes (max 3 iterations; if still failing after 3, report to user)
+**If gate fails — structured fix-back routing**:
 
-**Terminal state after 3 failures**: Add a line at the top of `tasks.md` reading `status: gate-blocked` and report all blocking items to the user. The change is paused — do not proceed to Step 5.
+Capture gate's full stderr verbatim. Parse error lines and route each to the
+right owner. The patterns below are exhaustive — every gate error message
+matches one of them.
+
+| Error pattern | Route to | Re-invocation prompt seed |
+|---|---|---|
+| `agent-log/<name>.md: …` | the named agent | "PREVIOUS GATE FAILURE FOR THIS AGENT: <full error line>. Fix only your `agent-log/<name>.md`. Re-output your Agent Log block." |
+| `change-classification.md: …` | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit only the failing section." |
+| `context-manifest.md: …` | `change-classifier` | "PREVIOUS MANIFEST FAILED GATE: <error>. Re-emit `## Context Manifest Draft`." |
+| `tasks.md: …` (frontmatter / pending) | YOU (main Claude) — direct edit | n/a — fix `tasks.md` yourself. Don't re-invoke an agent for a file you own. |
+| `Tier <N> change requires agent-log/<X>.md` | invoke the missing agent `<X>` | "TIER <N> REQUIRES THIS LOG. Run your full work, not just the log." |
+| `dependency <id>: upstream change is not completed` | n/a — STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
+| `validators returned non-zero` | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
+
+**Re-invocation prompt template** (always use this exact prefix when re-invoking an agent for fix-back):
+
+```
+CURRENT_CHANGE_ID: <change-id>
+Change directory: specs/changes/<change-id>/
+
+PREVIOUS GATE FAILURE FOR THIS AGENT (re-invocation):
+<the exact gate error line(s) tied to this agent>
+
+FIX TARGET:
+<the specific file or section that needs to change>
+
+REFERENCES:
+- references/agent-log-protocol.md (log format)
+- references/<agent-specific-standard>.md (if applicable)
+
+Fix this exact issue without re-doing your prior work. Re-output only the
+section that changed plus your updated Agent Log block.
+```
+
+After re-invoking, re-run `cdd-kit gate <change-id>`. Repeat up to **3 times**. Each
+iteration must be on a strictly smaller error set — if the same error returns
+twice, halt and surface to user (an agent stuck in a loop is more expensive
+than a human read).
+
+**Terminal state after 3 failures**: Update `tasks.md` frontmatter with
+`status: gate-blocked` and report all remaining errors to the user, grouped
+by responsible agent, so they know who to manually direct next.
 
 ---
 
