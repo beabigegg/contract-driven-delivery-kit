@@ -94,6 +94,34 @@ describe('cdd-kit doctor', () => {
     expect(existsSync(join(tmpRepo, '.cdd'))).toBe(false);
   });
 
+  it('PR3-5.1: --fix auto-runs context-scan when indexes are missing', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    // Indexes don't exist yet.
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'project-map.md'))).toBe(false);
+
+    const r = runCli(['doctor', '--fix'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/fixed: ran context-scan/i);
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'project-map.md'))).toBe(true);
+  });
+
+  it('PR3-5.2: --fix populates empty model-policy roles', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    // Reset model-policy to empty roles.
+    writeFileSync(join(tmpRepo, '.cdd', 'model-policy.json'),
+      JSON.stringify({ provider: 'claude', generated_at: null, roles: {} }, null, 2) + '\n', 'utf8');
+
+    const r = runCli(['doctor', '--fix'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/fixed: populated.*model-policy/i);
+
+    const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
+    expect(Object.keys(policy.roles).length).toBeGreaterThan(10);
+    expect(policy.roles['change-classifier']).toMatch(/claude-opus-4-7/);
+  });
+
   it('can emit machine-readable json for CI', () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);

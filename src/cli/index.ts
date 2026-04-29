@@ -54,9 +54,10 @@ program
   .option('--strict', 'Treat warnings as errors', false)
   .option('--json', 'Print a machine-readable health report', false)
   .option('--provider <provider>', 'Provider adapter to inspect: auto, claude, codex, or both', 'auto')
-  .action(async (opts: { strict?: boolean; json?: boolean; provider?: ProviderOption }) => {
+  .option('--fix', 'Auto-resolve safe warnings (stale context indexes, missing role bindings)', false)
+  .action(async (opts: { strict?: boolean; json?: boolean; provider?: ProviderOption; fix?: boolean }) => {
     const { doctor } = await import('../commands/doctor.js');
-    await doctor({ strict: opts.strict, json: opts.json, provider: opts.provider });
+    await doctor({ strict: opts.strict, json: opts.json, provider: opts.provider, fix: opts.fix });
   });
 
 program
@@ -83,8 +84,9 @@ program
   .option('--all', 'Include optional templates in addition to required ones', false)
   .option('--force', 'Overwrite existing template files in the change folder', false)
   .option('--depends-on <change-ids>', 'Comma-separated upstream change ids that must complete first')
+  .option('--skip-scan', 'Skip the auto context-scan when indexes are stale (advanced)', false)
   .action((name: string, opts) =>
-    newChange(name, { all: opts.all, force: opts.force, dependsOn: opts.dependsOn }),
+    newChange(name, { all: opts.all, force: opts.force, dependsOn: opts.dependsOn, skipScan: opts.skipScan }),
   );
 
 // ── cdd validate ──────────────────────────────────────────────────────────────
@@ -110,8 +112,9 @@ program
 program
   .command('gate <change-id>')
   .description('Run full orchestration gate for a change (required artifacts, content, tier, contracts)')
-  .option('--strict', 'Treat pending tasks (except section 7) as errors, and validate artifact pointers', false)
-  .action(async (id: string, opts: { strict?: boolean }) => { await gate(id, { strict: opts.strict }); });
+  .option('--strict', 'Treat pending tasks (except section 7) as errors, and treat runtime/declared files-read drift as errors', false)
+  .option('--lax', 'Skip artifact-pointer existence check (for legacy repos with stale logs)', false)
+  .action(async (id: string, opts: { strict?: boolean; lax?: boolean }) => { await gate(id, { strict: opts.strict, lax: opts.lax }); });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────
 program

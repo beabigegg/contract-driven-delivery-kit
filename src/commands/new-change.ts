@@ -1,13 +1,76 @@
 import { join } from 'path';
+import { createHash } from 'crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { ASSET } from '../utils/paths.js';
 import { copyFile, ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
+import { contextScan } from './context-scan.js';
 
 export interface NewChangeOptions {
   all: boolean;
   force: boolean;
   dependsOn?: string;
+  skipScan?: boolean;
+}
+
+function sha256OfFile(path: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(path)).digest('hex');
+  } catch {
+    return '';
+  }
+}
+
+function inputsDigest(paths: string[]): string {
+  const combined = paths.slice().sort()
+    .map(p => `${p}:${sha256OfFile(p)}`)
+    .join('\n');
+  return createHash('sha256').update(combined).digest('hex');
+}
+
+function findContractFiles(dir: string, found: string[] = []): string[] {
+  if (!existsSync(dir)) return found;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) findContractFiles(fullPath, found);
+    else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md' && entry.name !== 'CHANGELOG.md') {
+      found.push(fullPath);
+    }
+  }
+  return found;
+}
+
+function readIndexDigest(filePath: string): string | null {
+  if (!existsSync(filePath)) return null;
+  const m = readFileSync(filePath, 'utf8').match(/^inputs-digest:\s*([a-f0-9]+)/m);
+  return m ? m[1] : null;
+}
+
+async function ensureFreshContextIndexes(cwd: string): Promise<void> {
+  const projectMap = join(cwd, 'specs', 'context', 'project-map.md');
+  const contractsIndex = join(cwd, 'specs', 'context', 'contracts-index.md');
+  const policyPath = join(cwd, '.cdd', 'context-policy.json');
+
+  const policyInputs = [policyPath].filter(existsSync);
+  const contractFiles = findContractFiles(join(cwd, 'contracts'));
+
+  const wantProjectDigest = inputsDigest(policyInputs);
+  const wantContractsDigest = inputsDigest(contractFiles);
+
+  const haveProjectDigest = readIndexDigest(projectMap);
+  const haveContractsDigest = readIndexDigest(contractsIndex);
+
+  const needsScan =
+    !existsSync(projectMap) ||
+    !existsSync(contractsIndex) ||
+    haveProjectDigest !== wantProjectDigest ||
+    haveContractsDigest !== wantContractsDigest;
+
+  if (!needsScan) return;
+
+  log.info('context indexes missing or stale — running cdd-kit context-scan…');
+  await contextScan();
+  log.dim('  (skip with --skip-scan)');
 }
 
 const REQUIRED_TEMPLATES = [
@@ -58,6 +121,14 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
 
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', name);
+
+  if (!opts.skipScan) {
+    try {
+      await ensureFreshContextIndexes(cwd);
+    } catch (err) {
+      log.warn(`context-scan failed: ${(err as Error).message}; continuing without fresh indexes`);
+    }
+  }
 
   if (existsSync(changeDir)) {
     if (opts.force) {
