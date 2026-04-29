@@ -245,7 +245,7 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
     }
 
     // Stale or missing context indexes → run context-scan
-    if (/specs\/context indexes are missing|inputs changed|older than/i.test(finding.message)) {
+    if (/specs\/context indexes are missing|inputs changed|older cdd-kit|older than/i.test(finding.message)) {
       try {
         const { contextScan } = await import('./context-scan.js');
         await contextScan();

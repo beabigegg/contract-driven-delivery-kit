@@ -122,14 +122,6 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', name);
 
-  if (!opts.skipScan) {
-    try {
-      await ensureFreshContextIndexes(cwd);
-    } catch (err) {
-      log.warn(`context-scan failed: ${(err as Error).message}; continuing without fresh indexes`);
-    }
-  }
-
   if (existsSync(changeDir)) {
     if (opts.force) {
       log.warn(`Forcing re-scaffold of existing change directory: ${changeDir}`);
@@ -138,6 +130,14 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
       log.warn(`Change directory already exists: ${changeDir}`);
       log.warn('Aborting — remove or rename the directory to re-scaffold.');
       return;
+    }
+  }
+
+  if (!opts.skipScan) {
+    try {
+      await ensureFreshContextIndexes(cwd);
+    } catch (err) {
+      log.warn(`context-scan failed: ${(err as Error).message}; continuing without fresh indexes`);
     }
   }
 

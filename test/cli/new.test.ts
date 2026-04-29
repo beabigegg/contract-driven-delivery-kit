@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, readdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
@@ -157,5 +157,17 @@ describe('cdd-kit new', () => {
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
     // Should NOT say "missing or stale"
     expect(r.stdout + r.stderr).not.toMatch(/context indexes missing or stale/i);
+  });
+
+  it('PR3-2.4: existing change without --force does not mutate specs/context before aborting', () => {
+    const existingDir = join(tmpRepo, 'specs', 'changes', 'feat-existing');
+    mkdirSync(existingDir, { recursive: true });
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'project-map.md'))).toBe(false);
+
+    const r = runCli(['new', 'feat-existing'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/change directory already exists/i);
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'project-map.md'))).toBe(false);
+    expect(existsSync(join(tmpRepo, 'specs', 'context', 'contracts-index.md'))).toBe(false);
   });
 });
