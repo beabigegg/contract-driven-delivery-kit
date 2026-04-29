@@ -60,7 +60,7 @@ three elements below. Rephrase the request internally in this shape:
 |---|---|---|
 | 1. Affected surface | "the order export page", "the JWT login flow" | always |
 | 2. Desired behavior change | "complete in <10s", "support 2FA via TOTP" | always |
-| 3. Observable success criterion | "1000-row export finishes without timeout", "user with 2FA can log in end-to-end" | always |
+| 3. Observable success criterion | "1000-row export finishes without timeout", "user with 2FA can log in end-to-end" | required by default |
 
 If any element is missing or ambiguous, **STOP. Do NOT call `cdd-kit new` or
 the classifier.** Ask the user back in this exact shape:
@@ -75,9 +75,10 @@ Before I start a tracked change, I need to lock down three things:
 Could you confirm or fill in the missing pieces?
 ```
 
-Only proceed to Step 1 once all three are answered or the user explicitly says
-"proceed without success criterion". Record the user's clarifications verbatim
-in `change-request.md` § Original Request.
+Default rule: do not proceed until all three are answered. The only exception
+is when the user explicitly says "proceed without success criterion" after you
+asked back once; in that case proceed with the acknowledged gap and record the
+user's clarifications verbatim in `change-request.md` § Original Request.
 
 The cost of this step: 1 short message round-trip. The cost of skipping it:
 one full classifier+contract-reviewer cycle, often 5-10× more tokens, plus an
@@ -332,8 +333,8 @@ cdd-kit gate <change-id>
 **If gate fails — structured fix-back routing**:
 
 Capture gate's full stderr verbatim. Parse error lines and route each to the
-right owner. The patterns below are exhaustive — every gate error message
-matches one of them.
+right owner. Start with the patterns below, then use the fallback row for
+anything unmapped so you never blind-retry on an unknown gate message.
 
 | Error pattern | Route to | Re-invocation prompt seed |
 |---|---|---|
@@ -343,7 +344,11 @@ matches one of them.
 | `tasks.md: …` (frontmatter / pending) | YOU (main Claude) — direct edit | n/a — fix `tasks.md` yourself. Don't re-invoke an agent for a file you own. |
 | `Tier <N> change requires agent-log/<X>.md` | invoke the missing agent `<X>` | "TIER <N> REQUIRES THIS LOG. Run your full work, not just the log." |
 | `dependency <id>: upstream change is not completed` | n/a — STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
-| `validators returned non-zero` | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
+| `validators returned non-zero` + `contracts` validator output | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
+| `validators returned non-zero` + `env` validator output | `backend-engineer` | "PREVIOUS ENV VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile env contract and implementation/config usage." |
+| `validators returned non-zero` + `ci` validator output | `ci-cd-gatekeeper` | "PREVIOUS CI VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile CI contract and workflow/config." |
+| `validators returned non-zero` + `versions` validator output | YOU (main Claude) first; involve `backend-engineer` only if code/package changes are needed | n/a — inspect version mismatch directly, edit owned metadata yourself when possible, otherwise re-invoke the responsible implementation agent with the exact mismatch. |
+| any unmatched gate error line | n/a — STOP | Surface the raw gate stderr to the user, say the error did not match a known fix-back route, and do not re-invoke agents until a human confirms the next owner. |
 
 **Re-invocation prompt template** (always use this exact prefix when re-invoking an agent for fix-back):
 
