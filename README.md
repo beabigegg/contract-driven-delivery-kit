@@ -1,8 +1,8 @@
 # Contract-Driven Delivery Kit
 
-**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification.
+**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification, with deterministic context indexes and manifest-backed read-scope auditing to keep long agent runs reviewable.
 
-Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps) who want AI to do all the implementation while they stay in the spec-author and reviewer seat.
+Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps), especially when non-engineers or product owners want AI to do the implementation while they stay in the spec-author and reviewer seat.
 
 **Context Governance v1** adds a manifest-driven audit layer for AI agents. New changes include `context-manifest.md`, `agent-log` entries are expected to report `files-read`, and `cdd-kit gate` audits those reads against allowed and forbidden paths. This is governance and review support, not a sandbox.
 
@@ -90,11 +90,14 @@ or
 
 **What happens:**
 1. Claude generates a `change-id` (e.g. `add-jwt-auth`) and scaffolds `specs/changes/add-jwt-auth/`
-2. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
-3. Agents run in order: contracts → test plan → spec/architecture review (if needed) → backend engineer → frontend engineer → CI/CD gates → QA
-4. Each agent produces machine-verifiable evidence (agent-log files)
-5. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
-6. Claude reports a summary and the suggested git commit
+2. If the request is ambiguous, Claude asks back for affected surface, desired behavior, and success criterion before spending a classifier round-trip
+3. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
+4. If the request is too broad, the classifier can return an atomic split proposal instead of forcing one Tier 0/1 monolith
+5. For Tier 0-1 work, Claude's narration uses stage badges so users can tell whether the flow is deciding, implementing, testing, or reviewing
+6. Agents run in order: contracts → test plan → spec/architecture review (if needed) → backend engineer → frontend engineer → CI/CD gates → QA
+7. Each agent produces machine-verifiable evidence (agent-log files)
+8. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
+9. Claude reports a summary and the suggested git commit
 
 **You stay in control by:**
 - Reviewing the `change-classification.md` before implementation starts
@@ -240,16 +243,17 @@ Codex currently has no global assets to update, so Codex-only projects report th
 
 ### `cdd-kit doctor`
 
-Inspects repo-level cdd-kit health without writing files.
+Inspects repo-level cdd-kit health. Default mode is read-only; `--fix` applies only the safe auto-remediations.
 
 ```bash
 cdd-kit doctor
 cdd-kit doctor --strict
+cdd-kit doctor --fix
 cdd-kit doctor --json
 cdd-kit doctor --provider codex
 ```
 
-Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors. `--json` emits a machine-readable report for CI or wrapper scripts.
+Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors. `--json` emits a machine-readable report for CI or wrapper scripts. `--fix` currently auto-runs `context-scan` for stale or missing indexes and backfills empty `.cdd/model-policy.json` role bindings, but deliberately does not run invasive repo upgrades for you.
 
 ---
 
@@ -277,6 +281,7 @@ The single quality gate for a change. Blocks merge if anything is missing or inc
 ```bash
 cdd-kit gate add-jwt-auth
 cdd-kit gate add-jwt-auth --strict
+cdd-kit gate add-jwt-auth --lax
 ```
 
 Checks:
@@ -292,8 +297,10 @@ Checks:
 
 `--strict` additionally:
 - Treats any pending `[ ]` tasks (except section 7 archive items) as errors
-- Validates that every file path listed in `agent-log` artifact pointers actually exists on disk
+- Treats runtime-vs-declared `files-read` drift as errors
 - Treats legacy changes missing `context-manifest.md` or `files-read` audit data as errors
+
+Default mode also validates that artifact file pointers listed in `agent-log` evidence exist on disk. Use `--lax` only when cleaning up legacy repos with stale historical logs.
 
 Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks`).
 
@@ -458,7 +465,10 @@ cdd-kit new add-user-auth
 cdd-kit new add-user-auth --all     # include optional templates too
 cdd-kit new add-user-auth --force   # overwrite existing directory
 cdd-kit new add-user-api --depends-on add-user-db
+cdd-kit new add-user-auth --skip-scan
 ```
+
+By default, `cdd-kit new` auto-runs `cdd-kit context-scan` when `specs/context/` indexes are missing or stale. Use `--skip-scan` only if you intentionally want a bare scaffold without refreshing classifier indexes first.
 
 For larger requests, split the work into atomic changes on the same feature branch and use `--depends-on` to record upstream order. `cdd-kit gate` blocks a dependent change until each upstream change is either archived or has `status: completed` in its `tasks.md` frontmatter.
 
