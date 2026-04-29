@@ -6,11 +6,21 @@ import { inferProvider, validateProviderOption, type ProviderOption } from '../u
 export interface DoctorOptions {
   strict?: boolean;
   provider?: ProviderOption;
+  json?: boolean;
 }
 
 interface Finding {
   level: 'error' | 'warning' | 'ok';
   message: string;
+}
+
+interface DoctorReport {
+  provider: string;
+  strict: boolean;
+  findings: Finding[];
+  errors: number;
+  warnings: number;
+  ok: boolean;
 }
 
 function fileExists(cwd: string, relPath: string): boolean {
@@ -90,8 +100,7 @@ function checkContextFreshness(cwd: string): Finding[] {
   return findings;
 }
 
-export async function doctor(opts: DoctorOptions = {}): Promise<void> {
-  const cwd = process.cwd();
+function buildDoctorReport(cwd: string, opts: DoctorOptions): DoctorReport {
   const requestedProvider = opts.provider ?? 'auto';
   if (!validateProviderOption(requestedProvider)) {
     log.error(`Invalid provider: ${requestedProvider}. Use auto, claude, codex, or both.`);
@@ -101,9 +110,6 @@ export async function doctor(opts: DoctorOptions = {}): Promise<void> {
   const strict = opts.strict ?? false;
   const provider = inferProvider(cwd, requestedProvider);
   const findings: Finding[] = [];
-
-  log.blank();
-  log.info(`Doctor provider: ${provider}`);
 
   for (const relPath of ['contracts', 'specs/templates', '.cdd/context-policy.json', '.cdd/model-policy.json']) {
     findings.push(fileExists(cwd, relPath)
@@ -123,24 +129,46 @@ export async function doctor(opts: DoctorOptions = {}): Promise<void> {
 
   findings.push(...checkContextFreshness(cwd));
 
-  const errors = findings.filter(f => f.level === 'error');
-  const warnings = findings.filter(f => f.level === 'warning');
-  for (const finding of findings) {
+  const errors = findings.filter(finding => finding.level === 'error').length;
+  const warnings = findings.filter(finding => finding.level === 'warning').length;
+  return {
+    provider,
+    strict,
+    findings,
+    errors,
+    warnings,
+    ok: errors === 0 && (!strict || warnings === 0),
+  };
+}
+
+export async function doctor(opts: DoctorOptions = {}): Promise<void> {
+  const report = buildDoctorReport(process.cwd(), opts);
+
+  if (opts.json) {
+    console.log(JSON.stringify(report, null, 2));
+    if (!report.ok) process.exit(1);
+    return;
+  }
+
+  log.blank();
+  log.info(`Doctor provider: ${report.provider}`);
+
+  for (const finding of report.findings) {
     if (finding.level === 'ok') log.ok(finding.message);
     else if (finding.level === 'warning') log.warn(finding.message);
     else log.error(finding.message);
   }
 
   log.blank();
-  if (errors.length > 0 || (strict && warnings.length > 0)) {
-    log.error(strict && errors.length === 0
-      ? `doctor failed in strict mode with ${warnings.length} warning(s)`
-      : `doctor failed with ${errors.length} error(s)`);
+  if (!report.ok) {
+    log.error(report.strict && report.errors === 0
+      ? `doctor failed in strict mode with ${report.warnings} warning(s)`
+      : `doctor failed with ${report.errors} error(s)`);
     process.exit(1);
   }
 
-  if (warnings.length > 0) {
-    log.warn(`doctor completed with ${warnings.length} warning(s)`);
+  if (report.warnings > 0) {
+    log.warn(`doctor completed with ${report.warnings} warning(s)`);
   } else {
     log.ok('doctor passed');
   }

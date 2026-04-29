@@ -25,29 +25,16 @@ describe('cdd-kit doctor', () => {
     expect(r.stdout + r.stderr).toMatch(/doctor failed in strict mode/i);
   });
 
-  it('passes after init and context-scan while reporting contract summary gaps', () => {
+  it('passes after init and context-scan when default contracts have deterministic summaries', () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);
-
-    mkdirSync(join(tmpRepo, 'contracts', 'custom'), { recursive: true });
-    writeFileSync(join(tmpRepo, 'contracts', 'custom', 'custom.md'), [
-      '---',
-      'contract: custom',
-      'summary: Custom behavior rules for this project.',
-      'owner: platform',
-      'surface: custom',
-      '---',
-      '',
-      '# Custom Contract',
-    ].join('\n'), 'utf8');
 
     const scan = runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
     expect(scan.status, scan.stderr).toBe(0);
 
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/contracts-index reports/i);
-    expect(r.stdout + r.stderr).toMatch(/doctor completed with/i);
+    expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
   });
 
   it('warns when contracts-index is older than contracts', async () => {
@@ -85,5 +72,18 @@ describe('cdd-kit doctor', () => {
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(tmpRepo, '.cdd'))).toBe(false);
+  });
+
+  it('can emit machine-readable json for CI', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    const r = runCli(['doctor', '--json'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+
+    const report = JSON.parse(r.stdout);
+    expect(report.provider).toBe('claude');
+    expect(Array.isArray(report.findings)).toBe(true);
+    expect(report.warnings).toBeGreaterThan(0);
   });
 });

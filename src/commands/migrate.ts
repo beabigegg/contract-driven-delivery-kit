@@ -302,7 +302,7 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
   } else {
     log.ok(`Migration complete: ${migratedCount} updated, ${upToDateCount} already up to date.`);
     if (migratedCount > 0) {
-      log.info('Next: git add specs/changes/ && git commit -m "chore: migrate changes to v1.11.0 format"');
+      log.info('Next: git add specs/changes/ && git commit -m "chore: migrate changes to current cdd-kit format"');
     }
   }
 }

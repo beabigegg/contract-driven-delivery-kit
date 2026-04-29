@@ -1,5 +1,8 @@
 ---
 contract: env
+summary: Environment variable inventory, secret handling, and deployment sync policy.
+owner: platform-team
+surface: runtime-config
 schema-version: 0.1.0
 last-changed: 2026-04-27
 breaking-change-policy: deprecate-2-minors

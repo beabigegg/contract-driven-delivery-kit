@@ -1,5 +1,8 @@
 ---
 contract: css
+summary: UI token policy, component styling rules, and visual review constraints.
+owner: application-team
+surface: ui
 schema-version: 0.1.0
 last-changed: 2026-04-27
 breaking-change-policy: deprecate-2-minors

@@ -9,6 +9,7 @@ import { validate }  from '../commands/validate.js';
 import { gate } from '../commands/gate.js';
 import { installHooks } from '../commands/install-hooks.js';
 import { detectStack } from '../utils/stack-detect.js';
+import type { ProviderOption } from '../utils/provider.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string };
@@ -51,20 +52,28 @@ program
   .command('doctor')
   .description('Inspect cdd-kit repo health, provider guidance, and context index freshness')
   .option('--strict', 'Treat warnings as errors', false)
+  .option('--json', 'Print a machine-readable health report', false)
   .option('--provider <provider>', 'Provider adapter to inspect: auto, claude, codex, or both', 'auto')
-  .action(async (opts: { strict?: boolean; provider?: string }) => {
+  .action(async (opts: { strict?: boolean; json?: boolean; provider?: ProviderOption }) => {
     const { doctor } = await import('../commands/doctor.js');
-    await doctor({ strict: opts.strict, provider: opts.provider as never });
+    await doctor({ strict: opts.strict, json: opts.json, provider: opts.provider });
   });
 
 program
   .command('upgrade')
   .description('Add missing cdd-kit repo-level files without overwriting existing project files')
   .option('--yes', 'Apply changes (default is dry-run)', false)
+  .option('--migrate-changes', 'Also migrate existing specs/changes/* directories', false)
+  .option('--enable-context-governance', 'When migrating changes, opt them into context-governance: v1', false)
   .option('--provider <provider>', 'Provider adapter to scaffold: auto, claude, codex, or both', 'auto')
-  .action(async (opts: { yes?: boolean; provider?: string }) => {
+  .action(async (opts: { yes?: boolean; migrateChanges?: boolean; enableContextGovernance?: boolean; provider?: ProviderOption }) => {
     const { upgrade } = await import('../commands/upgrade.js');
-    await upgrade({ yes: opts.yes, provider: opts.provider as never });
+    await upgrade({
+      yes: opts.yes,
+      migrateChanges: opts.migrateChanges,
+      enableContextGovernance: opts.enableContextGovernance,
+      provider: opts.provider,
+    });
   });
 
 // ── cdd new <name> ────────────────────────────────────────────────────────────
@@ -126,7 +135,7 @@ program
 // ── cdd migrate ───────────────────────────────────────────────────────────────
 program
   .command('migrate [change-id]')
-  .description('Upgrade existing change directories to v1.11.0 format (tasks.md frontmatter + tier format)')
+  .description('Upgrade existing change directories to the current cdd-kit format (tasks.md frontmatter + tier format)')
   .option('--all', 'Migrate all changes in specs/changes/', false)
   .option('--dry-run', 'Show what would change without writing files', false)
   .option('--enable-context-governance', 'Opt legacy changes into context-governance: v1 hard gate behavior', false)
@@ -184,11 +193,38 @@ const context = program
   .description('Manage context governance manifests');
 
 context
+  .command('request <change-id> <request-id>')
+  .description('Record a new pending Context Expansion Request')
+  .requiredOption('--path <paths...>', 'Repo-relative path(s) requested by the agent')
+  .option('--reason <text>', 'Reason the extra context is required')
+  .action(async (changeId: string, requestId: string, opts: { path: string[]; reason?: string }) => {
+    const { requestContextExpansion } = await import('../commands/context.js');
+    await requestContextExpansion(changeId, requestId, opts.path, opts.reason);
+  });
+
+context
   .command('approve <change-id> <request-id>')
   .description('Approve a pending Context Expansion Request and add its paths to Approved Expansions')
   .action(async (changeId: string, requestId: string) => {
     const { approveContextExpansion } = await import('../commands/context.js');
     await approveContextExpansion(changeId, requestId);
+  });
+
+context
+  .command('reject <change-id> <request-id>')
+  .description('Reject a pending Context Expansion Request')
+  .action(async (changeId: string, requestId: string) => {
+    const { rejectContextExpansion } = await import('../commands/context.js');
+    await rejectContextExpansion(changeId, requestId);
+  });
+
+context
+  .command('list <change-id>')
+  .description('List Context Expansion Requests for a change')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string, opts: { json?: boolean }) => {
+    const { listContextExpansions } = await import('../commands/context.js');
+    await listContextExpansions(changeId, opts.json);
   });
 
 program.parse();

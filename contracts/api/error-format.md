@@ -1,3 +1,10 @@
+---
+contract: api-error-format
+summary: Standard error payload shape, safety rules, and reusable error code table.
+owner: application-team
+surface: api
+---
+
 # API Error Format
 
 ## Standard Error Shape

@@ -4,13 +4,12 @@ import { createHash } from 'crypto';
 import { ASSET, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { homedir } from 'os';
+import { inferProvider, validateProviderOption, type Provider, type ProviderOption } from '../utils/provider.js';
 
 export interface UpdateOptions {
   yes: boolean;
-  provider?: 'auto' | 'claude' | 'codex' | 'both';
+  provider?: ProviderOption;
 }
-
-type Provider = 'claude' | 'codex' | 'both';
 
 function fileHash(filePath: string): string {
   const buf = readFileSync(filePath);
@@ -76,35 +75,17 @@ function backupDir(dir: string, backupDest: string): void {
   walk(dir, backupDest);
 }
 
-function inferProvider(cwd: string, requested: UpdateOptions['provider']): Provider {
-  if (requested && !['auto', 'claude', 'codex', 'both'].includes(requested)) {
-    log.error(`Invalid provider: ${requested}. Use auto, claude, codex, or both.`);
-    process.exit(1);
-  }
-  if (requested && requested !== 'auto') return requested;
-
-  const modelPolicyPath = join(cwd, '.cdd', 'model-policy.json');
-  if (existsSync(modelPolicyPath)) {
-    try {
-      const policy = JSON.parse(readFileSync(modelPolicyPath, 'utf8')) as { provider?: string };
-      if (policy.provider === 'claude' || policy.provider === 'codex' || policy.provider === 'both') {
-        return policy.provider;
-      }
-    } catch {
-      log.warn('could not parse .cdd/model-policy.json; falling back to provider inference');
-    }
-  }
-
-  if (existsSync(join(cwd, 'CODEX.md')) && existsSync(join(cwd, 'CLAUDE.md'))) return 'both';
-  if (existsSync(join(cwd, 'CODEX.md'))) return 'codex';
-  return 'claude';
-}
-
 export async function update(opts: UpdateOptions): Promise<void> {
   log.blank();
 
   const cwd = process.cwd();
-  const provider = inferProvider(cwd, opts.provider ?? 'auto');
+  const requestedProvider = opts.provider ?? 'auto';
+  if (!validateProviderOption(requestedProvider)) {
+    log.error(`Invalid provider: ${requestedProvider}. Use auto, claude, codex, or both.`);
+    process.exit(1);
+  }
+
+  const provider = inferProvider(cwd, requestedProvider);
   const updateClaudeAssets = provider === 'claude' || provider === 'both';
   const skillDest = join(SKILLS_HOME, 'contract-driven-delivery');
 

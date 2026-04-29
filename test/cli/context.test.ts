@@ -84,4 +84,58 @@ describe('cdd-kit context', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/must not contain "\.\."/i);
   });
+
+  it('records and lists new pending context expansion requests', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '-',
+      '',
+      '## Approved Expansions',
+      '-',
+      '',
+    ].join('\n'), 'utf8');
+
+    const request = runCli([
+      'context', 'request', 'feat-context', 'CER-010',
+      '--path', 'src/server/users.ts', 'tests/users.test.ts',
+      '--reason', 'paired implementation and regression coverage',
+    ], { cwd: tmpRepo, home: tmpHome });
+    expect(request.status, request.stderr).toBe(0);
+
+    const list = runCli(['context', 'list', 'feat-context', '--json'], { cwd: tmpRepo, home: tmpHome });
+    expect(list.status, list.stderr).toBe(0);
+    const payload = JSON.parse(list.stdout);
+    expect(payload.requests).toHaveLength(1);
+    expect(payload.requests[0].requestId).toBe('CER-010');
+    expect(payload.requests[0].status).toBe('pending');
+  });
+
+  it('can reject pending requests without approving paths', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '- request-id: CER-011',
+      '  requested_paths:',
+      '    - src/secret.ts',
+      '  reason: not actually needed',
+      '  status: pending',
+      '',
+      '## Approved Expansions',
+      '-',
+      '',
+    ].join('\n'), 'utf8');
+
+    const reject = runCli(['context', 'reject', 'feat-context', 'CER-011'], { cwd: tmpRepo, home: tmpHome });
+    expect(reject.status, reject.stderr).toBe(0);
+
+    const manifest = readFileSync(manifestPath, 'utf8');
+    expect(manifest).toMatch(/status:\s*rejected/i);
+    const approvedSection = manifest.match(/## Approved Expansions\s*\n([\s\S]*?)$/);
+    expect(approvedSection?.[1] ?? '').not.toContain('src/secret.ts');
+  });
 });

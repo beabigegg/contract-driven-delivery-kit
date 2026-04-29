@@ -1,3 +1,10 @@
+---
+contract: design-tokens
+summary: Canonical design token inventory for colors, spacing, typography, and layering.
+owner: design-system
+surface: ui
+---
+
 # Design Tokens
 
 ## Colors

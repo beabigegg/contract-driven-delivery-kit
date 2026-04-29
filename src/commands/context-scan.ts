@@ -125,7 +125,7 @@ function findContractFiles(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) findContractFiles(fullPath, found);
-    else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md') found.push(fullPath);
+    else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md' && entry.name !== 'CHANGELOG.md') found.push(fullPath);
   }
   return found;
 }

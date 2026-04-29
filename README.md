@@ -245,10 +245,11 @@ Inspects repo-level cdd-kit health without writing files.
 ```bash
 cdd-kit doctor
 cdd-kit doctor --strict
+cdd-kit doctor --json
 cdd-kit doctor --provider codex
 ```
 
-Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors, which is useful before publishing or merging an upgrade PR.
+Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors. `--json` emits a machine-readable report for CI or wrapper scripts.
 
 ---
 
@@ -259,11 +260,13 @@ Adds missing repo-level cdd-kit files after upgrading the npm package. It preser
 ```bash
 cdd-kit upgrade
 cdd-kit upgrade --yes
+cdd-kit upgrade --yes --migrate-changes
+cdd-kit upgrade --yes --migrate-changes --enable-context-governance
 cdd-kit upgrade --provider codex --yes
 cdd-kit upgrade --provider both --yes
 ```
 
-Use this for old repos that already have `contracts/` or `specs/` but are missing new assets such as `.cdd/context-policy.json`, `.cdd/model-policy.json`, `CODEX.md`, or newer templates. Use `cdd-kit migrate` separately for existing `specs/changes/<change-id>/` directories.
+Use this for old repos that already have `contracts/` or `specs/` but are missing new assets such as `.cdd/context-policy.json`, `.cdd/model-policy.json`, `CODEX.md`, or newer templates. Add `--migrate-changes` if you also want to upgrade existing `specs/changes/<change-id>/` directories in the same run.
 
 ---
 
@@ -379,8 +382,20 @@ Run this after upgrading from v1.10 or earlier if you have mid-flight changes.
 ```bash
 cdd-kit migrate --all
 git add specs/changes/
-git commit -m "chore: migrate changes to v1.11.0 format"
+git commit -m "chore: migrate changes to current cdd-kit format"
 ```
+
+---
+
+### `cdd-kit context request <change-id> <request-id>`
+
+Records a pending Context Expansion Request in `context-manifest.md`.
+
+```bash
+cdd-kit context request add-jwt-auth CER-001 --path src/server/users.ts tests/users.test.ts --reason "paired implementation and regression coverage"
+```
+
+Use this when an agent needs more context than its current work packet allows.
 
 ---
 
@@ -393,6 +408,27 @@ cdd-kit context approve add-jwt-auth CER-001
 ```
 
 This keeps expansion history explicit while avoiding manual manifest editing. Agents still have to report `files-read` in `agent-log/*.md`; `cdd-kit gate` audits those paths against the manifest.
+
+---
+
+### `cdd-kit context reject <change-id> <request-id>`
+
+Rejects a pending Context Expansion Request and records `status: rejected` in the manifest.
+
+```bash
+cdd-kit context reject add-jwt-auth CER-001
+```
+
+---
+
+### `cdd-kit context list <change-id>`
+
+Lists all Context Expansion Requests for a change.
+
+```bash
+cdd-kit context list add-jwt-auth
+cdd-kit context list add-jwt-auth --json
+```
 
 ---
 
@@ -491,25 +527,50 @@ The classifier should read these two files before proposing `context-manifest.md
 
 ---
 
-## Upgrading from v1.10 or earlier
+## Migrating an Older Production Repo
 
 ```bash
 npm update -g contract-driven-delivery
-cdd-kit update
-
-# If you have mid-flight changes:
-cdd-kit migrate --all
-git add specs/changes/
-git commit -m "chore: migrate changes to v1.11.0 format"
+cdd-kit upgrade --yes
+cdd-kit context-scan
+cdd-kit doctor --strict
 ```
 
-**What changed in v1.11.0:**
-- `gate --strict` and pre-commit enforcement
-- Tier-based agent-log requirements (Tier 0–1 must have E2E/monkey/stress logs)
-- `cdd-kit abandon`, `cdd-kit archive`, `cdd-kit list`, `cdd-kit migrate` commands
-- `/cdd-resume` and `/cdd-close` Claude Code skills
-- `change-classifier` outputs Acceptance Criteria + Tasks Not Applicable
-- All agents require `CURRENT_CHANGE_ID` injection (handled automatically by skills)
+### Old completed specs
+
+If a change is already finished, merged, or only kept for audit/history:
+
+```bash
+cdd-kit migrate --all
+git add specs/changes/
+git commit -m "chore: migrate changes to current cdd-kit format"
+```
+
+This gives those legacy specs the new `tasks.md` frontmatter, tier markers, and a warning-mode `context-manifest.md` without forcing strict context governance on closed work.
+
+### Old in-progress specs
+
+If a change is still being actively developed:
+
+```bash
+cdd-kit upgrade --yes --migrate-changes
+cdd-kit context-scan
+cdd-kit doctor --strict
+```
+
+Then choose one path per active change:
+
+- Conservative path: keep the migrated legacy manifest, resume work, and let `gate` warn on missing `files-read` data while the team transitions.
+- Strict path: run `cdd-kit migrate <change-id> --enable-context-governance`, review `context-manifest.md`, narrow `Allowed Paths`, and require agents to report `- files-read:` before continuing implementation.
+
+### Recommended rollout for production repos already burned by token overuse
+
+1. Run `cdd-kit upgrade --yes` once per repo after updating the npm package.
+2. Run `cdd-kit context-scan` so classifiers can read `specs/context/project-map.md` and `specs/context/contracts-index.md` instead of broad repo searches.
+3. Run `cdd-kit doctor --strict` in CI.
+4. Migrate old completed specs with plain `cdd-kit migrate`.
+5. Migrate active specs with `cdd-kit migrate --enable-context-governance` only after reviewing the generated manifest.
+6. Teach agents to use `cdd-kit context request/approve/reject/list` instead of silently widening context.
 
 ---
 

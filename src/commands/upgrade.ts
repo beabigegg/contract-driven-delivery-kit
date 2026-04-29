@@ -3,10 +3,13 @@ import { dirname, join, relative } from 'path';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type Provider, type ProviderOption } from '../utils/provider.js';
+import { migrate } from './migrate.js';
 
 export interface UpgradeOptions {
   yes?: boolean;
   provider?: ProviderOption;
+  migrateChanges?: boolean;
+  enableContextGovernance?: boolean;
 }
 
 interface PlannedCopy {
@@ -74,6 +77,15 @@ export async function upgrade(opts: UpgradeOptions = {}): Promise<void> {
   log.info(`Upgrade provider: ${provider}`);
   if (plan.length === 0) {
     log.ok('No missing cdd-kit project files found.');
+    if (opts.migrateChanges) {
+      log.blank();
+      log.info('Running change migration flow...');
+      await migrate(undefined, {
+        all: true,
+        dryRun: !opts.yes,
+        enableContextGovernance: opts.enableContextGovernance,
+      });
+    }
     log.blank();
     return;
   }
@@ -84,6 +96,15 @@ export async function upgrade(opts: UpgradeOptions = {}): Promise<void> {
   if (!opts.yes) {
     log.blank();
     log.info('Dry run only. Re-run with --yes to write missing files.');
+    if (opts.migrateChanges) {
+      log.blank();
+      log.info('Previewing existing change migration because --migrate-changes was requested.');
+      await migrate(undefined, {
+        all: true,
+        dryRun: true,
+        enableContextGovernance: opts.enableContextGovernance,
+      });
+    }
     log.blank();
     return;
   }
@@ -102,5 +123,14 @@ export async function upgrade(opts: UpgradeOptions = {}): Promise<void> {
   log.blank();
   log.ok(`Upgrade complete: ${plan.length} missing file(s) added.`);
   log.info('Existing project guidance and contracts were preserved.');
+  if (opts.migrateChanges) {
+    log.blank();
+    log.info('Running change migration flow...');
+    await migrate(undefined, {
+      all: true,
+      dryRun: false,
+      enableContextGovernance: opts.enableContextGovernance,
+    });
+  }
   log.blank();
 }
