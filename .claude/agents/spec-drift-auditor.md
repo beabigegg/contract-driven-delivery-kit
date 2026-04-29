@@ -52,22 +52,10 @@ By default, do NOT read `specs/changes/` history. Only read historical change re
 
 ## Machine-Verifiable Evidence
 
-Write this block to `specs/audits/<YYYY-MM-DD>-drift-audit.md` (create the file yourself).
-Use this exact structure (lines starting with `- ` are required):
-
-```
-## Agent Log
-# Spec Drift Auditor Log
-- audit-id: <YYYY-MM-DD>-drift
-- timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
-- status: complete | needs-review | blocked
-- files-read:
-  - <repo-relative path read through tools>
-- artifacts:
-  - <evidence-type>: <concrete pointer>
-  - <evidence-type>: <concrete pointer>
-- next-action: <one line, or "none">
-```
+After completing your task, write or append to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.md`. Required fields,
+field rules, and gate-enforcement behavior are defined once in
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
 - `surfaces-audited`: list (specs/contracts/code/tests/CI/tasks/archive)
@@ -75,11 +63,3 @@ Use this exact structure (lines starting with `- ` are required):
 - `drift-summary-path`: `specs/audits/<YYYY-MM-DD>-drift-audit.md`
 - `next-audit-due`: ISO date
 
-### Rules
-- NEVER omit this audit summary file. The drift-audit cadence (release / weekly / ad-hoc) requires this file as its persistence record; missing `status:` voids the audit.
-- If you cannot complete the task, set `status: blocked` and write a
-  concrete `next-action` (NOT "investigate further" — write the actual
-  next step a human can act on).
-- Evidence must be concrete: file:line, command name + last-10-line stdout,
-  contract path + section, test name, etc. NEVER write "verified" or "OK"
-  without a pointer.

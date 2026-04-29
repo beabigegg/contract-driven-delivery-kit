@@ -1,6 +1,22 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { createHash } from 'crypto';
 import { basename, dirname, join, relative } from 'path';
 import { log } from '../utils/logger.js';
+
+function sha256OfFile(path: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(path)).digest('hex');
+  } catch {
+    return '';
+  }
+}
+
+function inputsDigest(paths: string[]): string {
+  const combined = paths.slice().sort()
+    .map(p => `${p}:${sha256OfFile(p)}`)
+    .join('\n');
+  return createHash('sha256').update(combined).digest('hex');
+}
 
 const DEFAULT_FORBIDDEN = [
   '.claude',
@@ -44,7 +60,10 @@ interface TreeStats {
   dirs: number;
   files: number;
   omittedDirs: number;
+  truncatedDirs: number;
 }
+
+const PER_DIR_ENTRY_CAP = 50;
 
 function buildTree(dir: string, cwd: string, forbidden: string[], stats: TreeStats, prefix = '', depth = 0): string {
   const entries = readdirSync(dir, { withFileTypes: true })
@@ -59,9 +78,14 @@ function buildTree(dir: string, cwd: string, forbidden: string[], stats: TreeSta
     return !isForbidden(relPath, forbidden);
   });
 
-  visible.forEach((entry, index) => {
+  // A5: cap per-directory entries to keep monorepo project-map tractable.
+  const truncated = visible.length > PER_DIR_ENTRY_CAP;
+  const shown = truncated ? visible.slice(0, PER_DIR_ENTRY_CAP) : visible;
+  if (truncated) stats.truncatedDirs += 1;
+
+  shown.forEach((entry, index) => {
     const fullPath = join(dir, entry.name);
-    const isLast = index === visible.length - 1;
+    const isLast = index === shown.length - 1 && !truncated;
     const connector = isLast ? '\\-- ' : '|-- ';
     output += `${prefix}${connector}${entry.name}${entry.isDirectory() ? '/' : ''}\n`;
 
@@ -77,6 +101,10 @@ function buildTree(dir: string, cwd: string, forbidden: string[], stats: TreeSta
       stats.files += 1;
     }
   });
+
+  if (truncated) {
+    output += `${prefix}\\-- ... (${visible.length - PER_DIR_ENTRY_CAP} more entries truncated; cap=${PER_DIR_ENTRY_CAP})\n`;
+  }
 
   return output;
 }
@@ -130,14 +158,35 @@ function findContractFiles(dir: string, found: string[] = []): string[] {
   return found;
 }
 
-export async function contextScan(): Promise<void> {
+export interface ContextScanOptions {
+  surface?: string;
+}
+
+export async function contextScan(opts: ContextScanOptions = {}): Promise<void> {
   const cwd = process.cwd();
   const specsContextDir = join(cwd, 'specs', 'context');
   mkdirSync(specsContextDir, { recursive: true });
 
   const forbidden = getForbiddenPaths(cwd);
-  const treeStats: TreeStats = { dirs: 0, files: 0, omittedDirs: 0 };
-  const tree = buildTree(cwd, cwd, forbidden, treeStats);
+  const surface = opts.surface;
+  let scanRoot = cwd;
+  if (surface) {
+    const resolvedSurface = join(cwd, surface);
+    if (!existsSync(resolvedSurface)) {
+      log.error(`--surface path not found: ${surface}`);
+      process.exit(1);
+    }
+    if (!resolvedSurface.startsWith(cwd)) {
+      log.error(`--surface must be inside the repo: ${surface}`);
+      process.exit(1);
+    }
+    scanRoot = resolvedSurface;
+  }
+
+  const treeStats: TreeStats = { dirs: 0, files: 0, omittedDirs: 0, truncatedDirs: 0 };
+  const tree = buildTree(scanRoot, cwd, forbidden, treeStats);
+  const policyPath = join(cwd, '.cdd', 'context-policy.json');
+  const projectMapInputs = [policyPath].filter(existsSync);
   writeFileSync(
     join(specsContextDir, 'project-map.md'),
     [
@@ -146,9 +195,12 @@ export async function contextScan(): Promise<void> {
       'generated-by: cdd-kit context-scan',
       'schema-version: 1',
       `root: ${basename(cwd)}`,
+      ...(surface ? [`surface: ${surface}`] : []),
       `visible-dirs: ${treeStats.dirs}`,
       `visible-files: ${treeStats.files}`,
       `omitted-dirs: ${treeStats.omittedDirs}`,
+      `truncated-dirs: ${treeStats.truncatedDirs}`,
+      `inputs-digest: ${inputsDigest(projectMapInputs)}`,
       '---',
       '',
       '# Project Map',
@@ -209,6 +261,7 @@ export async function contextScan(): Promise<void> {
     'schema-version: 1',
     `contract-count: ${contractFiles.length}`,
     `missing-summary-count: ${missingSummary}`,
+    `inputs-digest: ${inputsDigest(contractFiles)}`,
     '---',
     '',
     '# Contracts Index',

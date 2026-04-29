@@ -1,5 +1,24 @@
 {
   "provider": "claude",
   "generated_at": null,
-  "roles": {}
+  "schema-version": "0.2.0",
+  "roles": {
+    "change-classifier": "claude-opus-4-7",
+    "spec-architect": "claude-opus-4-7",
+    "qa-reviewer": "claude-opus-4-7",
+    "contract-reviewer": "claude-sonnet-4-6",
+    "test-strategist": "claude-sonnet-4-6",
+    "backend-engineer": "claude-sonnet-4-6",
+    "frontend-engineer": "claude-sonnet-4-6",
+    "ci-cd-gatekeeper": "claude-sonnet-4-6",
+    "e2e-resilience-engineer": "claude-sonnet-4-6",
+    "monkey-test-engineer": "claude-sonnet-4-6",
+    "stress-soak-engineer": "claude-sonnet-4-6",
+    "ui-ux-reviewer": "claude-sonnet-4-6",
+    "visual-reviewer": "claude-sonnet-4-6",
+    "dependency-security-reviewer": "claude-sonnet-4-6",
+    "spec-drift-auditor": "claude-sonnet-4-6",
+    "repo-context-scanner": "claude-haiku-4-5"
+  },
+  "_notes": "Roles map agent name -> model ID. Override per-project as needed. cdd-kit doctor warns when an installed agent's frontmatter `model:` does not match this policy."
 }

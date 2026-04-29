@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.13.0] - 2026-04-29
+
+### Token-budget reductions
+- Shared `references/agent-log-protocol.md` — extracted the duplicated agent-log
+  format block out of all 16 agent prompts. Total agent-prompt size dropped
+  from 1675 → 1344 lines (≈20% smaller). One source of truth, no drift.
+- `/cdd-new` skill no longer inlines the 5 change-template bodies; `cdd-kit
+  new` writes them from disk. Skill went from 483 → ~340 lines (≈30%).
+- Tier 5 fast-path for docs/prompts/config-only changes — classifier now
+  short-circuits the full agent flow when no source/tests/contracts are
+  touched; bounds doc-only token cost to 2 read-only reviews.
+- `context-manifest.md` template no longer duplicates the forbidden-paths list
+  that `.cdd/context-policy.json` already carries.
+- `cdd-kit context-scan` now caps per-directory entries to 50 and supports
+  `--surface <path>` to scope the project map to a sub-tree.
+
+### Stability hardening
+- Tier source moved to `tasks.md` frontmatter `tier: <0-5>`. The legacy
+  `## Tier\n- N` and `**Tier:** Tier N` formats remain as fallback-only;
+  bold-only legacy format produces a migration warning instead of silently
+  skipping tier-specific agent enforcement.
+- Section-7 archive exemption is no longer hard-coded `7\.[12]`; reads from
+  `tasks.md` frontmatter `archive-tasks: ["7.1", "7.2"]` (default preserved).
+- `cdd-kit migrate` is now atomic: per-session backup at
+  `.cdd/migrate-backup/<timestamp>/`, two-phase tmp-write + rename, restore
+  hint on failure. New `--no-backup` opt-out.
+- `cdd-kit migrate` now backfills `tier:` and `archive-tasks:` into legacy
+  `tasks.md` frontmatter automatically.
+- `cdd-kit doctor` freshness check is now content-hash based, not mtime.
+  `git clone` no longer triggers spurious staleness warnings.
+- `cdd-kit context approve|reject --all-pending` resolves every pending
+  Context Expansion Request in one command.
+- `cdd-kit gate` now reconciles agent self-reported `files-read:` against the
+  runtime hook log at `.cdd/runtime/<change-id>-files-read.jsonl`. Undeclared
+  reads warn (or fail under `--strict`).
+- `hooks/post-tool-use-files-read.sh` — Claude Code PostToolUse hook scaffold
+  that records actual Read/Grep/Glob targets for the gate to verify.
+- `cdd-kit gate` now invokes `validate` in-process instead of via
+  `spawnSync(process.execPath, [process.argv[1], ...])`. No more `argv[1]`
+  indirection or extra Node startup.
+- `.cdd/model-policy.json` ships with real role-to-model defaults (no longer
+  empty `{}`). `cdd-kit doctor` warns when an installed agent's `model:`
+  frontmatter drifts from policy. `init`/`upgrade` preserve any custom
+  `roles` overrides instead of clobbering them.
+
+### Skill updates
+- `/cdd-new` now lints classifier output before writing files (`## Tier`,
+  `## Required Agents`, `## Inferred Acceptance Criteria` must be filled).
+- `/cdd-new` writes the classifier's tier into `tasks.md` frontmatter as the
+  authoritative source.
+
+### Tests
+- 19 new tests covering B1–B7 + A5 + B3. 39 gate tests, 15 migrate tests, 9
+  context tests, 7 doctor tests all pass.
+
 ## [1.12.0] - 2026-04-29
 
 ### Added

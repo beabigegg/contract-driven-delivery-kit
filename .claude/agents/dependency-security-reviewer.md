@@ -64,21 +64,10 @@ approved / changes-required / blocked
 
 ## Machine-Verifiable Evidence
 
-After completing your task, include an **## Agent Log** section at the end of your response with this exact structure (lines starting with `- ` are required). The calling skill will write this block to `specs/changes/<change-id>/agent-log/dependency-security-reviewer.md`.
-
-```
-## Agent Log
-# Dependency Security Reviewer Log
-- change-id: <id>
-- timestamp: <ISO 8601, e.g. 2026-04-27T14:30:00Z>
-- status: complete | needs-review | blocked
-- files-read:
-  - <repo-relative path read through tools>
-- artifacts:
-  - <evidence-type>: <concrete pointer>
-  - <evidence-type>: <concrete pointer>
-- next-action: <one line, or "none">
-```
+After completing your task, write or append to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.md`. Required fields,
+field rules, and gate-enforcement behavior are defined once in
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
 - `packages-reviewed`: list of `<name>@<version>`
@@ -86,12 +75,3 @@ After completing your task, include an **## Agent Log** section at the end of yo
 - `license-issues`: list or "none"
 - `lockfile-changes`: list of files
 
-### Rules
-- NEVER omit this log file. `cdd-kit gate` rejects changes whose agent-log
-  is missing the `status:` line or has an invalid status.
-- If you cannot complete the task, set `status: blocked` and write a
-  concrete `next-action` (NOT "investigate further" — write the actual
-  next step a human can act on).
-- Evidence must be concrete: file:line, command name + last-10-line stdout,
-  contract path + section, test name, etc. NEVER write "verified" or "OK"
-  without a pointer.

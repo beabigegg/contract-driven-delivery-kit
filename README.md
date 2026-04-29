@@ -405,6 +405,7 @@ Approves a pending Context Expansion Request in `context-manifest.md` and adds i
 
 ```bash
 cdd-kit context approve add-jwt-auth CER-001
+cdd-kit context approve add-jwt-auth --all-pending   # bulk approve every pending request
 ```
 
 This keeps expansion history explicit while avoiding manual manifest editing. Agents still have to report `files-read` in `agent-log/*.md`; `cdd-kit gate` audits those paths against the manifest.
@@ -417,6 +418,7 @@ Rejects a pending Context Expansion Request and records `status: rejected` in th
 
 ```bash
 cdd-kit context reject add-jwt-auth CER-001
+cdd-kit context reject add-jwt-auth --all-pending   # bulk reject every pending request
 ```
 
 ---
@@ -506,6 +508,7 @@ Builds deterministic, low-token context indexes for classifiers and orchestrator
 
 ```bash
 cdd-kit context-scan
+cdd-kit context-scan --surface src/server   # scope project-map to a sub-tree (large monorepos)
 ```
 
 Outputs:

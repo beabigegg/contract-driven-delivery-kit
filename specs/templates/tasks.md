@@ -1,7 +1,9 @@
 ---
 change-id: <change-id>
 status: in-progress
+tier:
 context-governance: v1
+archive-tasks: ["7.1", "7.2"]
 depends-on: []
 ---
 

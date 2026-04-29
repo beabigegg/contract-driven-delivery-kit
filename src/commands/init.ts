@@ -209,11 +209,18 @@ export async function init(opts: InitOptions): Promise<void> {
 
       const modelPolicyPath = join(cwd, '.cdd', 'model-policy.json');
       if (existsSync(modelPolicyPath)) {
-        writeFileSync(modelPolicyPath, JSON.stringify({
+        // Preserve any roles bundled in the asset (or pre-existing on disk).
+        let existing: Record<string, unknown> = {};
+        try { existing = JSON.parse(readFileSync(modelPolicyPath, 'utf8')); } catch { /* fall through */ }
+        const merged = {
+          ...existing,
           provider: opts.provider,
           generated_at: new Date().toISOString(),
-          roles: {},
-        }, null, 2) + '\n', 'utf8');
+          roles: existing.roles && typeof existing.roles === 'object' && Object.keys(existing.roles as Record<string, unknown>).length > 0
+            ? existing.roles
+            : {},
+        };
+        writeFileSync(modelPolicyPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');
       }
 
       const { count: wfCount, created: wfCreated } = copyDirTracked(
