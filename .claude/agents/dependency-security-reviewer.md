@@ -64,7 +64,8 @@ approved / changes-required / blocked
 
 ## Machine-Verifiable Evidence
 
-After completing your task, write or append to
+After completing your task, end your response with an `Agent Log` YAML block
+for main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
 field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
@@ -74,4 +75,3 @@ field rules, and gate-enforcement behavior are defined once in
 - `cve-findings`: count + severity buckets
 - `license-issues`: list or "none"
 - `lockfile-changes`: list of files
-

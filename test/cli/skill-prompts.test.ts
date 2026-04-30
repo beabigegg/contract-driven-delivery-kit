@@ -42,6 +42,24 @@ describe('CDD skill prompt integration', () => {
     expect(resume).toMatch(/Context Expansion Request instead of reading outside the manifest/);
   });
 
+  it('agent prompts keep write-capable vs read-only logging responsibilities consistent', () => {
+    const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
+    const codex = readFileSync(join(repoRoot, 'CODEX.template.md'), 'utf8');
+    const contractReviewer = readFileSync(join(repoRoot, '.claude', 'agents', 'contract-reviewer.md'), 'utf8');
+    const qaReviewer = readFileSync(join(repoRoot, '.claude', 'agents', 'qa-reviewer.md'), 'utf8');
+    const backend = readFileSync(join(repoRoot, '.claude', 'agents', 'backend-engineer.md'), 'utf8');
+    const frontend = readFileSync(join(repoRoot, '.claude', 'agents', 'frontend-engineer.md'), 'utf8');
+
+    expect(cddNew).toMatch(/write-capable agents write their own/);
+    expect(cddNew).toMatch(/YOU write it for read-only agents/);
+    expect(codex).toMatch(/agent-log\/\*\.yml/);
+    expect(codex).toMatch(/files-read:/);
+    expect(contractReviewer).toMatch(/end your response with an `Agent Log` YAML block[\s\S]*for main Claude to write to/);
+    expect(qaReviewer).toMatch(/end your response with an `Agent Log` YAML block[\s\S]*for main Claude to write to/);
+    expect(backend).toMatch(/After completing your task, write or append to/);
+    expect(frontend).toMatch(/After completing your task, write or append to/);
+  });
+
   it('cdd-close promotes only evidence-backed durable learnings to hot sources', () => {
     const close = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-close', 'SKILL.md'), 'utf8');
 

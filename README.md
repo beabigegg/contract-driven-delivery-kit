@@ -99,6 +99,19 @@ or
 8. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
 9. Claude reports a summary and the suggested git commit
 
+### Agent Ownership Model
+
+CDD uses two agent classes on purpose:
+
+- `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or an `Agent Log` YAML block; main Claude writes the corresponding files.
+- `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own implementation artifacts and their own `agent-log/*.yml`.
+
+This split is deliberate:
+
+- Review and audit agents stay read-only so they do not silently change the thing they are supposed to assess.
+- Implementation and planning agents write directly so large artifacts and code edits do not have to be relayed back through the main orchestrator, which reduces token waste and preserves clearer ownership.
+- `tasks.yml` remains owned by main Claude so task state changes stay centralized even when multiple agents contribute files.
+
 **You stay in control by:**
 - Reviewing the `change-classification.md` before implementation starts
 - Checking the `test-plan.md` to confirm the right test families are planned

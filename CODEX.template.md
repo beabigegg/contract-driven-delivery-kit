@@ -18,12 +18,12 @@ Read `specs/changes/<change-id>/context-manifest.md` before using file-reading o
 - Read only paths allowed by the manifest or approved expansions.
 - Do not use broad repository search unless the manifest authorizes it.
 - If more context is needed, stop and write a Context Expansion Request in the manifest.
-- Record every file read through tools in the relevant `agent-log/*.md` under `- files-read:`.
+- Record every file read through tools in the relevant `agent-log/*.yml` under `files-read:`.
 
-Required `agent-log/*.md` format:
+Required `agent-log/*.yml` format:
 
-```md
-- files-read:
+```yaml
+files-read:
   - contracts/api/api-contract.md
   - src/server/routes/users.ts
 ```

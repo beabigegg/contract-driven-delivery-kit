@@ -53,7 +53,8 @@ approved / changes-required
 
 ## Machine-Verifiable Evidence
 
-After completing your task, write or append to
+After completing your task, end your response with an `Agent Log` YAML block
+for main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
 field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
@@ -63,4 +64,3 @@ field rules, and gate-enforcement behavior are defined once in
 - `diff-percentage`: per-screen
 - `state-coverage`: matrix
 - `tokens-violated`: list of CSS contract violations or "none"
-
