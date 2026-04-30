@@ -98,10 +98,13 @@ export async function update(opts: UpdateOptions): Promise<void> {
 
   const provider = inferProvider(cwd, requestedProvider);
   const updateClaudeAssets = provider === 'claude' || provider === 'both';
-  const skillDest = join(SKILLS_HOME, 'contract-driven-delivery');
 
   const agentDiff = updateClaudeAssets ? diffDir(ASSET.agents, AGENTS_HOME) : [];
-  const skillDiff = updateClaudeAssets ? diffDir(ASSET.skill, skillDest) : [];
+  const skillDiff = updateClaudeAssets
+    ? readdirSync(ASSET.skills, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .flatMap(d => diffDir(join(ASSET.skills, d.name), join(SKILLS_HOME, d.name)))
+    : [];
 
   const toWrite = [...agentDiff, ...skillDiff].filter((e) => e.action !== 'skip');
   const toAdd   = toWrite.filter((e) => e.action === 'add');
@@ -112,7 +115,7 @@ export async function update(opts: UpdateOptions): Promise<void> {
     log.info(`Provider: ${provider}`);
     if (updateClaudeAssets) {
       log.info(`Dry-run diff — agents: ${AGENTS_HOME}`);
-      log.info(`Dry-run diff — skill:  ${skillDest}`);
+      log.info(`Dry-run diff — skills: ${SKILLS_HOME}`);
     } else {
       log.info('Codex provider has no global cdd-kit assets to update.');
       log.info('Project files are preserved; run cdd-kit init --local-only --provider codex to add missing local guidance.');
@@ -149,7 +152,7 @@ export async function update(opts: UpdateOptions): Promise<void> {
     log.info(`Backing up to ${backupRoot} …`);
   }
   backupDir(AGENTS_HOME, join(backupRoot, 'agents'));
-  backupDir(skillDest,   join(backupRoot, 'skill'));
+  backupDir(SKILLS_HOME, join(backupRoot, 'skills'));
   if (!quiet) log.ok(`Backup complete: ${backupRoot}`);
 
   if (!quiet) log.blank();
@@ -160,7 +163,7 @@ export async function update(opts: UpdateOptions): Promise<void> {
     if (!quiet) log.ok(`${agentCount} agent file(s) updated.`);
     totalSynced += agentCount;
 
-    if (!quiet) log.info(`Updating skill  → ${skillDest}`);
+    if (!quiet) log.info(`Updating skills → ${SKILLS_HOME}`);
     const skillCount = applyDir(skillDiff);
     if (!quiet) log.ok(`${skillCount} skill file(s) updated.`);
     totalSynced += skillCount;

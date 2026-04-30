@@ -102,6 +102,28 @@ describe('cdd-kit update', () => {
     expect(backedUpContent).toBe('MODIFIED');
   });
 
+  it('update --yes restores a manually-modified non-cdd skill file (cdd-new, cdd-close, etc.)', () => {
+    // Verify that standalone skills are also covered by update, not just contract-driven-delivery
+    const skillsDir = join(tmpHome, '.claude', 'skills');
+    const standaloneSkills = readdirSync(skillsDir).filter((s) => s !== 'contract-driven-delivery');
+    expect(standaloneSkills.length, 'expected at least one standalone skill').toBeGreaterThan(0);
+
+    const skillName = standaloneSkills[0];
+    const skillFiles = readdirSync(join(skillsDir, skillName)).filter((f) => f.endsWith('.md'));
+    expect(skillFiles.length).toBeGreaterThan(0);
+
+    const targetFile = join(skillsDir, skillName, skillFiles[0]);
+    const originalContent = readFileSync(targetFile, 'utf8');
+    writeFileSync(targetFile, 'MODIFIED');
+
+    const r = runCli(['update', '--yes'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const restoredContent = readFileSync(targetFile, 'utf8');
+    expect(restoredContent).toBe(originalContent);
+    expect(restoredContent).not.toBe('MODIFIED');
+  });
+
   it('update auto-detects codex provider and does not create ~/.claude assets', () => {
     rmSync(join(tmpHome, '.claude'), { recursive: true, force: true });
     writeFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), JSON.stringify({
