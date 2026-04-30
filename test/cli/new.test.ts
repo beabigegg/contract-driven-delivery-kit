@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
+import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
 const REQUIRED_TEMPLATES = [
@@ -8,7 +9,7 @@ const REQUIRED_TEMPLATES = [
   'change-classification.md',
   'test-plan.md',
   'ci-gates.md',
-  'tasks.md',
+  'tasks.yml',
   'context-manifest.md',
 ];
 
@@ -42,8 +43,9 @@ describe('cdd-kit new', () => {
       expect(existsSync(join(changeDir, tmpl)), `${tmpl} missing`).toBe(true);
     }
 
-    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/^context-governance:\s*v1\b/m);
+    const raw = readFileSync(join(changeDir, 'tasks.yml'), 'utf8');
+    const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['context-governance']).toBe('v1');
   });
 
   it('new feat-002 --all creates required + at least 1 optional template', () => {
@@ -51,7 +53,7 @@ describe('cdd-kit new', () => {
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-002');
-    const files = readdirSync(changeDir).filter((f) => f.endsWith('.md'));
+    const files = readdirSync(changeDir).filter((f) => f.endsWith('.md') || f.endsWith('.yml'));
     // Must have all required
     for (const tmpl of REQUIRED_TEMPLATES) {
       expect(files).toContain(tmpl);
@@ -110,8 +112,9 @@ describe('cdd-kit new', () => {
     const r = runCli(['new', 'feat-005', '--depends-on', 'db-schema,api-contract'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
-    const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', 'feat-005', 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/^depends-on:\s*\[db-schema, api-contract\]/m);
+    const raw = readFileSync(join(tmpRepo, 'specs', 'changes', 'feat-005', 'tasks.yml'), 'utf8');
+    const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['depends-on']).toEqual(['db-schema', 'api-contract']);
   });
 
   it('new with no name argument exits non-zero', () => {

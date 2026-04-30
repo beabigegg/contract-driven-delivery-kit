@@ -116,3 +116,9 @@ When using this skill, produce concrete artifact content instead of vague recomm
 - `scripts/validate_spec_traceability.py`: check coarse traceability between spec, tasks, tests, and CI gates.
 
 Run scripts with Python 3 from the repository root.
+
+## Output discipline (file formats)
+
+- `tasks.yml`: structured YAML, validated by `src/schemas/tasks.schema.ts`.
+- `agent-log/<agent>.yml`: structured YAML per `references/agent-log-protocol.md`.
+- All other change artifacts remain markdown prose.

@@ -47,7 +47,7 @@ Before producing a single classification, check these triggers:
   export).
 - **Contract-heavy**: ≥ 5 of the 6 contracts (api / css / env / data /
   business / ci) need changes.
-- **Task-heavy**: estimated > 10 task-IDs across sections 3-4 of `tasks.md`.
+- **Task-heavy**: estimated > 10 task-IDs across sections 3-4 of `tasks.yml`.
 
 If **any one trigger fires**, output `## Atomic Split Proposal` INSTEAD of the
 normal classification, in this exact shape:
@@ -140,7 +140,7 @@ Use this structure:
 ## Required Artifacts
 
 The following 5 artifacts are always required for implementation changes:
-`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`
+`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`
 
 ## Optional Artifacts (default: no — set yes only with explicit reason)
 
@@ -216,7 +216,7 @@ Note: `archive.md` is created during change close-out, not at classification tim
 - AC-3:
 
 ## Tasks Not Applicable
-(List task IDs from tasks.md that are NOT applicable to this change, using the format `2.2, 2.3, 4.2`. Main Claude will mark these as [-] in tasks.md.)
+(List task IDs from tasks.yml that are NOT applicable to this change, using the format `2.2, 2.3, 4.2`. Main Claude will mark these as `status: skipped` in tasks.yml.)
 - not-applicable:
 
 ## Clarifications or Assumptions
@@ -226,7 +226,7 @@ Note: `archive.md` is created during change close-out, not at classification tim
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.md`. Required fields,
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
 field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 

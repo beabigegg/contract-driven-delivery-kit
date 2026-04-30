@@ -18,7 +18,7 @@
 - reason: (fill only if yes)
 
 ## Required Artifacts
-Always required: change-request.md, change-classification.md, test-plan.md, ci-gates.md, tasks.md
+Always required: change-request.md, change-classification.md, test-plan.md, ci-gates.md, tasks.yml
 
 ## Optional Artifacts (default: no — set yes only with explicit reason)
 | artifact | create? | reason |

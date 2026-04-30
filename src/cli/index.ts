@@ -128,7 +128,7 @@ program
 // ── cdd abandon <change-id> ───────────────────────────────────────────────────
 program
   .command('abandon <change-id>')
-  .description('Mark a change as abandoned (updates tasks.md status, records in INDEX.md)')
+  .description('Mark a change as abandoned (updates tasks.yml status, records in INDEX.md)')
   .option('--reason <text>', 'reason for abandonment')
   .action(async (changeId: string, opts: { reason?: string }) => {
     const { abandon } = await import('../commands/abandon.js');
@@ -138,7 +138,7 @@ program
 // ── cdd migrate ───────────────────────────────────────────────────────────────
 program
   .command('migrate [change-id]')
-  .description('Upgrade existing change directories to the current cdd-kit format (tasks.md frontmatter + tier format)')
+  .description('Upgrade existing change directories to the current cdd-kit YAML format (tasks.yml + agent-log/*.yml)')
   .option('--all', 'Migrate all changes in specs/changes/', false)
   .option('--dry-run', 'Show what would change without writing files', false)
   .option('--enable-context-governance', 'Opt legacy changes into context-governance: v1 hard gate behavior', false)

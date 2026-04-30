@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
+import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
 describe('cdd-kit migrate', () => {
@@ -25,7 +26,7 @@ describe('cdd-kit migrate', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', id);
     mkdirSync(changeDir, { recursive: true });
 
-    // Old-format tasks.md — no frontmatter, no legend
+    // Old-format tasks.md — markdown checklist
     writeFileSync(join(changeDir, 'tasks.md'), [
       `# Tasks: ${id}`,
       '',
@@ -50,6 +51,11 @@ describe('cdd-kit migrate', () => {
     return changeDir;
   }
 
+  function loadTasksYaml(changeDir: string): Record<string, unknown> {
+    const raw = readFileSync(join(changeDir, 'tasks.yml'), 'utf8');
+    return yaml.load(raw) as Record<string, unknown>;
+  }
+
   // ── tests ──────────────────────────────────────────────────────────────────
 
   it('1: migrate on nonexistent change exits 1 and reports change not found', () => {
@@ -58,34 +64,42 @@ describe('cdd-kit migrate', () => {
     expect(r.stdout + r.stderr).toMatch(/not found/i);
   });
 
-  it('2: migrate adds YAML frontmatter to tasks.md when missing', () => {
+  it('2: migrate converts tasks.md to tasks.yml with structured fields', () => {
     makeOldChange('old-001');
     const r = runCli(['migrate', 'old-001'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);
 
-    const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', 'old-001', 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/^---/);
-    expect(tasks).toMatch(/change-id: old-001/);
-    expect(tasks).toMatch(/status: in-progress/);
-    expect(tasks).not.toMatch(/^context-governance:\s*v1\b/m);
-    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'old-001', 'context-manifest.md'))).toBe(true);
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'old-001');
+    expect(existsSync(join(changeDir, 'tasks.yml'))).toBe(true);
+    expect(existsSync(join(changeDir, 'tasks.md'))).toBe(false);
+
+    const data = loadTasksYaml(changeDir);
+    expect(data['change-id']).toBe('old-001');
+    expect(data['status']).toBe('in-progress');
+    expect(data['context-governance']).toBeUndefined();
+    expect(existsSync(join(changeDir, 'context-manifest.md'))).toBe(true);
   });
 
-  it('3: migrate adds legend comment to tasks.md when missing', () => {
+  it('3: migrate populates archive-tasks default in tasks.yml', () => {
     makeOldChange('old-002');
     runCli(['migrate', 'old-002'], { cwd: tmpRepo, home: tmpHome });
 
-    const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', 'old-002', 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/\[x\]=done \[-\]=N\/A \[ \]=pending/);
+    const data = loadTasksYaml(join(tmpRepo, 'specs', 'changes', 'old-002'));
+    expect(data['archive-tasks']).toEqual(['7.1', '7.2']);
   });
 
-  it('4: migrate preserves existing task content', () => {
+  it('4: migrate preserves task IDs, titles, and statuses from markdown checklist', () => {
     makeOldChange('old-003');
     runCli(['migrate', 'old-003'], { cwd: tmpRepo, home: tmpHome });
 
-    const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', 'old-003', 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/1\.1 Confirm classification/);
-    expect(tasks).toMatch(/\[x\] 4\.1 Backend/);
+    const data = loadTasksYaml(join(tmpRepo, 'specs', 'changes', 'old-003'));
+    const tasks = data['tasks'] as Array<Record<string, unknown>>;
+    const byId = Object.fromEntries(tasks.map(t => [t['id'], t]));
+    expect(byId['1.1']['title']).toBe('Confirm classification');
+    expect(byId['1.1']['status']).toBe('done');
+    expect(byId['1.2']['status']).toBe('pending');
+    expect(byId['4.1']['title']).toBe('Backend');
+    expect(byId['4.1']['status']).toBe('done');
   });
 
   it('5: migrate converts old **Tier:** format to ## Tier\\n- N in classification', () => {
@@ -97,23 +111,17 @@ describe('cdd-kit migrate', () => {
   });
 
   it('6: migrate on already-migrated change reports "already up to date" and does not modify files', () => {
-    // Create a change that already has frontmatter + legend + new tier format
     const changeDir = join(tmpRepo, 'specs', 'changes', 'new-001');
     mkdirSync(changeDir, { recursive: true });
 
-    const originalTasks = [
-      '---',
-      'change-id: new-001',
-      'status: in-progress',
-      'tier: 2',
-      'archive-tasks: ["7.1", "7.2"]',
-      '---',
-      '',
-      '<!-- [x]=done [-]=N/A [ ]=pending -->',
-      '',
-      '# Tasks: new-001',
-      '- [x] 1.1 Done',
-    ].join('\n');
+    const originalTasks = yaml.dump({
+      'change-id': 'new-001',
+      status: 'in-progress',
+      tier: 2,
+      'archive-tasks': ['7.1', '7.2'],
+      'depends-on': [],
+      tasks: [{ id: '1.1', title: 'Done', status: 'done' }],
+    }, { lineWidth: -1 });
 
     const originalClassif = [
       '# Change Classification',
@@ -124,7 +132,7 @@ describe('cdd-kit migrate', () => {
       '- 2',
     ].join('\n');
 
-    writeFileSync(join(changeDir, 'tasks.md'), originalTasks, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), originalTasks, 'utf8');
     writeFileSync(join(changeDir, 'change-classification.md'), originalClassif, 'utf8');
     writeFileSync(join(changeDir, 'context-manifest.md'), '# Context Manifest\n\n## Allowed Paths\n- specs/changes/new-001/\n', 'utf8');
 
@@ -132,8 +140,7 @@ describe('cdd-kit migrate', () => {
     expect(r.status).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/already up to date/i);
 
-    // Files must be unchanged
-    expect(readFileSync(join(changeDir, 'tasks.md'), 'utf8')).toBe(originalTasks);
+    expect(readFileSync(join(changeDir, 'tasks.yml'), 'utf8')).toBe(originalTasks);
     expect(readFileSync(join(changeDir, 'change-classification.md'), 'utf8')).toBe(originalClassif);
   });
 
@@ -147,43 +154,19 @@ describe('cdd-kit migrate', () => {
     expect(r.status).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/dry run/i);
 
-    // File must be unchanged
+    // Original markdown file must still be there with same content
+    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'old-005', 'tasks.md'))).toBe(true);
+    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'old-005', 'tasks.yml'))).toBe(false);
     const afterTasks = readFileSync(
       join(tmpRepo, 'specs', 'changes', 'old-005', 'tasks.md'), 'utf8'
     );
     expect(afterTasks).toBe(originalTasks);
   });
 
-  it('9: migrate preserves gate-blocked status from bare body line and removes the duplicate', () => {
-    // Simulate a pre-v1.10 tasks.md with a bare "status: gate-blocked" line (no frontmatter)
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'old-008');
-    mkdirSync(changeDir, { recursive: true });
-    writeFileSync(join(changeDir, 'tasks.md'), [
-      'status: gate-blocked',
-      '',
-      '# Tasks: old-008',
-      '- [x] 1.1 Done',
-      '- [ ] 1.2 Pending',
-    ].join('\n'), 'utf8');
-    writeFileSync(join(changeDir, 'change-classification.md'), '# Classification\n**Risk Level:** medium\n', 'utf8');
-
-    runCli(['migrate', 'old-008'], { cwd: tmpRepo, home: tmpHome });
-
-    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
-    // Frontmatter must have the correct status
-    expect(tasks).toMatch(/^---\nchange-id: old-008\nstatus: gate-blocked\n[\s\S]*?\n---/);
-    // Body must NOT have a duplicate bare status line
-    const bodyAfterFrontmatter = tasks.replace(/^---[\s\S]*?---\n/, '');
-    expect(bodyAfterFrontmatter).not.toMatch(/^status:/m);
-  });
-
   it('10: list shows "abandoned" status after cdd-kit abandon', () => {
     makeOldChange('old-009');
-    // First migrate to new format (needed for abandon to work cleanly)
     runCli(['migrate', 'old-009'], { cwd: tmpRepo, home: tmpHome });
-    // Then abandon the change
     runCli(['abandon', 'old-009', '--reason', 'no longer needed'], { cwd: tmpRepo, home: tmpHome });
-    // List should show abandoned
     const r = runCli(['list'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).toMatch(/old-009.*abandoned|abandoned.*old-009/i);
   });
@@ -196,9 +179,9 @@ describe('cdd-kit migrate', () => {
     expect(r.status).toBe(0);
 
     for (const id of ['old-006', 'old-007']) {
-      const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', id, 'tasks.md'), 'utf8');
-      expect(tasks).toMatch(/^---/);
-      expect(tasks).toMatch(/status: in-progress/);
+      const data = loadTasksYaml(join(tmpRepo, 'specs', 'changes', id));
+      expect(data['change-id']).toBe(id);
+      expect(data['status']).toBe('in-progress');
     }
   });
 
@@ -223,7 +206,7 @@ describe('cdd-kit migrate', () => {
     expect(existsSync(backupRoot)).toBe(false);
   });
 
-  it('B1.5: migrate backfills tier into tasks.md frontmatter when classification has structured Tier', () => {
+  it('B1.5: migrate backfills tier into tasks.yml when classification has structured Tier', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'old-backfill-tier');
     mkdirSync(changeDir, { recursive: true });
     writeFileSync(join(changeDir, 'tasks.md'), '# Tasks\n- [ ] 1.1 Pending\n', 'utf8');
@@ -231,9 +214,9 @@ describe('cdd-kit migrate', () => {
       '# Change Classification\n\n## Tier\n- 1\n', 'utf8');
 
     runCli(['migrate', 'old-backfill-tier'], { cwd: tmpRepo, home: tmpHome });
-    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/^tier: 1/m);
-    expect(tasks).toMatch(/^archive-tasks: \["7\.1", "7\.2"\]/m);
+    const data = loadTasksYaml(changeDir);
+    expect(data['tier']).toBe(1);
+    expect(data['archive-tasks']).toEqual(['7.1', '7.2']);
   });
 
   it('B1.6: migrate backfills tier from legacy bold **Tier:** Tier N format', () => {
@@ -244,8 +227,8 @@ describe('cdd-kit migrate', () => {
       '# Change Classification\n\n**Tier:** Tier 3\n', 'utf8');
 
     runCli(['migrate', 'old-bold-tier'], { cwd: tmpRepo, home: tmpHome });
-    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/^tier: 3/m);
+    const data = loadTasksYaml(changeDir);
+    expect(data['tier']).toBe(3);
   });
 
   it('11: migrate --enable-context-governance opts a legacy change into context-governance v1', () => {
@@ -255,12 +238,44 @@ describe('cdd-kit migrate', () => {
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
     const changeDir = join(tmpRepo, 'specs', 'changes', 'old-010');
-    const tasks = readFileSync(join(changeDir, 'tasks.md'), 'utf8');
+    const data = loadTasksYaml(changeDir);
     const manifest = readFileSync(join(changeDir, 'context-manifest.md'), 'utf8');
 
-    expect(tasks).toMatch(/^context-governance:\s*v1\b/m);
+    expect(data['context-governance']).toBe('v1');
     expect(manifest).toMatch(/Generated by `cdd-kit migrate --enable-context-governance`/);
     expect(manifest).toMatch(/specs\/context\/project-map\.md/);
     expect(manifest).toMatch(/specs\/context\/contracts-index\.md/);
+  });
+
+  it('12: migrate converts agent-log/*.md to agent-log/*.yml', () => {
+    const changeDir = makeOldChange('old-agentlog');
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.md'), [
+      '# Backend Engineer Log',
+      '- change-id: old-agentlog',
+      '- agent: backend-engineer',
+      '- timestamp: 2026-04-27T14:30:00Z',
+      '- status: complete',
+      '- files-read:',
+      '  - src/api/users.ts',
+      '- artifacts:',
+      '  - files-changed: src/api/users.ts:10-45',
+      '  - tests-added: test/users.test.ts::should create user',
+      '- next-action: none',
+    ].join('\n'), 'utf8');
+
+    runCli(['migrate', 'old-agentlog'], { cwd: tmpRepo, home: tmpHome });
+
+    expect(existsSync(join(agentLogDir, 'backend-engineer.yml'))).toBe(true);
+    expect(existsSync(join(agentLogDir, 'backend-engineer.md'))).toBe(false);
+
+    const yamlRaw = readFileSync(join(agentLogDir, 'backend-engineer.yml'), 'utf8');
+    const data = yaml.load(yamlRaw) as Record<string, unknown>;
+    expect(data['change-id']).toBe('old-agentlog');
+    expect(data['status']).toBe('complete');
+    expect(data['files-read']).toEqual(['src/api/users.ts']);
+    const artifacts = data['artifacts'] as Array<Record<string, unknown>>;
+    expect(artifacts.find(a => a['type'] === 'files-changed')?.['pointer']).toBe('src/api/users.ts:10-45');
   });
 });

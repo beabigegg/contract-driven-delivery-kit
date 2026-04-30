@@ -1,0 +1,14 @@
+change-id: feat-001
+agent: backend-engineer
+timestamp: 2026-04-27T14:30:00Z
+status: complete
+files-read:
+  - contracts/api/api-contract.md
+  - src/api/users.ts
+  - specs/changes/feat-001/test-plan.md
+artifacts:
+  - { type: files-changed,     pointer: "src/api/users.ts:45-67" }
+  - { type: tests-added,       pointer: "tests/api/users.test.ts::should reject empty body" }
+  - { type: contracts-touched, pointer: "contracts/api/api-contract.md#endpoints" }
+  - { type: test-output,       pointer: "5 passed (vitest run --filter users)" }
+next-action: none

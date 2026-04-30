@@ -1,13 +1,18 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
+import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
 // Helper: create a minimal change directory
 function scaffoldChange(repo: string, changeId: string): void {
   const changeDir = join(repo, 'specs', 'changes', changeId);
   mkdirSync(changeDir, { recursive: true });
-  writeFileSync(join(changeDir, 'tasks.md'), `# Tasks: ${changeId}\n\n- [ ] 1.1 Do something\n`, 'utf8');
+  writeFileSync(join(changeDir, 'tasks.yml'), yaml.dump({
+    'change-id': changeId,
+    status: 'in-progress',
+    tasks: [{ id: '1.1', title: 'Do something', status: 'pending' }],
+  }, { lineWidth: -1 }), 'utf8');
 }
 
 describe('cdd-kit abandon', () => {
@@ -34,14 +39,15 @@ describe('cdd-kit abandon', () => {
     expect(r.stderr + r.stdout).toMatch(/change not found/i);
   });
 
-  it('2: abandon on existing change exits 0 and marks tasks.md as abandoned', () => {
+  it('2: abandon on existing change exits 0 and marks tasks.yml as abandoned', () => {
     scaffoldChange(tmpRepo, 'my-change');
     const r = runCli(['abandon', 'my-change'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/abandoned/i);
 
-    const tasks = readFileSync(join(tmpRepo, 'specs', 'changes', 'my-change', 'tasks.md'), 'utf8');
-    expect(tasks).toMatch(/status: abandoned/);
+    const raw = readFileSync(join(tmpRepo, 'specs', 'changes', 'my-change', 'tasks.yml'), 'utf8');
+    const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['status']).toBe('abandoned');
   });
 
   it('3: abandon creates specs/archive/INDEX.md with entry', () => {

@@ -2,7 +2,7 @@
 """Coarse traceability check for a change folder."""
 from pathlib import Path
 import argparse, sys
-REQUIRED=['change-classification.md','test-plan.md','ci-gates.md','tasks.md']
+REQUIRED=['change-classification.md','test-plan.md','ci-gates.md','tasks.yml']
 def check_change_dir(d):
     """Check one change directory. Returns list of error strings (empty = pass)."""
     errors=[]

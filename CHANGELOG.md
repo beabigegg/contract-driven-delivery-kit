@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.0.0] - 2026-04-30
+
+### BREAKING: structured YAML for tasks and agent-log
+
+- `tasks.md` is replaced by `tasks.yml`. The previous markdown-frontmatter +
+  checklist hybrid is gone. The new file is a single YAML document validated
+  by `src/schemas/tasks.schema.ts` (JSON Schema, draft-07). Task items use
+  `status: pending | done | skipped` instead of `[ ] / [x] / [-]` checkboxes.
+- `agent-log/<agent>.md` is replaced by `agent-log/<agent>.yml`, validated by
+  `src/schemas/agent-log.schema.ts`. The "field: value" prose convention is
+  gone; agents now emit a structured YAML record with `change-id`, `agent`,
+  `timestamp` (ISO 8601), `status`, `files-read`, `artifacts`, and
+  `next-action`.
+- `cdd-kit gate` parses both files with `js-yaml` and validates them with
+  `ajv`. Errors and warnings now reference YAML paths rather than markdown
+  line patterns.
+- All bundled templates, skill prompts, agent prompts, and Python helper
+  scripts have been updated to point at the new file names.
+
+### Upgrading
+
+Run `cdd-kit migrate <change-id>` (or `cdd-kit migrate --all`) to convert
+existing changes:
+
+- `tasks.md` is parsed (frontmatter + markdown checklist) and rewritten as
+  `tasks.yml`. The legacy `tasks.md` is deleted.
+- Every `agent-log/*.md` is parsed and rewritten as `agent-log/*.yml`. The
+  legacy markdown logs are deleted.
+- A backup of the change directory is written to
+  `.cdd/migrate-backup/<stamp>/<change-id>/` before any rewrite.
+
+### Notes
+
+This is a breaking release; pin to `^1.16.0` if you still depend on the old
+markdown formats.
+
 ## [1.16.0] - 2026-04-30
 
 ### Visual narration: per-agent stage badges

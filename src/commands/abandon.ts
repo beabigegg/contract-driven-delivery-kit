@@ -1,30 +1,28 @@
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
+import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
 
 export async function abandon(changeId: string, opts: { reason?: string }): Promise<void> {
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', changeId);
-  const tasksPath = join(changeDir, 'tasks.md');
+  const tasksPath = join(changeDir, 'tasks.yml');
 
   if (!existsSync(changeDir)) {
     log.error(`Change not found: specs/changes/${changeId}`);
     process.exit(1);
   }
 
-  // Update tasks.md status to abandoned
   if (existsSync(tasksPath)) {
-    let content = readFileSync(tasksPath, 'utf8');
-    if (content.match(/^status:/m)) {
-      content = content.replace(/^status: .*/m, 'status: abandoned');
-    } else {
-      // frontmatter might not exist yet — prepend it
-      content = `---\nchange-id: ${changeId}\nstatus: abandoned\n---\n\n` + content;
+    const raw = readFileSync(tasksPath, 'utf8');
+    const data = (yaml.load(raw) ?? {}) as Record<string, unknown>;
+    data['status'] = 'abandoned';
+    if (!data['change-id']) {
+      data['change-id'] = changeId;
     }
-    writeFileSync(tasksPath, content, 'utf8');
+    writeFileSync(tasksPath, yaml.dump(data, { lineWidth: -1, noRefs: true }), 'utf8');
   }
 
-  // Append to INDEX.md
   const today = new Date().toISOString().split('T')[0];
   const archiveDir = join(cwd, 'specs', 'archive');
   const indexPath = join(archiveDir, 'INDEX.md');

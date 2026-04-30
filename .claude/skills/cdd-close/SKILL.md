@@ -38,7 +38,7 @@ If the user wants to **abandon** this change (not close as complete):
 cdd-kit abandon <change-id> --reason "<reason>"
 ```
 
-This marks `tasks.md` as `status: abandoned` and records it in `specs/archive/INDEX.md`. The directory is preserved for git history. Do NOT run the rest of this skill after abandoning.
+This marks `tasks.yml` as `status: abandoned` and records it in `specs/archive/INDEX.md`. The directory is preserved for git history. Do NOT run the rest of this skill after abandoning.
 
 ---
 
@@ -48,13 +48,13 @@ Run: `cdd-kit gate <change-id>`
 
 If gate fails: stop and report failures. Do NOT archive a change that hasn't passed gate.
 
-Exception: if `tasks.md` contains `status: gate-blocked`, ask the user: "This change was gate-blocked. Abandon it? (yes/no)". If yes, run `cdd-kit abandon <change-id> --reason "gate-blocked after 3 attempts"` and stop.
+Exception: if `tasks.yml` contains `status: gate-blocked`, ask the user: "This change was gate-blocked. Abandon it? (yes/no)". If yes, run `cdd-kit abandon <change-id> --reason "gate-blocked after 3 attempts"` and stop.
 
 ---
 
-## Step 2: Review tasks.md section 7
+## Step 2: Review tasks.yml section 7
 
-Read `specs/changes/<change-id>/tasks.md`.
+Read `specs/changes/<change-id>/tasks.yml`.
 
 Check section 7:
 - `7.1 Archive change` — will be ticked after Step 4
@@ -71,7 +71,7 @@ Read only active evidence for this change:
 - `specs/changes/<change-id>/qa-report.md` (if exists)
 - `specs/changes/<change-id>/ci-gates.md`
 - `specs/changes/<change-id>/context-manifest.md`
-- `specs/changes/<change-id>/tasks.md`
+- `specs/changes/<change-id>/tasks.yml`
 
 Do not read `specs/archive/` while closing a change. Historical archives are cold data and must not be used as current requirements.
 
@@ -110,9 +110,9 @@ After contract-reviewer responds:
 3. Run `cdd-kit validate --contracts` to confirm contract format is preserved
 4. Run `cdd-kit context-scan` so future classifiers see updated hot context indexes
 5. Fill in `## Lessons Promoted to Standards` in archive.md with what was promoted, where, and evidence path
-6. Tick `7.2` in tasks.md
+6. Set task `7.2` to `status: done` in tasks.yml
 
-If there are no lessons to promote, mark `[-]` for 7.2 with rationale.
+If there are no lessons to promote, mark `7.2` as `status: skipped` with rationale.
 
 ---
 
@@ -120,8 +120,8 @@ If there are no lessons to promote, mark `[-]` for 7.2 with rationale.
 
 Run: `cdd-kit archive <change-id>`
 
-If successful, tick `7.1` in tasks.md (the file is now in specs/archive/, update it there):
-`specs/archive/<year>/<change-id>/tasks.md` — change `7.1` from `[ ]` to `[x]`.
+If successful, set task `7.1` to `status: done` in tasks.yml (the file is now in specs/archive/, update it there):
+`specs/archive/<year>/<change-id>/tasks.yml` — change `7.1` from `status: pending` to `status: done`.
 
 ---
 

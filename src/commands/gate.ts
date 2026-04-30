@@ -1,28 +1,71 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import yaml from 'js-yaml';
+import Ajv, { ErrorObject } from 'ajv';
+import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
+import { agentLogSchema } from '../schemas/agent-log.schema.js';
+import { tasksSchema } from '../schemas/tasks.schema.js';
+
+const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
+addFormats(ajv);
+const validateAgentLog = ajv.compile(agentLogSchema);
+const validateTasks = ajv.compile(tasksSchema);
+
+const TASKS_STATUS_ENUM = new Set([
+  'in-progress', 'completed', 'complete', 'done',
+  'gate-blocked', 'abandoned', 'needs-review',
+]);
 
 const REQUIRED_FILES = [
   'change-request.md',
   'change-classification.md',
   'test-plan.md',
   'ci-gates.md',
-  'tasks.md',
+  'tasks.yml',
   'context-manifest.md',
 ];
 
 const TIER_PATTERN = /\b(tier\s*[0-5]|low|medium|high|critical)\b/i;
 
-// Fix 1d: differentiated minimum content per artifact
 const MIN_CHARS: Record<string, number> = {
   'change-classification.md': 200,
   'test-plan.md': 200,
   'ci-gates.md': 150,
   'change-request.md': 100,
-  'tasks.md': 100,
   'context-manifest.md': 50,
 };
+
+const DEFAULT_ARCHIVE_TASKS = ['7.1', '7.2'];
+
+interface AgentLog {
+  'change-id': string;
+  timestamp: string;
+  agent: string;
+  status: 'complete' | 'needs-review' | 'blocked';
+  'files-read'?: string[];
+  artifacts: { type: string; pointer: string }[];
+  'next-action': string;
+  notes?: string;
+}
+
+interface TaskItem {
+  id: string;
+  title: string;
+  status: 'pending' | 'done' | 'skipped';
+  section?: string;
+}
+
+interface TasksFile {
+  'change-id': string;
+  status: string;
+  tier?: number | null;
+  'context-governance'?: 'v1';
+  'archive-tasks'?: string[];
+  'depends-on'?: string[];
+  tasks: TaskItem[];
+}
 
 function meaningfulChars(text: string): number {
   return text.split('\n')
@@ -138,89 +181,75 @@ function loadContextPolicy(cwd: string): ContextPolicy {
   }
 }
 
-function isContextGovernedChange(changeDir: string): boolean {
-  const tasksPath = join(changeDir, 'tasks.md');
-  if (!existsSync(tasksPath)) return false;
-  return /^context-governance:\s*v1\b/m.test(readFileSync(tasksPath, 'utf8'));
+function loadYamlFile<T>(path: string): { data: T | null; parseError: string | null } {
+  try {
+    const raw = readFileSync(path, 'utf8');
+    return { data: yaml.load(raw) as T, parseError: null };
+  } catch (err) {
+    return { data: null, parseError: (err as Error).message };
+  }
 }
 
-const KNOWN_FRONTMATTER_KEYS = new Set([
-  'change-id',
-  'status',
-  'tier',
-  'archive-tasks',
-  'context-governance',
-  'depends-on',
-  // Allowed but informational only:
-  'token-budget',
-  'created',
-  'completed',
-]);
-
-const VALID_TASK_STATUSES = new Set(['in-progress', 'completed', 'complete', 'done', 'gate-blocked', 'abandoned', 'needs-review']);
-
-function lintFrontmatter(content: string, errors: string[], warnings: string[]): void {
-  const fm = parseTaskFrontmatter(content);
-
-  // change-id is required
-  if (!fm['change-id']) {
-    errors.push('tasks.md frontmatter: missing required `change-id`');
-  }
-  // status is required
-  if (!fm.status) {
-    errors.push('tasks.md frontmatter: missing required `status`');
-  } else if (!VALID_TASK_STATUSES.has(fm.status.toLowerCase())) {
-    errors.push(`tasks.md frontmatter: invalid status \`${fm.status}\` (expected one of: ${[...VALID_TASK_STATUSES].join(', ')})`);
-  }
-  // tier, when present, must parse to 0-5
-  if (fm.tier !== undefined && fm.tier !== '') {
-    const n = parseInt(fm.tier, 10);
-    if (Number.isNaN(n) || n < 0 || n > 5) {
-      errors.push(`tasks.md frontmatter: invalid tier \`${fm.tier}\` (expected 0-5)`);
-    }
-  }
-  // Unknown keys → warning (typo guard, e.g. Tier vs tier)
-  for (const key of Object.keys(fm)) {
-    if (!KNOWN_FRONTMATTER_KEYS.has(key)) {
+function ajvErrorsToMessages(
+  errors: ErrorObject[] | null | undefined,
+  prefix: string,
+  knownKeys?: string[]
+): { errors: string[]; warnings: string[] } {
+  const out = { errors: [] as string[], warnings: [] as string[] };
+  for (const e of errors ?? []) {
+    if (e.keyword === 'additionalProperties') {
+      const key = (e.params as { additionalProperty: string }).additionalProperty;
       const lower = key.toLowerCase();
-      const suggestion = KNOWN_FRONTMATTER_KEYS.has(lower) ? ` (did you mean \`${lower}\`?)` : '';
-      warnings.push(`tasks.md frontmatter: unknown key \`${key}\`${suggestion}`);
+      const suggestion = knownKeys?.includes(lower) ? ` (did you mean \`${lower}\`?)` : '';
+      out.warnings.push(`${prefix}: unknown key \`${key}\`${suggestion}`);
+      continue;
     }
-  }
-}
-
-function parseTaskFrontmatter(content: string): Record<string, string> {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return {};
-  const out: Record<string, string> = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const colon = line.indexOf(':');
-    if (colon === -1) continue;
-    const key = line.slice(0, colon).trim();
-    if (!key) continue;
-    out[key] = line.slice(colon + 1).trim();
+    if (e.keyword === 'required') {
+      const missing = (e.params as { missingProperty: string }).missingProperty;
+      out.errors.push(`${prefix}: missing required \`${missing}\``);
+      continue;
+    }
+    if (e.keyword === 'enum') {
+      const allowed = (e.params as { allowedValues: string[] }).allowedValues.join(', ');
+      out.errors.push(`${prefix}: invalid value at ${e.instancePath || '/'} (expected one of: ${allowed})`);
+      continue;
+    }
+    out.errors.push(`${prefix}: ${e.instancePath || '/'} ${e.message ?? 'invalid'}`);
   }
   return out;
 }
 
-function parseListField(raw: string | undefined): string[] {
-  if (!raw) return [];
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed === '[]') return [];
-  const inner = trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
-  return inner
-    .split(',')
-    .map(item => item.trim().replace(/^["']|["']$/g, ''))
-    .filter(Boolean);
+function isContextGovernedChange(changeDir: string): boolean {
+  const tasksPath = join(changeDir, 'tasks.yml');
+  if (!existsSync(tasksPath)) return false;
+  const { data } = loadYamlFile<TasksFile>(tasksPath);
+  return data?.['context-governance'] === 'v1';
 }
 
-function parseDependsOn(content: string): string[] {
-  return parseListField(parseTaskFrontmatter(content)['depends-on']);
-}
+function lintTasksFile(tasksPath: string, errors: string[], warnings: string[]): TasksFile | null {
+  const { data, parseError } = loadYamlFile<TasksFile>(tasksPath);
+  if (parseError) {
+    errors.push(`tasks.yml: invalid YAML: ${parseError}`);
+    return null;
+  }
+  if (!data || typeof data !== 'object') {
+    errors.push('tasks.yml: file is empty or not a YAML mapping');
+    return null;
+  }
 
-function parseTaskStatus(content: string): string {
-  const fm = parseTaskFrontmatter(content);
-  return (fm.status ?? 'in-progress').toLowerCase();
+  const ok = validateTasks(data);
+  const known = Object.keys(tasksSchema.properties);
+  if (!ok) {
+    const out = ajvErrorsToMessages(validateTasks.errors, 'tasks.yml frontmatter', known);
+    errors.push(...out.errors);
+    warnings.push(...out.warnings);
+  }
+
+  if (data.status && !TASKS_STATUS_ENUM.has(data.status)) {
+    errors.push(`tasks.yml frontmatter: invalid status \`${data.status}\` (expected one of: ${[...TASKS_STATUS_ENUM].join(', ')})`);
+  }
+
+  return data;
 }
 
 interface TierResolution {
@@ -236,15 +265,12 @@ function resolveTier(changeDir: string): TierResolution {
   const classificationText = classificationPresent ? readFileSync(classifPath, 'utf8') : '';
   const classificationHasLooseMarker = classificationPresent && TIER_PATTERN.test(classificationText);
 
-  const tasksPath = join(changeDir, 'tasks.md');
+  const tasksPath = join(changeDir, 'tasks.yml');
   if (existsSync(tasksPath)) {
-    const fm = parseTaskFrontmatter(readFileSync(tasksPath, 'utf8'));
-    const raw = fm.tier;
-    if (raw && raw !== '') {
-      const n = parseInt(raw, 10);
-      if (!Number.isNaN(n) && n >= 0 && n <= 5) {
-        return { tier: n, source: 'tasks-frontmatter', classificationPresent, classificationHasLooseMarker };
-      }
+    const { data } = loadYamlFile<TasksFile>(tasksPath);
+    const t = data?.tier;
+    if (typeof t === 'number' && t >= 0 && t <= 5) {
+      return { tier: t, source: 'tasks-frontmatter', classificationPresent, classificationHasLooseMarker };
     }
   }
 
@@ -268,12 +294,9 @@ function resolveTier(changeDir: string): TierResolution {
   return { tier: null, source: 'none', classificationPresent, classificationHasLooseMarker };
 }
 
-const DEFAULT_ARCHIVE_TASKS = ['7.1', '7.2'];
-
-function getArchiveTaskIds(content: string): string[] {
-  const fm = parseTaskFrontmatter(content);
-  const parsed = parseListField(fm['archive-tasks']);
-  return parsed.length > 0 ? parsed : DEFAULT_ARCHIVE_TASKS;
+function getArchiveTaskIds(tasks: TasksFile | null): string[] {
+  const fromFile = tasks?.['archive-tasks'];
+  return fromFile && fromFile.length > 0 ? fromFile : DEFAULT_ARCHIVE_TASKS;
 }
 
 function enforceTierRequirements(
@@ -287,43 +310,39 @@ function enforceTierRequirements(
   if (resolution.tier === null) {
     if (resolution.classificationPresent && !resolution.classificationHasLooseMarker) {
       errors.push(
-        'change-classification.md: missing tier marker. Set `tier: <0-5>` in tasks.md frontmatter (preferred) or include `## Tier\\n- N` in change-classification.md.'
+        'change-classification.md: missing tier marker. Set `tier: <0-5>` in tasks.yml frontmatter (preferred) or include `## Tier\\n- N` in change-classification.md.'
       );
     }
     return;
   }
 
-  // Legacy bold-only format (`**Tier:** Tier N`) is allowed for back-compat but
-  // does NOT trigger tier-specific agent enforcement — that would silently
-  // promote legacy changes. Warn and stop here so users migrate.
   if (resolution.source === 'classification-bold') {
     warnings.push(
-      'tier marker is bold-text only (legacy format); set `tier: <0-5>` in tasks.md frontmatter so tier-specific agent requirements are enforced.'
+      'tier marker is bold-text only (legacy format); set `tier: <0-5>` in tasks.yml frontmatter so tier-specific agent requirements are enforced.'
     );
     return;
   }
 
   const tier = resolution.tier;
   const agentLogFiles = agentLogDir && existsSync(agentLogDir)
-    ? readdirSync(agentLogDir).map(f => f.replace('.md', ''))
+    ? readdirSync(agentLogDir).map(f => f.replace(/\.ya?ml$/, ''))
     : [];
 
   if (tier <= 1) {
     for (const required of ['e2e-resilience-engineer', 'monkey-test-engineer', 'stress-soak-engineer']) {
       if (!agentLogFiles.includes(required)) {
-        errors.push(`Tier ${tier} change requires agent-log/${required}.md (high-risk change — E2E/monkey/stress testing mandatory)`);
+        errors.push(`Tier ${tier} change requires agent-log/${required}.yml (high-risk change — E2E/monkey/stress testing mandatory)`);
       }
     }
   }
   if (tier <= 3) {
     for (const required of ['contract-reviewer', 'qa-reviewer']) {
       if (!agentLogFiles.includes(required)) {
-        errors.push(`Tier ${tier} change requires agent-log/${required}.md`);
+        errors.push(`Tier ${tier} change requires agent-log/${required}.yml`);
       }
     }
   }
 
-  // Drift signal: if both sources present, warn when they disagree.
   if (resolution.source === 'tasks-frontmatter' && resolution.classificationPresent) {
     const text = readFileSync(join(changeDir, 'change-classification.md'), 'utf8');
     const structured = text.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
@@ -331,7 +350,7 @@ function enforceTierRequirements(
     const classifTier = structured ? parseInt(structured[1], 10) : (bold ? parseInt(bold[1], 10) : NaN);
     if (!Number.isNaN(classifTier) && classifTier !== tier) {
       warnings.push(
-        `tier mismatch: tasks.md frontmatter says ${tier}, change-classification.md says ${classifTier} (frontmatter wins; reconcile classification).`
+        `tier mismatch: tasks.yml frontmatter says ${tier}, change-classification.md says ${classifTier} (frontmatter wins; reconcile classification).`
       );
     }
   }
@@ -346,29 +365,26 @@ function isArchivedChange(cwd: string, changeId: string): boolean {
 }
 
 function detectDependencyCycle(cwd: string, startChangeId: string): string[] | null {
-  // DFS from the start change. Returns the cycle path if one exists,
-  // including startChangeId at both ends (e.g. ['A', 'B', 'A']).
   const visited = new Set<string>();
   const stack: string[] = [];
 
   function visit(id: string): string[] | null {
     if (stack.includes(id)) {
-      // Cycle: return the slice from first occurrence onwards + the closing node.
       return [...stack.slice(stack.indexOf(id)), id];
     }
     if (visited.has(id)) return null;
     visited.add(id);
     stack.push(id);
 
-    const tasksPath = join(cwd, 'specs', 'changes', id, 'tasks.md');
+    const tasksPath = join(cwd, 'specs', 'changes', id, 'tasks.yml');
     if (existsSync(tasksPath)) {
-      const deps = parseDependsOn(readFileSync(tasksPath, 'utf8'));
+      const { data } = loadYamlFile<TasksFile>(tasksPath);
+      const deps = data?.['depends-on'] ?? [];
       for (const dep of deps) {
         const found = visit(dep);
         if (found) return found;
       }
     }
-    // Archived/missing changes are leaves; gate already errors on missing.
 
     stack.pop();
     return null;
@@ -378,13 +394,13 @@ function detectDependencyCycle(cwd: string, startChangeId: string): string[] | n
 }
 
 function validateDependencies(cwd: string, changeId: string, changeDir: string): string[] {
-  const tasksPath = join(changeDir, 'tasks.md');
+  const tasksPath = join(changeDir, 'tasks.yml');
   if (!existsSync(tasksPath)) return [];
 
-  const dependencies = parseDependsOn(readFileSync(tasksPath, 'utf8'));
+  const { data } = loadYamlFile<TasksFile>(tasksPath);
+  const dependencies = data?.['depends-on'] ?? [];
   const errors: string[] = [];
 
-  // PR-3 #4: cycle detection across the full depends-on graph
   const cycle = detectDependencyCycle(cwd, changeId);
   if (cycle) {
     errors.push(`depends-on cycle detected: ${cycle.join(' → ')}`);
@@ -392,18 +408,19 @@ function validateDependencies(cwd: string, changeId: string, changeDir: string):
 
   for (const dep of dependencies) {
     if (dep === changeId) {
-      errors.push(`tasks.md: change cannot depend on itself (${dep})`);
+      errors.push(`tasks.yml: change cannot depend on itself (${dep})`);
       continue;
     }
 
     const upstreamDir = join(cwd, 'specs', 'changes', dep);
     if (existsSync(upstreamDir)) {
-      const upstreamTasks = join(upstreamDir, 'tasks.md');
+      const upstreamTasks = join(upstreamDir, 'tasks.yml');
       if (!existsSync(upstreamTasks)) {
-        errors.push(`dependency ${dep}: missing tasks.md`);
+        errors.push(`dependency ${dep}: missing tasks.yml`);
         continue;
       }
-      const status = parseTaskStatus(readFileSync(upstreamTasks, 'utf8'));
+      const { data: upstreamData } = loadYamlFile<TasksFile>(upstreamTasks);
+      const status = (upstreamData?.status ?? 'in-progress').toLowerCase();
       if (!['complete', 'completed', 'done'].includes(status)) {
         errors.push(`dependency ${dep}: upstream change is not completed (status: ${status})`);
       }
@@ -416,62 +433,6 @@ function validateDependencies(cwd: string, changeId: string, changeDir: string):
   }
 
   return errors;
-}
-
-interface FilesReadParseResult {
-  present: boolean;
-  files: string[];
-  errors: string[];
-}
-
-function parseFilesRead(content: string): FilesReadParseResult {
-  const clean = stripHtmlComments(content);
-  const allLines = clean.split(/\r?\n/);
-  const startIndex = allLines.findIndex(line => /^\s*-\s*files-read:\s*$/.test(line));
-  if (startIndex === -1) return { present: false, files: [], errors: [] };
-
-  const files: string[] = [];
-  const errors: string[] = [];
-  const lines: string[] = [];
-
-  for (let i = startIndex + 1; i < allLines.length; i++) {
-    const line = allLines[i];
-    if (/^-\s*[a-zA-Z][\w-]*:\s*/.test(line) || /^#/.test(line)) break;
-    lines.push(line);
-  }
-
-  for (const rawLine of lines) {
-    if (!rawLine.trim()) continue;
-
-    const itemMatch = rawLine.match(/^\s{2,}-\s+(.+?)\s*$/);
-    if (!itemMatch) {
-      errors.push(`invalid files-read entry format: ${rawLine.trim()}`);
-      continue;
-    }
-
-    const item = itemMatch[1].trim();
-    if (!item || item === '-' || item.toLowerCase() === 'none' || item.toLowerCase() === 'unknown') {
-      continue;
-    }
-
-    const normalized = item.replace(/\\/g, '/').replace(/^\.\//, '');
-    if (/^[a-zA-Z]:\//.test(normalized) || normalized.startsWith('/')) {
-      errors.push(`files-read path must be repo-relative: ${item}`);
-      continue;
-    }
-    if (normalized.split('/').includes('..')) {
-      errors.push(`files-read path must not contain "..": ${item}`);
-      continue;
-    }
-
-    files.push(normalized);
-  }
-
-  if (files.length === 0 && errors.length === 0) {
-    errors.push('files-read section must list repo-relative paths or omit the section for legacy changes');
-  }
-
-  return { present: true, files, errors };
 }
 
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
@@ -523,9 +484,10 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   }
 
   if (errors.length === 0) {
-    // Step 3: stub check (Fix 1d: per-artifact minimum char counts)
+    // Step 3: stub check (skip tasks.yml — its content is validated by schema)
     for (const f of REQUIRED_FILES) {
       if (f === 'context-manifest.md' && !hasManifest) continue;
+      if (f === 'tasks.yml') continue;
       const content = readFileSync(join(changeDir, f), 'utf8');
       const minChars = MIN_CHARS[f] ?? 100;
       if (meaningfulChars(content) < minChars) {
@@ -533,30 +495,29 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       }
     }
 
-    // Step 4: tier marker (B1: prefer tasks.md frontmatter, fall back to legacy classification text)
+    // Step 4: tier marker
     const classifPath = join(changeDir, 'change-classification.md');
     const tierResolution = resolveTier(changeDir);
     if (tierResolution.tier === null && existsSync(classifPath) && !tierResolution.classificationHasLooseMarker) {
-      errors.push('change-classification.md: missing tier/risk marker (set tier in tasks.md frontmatter, or include Tier 0-5 / low|medium|high|critical in change-classification.md)');
+      errors.push('change-classification.md: missing tier/risk marker (set tier in tasks.yml frontmatter, or include Tier 0-5 / low|medium|high|critical in change-classification.md)');
     }
   }
 
-  // Step 4b: tasks.md frontmatter lint (PR-3 #3) + pending check (Fix 1a + 1e + B2)
-  const tasksPath = join(changeDir, 'tasks.md');
+  // Step 4b: tasks.yml lint + pending check
+  const tasksPath = join(changeDir, 'tasks.yml');
+  let tasksData: TasksFile | null = null;
   if (existsSync(tasksPath)) {
-    const tasksContent = readFileSync(tasksPath, 'utf8');
-    lintFrontmatter(tasksContent, errors, warnings);
-    const archiveTaskIds = new Set(getArchiveTaskIds(tasksContent));
-    const pendingMatches = tasksContent.match(/^\s*-\s*\[ \]\s+([\d.]+)?[^\n]*/gm) || [];
-    const nonArchivePending = pendingMatches.filter(line => {
-      const idMatch = line.match(/\[ \]\s+([\d.]+)/);
-      const id = idMatch?.[1];
-      if (!id) return true;
-      return !archiveTaskIds.has(id);
-    }).length;
+    tasksData = lintTasksFile(tasksPath, errors, warnings);
+  }
+  if (tasksData) {
+    const archiveIds = new Set(getArchiveTaskIds(tasksData));
+    const nonArchivePending = (tasksData.tasks ?? [])
+      .filter(t => t.status === 'pending')
+      .filter(t => !archiveIds.has(t.id))
+      .length;
     if (nonArchivePending > 0) {
       if (strict) {
-        errors.push(`${nonArchivePending} task(s) still pending (use [-] for N/A items, [x] for done). Run gate without --strict during development.`);
+        errors.push(`${nonArchivePending} task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped). Run gate without --strict during development.`);
       } else {
         warnings.push(`${nonArchivePending} task(s) still pending (warning only in non-strict mode)`);
       }
@@ -566,12 +527,44 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   // Step 5: agent-log validation
   const agentLogDir = join(changeDir, 'agent-log');
   if (existsSync(agentLogDir)) {
-    const logFiles = readdirSync(agentLogDir).filter(f => f.endsWith('.md'));
+    const logFiles = readdirSync(agentLogDir).filter(f => f.endsWith('.yml'));
     for (const f of logFiles) {
-      const content = readFileSync(join(agentLogDir, f), 'utf8');
-      const filesRead = parseFilesRead(content);
+      const fullPath = join(agentLogDir, f);
+      const { data, parseError } = loadYamlFile<AgentLog>(fullPath);
+      if (parseError) {
+        errors.push(`agent-log/${f}: invalid YAML: ${parseError}`);
+        continue;
+      }
+      if (!data) {
+        errors.push(`agent-log/${f}: file is empty`);
+        continue;
+      }
 
-      if (!filesRead.present) {
+      const ok = validateAgentLog(data);
+      let statusReported = false;
+      if (!ok) {
+        for (const e of validateAgentLog.errors ?? []) {
+          if (
+            (e.keyword === 'required' && (e.params as { missingProperty: string }).missingProperty === 'status') ||
+            (e.instancePath === '/status' && e.keyword === 'enum')
+          ) {
+            if (!statusReported) {
+              errors.push(`agent-log/${f}: missing or invalid "status:" line (must be complete | needs-review | blocked)`);
+              statusReported = true;
+            }
+            continue;
+          }
+          errors.push(`agent-log/${f}: ${e.instancePath || '/'} ${e.message ?? 'invalid'}`);
+        }
+        if (statusReported) continue;
+      }
+
+      if (data['change-id'] && data['change-id'] !== changeId) {
+        errors.push(`agent-log/${f}: change-id mismatch (expected ${changeId}, got ${data['change-id']})`);
+      }
+
+      const filesRead = data['files-read'];
+      if (filesRead === undefined) {
         if (contextPolicy.audit.requireFilesRead) {
           const msg = `agent-log/${f}: missing "- files-read:" section`;
           if (isNewChange || strict || contextPolicy.audit.unknownFilesRead !== 'warn-for-legacy-fail-for-new') {
@@ -581,96 +574,78 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
           }
         }
       } else {
-        for (const parseError of filesRead.errors) {
-          errors.push(`agent-log/${f}: ${parseError}`);
-        }
-        for (const pathRead of filesRead.files) {
-          if (pathMatches(pathRead, contextPolicy.forbiddenPaths, changeId)) {
-            errors.push(`agent-log/${f}: read forbidden path -> ${pathRead}`);
+        const normalizedPaths: string[] = [];
+        for (const item of filesRead) {
+          if (typeof item !== 'string') {
+            errors.push(`agent-log/${f}: invalid files-read entry format: ${JSON.stringify(item)}`);
+            continue;
           }
-          if (
-            hasManifest &&
-            allowedPaths.length > 0 &&
-            !pathMatches(pathRead, allowedPaths) &&
-            !pathMatches(pathRead, approvedExpansions)
-          ) {
-            errors.push(`agent-log/${f}: read unauthorized path -> ${pathRead} (not in allowed paths or approved expansions)`);
+          const trimmed = item.trim();
+          if (!trimmed || trimmed.toLowerCase() === 'none' || trimmed.toLowerCase() === 'unknown') continue;
+          const normalized = trimmed.replace(/\\/g, '/').replace(/^\.\//, '');
+          if (/^[a-zA-Z]:\//.test(normalized) || normalized.startsWith('/')) {
+            errors.push(`agent-log/${f}: files-read path must be repo-relative: ${trimmed}`);
+            continue;
+          }
+          if (normalized.split('/').includes('..')) {
+            errors.push(`agent-log/${f}: files-read path must not contain "..": ${trimmed}`);
+            continue;
+          }
+          normalizedPaths.push(normalized);
+        }
+
+        for (const p of normalizedPaths) {
+          if (pathMatches(p, contextPolicy.forbiddenPaths, changeId)) {
+            errors.push(`agent-log/${f}: read forbidden path -> ${p}`);
+          }
+          if (hasManifest && allowedPaths.length > 0 && !pathMatches(p, allowedPaths) && !pathMatches(p, approvedExpansions)) {
+            errors.push(`agent-log/${f}: read unauthorized path -> ${p} (not in allowed paths or approved expansions)`);
           }
         }
 
-        // B3: reconcile self-reported files-read against runtime hook log.
-        // The hook (.cdd/runtime/<change-id>-files-read.jsonl) records actual
-        // tool reads. Any path in the runtime log that the agent did NOT
-        // declare is suspicious and reported as a warning (or strict error).
         const runtimeLog = join(cwd, '.cdd', 'runtime', `${changeId}-files-read.jsonl`);
         if (existsSync(runtimeLog)) {
-          const runtimePaths = readFileSync(runtimeLog, 'utf8')
-            .split('\n')
-            .filter(Boolean)
-            .map(line => {
-              try { return (JSON.parse(line) as { path?: string }).path; } catch { return undefined; }
-            })
+          const runtimePaths = readFileSync(runtimeLog, 'utf8').split('\n').filter(Boolean)
+            .map(line => { try { return (JSON.parse(line) as { path?: string }).path; } catch { return undefined; } })
             .filter((p): p is string => Boolean(p))
             .map(p => p.replace(/\\/g, '/').replace(/^\.\//, ''));
-
-          const declared = new Set(filesRead.files);
+          const declared = new Set(normalizedPaths);
           const undeclared = runtimePaths.filter(p => !declared.has(p));
           if (undeclared.length > 0) {
             const sample = undeclared.slice(0, 5).join(', ');
             const more = undeclared.length > 5 ? ` (+${undeclared.length - 5} more)` : '';
             const msg = `agent-log/${f}: runtime log shows ${undeclared.length} read(s) not declared in files-read: ${sample}${more}`;
-            if (strict) errors.push(msg);
-            else warnings.push(msg);
+            if (strict) errors.push(msg); else warnings.push(msg);
           }
         }
       }
 
-      // Extract status line
-      const statusMatch = content.match(/^\s*-\s*status:\s*(complete|needs-review|blocked)\s*$/m);
-      if (!statusMatch) {
-        errors.push(`agent-log/${f}: missing or invalid "status:" line (must be complete | needs-review | blocked)`);
-        continue;
-      }
-
-      const status = statusMatch[1];
-
-      // For blocked status, require next-action
-      if (status === 'blocked') {
-        const nextActionMatch = content.match(/^\s*-\s*next-action:\s*(.+)$/m);
-        if (!nextActionMatch || nextActionMatch[1].trim().toLowerCase() === 'none' || nextActionMatch[1].trim().length < 10) {
+      if (data.status === 'blocked') {
+        const next = (data['next-action'] ?? '').trim();
+        if (!next || next.toLowerCase() === 'none' || next.length < 10) {
           errors.push(`agent-log/${f}: status=blocked requires concrete "next-action:" line (>= 10 chars, not "none")`);
         }
       }
 
-      // PR-3 #6: artifact pointer validation now runs by default.
-      // --lax skips it for legacy repos still cleaning up old logs.
       if (!lax) {
-        const artifactsMatch = content.match(/- artifacts:([\s\S]*?)(?:\n- |\n#|$)/);
-        if (artifactsMatch) {
-          const artifactLines = artifactsMatch[1].split('\n').filter(l => l.trim().startsWith('-'));
-          for (const line of artifactLines) {
-            const pointer = line.replace(/^\s*-\s*[\w-]+:\s*/, '').trim();
-            const pathPart = pointer.split(':')[0];
-            if (pathPart.includes('/') && !pointer.startsWith('http')) {
-              const abs = join(cwd, pathPart);
-              if (!existsSync(abs)) {
-                errors.push(`agent-log/${f}: artifact pointer not found: ${pathPart}`);
-              }
+        for (const a of data.artifacts ?? []) {
+          const pointer = a.pointer ?? '';
+          const pathPart = pointer.split(':')[0];
+          if (pathPart.includes('/') && !pointer.startsWith('http')) {
+            const abs = join(cwd, pathPart);
+            if (!existsSync(abs)) {
+              errors.push(`agent-log/${f}: artifact pointer not found: ${pathPart}`);
             }
           }
         }
       }
     }
 
-    // Tier-based agent-log validation (Fix 1c + B1)
     enforceTierRequirements(changeDir, agentLogDir, errors, warnings);
-  }
-  // Also check tier even when agent-log dir doesn't exist yet
-  else {
+  } else {
     enforceTierRequirements(changeDir, null, errors, warnings);
   }
 
-  // Emit warnings
   for (const w of warnings) {
     log.warn(`  ${w}`);
   }
@@ -683,8 +658,6 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     process.exit(1);
   }
 
-  // Step 6: contract validators (B9: in-process call, no subprocess)
-  // Skip --spec (already covered by steps 2-4 above).
   log.info(`gate: running contract validators for ${changeId}…`);
   try {
     await validate({ contracts: true, env: true, ci: true, spec: false, versions: true });
@@ -693,7 +666,6 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     process.exit(1);
   }
 
-  // Emit task warnings after all blocking checks pass
   for (const w of warnings) {
     log.warn(`  ${w}`);
   }

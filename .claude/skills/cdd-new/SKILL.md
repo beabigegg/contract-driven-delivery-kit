@@ -89,12 +89,12 @@ inevitable re-classification when the agents discover the ambiguity.
 
 **This distinction is critical — follow it for every step:**
 
-| Agent type | Who writes artifact files | Who writes agent-log | Who ticks tasks.md |
-|------------|--------------------------|----------------------|--------------------|
+| Agent type | Who writes artifact files | Who writes agent-log | Who updates tasks.yml |
+|------------|--------------------------|----------------------|----------------------|
 | Read-only agents (no Edit tool): `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer` | YOU (main Claude) | YOU (main Claude) | YOU (main Claude) |
 | Write-capable agents (have Edit): `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself | YOU (main Claude) |
 
-**Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.md` checkbox(es) from `[ ]` to `[x]`.
+**Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.yml` task `status:` from `pending` to `done`.
 
 ---
 
@@ -106,7 +106,7 @@ Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` — it 
 
 If the classifier marks an artifact as `no` or leaves it blank, **do not create the file** — even if a review agent could contribute to it.
 
-The 5 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`.
+The 5 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`.
 
 ## Step 1: Generate change-id, scaffold, and scan context
 
@@ -146,7 +146,7 @@ the kit and is bundled into every install.
 | `change-classification.md` | `specs/templates/change-classification.md` | Replace blank template with classifier output (Step 2) |
 | `test-plan.md` | `specs/templates/test-plan.md` | `test-strategist` writes this directly |
 | `ci-gates.md` | `specs/templates/ci-gates.md` | `ci-cd-gatekeeper` writes this directly |
-| `tasks.md` | `specs/templates/tasks.md` | Tick checkboxes as agents complete; backfill `tier:` frontmatter from classifier (Step 2.4) |
+| `tasks.yml` | `specs/templates/tasks.yml` | Tick checkboxes as agents complete; backfill `tier:` frontmatter from classifier (Step 2.4) |
 | `context-manifest.md` | `specs/templates/context-manifest.md` | Replace from classifier `## Context Manifest Draft` (Step 2) |
 
 If `cdd-kit new` reports a missing template, run `cdd-kit upgrade --yes`.
@@ -207,14 +207,14 @@ If any of these are missing or still hold the literal placeholder text, STOP. Re
 ### When the classifier output passes lint
 
 1. **YOU write** `specs/changes/<change-id>/change-classification.md` — replace the blank template with the classifier's classification output.
-2. **YOU write** `specs/changes/<change-id>/agent-log/change-classifier.md` — copy the Agent Log block from the classifier's response.
+2. **YOU write** `specs/changes/<change-id>/agent-log/change-classifier.yml` — copy the Agent Log block from the classifier's response.
 3. **YOU update** `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft`.
-4. **YOU update** `tasks.md` frontmatter: set `tier: <N>` to the classifier's tier digit. This is now the authoritative source for `cdd-kit gate` tier-based agent enforcement (the classification.md `## Tier` section is fallback only).
-5. **YOU tick** `tasks.md` item `1.1`.
+4. **YOU update** `tasks.yml` frontmatter: set `tier: <N>` to the classifier's tier digit. This is now the authoritative source for `cdd-kit gate` tier-based agent enforcement (the classification.md `## Tier` section is fallback only).
+5. **YOU tick** `tasks.yml` item `1.1`.
 
 Wait until these five writes are done before continuing.
 
-**After writing change-classification.md**: read the classifier's `## Tasks Not Applicable` list. For each listed task ID (e.g., `2.2`, `4.2`), update `tasks.md` to change that item from `[ ]` to `[-]`. Do this before invoking any other agent.
+**After writing change-classification.md**: read the classifier's `## Tasks Not Applicable` list. For each listed task ID (e.g., `2.2`, `4.2`), update `tasks.yml` to change that item's `status:` from `pending` to `skipped`. Do this before invoking any other agent.
 
 ---
 
@@ -222,9 +222,9 @@ Wait until these five writes are done before continuing.
 
 Read `change-classification.md` to determine the tier. Then invoke agents **in the exact order below**.
 
-**For each read-only agent**: wait for its text response → YOU write its artifact file(s) → YOU write its agent-log → YOU tick relevant tasks.md item(s).
+**For each read-only agent**: wait for its text response → YOU write its artifact file(s) → YOU write its agent-log → YOU tick relevant tasks.yml item(s).
 
-**For each write-capable agent**: wait for it to confirm completion → YOU tick relevant tasks.md item(s).
+**For each write-capable agent**: wait for it to confirm completion → YOU tick relevant tasks.yml item(s).
 
 If any agent sets `status: blocked` in its log, halt immediately and report the agent's `next-action` to the user — do not proceed to subsequent agents.
 
@@ -292,11 +292,11 @@ prompt; the agent's behavior is defined by the agent prompt files in
 ### Tier 4–5 (low risk: docs, prompts, config-only, no behavior change)
 
 1. **`contract-reviewer`** (read-only) — confirm no contracts are touched or all touched ones are already updated.
-   - YOU write: `agent-log/contract-reviewer.md`
+   - YOU write: `agent-log/contract-reviewer.yml`
    - YOU tick: `1.2`, applicable items in section 2
 
 2. **`qa-reviewer`** (read-only) — confirm release readiness.
-   - YOU write: `agent-log/qa-reviewer.md`
+   - YOU write: `agent-log/qa-reviewer.yml`
    - YOU tick: `5.4`
 
 ---
@@ -304,7 +304,7 @@ prompt; the agent's behavior is defined by the agent prompt files in
 ### Tier 2–3 (normal: feature, enhancement, bug fix with behavior change)
 
 1. **`contract-reviewer`** (read-only) — update or create contracts in `contracts/` before any implementation starts.
-   - YOU write: `agent-log/contract-reviewer.md`
+   - YOU write: `agent-log/contract-reviewer.yml`
    - YOU tick: `1.2`, applicable items in section 2
 
 2. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
@@ -316,31 +316,31 @@ prompt; the agent's behavior is defined by the agent prompt files in
 
 4. **`backend-engineer`** (write-capable) — if the change touches server, API, data, or business logic. Writes implementation and its own agent-log.
    - YOU tick: `4.1` and/or `4.3` based on scope
-   - Note: `tasks.md` items 3.1–3.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion — failing tests first, implementation second. Items 3.3–3.5 are written by dedicated test engineers (Tier 0–1 only or when classifier explicitly requires them).
+   - Note: `tasks.yml` items 3.1–3.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion — failing tests first, implementation second. Items 3.3–3.5 are written by dedicated test engineers (Tier 0–1 only or when classifier explicitly requires them).
 
 5. **`frontend-engineer`** (write-capable) — if the change touches UI, components, or client-side behavior. Writes implementation and its own agent-log.
    - YOU tick: `4.2`
 
 6. **`dependency-security-reviewer`** (read-only) — if the change touches lockfiles, package manifests, or DB migrations.
    - **Only invoke if** `change-classification.md` lists lockfiles, package manifests, or DB migrations as affected.
-   - YOU write: `agent-log/dependency-security-reviewer.md`
+   - YOU write: `agent-log/dependency-security-reviewer.yml`
    - YOU tick: applicable security-related items
 
 7. **`ui-ux-reviewer`** (read-only) — if any UI change (run alongside or after frontend-engineer).
    - **Only invoke if** classifier marks UI/CSS as affected.
-   - YOU write: `agent-log/ui-ux-reviewer.md`
+   - YOU write: `agent-log/ui-ux-reviewer.yml`
    - YOU tick: `5.1`
 
 8. **`visual-reviewer`** (read-only) — if any UI change (run after ui-ux-reviewer).
    - **Only invoke if** classifier marks UI/CSS as affected.
-   - YOU write: `agent-log/visual-reviewer.md`
+   - YOU write: `agent-log/visual-reviewer.yml`
    - YOU tick: `5.2`
 
 9. **`ci-cd-gatekeeper`** (write-capable) — writes `specs/changes/<change-id>/ci-gates.md` directly.
    - YOU tick: `1.3`, `4.4`, applicable items in section 6
 
 10. **`qa-reviewer`** (read-only) — release readiness decision (always last).
-    - YOU write: `agent-log/qa-reviewer.md`
+    - YOU write: `agent-log/qa-reviewer.yml`
     - YOU tick: `5.4`
 
 ---
@@ -371,14 +371,14 @@ All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backe
 
 ## Step 4: Run the gate
 
-After all required agents have completed and all tasks.md items for their sections are ticked:
+After all required agents have completed and all tasks.yml items for their sections are ticked:
 
 ```
 cdd-kit gate <change-id>
 ```
 
 **If gate passes**:
-- YOU tick: `tasks.md` item `6.1`
+- YOU tick: `tasks.yml` item `6.1`
 - Proceed to Step 5.
 
 **If gate fails — structured fix-back routing**:
@@ -389,11 +389,11 @@ matches one of them.
 
 | Error pattern | Route to | Re-invocation prompt seed |
 |---|---|---|
-| `agent-log/<name>.md: …` | the named agent | "PREVIOUS GATE FAILURE FOR THIS AGENT: <full error line>. Fix only your `agent-log/<name>.md`. Re-output your Agent Log block." |
+| `agent-log/<name>.yml: …` | the named agent | "PREVIOUS GATE FAILURE FOR THIS AGENT: <full error line>. Fix only your `agent-log/<name>.yml`. Re-output your Agent Log block." |
 | `change-classification.md: …` | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit only the failing section." |
 | `context-manifest.md: …` | `change-classifier` | "PREVIOUS MANIFEST FAILED GATE: <error>. Re-emit `## Context Manifest Draft`." |
-| `tasks.md: …` (frontmatter / pending) | YOU (main Claude) — direct edit | n/a — fix `tasks.md` yourself. Don't re-invoke an agent for a file you own. |
-| `Tier <N> change requires agent-log/<X>.md` | invoke the missing agent `<X>` | "TIER <N> REQUIRES THIS LOG. Run your full work, not just the log." |
+| `tasks.yml: …` (frontmatter / pending) | YOU (main Claude) — direct edit | n/a — fix `tasks.yml` yourself. Don't re-invoke an agent for a file you own. |
+| `Tier <N> change requires agent-log/<X>.yml` | invoke the missing agent `<X>` | "TIER <N> REQUIRES THIS LOG. Run your full work, not just the log." |
 | `dependency <id>: upstream change is not completed` | n/a — STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
 | `validators returned non-zero` | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
 
@@ -422,7 +422,7 @@ iteration must be on a strictly smaller error set — if the same error returns
 twice, halt and surface to user (an agent stuck in a loop is more expensive
 than a human read).
 
-**Terminal state after 3 failures**: Update `tasks.md` frontmatter with
+**Terminal state after 3 failures**: Update `tasks.yml` frontmatter with
 `status: gate-blocked` and report all remaining errors to the user, grouped
 by responsible agent, so they know who to manually direct next.
 
@@ -441,7 +441,7 @@ Agents invoked: <list in order>
 Gate: PASSED
 
 Tasks completed:
-- [x] all applicable items checked in specs/changes/<change-id>/tasks.md
+- [x] all applicable items have status: done in specs/changes/<change-id>/tasks.yml
 
 All artifacts written to: specs/changes/<change-id>/
 
@@ -473,8 +473,8 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 - Never start implementation (backend/frontend-engineer) before `contract-reviewer` has completed for Tier 0–3 changes
 - Never skip `test-plan.md` for Tier 0–3 changes
 - Never skip `ci-gates.md` for any implementation change
-- Every agent must have its `agent-log/<name>.md` written — YOU write it for read-only agents after receiving their response; write-capable agents write their own
-- Tick the relevant `tasks.md` checkbox immediately after each agent completes — do not batch
+- Every agent must have its `agent-log/<name>.yml` written — YOU write it for read-only agents after receiving their response; write-capable agents write their own
+- Tick the relevant `tasks.yml` checkbox immediately after each agent completes — do not batch
 - `qa-reviewer` always runs last and makes the release-readiness decision
 
 ---

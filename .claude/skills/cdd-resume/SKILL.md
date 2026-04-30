@@ -1,6 +1,6 @@
 ---
 name: cdd-resume
-description: Resume an in-progress change across sessions. Reads tasks.md and agent-log/ to determine where to continue. Args: <change-id>
+description: Resume an in-progress change across sessions. Reads tasks.yml and agent-log/ to determine where to continue. Args: <change-id>
 ---
 
 # cdd-resume — Resume a Change
@@ -17,9 +17,9 @@ Provide the `change-id`. If unsure, run `cdd-kit list` to see active changes.
 
 ## Step 0: Detect format version
 
-Before reading state, check if `specs/changes/<change-id>/tasks.md` starts with `---` (YAML frontmatter).
+Before reading state, check if `specs/changes/<change-id>/tasks.yml` exists.
 
-If it does NOT start with `---`, this change was created with a pre-v1.11 version of cdd-kit. Run:
+If only `specs/changes/<change-id>/tasks.md` exists (no `tasks.yml`), this change was created with a pre-v2.0 version of cdd-kit. Run:
 
 ```
 cdd-kit migrate <change-id>
@@ -27,8 +27,8 @@ cdd-kit migrate <change-id>
 
 Then commit the migration:
 ```
-git add specs/changes/<change-id>/tasks.md specs/changes/<change-id>/change-classification.md
-git commit -m "chore: migrate <change-id> to v1.11 format"
+git add specs/changes/<change-id>/tasks.yml specs/changes/<change-id>/agent-log
+git commit -m "chore: migrate <change-id> to v2.0 YAML format"
 ```
 
 If there are many mid-flight changes, suggest `cdd-kit migrate --all` instead.
@@ -38,17 +38,17 @@ If there are many mid-flight changes, suggest `cdd-kit migrate --all` instead.
 ## Step 1: Read current state
 
 Read only these state files first:
-- `specs/changes/<change-id>/tasks.md`
+- `specs/changes/<change-id>/tasks.yml`
 - `specs/changes/<change-id>/context-manifest.md` if present
-- `specs/changes/<change-id>/agent-log/*.md`
+- `specs/changes/<change-id>/agent-log/*.yml`
 - `specs/changes/<change-id>/change-classification.md`
 
 Do not run broad repository search during resume. Do not read `src/`, `tests/`, or `contracts/` unless the current `context-manifest.md` authorizes that path or an approved expansion lists it.
 
-From `tasks.md`:
-- Identify all `[x]` (done) items
-- Identify all `[-]` (N/A) items  
-- Identify all `[ ]` (pending) items
+From `tasks.yml`:
+- Identify all `status: done` items
+- Identify all `status: skipped` (N/A) items
+- Identify all `status: pending` items
 
 Read `specs/changes/<change-id>/agent-log/` to list which agents have already run.
 
@@ -73,7 +73,7 @@ Tier: <tier>
 Status: <in-progress | gate-blocked>
 
 Completed agents: <list from agent-log/>
-Pending tasks: <list of [ ] items>
+Pending tasks: <list of status: pending items>
 Pending context expansions: <none | list request ids and paths>
 Allowed context: <short summary from context-manifest.md>
 
@@ -108,7 +108,7 @@ Continue until all required agents are done, then run `cdd-kit gate <change-id>`
 
 - Never re-run an agent that already has `status: complete` in its agent-log
 - Never start from Step 1 of `/cdd-new` — only resume from the next pending agent
-- Never use broad search to reconstruct state; resume from `tasks.md`, `context-manifest.md`, and `agent-log/`
+- Never use broad search to reconstruct state; resume from `tasks.yml`, `context-manifest.md`, and `agent-log/`
 - Never continue past pending Context Expansion Requests
-- If tasks.md has `status: abandoned`, report to user and stop
-- If tasks.md has `status: gate-blocked`, go directly to gate retry (max 3)
+- If tasks.yml has `status: abandoned`, report to user and stop
+- If tasks.yml has `status: gate-blocked`, go directly to gate retry (max 3)

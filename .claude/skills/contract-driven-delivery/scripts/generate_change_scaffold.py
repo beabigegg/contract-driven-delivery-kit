@@ -24,7 +24,7 @@ def main():
         'contracts.md':'contracts.md',
         'test-plan.md':'test-plan.md',
         'ci-gates.md':'ci-gates.md',
-        'tasks.md':'tasks.md',
+        'tasks.yml':'tasks.yml',
         'qa-report.md':'qa-report.md',
         'regression-report.md':'regression-report.md',
         'archive.md':'archive.md',

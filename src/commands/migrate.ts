@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
+import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
 
 interface MigrateOptions {
@@ -17,6 +18,10 @@ interface MigrateResult {
 interface PendingWrite {
   path: string;
   content: string;
+}
+
+interface PendingDelete {
+  path: string;
 }
 
 function backupChangeDir(cwd: string, changeId: string, sessionStamp: string): string {
@@ -58,21 +63,6 @@ function buildLegacyContextManifest(changeId: string): string {
     '-',
     '',
   ].join('\n');
-}
-
-function upsertFrontmatterField(content: string, field: string, value: string): string {
-  if (!content.startsWith('---\n')) return content;
-  const closing = content.indexOf('\n---', 4);
-  if (closing === -1) return content;
-
-  const frontmatter = content.slice(4, closing);
-  const body = content.slice(closing);
-  const fieldPattern = new RegExp(`^${field}:.*$`, 'm');
-  const nextFrontmatter = fieldPattern.test(frontmatter)
-    ? frontmatter.replace(fieldPattern, `${field}: ${value}`)
-    : `${frontmatter.trimEnd()}\n${field}: ${value}`;
-
-  return `---\n${nextFrontmatter}${body}`;
 }
 
 function buildContextGovernedManifest(changeId: string): string {
@@ -124,57 +114,209 @@ function buildContextGovernedManifest(changeId: string): string {
   ].join('\n');
 }
 
-function migrateOne(changeId: string, changeDir: string, enableContextGovernance: boolean): { result: MigrateResult; pending: PendingWrite[] } {
+function parseLegacyFrontmatter(content: string): Record<string, string> {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return {};
+  const out: Record<string, string> = {};
+  for (const line of m[1].split(/\r?\n/)) {
+    const colon = line.indexOf(':');
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim();
+    if (!key) continue;
+    out[key] = line.slice(colon + 1).trim();
+  }
+  return out;
+}
+
+function parseListField(raw: string | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '[]') return [];
+  const inner = trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
+  return inner
+    .split(',')
+    .map(item => item.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
+
+interface LegacyTaskRow {
+  id: string;
+  section?: string;
+  title: string;
+  status: 'pending' | 'done' | 'skipped';
+}
+
+function parseLegacyTaskList(body: string): LegacyTaskRow[] {
+  const lines = body.split(/\r?\n/);
+  const rows: LegacyTaskRow[] = [];
+  let currentSection: string | undefined;
+  for (const raw of lines) {
+    const headerMatch = raw.match(/^##\s+\d+\.\s+(.*)\s*$/);
+    if (headerMatch) {
+      currentSection = headerMatch[1].trim();
+      continue;
+    }
+    const itemMatch = raw.match(/^\s*-\s*\[([ xX\-])\]\s+(\d+(?:\.\d+)*)\s+(.*)\s*$/);
+    if (!itemMatch) continue;
+    const mark = itemMatch[1];
+    const id = itemMatch[2];
+    const title = itemMatch[3].trim();
+    let status: 'pending' | 'done' | 'skipped' = 'pending';
+    if (mark === 'x' || mark === 'X') status = 'done';
+    else if (mark === '-') status = 'skipped';
+    rows.push({ id, title, status, section: currentSection });
+  }
+  return rows;
+}
+
+function migrateTasksFile(
+  changeId: string,
+  changeDir: string,
+  enableContextGovernance: boolean,
+  detectedTier: string | null,
+  changed: string[],
+  warnings: string[],
+  pendingWrites: PendingWrite[],
+  pendingDeletes: PendingDelete[],
+): void {
+  const newPath = join(changeDir, 'tasks.yml');
+  const legacyPath = join(changeDir, 'tasks.md');
+
+  if (existsSync(newPath)) {
+    return;
+  }
+
+  if (!existsSync(legacyPath)) {
+    warnings.push('tasks.md not found and tasks.yml missing — skipping tasks migration');
+    return;
+  }
+
+  const raw = readFileSync(legacyPath, 'utf8');
+  const fm = parseLegacyFrontmatter(raw);
+  const bodyMatch = raw.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/);
+  const body = bodyMatch ? bodyMatch[1] : raw;
+
+  const tasksRows = parseLegacyTaskList(body);
+
+  const data: Record<string, unknown> = {};
+  data['change-id'] = fm['change-id'] || changeId;
+  data['status'] = fm['status'] || 'in-progress';
+
+  if (fm['tier'] && /^\d+$/.test(fm['tier'])) {
+    data['tier'] = parseInt(fm['tier'], 10);
+  } else if (detectedTier) {
+    data['tier'] = parseInt(detectedTier, 10);
+  } else {
+    data['tier'] = null;
+  }
+
+  if (enableContextGovernance || fm['context-governance'] === 'v1') {
+    data['context-governance'] = 'v1';
+  }
+
+  const archive = parseListField(fm['archive-tasks']);
+  data['archive-tasks'] = archive.length > 0 ? archive : ['7.1', '7.2'];
+
+  const deps = parseListField(fm['depends-on']);
+  data['depends-on'] = deps;
+
+  data['tasks'] = tasksRows.map(r => {
+    const out: Record<string, unknown> = { id: r.id, title: r.title, status: r.status };
+    if (r.section) out['section'] = r.section;
+    return out;
+  });
+
+  const yamlOut = yaml.dump(data, { lineWidth: -1, noRefs: true });
+  pendingWrites.push({ path: newPath, content: yamlOut });
+  pendingDeletes.push({ path: legacyPath });
+  changed.push(`tasks.md -> tasks.yml (${tasksRows.length} task(s) migrated)`);
+}
+
+function parseLegacyAgentLog(content: string): Record<string, unknown> {
+  const lines = content.split(/\r?\n/);
+  const data: Record<string, unknown> = {};
+  let i = 0;
+  // Top-level field pattern: optional 0-1 spaces, then "- key:"
+  const topFieldRe = /^[ ]{0,1}-\s*([\w-]+):\s*(.*)$/;
+  while (i < lines.length) {
+    const line = lines[i];
+    const fieldMatch = line.match(topFieldRe);
+    if (!fieldMatch) {
+      i++;
+      continue;
+    }
+    const key = fieldMatch[1];
+    const inline = fieldMatch[2].trim();
+
+    if (key === 'files-read' || key === 'artifacts') {
+      const items: string[] = [];
+      let j = i + 1;
+      while (j < lines.length) {
+        const sub = lines[j];
+        if (topFieldRe.test(sub)) break;
+        if (/^#/.test(sub)) break;
+        const itemMatch = sub.match(/^\s{2,}-\s+(.+?)\s*$/);
+        if (itemMatch) {
+          items.push(itemMatch[1].trim());
+        }
+        j++;
+      }
+      if (key === 'files-read') {
+        data['files-read'] = items;
+      } else {
+        data['artifacts'] = items.map(s => {
+          const idx = s.indexOf(':');
+          if (idx === -1) {
+            return { type: 'note', pointer: s };
+          }
+          const type = s.slice(0, idx).trim();
+          const pointer = s.slice(idx + 1).trim();
+          return { type, pointer };
+        });
+      }
+      i = j;
+      continue;
+    }
+
+    data[key] = inline;
+    i++;
+  }
+  return data;
+}
+
+function migrateAgentLogs(
+  changeDir: string,
+  changed: string[],
+  pendingWrites: PendingWrite[],
+  pendingDeletes: PendingDelete[],
+): void {
+  const agentLogDir = join(changeDir, 'agent-log');
+  if (!existsSync(agentLogDir)) return;
+
+  const mdLogs = readdirSync(agentLogDir).filter(f => f.endsWith('.md'));
+  for (const f of mdLogs) {
+    const fullPath = join(agentLogDir, f);
+    const yamlName = f.replace(/\.md$/, '.yml');
+    const yamlFull = join(agentLogDir, yamlName);
+    if (existsSync(yamlFull)) continue;
+
+    const raw = readFileSync(fullPath, 'utf8');
+    const parsed = parseLegacyAgentLog(raw);
+    const yamlOut = yaml.dump(parsed, { lineWidth: -1, noRefs: true });
+    pendingWrites.push({ path: yamlFull, content: yamlOut });
+    pendingDeletes.push({ path: fullPath });
+    changed.push(`agent-log/${f} -> agent-log/${yamlName}`);
+  }
+}
+
+function migrateOne(changeId: string, changeDir: string, enableContextGovernance: boolean): { result: MigrateResult; pending: PendingWrite[]; deletes: PendingDelete[] } {
   const changed: string[] = [];
   const warnings: string[] = [];
   const pending: PendingWrite[] = [];
+  const deletes: PendingDelete[] = [];
   let detectedTier: string | null = null;
 
-  // ── tasks.md: add YAML frontmatter + legend ──────────────────────────────
-  const tasksPath = join(changeDir, 'tasks.md');
-  if (existsSync(tasksPath)) {
-    let content = readFileSync(tasksPath, 'utf8');
-    const norm = content.replace(/\r\n/g, '\n');
-    let modified = false;
-    const taskChanges: string[] = [];
-
-    if (!norm.startsWith('---')) {
-      const bareStatusMatch = norm.match(/^status:\s*(\S+)/m);
-      const inferredStatus = bareStatusMatch ? bareStatusMatch[1] : 'in-progress';
-
-      if (bareStatusMatch) {
-        content = content.replace(/^status:\s*\S+[ \t]*\n?/m, '');
-      }
-
-      content = `---\nchange-id: ${changeId}\nstatus: ${inferredStatus}\n---\n\n` + content;
-      modified = true;
-      taskChanges.push('added YAML frontmatter');
-    }
-
-    if (!content.includes('[x]=done')) {
-      content = content.replace(
-        /^(---\n[\s\S]*?---\n)/,
-        `$1\n<!-- [x]=done [-]=N/A [ ]=pending -->\n`,
-      );
-      modified = true;
-      taskChanges.push('added [x]/[-]/[ ] legend comment');
-    }
-
-    if (enableContextGovernance && !/^context-governance:\s*v1\b/m.test(content)) {
-      content = upsertFrontmatterField(content, 'context-governance', 'v1');
-      modified = true;
-      taskChanges.push('enabled context-governance: v1');
-    }
-
-    if (modified) {
-      changed.push(`tasks.md: ${taskChanges.join('; ')}`);
-      pending.push({ path: tasksPath, content });
-    }
-  } else {
-    warnings.push('tasks.md not found — skipping frontmatter migration');
-  }
-
-  // ── change-classification.md: detect tier and append structured form if missing ──
+  // change-classification.md tier detection
   const classifPath = join(changeDir, 'change-classification.md');
   if (existsSync(classifPath)) {
     const content = readFileSync(classifPath, 'utf8');
@@ -195,7 +337,7 @@ function migrateOne(changeId: string, changeDir: string, enableContextGovernance
       } else {
         warnings.push(
           'change-classification.md: could not detect tier (no **Tier:** N or ## Tier N found). ' +
-          'Set `tier: <0-5>` in tasks.md frontmatter to enable tier-based gate checks.',
+          'Set `tier: <0-5>` in tasks.yml frontmatter to enable tier-based gate checks.',
         );
       }
     } else {
@@ -204,35 +346,13 @@ function migrateOne(changeId: string, changeDir: string, enableContextGovernance
     }
   }
 
-  // ── tasks.md frontmatter: backfill `tier:` and `archive-tasks:` (B1+B2) ──
-  if (existsSync(tasksPath)) {
-    const tasksWrite = pending.find(p => p.path === tasksPath);
-    let content = tasksWrite ? tasksWrite.content : readFileSync(tasksPath, 'utf8');
-    let modified = false;
-    const subChanges: string[] = [];
+  // tasks.md -> tasks.yml
+  migrateTasksFile(changeId, changeDir, enableContextGovernance, detectedTier, changed, warnings, pending, deletes);
 
-    if (detectedTier && !/^tier:\s*\d/m.test(content)) {
-      content = upsertFrontmatterField(content, 'tier', detectedTier);
-      modified = true;
-      subChanges.push(`backfilled tier: ${detectedTier}`);
-    }
+  // agent-log/*.md -> agent-log/*.yml
+  migrateAgentLogs(changeDir, changed, pending, deletes);
 
-    if (!/^archive-tasks:/m.test(content)) {
-      content = upsertFrontmatterField(content, 'archive-tasks', '["7.1", "7.2"]');
-      modified = true;
-      subChanges.push('added default archive-tasks list');
-    }
-
-    if (modified) {
-      if (tasksWrite) {
-        tasksWrite.content = content;
-      } else {
-        pending.push({ path: tasksPath, content });
-      }
-      changed.push(`tasks.md: ${subChanges.join('; ')}`);
-    }
-  }
-
+  // context-manifest.md
   const manifestPath = join(changeDir, 'context-manifest.md');
   if (!existsSync(manifestPath)) {
     changed.push(enableContextGovernance
@@ -246,12 +366,10 @@ function migrateOne(changeId: string, changeDir: string, enableContextGovernance
     warnings.push('context-manifest.md already exists — review allowed paths before relying on context-governance: v1');
   }
 
-  return { result: { changed, warnings }, pending };
+  return { result: { changed, warnings }, pending, deletes };
 }
 
-function commitWritesAtomically(pending: PendingWrite[]): void {
-  // Two-phase: write all to .tmp siblings first, then rename. If any tmp write
-  // fails, throw before any rename happens. Rename is atomic on POSIX.
+function commitWritesAtomically(pending: PendingWrite[], deletes: PendingDelete[]): void {
   const renames: Array<{ tmp: string; final: string }> = [];
   try {
     for (const write of pending) {
@@ -265,11 +383,11 @@ function commitWritesAtomically(pending: PendingWrite[]): void {
     }
     throw err;
   }
-  // Phase 2: rename. If any rename fails partway through we still leave the
-  // remaining tmp files for the operator to inspect, but the backup at
-  // .cdd/migrate-backup/<stamp>/ is the recovery source of truth.
   for (const r of renames) {
     renameSync(r.tmp, r.final);
+  }
+  for (const d of deletes) {
+    try { rmSync(d.path, { force: true }); } catch { /* ignore */ }
   }
 }
 
@@ -326,7 +444,7 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
       continue;
     }
 
-    const { result, pending } = migrateOne(id, changeDir, enableContextGovernance);
+    const { result, pending, deletes } = migrateOne(id, changeDir, enableContextGovernance);
     const { changed, warnings } = result;
 
     if (changed.length === 0) {
@@ -339,7 +457,7 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
     if (!dryRun) {
       try {
         if (!noBackup) backupChangeDir(cwd, id, sessionStamp);
-        commitWritesAtomically(pending);
+        commitWritesAtomically(pending, deletes);
       } catch (err) {
         log.error(`  ${id}: migration failed — ${(err as Error).message}`);
         if (!noBackup) {
@@ -362,7 +480,7 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
     log.ok(`Migration complete: ${migratedCount} updated, ${upToDateCount} already up to date.`);
     if (migratedCount > 0 && !noBackup) {
       log.info(`Backup: ${backupRoot}`);
-      log.info('Next: git add specs/changes/ && git commit -m "chore: migrate changes to current cdd-kit format"');
+      log.info('Next: git add specs/changes/ && git commit -m "chore: migrate changes to YAML format"');
       log.info('When stable, remove backup: rm -rf .cdd/migrate-backup/');
     }
   }

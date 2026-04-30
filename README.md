@@ -102,7 +102,7 @@ or
 **You stay in control by:**
 - Reviewing the `change-classification.md` before implementation starts
 - Checking the `test-plan.md` to confirm the right test families are planned
-- Reading the final `agent-log/qa-reviewer.md` for the release-readiness verdict
+- Reading the final `agent-log/qa-reviewer.yml` for the release-readiness verdict
 
 ---
 
@@ -142,12 +142,12 @@ What changes are currently in progress? (cdd-kit list)
 ```
 
 **What happens:**
-1. Claude reads `tasks.md` and `agent-log/` to determine what was completed
+1. Claude reads `tasks.yml` and `agent-log/` to determine what was completed
 2. Reports the current state (which agents ran, which tasks are pending)
 3. Asks if you want to continue from the next pending agent
 4. Resumes the full agent flow from where it stopped, with no duplication
 
-> If you're upgrading from an older version and your change was created before v1.11.0, Claude will automatically run `cdd-kit migrate <change-id>` to upgrade the format before resuming.
+> If you're upgrading from an older version and your change was created before v2.0.0, Claude will automatically run `cdd-kit migrate <change-id>` to upgrade the format before resuming.
 
 ---
 
@@ -285,18 +285,18 @@ cdd-kit gate add-jwt-auth --lax
 ```
 
 Checks:
-- All required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.md`; new context-governed changes also require `context-manifest.md`)
+- All required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content (not a stub): change-classification ≥ 200 chars, test-plan ≥ 200, ci-gates ≥ 150, others ≥ 100
 - `change-classification.md` contains a tier or risk marker
-- `agent-log/*.md` files all have `status: complete` (not blocked)
-- For context-governed changes, `agent-log/*.md` files include a structured `- files-read:` list and those repo-relative paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
+- `agent-log/*.yml` files all have `status: complete` (not blocked)
+- For context-governed changes, `agent-log/*.yml` files include a structured `files-read:` list and those repo-relative paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
 - Atomic `depends-on` upstream changes are completed or archived before dependent work gates
 - Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
 - Tier 0–3 changes have `contract-reviewer` and `qa-reviewer` logs
 - All contract validators pass
 
 `--strict` additionally:
-- Treats any pending `[ ]` tasks (except section 7 archive items) as errors
+- Treats any task with `status: pending` (except IDs listed in `archive-tasks`) as an error
 - Treats runtime-vs-declared `files-read` drift as errors
 - Treats legacy changes missing `context-manifest.md` or `files-read` audit data as errors
 
@@ -309,8 +309,8 @@ Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks
 
 ✗  gate failed for change: feat-001
 ✗    change-classification.md: appears to be a stub (< 200 meaningful chars)
-✗    Tier 1 change requires agent-log/e2e-resilience-engineer.md
-✗    1 task(s) still pending (use [-] for N/A items, [x] for done)
+✗    Tier 1 change requires agent-log/e2e-resilience-engineer.yml
+✗    1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
 ```
 
 ---
@@ -342,13 +342,13 @@ cdd-kit archive add-jwt-auth
 # ✓  Index updated: specs/archive/INDEX.md
 ```
 
-Warns (but does not block) if `tasks.md` has pending items or `status: gate-blocked`. Use after `/cdd-close` — the skill runs this automatically at the end.
+Warns (but does not block) if `tasks.yml` has pending items or `status: gate-blocked`. Use after `/cdd-close` — the skill runs this automatically at the end.
 
 ---
 
 ### `cdd-kit abandon <change-id>`
 
-Marks a change as abandoned. Updates `tasks.md` status to `abandoned`, records the reason in `specs/archive/INDEX.md`. The directory stays on disk for git history.
+Marks a change as abandoned. Updates `tasks.yml` status to `abandoned`, records the reason in `specs/archive/INDEX.md`. The directory stays on disk for git history.
 
 ```bash
 cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
@@ -359,7 +359,7 @@ cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
 
 ### `cdd-kit migrate <change-id> | --all`
 
-Upgrades pre-v1.11.0 change directories to the current format.
+Upgrades pre-v2.0.0 change directories to the current format.
 
 ```bash
 cdd-kit migrate add-jwt-auth        # migrate one change
@@ -369,15 +369,15 @@ cdd-kit migrate --all --enable-context-governance
 ```
 
 What it upgrades:
-- `tasks.md`: adds YAML frontmatter (`change-id`, `status: in-progress`) and `[x]/[-]/[ ]` legend if missing
+- `tasks.yml`: converts legacy `tasks.md` checklist/frontmatter into structured YAML task records
 - `change-classification.md`: detects old `**Tier:** Tier N` format and appends the new `## Tier\n- N` section so tier-based gate checks activate
 - `context-manifest.md`: adds a legacy manifest scaffold by default so old changes can continue with warning-only context audit behavior
 - `--enable-context-governance`: explicitly adds `context-governance: v1` and a context-governed manifest scaffold, making missing manifest or malformed `files-read` data hard gate failures
 
-`agent-log/*.md` must use this `files-read` format for context-governed changes:
+`agent-log/*.yml` must use this `files-read` format for context-governed changes:
 
-```md
-- files-read:
+```yaml
+files-read:
   - contracts/api/api-contract.md
   - src/server/routes/users.ts
 ```
@@ -415,7 +415,7 @@ cdd-kit context approve add-jwt-auth CER-001
 cdd-kit context approve add-jwt-auth --all-pending   # bulk approve every pending request
 ```
 
-This keeps expansion history explicit while avoiding manual manifest editing. Agents still have to report `files-read` in `agent-log/*.md`; `cdd-kit gate` audits those paths against the manifest.
+This keeps expansion history explicit while avoiding manual manifest editing. Agents still have to report `files-read` in `agent-log/*.yml`; `cdd-kit gate` audits those paths against the manifest.
 
 ---
 
@@ -470,7 +470,7 @@ cdd-kit new add-user-auth --skip-scan
 
 By default, `cdd-kit new` auto-runs `cdd-kit context-scan` when `specs/context/` indexes are missing or stale. Use `--skip-scan` only if you intentionally want a bare scaffold without refreshing classifier indexes first.
 
-For larger requests, split the work into atomic changes on the same feature branch and use `--depends-on` to record upstream order. `cdd-kit gate` blocks a dependent change until each upstream change is either archived or has `status: completed` in its `tasks.md` frontmatter.
+For larger requests, split the work into atomic changes on the same feature branch and use `--depends-on` to record upstream order. `cdd-kit gate` blocks a dependent change until each upstream change is either archived or has `status: completed` in its `tasks.yml`.
 
 ---
 
@@ -559,7 +559,7 @@ git add specs/changes/
 git commit -m "chore: migrate changes to current cdd-kit format"
 ```
 
-This gives those legacy specs the new `tasks.md` frontmatter, tier markers, and a warning-mode `context-manifest.md` without forcing strict context governance on closed work.
+This gives those legacy specs a new `tasks.yml`, tier markers, and a warning-mode `context-manifest.md` without forcing strict context governance on closed work.
 
 ### Old in-progress specs
 
@@ -606,7 +606,7 @@ your-repo/
 │   │       ├── change-classification.md (required)
 │   │       ├── test-plan.md         (required)
 │   │       ├── ci-gates.md          (required)
-│   │       ├── tasks.md             (required)
+│   │       ├── tasks.yml            (required)
 │   │       └── agent-log/           ← machine-verifiable evidence per agent
 │   ├── archive/                     ← completed and abandoned changes
 │   │   ├── INDEX.md
@@ -630,15 +630,22 @@ your-repo/
 
 ---
 
-## Task notation in `tasks.md`
+## Task notation in `tasks.yml`
 
-```markdown
-- [x] 1.1 Confirm classification       ← done
-- [-] 2.2 CSS/UI contract              ← N/A (not applicable to this change)
-- [ ] 4.1 Backend implementation       ← pending
+```yaml
+tasks:
+  - id: "1.1"
+    title: Confirm classification
+    status: done
+  - id: "2.2"
+    title: CSS/UI contract
+    status: skipped
+  - id: "4.1"
+    title: Backend implementation
+    status: pending
 ```
 
-`cdd-kit gate --strict` treats any `[ ]` (except section 7 archive tasks) as an error. Use `[-]` for items that are genuinely not applicable to a given change.
+`cdd-kit gate --strict` treats any task with `status: pending` (except IDs listed in `archive-tasks`, which default to `7.1` and `7.2`) as an error. Use `status: skipped` for tasks that are genuinely not applicable to a given change.
 
 ---
 

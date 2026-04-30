@@ -94,7 +94,7 @@ Target: `design.md` ≤ 150 lines.
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.md`. Required fields,
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
 field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 

@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
+import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
 
 export async function listChanges(): Promise<void> {
@@ -21,14 +22,16 @@ export async function listChanges(): Promise<void> {
   } else {
     log.info('Active changes:');
     for (const id of active) {
-      const tasksPath = join(changesDir, id, 'tasks.md');
+      const tasksPath = join(changesDir, id, 'tasks.yml');
       let status = 'in-progress';
       let pending = 0;
       if (existsSync(tasksPath)) {
-        const content = readFileSync(tasksPath, 'utf8');
-        if (content.includes('status: gate-blocked')) status = 'gate-blocked';
-        else if (content.includes('status: abandoned')) status = 'abandoned';
-        pending = (content.match(/^\s*-\s*\[ \]/gm) || []).length;
+        try {
+          const raw = readFileSync(tasksPath, 'utf8');
+          const data = yaml.load(raw) as { status?: string; tasks?: Array<{ status?: string }> } | null;
+          if (data?.status) status = data.status;
+          pending = (data?.tasks ?? []).filter(t => t.status === 'pending').length;
+        } catch { /* leave defaults */ }
       }
       const pendingStr = pending > 0 ? ` (${pending} pending)` : '';
       log.info(`  ${id}  [${status}]${pendingStr}`);

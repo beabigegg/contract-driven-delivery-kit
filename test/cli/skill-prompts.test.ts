@@ -34,7 +34,7 @@ describe('CDD skill prompt integration', () => {
     const resume = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-resume', 'SKILL.md'), 'utf8');
 
     expect(resume).toMatch(/context-manifest\.md/);
-    expect(resume).toMatch(/agent-log\/\*\.md/);
+    expect(resume).toMatch(/agent-log\/\*\.yml/);
     expect(resume).toMatch(/Do not run broad repository search during resume/);
     expect(resume).toMatch(/If any request has `status: pending`, stop before invoking agents/);
     expect(resume).toMatch(/Pending context expansions/);

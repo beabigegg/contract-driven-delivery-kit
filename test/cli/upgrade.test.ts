@@ -70,14 +70,15 @@ describe('cdd-kit upgrade', () => {
 
   it('can migrate existing change directories as part of upgrade', () => {
     mkdirSync(join(tmpRepo, 'specs', 'changes', 'legacy-001'), { recursive: true });
-    writeFileSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.md'), '# Tasks: legacy-001\n', 'utf8');
+    writeFileSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.md'), '# Tasks: legacy-001\n- [ ] 1.1 Pending\n', 'utf8');
     writeFileSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'change-classification.md'), '**Tier:** Tier 2\n', 'utf8');
 
     const r = runCli(['upgrade', '--yes', '--migrate-changes'], { cwd: tmpRepo, home: tmpHome });
 
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/Running change migration flow/i);
-    expect(readFileSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.md'), 'utf8')).toMatch(/^---/);
+    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.yml'))).toBe(true);
+    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.md'))).toBe(false);
     expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'context-manifest.md'))).toBe(true);
   });
 });

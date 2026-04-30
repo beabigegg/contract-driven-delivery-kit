@@ -2,6 +2,7 @@ import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -10,8 +11,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 function scaffoldChange(repo: string, changeId: string, opts: { gateBlocked?: boolean } = {}): void {
   const changeDir = join(repo, 'specs', 'changes', changeId);
   mkdirSync(changeDir, { recursive: true });
-  const statusLine = opts.gateBlocked ? '\nstatus: gate-blocked\n' : '';
-  writeFileSync(join(changeDir, 'tasks.md'), `# Tasks: ${changeId}\n${statusLine}\n- [x] 1.1 Done task\n`, 'utf8');
+  writeFileSync(join(changeDir, 'tasks.yml'), yaml.dump({
+    'change-id': changeId,
+    status: opts.gateBlocked ? 'gate-blocked' : 'in-progress',
+    tasks: [{ id: '1.1', title: 'Done task', status: 'done' }],
+  }, { lineWidth: -1 }), 'utf8');
   writeFileSync(join(changeDir, 'change-request.md'), '# Change Request\n\nSome request.\n', 'utf8');
 }
 

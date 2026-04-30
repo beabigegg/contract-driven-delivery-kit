@@ -17,7 +17,7 @@ Before editing production code, read the change artifacts, API/env/data/business
 - Validate input at the boundary.
 - Return standardized errors, not raw exceptions.
 - Preserve backward compatibility unless the spec explicitly marks a breaking change.
-- **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.md` items 3.1–3.2 are your responsibility.
+- **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.yml` items 3.1–3.2 are your responsibility.
 - Update CI/CD workflows when required by `ci-gates.md`.
 
 ## Common pitfalls
@@ -48,7 +48,7 @@ In your agent log, reference file paths and function names — do not paste code
 ## Machine-Verifiable Evidence
 
 After completing your task, write or append to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.md`. Required fields,
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
 field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 

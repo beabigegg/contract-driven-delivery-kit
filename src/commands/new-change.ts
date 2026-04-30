@@ -1,6 +1,7 @@
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import yaml from 'js-yaml';
 import { ASSET } from '../utils/paths.js';
 import { copyFile, ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
@@ -78,13 +79,13 @@ const REQUIRED_TEMPLATES = [
   'change-classification.md',
   'test-plan.md',
   'ci-gates.md',
-  'tasks.md',
+  'tasks.yml',
   'context-manifest.md',
 ];
 
 function listOptional(): string[] {
   try {
-    const all = readdirSync(ASSET.specsTemplates).filter((f) => f.endsWith('.md'));
+    const all = readdirSync(ASSET.specsTemplates).filter((f) => f.endsWith('.md') || f.endsWith('.yml'));
     return all.filter((f) => !REQUIRED_TEMPLATES.includes(f));
   } catch {
     return [];
@@ -99,11 +100,6 @@ function parseDependsOn(raw?: string): string[] {
     .split(',')
     .map(item => item.trim())
     .filter(Boolean);
-}
-
-function formatDependsOn(ids: string[]): string {
-  if (ids.length === 0) return 'depends-on: []';
-  return `depends-on: [${ids.join(', ')}]`;
 }
 
 export async function newChange(name: string, opts: NewChangeOptions): Promise<void> {
@@ -163,11 +159,12 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
   }
 
   if (dependencies.length > 0) {
-    const tasksPath = join(changeDir, 'tasks.md');
+    const tasksPath = join(changeDir, 'tasks.yml');
     if (existsSync(tasksPath)) {
-      const tasks = readFileSync(tasksPath, 'utf8');
-      const nextTasks = tasks.replace(/^depends-on:\s*.*$/m, formatDependsOn(dependencies));
-      writeFileSync(tasksPath, nextTasks, 'utf8');
+      const raw = readFileSync(tasksPath, 'utf8');
+      const data = (yaml.load(raw) ?? {}) as Record<string, unknown>;
+      data['depends-on'] = dependencies;
+      writeFileSync(tasksPath, yaml.dump(data, { lineWidth: -1, noRefs: true }), 'utf8');
       log.dim(`depends-on: ${dependencies.join(', ')}`);
     }
   }

@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { existsSync, mkdirSync, renameSync, readFileSync, writeFileSync, appendFileSync, cpSync, rmSync } from 'fs';
+import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
 
 export async function archive(changeId: string): Promise<void> {
@@ -22,16 +23,21 @@ export async function archive(changeId: string): Promise<void> {
     process.exit(1);
   }
 
-  // Check tasks.md for gate-blocked status (warn but don't block)
-  const tasksPath = join(changeDir, 'tasks.md');
+  // Check tasks.yml for gate-blocked status (warn but don't block)
+  const tasksPath = join(changeDir, 'tasks.yml');
   if (existsSync(tasksPath)) {
-    const content = readFileSync(tasksPath, 'utf8');
-    if (content.includes('status: gate-blocked')) {
-      log.warn('tasks.md has status: gate-blocked — archiving anyway (change was paused).');
-    }
-    const pending = (content.match(/^\s*-\s*\[ \]/gm) || []).length;
-    if (pending > 0) {
-      log.warn(`${pending} task(s) still pending ([ ]). Archive anyway.`);
+    try {
+      const raw = readFileSync(tasksPath, 'utf8');
+      const data = yaml.load(raw) as { status?: string; tasks?: Array<{ status?: string }> } | null;
+      if (data?.status === 'gate-blocked') {
+        log.warn('tasks.yml has status: gate-blocked — archiving anyway (change was paused).');
+      }
+      const pending = (data?.tasks ?? []).filter(t => t.status === 'pending').length;
+      if (pending > 0) {
+        log.warn(`${pending} task(s) still pending. Archive anyway.`);
+      }
+    } catch {
+      log.warn('tasks.yml could not be parsed — archiving anyway.');
     }
   }
 
