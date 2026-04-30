@@ -53,3 +53,25 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 ## Required Agents
 
 ## Assumptions / Clarifications
+
+## Context Manifest Draft
+<!-- Classifier fills this section. In /cdd-new Step 2.3, Claude copies it verbatim into
+     specs/changes/<change-id>/context-manifest.md, replacing the scaffold.
+     All paths must be repo-relative. Gate enforces Allowed Paths against agent files-read logs. -->
+
+### Affected Surfaces
+-
+
+### Allowed Paths
+<!-- Union of ALL paths any agent will read. Add change-specific paths below the defaults. -->
+- specs/changes/<change-id>/
+- specs/context/project-map.md
+- specs/context/contracts-index.md
+
+### Agent Work Packets
+<!-- One sub-section per required agent (paths must be a subset of Allowed Paths above). -->
+
+#### change-classifier
+- specs/changes/<change-id>/
+- specs/context/project-map.md
+- specs/context/contracts-index.md
