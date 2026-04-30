@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.2] - 2026-04-30
+
+### Added
+
+- `npm postinstall` hook: after `npm install -g` or `npm update -g`, skills and
+  agents in `~/.claude/` are automatically synced to the newly installed version.
+  The sync is a no-op when `cdd-kit init` has never been run (safe for CI and
+  local dev installs of the package itself). A backup of any locally modified
+  files is created in `~/.claude/.cdd-kit-backup/<timestamp>/` before overwriting,
+  matching the existing `cdd-kit update --yes` behaviour.
+- `cdd-kit update --postinstall` flag (internal): quiet mode that implies
+  `--yes`, locks provider to `claude`, and silently exits when the skill
+  directory is absent. Not intended for direct user invocation.
+
+### Migration note
+
+The first `npm update -g contract-driven-delivery` that brings in this version
+will **not** auto-sync (the postinstall hook did not exist in the previously
+installed version). Run `cdd-kit update --yes` once after this upgrade; all
+subsequent upgrades will auto-sync.
+
 ## [2.0.1] - 2026-04-30
 
 ### Fixed

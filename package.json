@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Contract-driven delivery kit for AI coding agents with deterministic context indexes, manifest-backed read-scope governance, and orchestrated contracts-first delivery.",
   "keywords": [
     "contract-driven",
@@ -40,7 +40,8 @@
     "build": "node build.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "node build.js && vitest run"
+    "prepublishOnly": "node build.js && vitest run",
+    "postinstall": "node bin/postinstall.js"
   },
   "engines": {
     "node": ">=18.0.0"

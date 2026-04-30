@@ -46,7 +46,8 @@ program
   .description('Update provider assets for the current project (does not overwrite project guidance files)')
   .option('--yes', 'Apply changes (default is dry-run)', false)
   .option('--provider <provider>', 'Provider adapter to update: auto, claude, codex, or both', 'auto')
-  .action((opts) => update({ yes: opts.yes, provider: opts.provider }));
+  .option('--postinstall', 'Internal: invoked by npm postinstall; no-op if cdd has not been init-ed', false)
+  .action((opts) => update({ yes: opts.yes, provider: opts.provider, postinstall: opts.postinstall }));
 
 program
   .command('doctor')

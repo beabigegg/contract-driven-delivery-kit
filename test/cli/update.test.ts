@@ -2,6 +2,7 @@ import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
+import { tmpdir } from 'os';
 
 describe('cdd-kit update', () => {
   let tmpRepo: string;
@@ -120,5 +121,57 @@ describe('cdd-kit update', () => {
     const r = runCli(['update', '--provider', 'bad-provider'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/Invalid provider: bad-provider/i);
+  });
+
+  it('update --postinstall is a no-op when cdd has not been init-ed in this home', () => {
+    const freshHome = makeTempDir('cdd-update-fresh-home-');
+    try {
+      const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: freshHome });
+      expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+      expect((r.stdout + r.stderr).trim()).toBe('');
+      expect(existsSync(join(freshHome, '.claude', 'skills', 'contract-driven-delivery'))).toBe(false);
+    } finally {
+      cleanupDir(freshHome);
+    }
+  });
+
+  it('update --postinstall exits cleanly with no output when already up to date', () => {
+    const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect((r.stdout + r.stderr).trim()).toBe('');
+  });
+
+  it('update --postinstall auto-applies changes without explicit --yes', () => {
+    const agentsDir = join(tmpHome, '.claude', 'agents');
+    const agentFiles = readdirSync(agentsDir).filter((f) => f.endsWith('.md'));
+    expect(agentFiles.length).toBeGreaterThan(0);
+    const targetFile = join(agentsDir, agentFiles[0]);
+    const originalContent = readFileSync(targetFile, 'utf8');
+    writeFileSync(targetFile, 'MODIFIED');
+
+    const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const restoredContent = readFileSync(targetFile, 'utf8');
+    expect(restoredContent).toBe(originalContent);
+    expect(restoredContent).not.toBe('MODIFIED');
+  });
+
+  it('update --postinstall syncs correctly even from a non-project cwd', () => {
+    const nonProjectDir = makeTempDir('cdd-update-noncwd-');
+    try {
+      const agentsDir = join(tmpHome, '.claude', 'agents');
+      const agentFiles = readdirSync(agentsDir).filter((f) => f.endsWith('.md'));
+      const targetFile = join(agentsDir, agentFiles[0]);
+      writeFileSync(targetFile, 'MODIFIED');
+
+      const r = runCli(['update', '--postinstall'], { cwd: nonProjectDir, home: tmpHome });
+      expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+      const restoredContent = readFileSync(targetFile, 'utf8');
+      expect(restoredContent).not.toBe('MODIFIED');
+    } finally {
+      cleanupDir(nonProjectDir);
+    }
   });
 });

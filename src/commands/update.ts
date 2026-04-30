@@ -9,6 +9,7 @@ import { inferProvider, validateProviderOption, type Provider, type ProviderOpti
 export interface UpdateOptions {
   yes: boolean;
   provider?: ProviderOption;
+  postinstall?: boolean;
 }
 
 function fileHash(filePath: string): string {
@@ -76,7 +77,17 @@ function backupDir(dir: string, backupDest: string): void {
 }
 
 export async function update(opts: UpdateOptions): Promise<void> {
-  log.blank();
+  if (opts.postinstall) {
+    if (!existsSync(join(SKILLS_HOME, 'contract-driven-delivery'))) {
+      return;
+    }
+    opts.yes = true;
+    opts.provider = 'claude';
+  }
+
+  const quiet = !!opts.postinstall;
+
+  if (!quiet) log.blank();
 
   const cwd = process.cwd();
   const requestedProvider = opts.provider ?? 'auto';
@@ -97,27 +108,31 @@ export async function update(opts: UpdateOptions): Promise<void> {
   const toOver  = toWrite.filter((e) => e.action === 'overwrite');
   const toSkip  = [...agentDiff, ...skillDiff].filter((e) => e.action === 'skip');
 
-  log.info(`Provider: ${provider}`);
-  if (updateClaudeAssets) {
-    log.info(`Dry-run diff — agents: ${AGENTS_HOME}`);
-    log.info(`Dry-run diff — skill:  ${skillDest}`);
-  } else {
-    log.info('Codex provider has no global cdd-kit assets to update.');
-    log.info('Project files are preserved; run cdd-kit init --local-only --provider codex to add missing local guidance.');
+  if (!quiet) {
+    log.info(`Provider: ${provider}`);
+    if (updateClaudeAssets) {
+      log.info(`Dry-run diff — agents: ${AGENTS_HOME}`);
+      log.info(`Dry-run diff — skill:  ${skillDest}`);
+    } else {
+      log.info('Codex provider has no global cdd-kit assets to update.');
+      log.info('Project files are preserved; run cdd-kit init --local-only --provider codex to add missing local guidance.');
+    }
+    log.blank();
+    if (toAdd.length)  log.info(`  + ${toAdd.length} file(s) would be added`);
+    if (toOver.length) log.warn(`  ~ ${toOver.length} file(s) would be overwritten (user edits lost without backup)`);
+    if (toSkip.length) log.dim(`    ${toSkip.length} file(s) unchanged (skipped)`);
   }
-  log.blank();
-  if (toAdd.length)  log.info(`  + ${toAdd.length} file(s) would be added`);
-  if (toOver.length) log.warn(`  ~ ${toOver.length} file(s) would be overwritten (user edits lost without backup)`);
-  if (toSkip.length) log.dim(`    ${toSkip.length} file(s) unchanged (skipped)`);
 
   if (toWrite.length === 0) {
-    log.blank();
-    log.ok('Already up to date — nothing to write.');
-    log.blank();
+    if (!quiet) {
+      log.blank();
+      log.ok('Already up to date — nothing to write.');
+      log.blank();
+    }
     return;
   }
 
-  if (!opts.yes) {
+  if (!quiet && !opts.yes) {
     log.blank();
     log.info('Run with --yes to apply changes. Example:');
     log.dim('  cdd-kit update --yes');
@@ -129,26 +144,35 @@ export async function update(opts: UpdateOptions): Promise<void> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupRoot = join(homedir(), '.claude', '.cdd-kit-backup', timestamp);
 
-  log.blank();
-  log.info(`Backing up to ${backupRoot} …`);
+  if (!quiet) {
+    log.blank();
+    log.info(`Backing up to ${backupRoot} …`);
+  }
   backupDir(AGENTS_HOME, join(backupRoot, 'agents'));
   backupDir(skillDest,   join(backupRoot, 'skill'));
-  log.ok(`Backup complete: ${backupRoot}`);
+  if (!quiet) log.ok(`Backup complete: ${backupRoot}`);
 
-  log.blank();
+  if (!quiet) log.blank();
+  let totalSynced = 0;
   if (updateClaudeAssets) {
-    log.info(`Updating agents → ${AGENTS_HOME}`);
+    if (!quiet) log.info(`Updating agents → ${AGENTS_HOME}`);
     const agentCount = applyDir(agentDiff);
-    log.ok(`${agentCount} agent file(s) updated.`);
+    if (!quiet) log.ok(`${agentCount} agent file(s) updated.`);
+    totalSynced += agentCount;
 
-    log.info(`Updating skill  → ${skillDest}`);
+    if (!quiet) log.info(`Updating skill  → ${skillDest}`);
     const skillCount = applyDir(skillDiff);
-    log.ok(`${skillCount} skill file(s) updated.`);
+    if (!quiet) log.ok(`${skillCount} skill file(s) updated.`);
+    totalSynced += skillCount;
   }
 
-  log.blank();
-  log.info('Project files (contracts/, specs/, tests/, ci/) were not changed.');
-  log.ok('Update complete.');
-  log.info(`Backup saved to: ${backupRoot}`);
-  log.blank();
+  if (quiet) {
+    if (totalSynced > 0) log.ok(`cdd-kit: synced ${totalSynced} file(s) to ~/.claude/`);
+  } else {
+    log.blank();
+    log.info('Project files (contracts/, specs/, tests/, ci/) were not changed.');
+    log.ok('Update complete.');
+    log.info(`Backup saved to: ${backupRoot}`);
+    log.blank();
+  }
 }
