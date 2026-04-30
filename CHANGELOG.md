@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.3] - 2026-04-30
+
+### Fixed
+
+- `cdd-kit update` now syncs all installed skills (`cdd-new`, `cdd-close`,
+  `cdd-resume`, `cdd-init`, `contract-driven-delivery`) instead of only
+  `contract-driven-delivery`. Previously the four standalone skills were silently
+  left stale after an npm upgrade.
+- Backup path corrected from `.cdd-kit-backup/<ts>/skill/` to `.../skills/`
+  to cover all skill directories.
+
 ## [2.0.2] - 2026-04-30
 
 ### Added
