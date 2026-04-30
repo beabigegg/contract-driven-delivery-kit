@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Contract-driven delivery kit for AI coding agents with deterministic context indexes, manifest-backed read-scope governance, and orchestrated contracts-first delivery.",
   "keywords": [
     "contract-driven",

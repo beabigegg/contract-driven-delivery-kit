@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.1] - 2026-04-30
+
+### Fixed
+
+- Clarified the agent ownership model in the public docs so read-only reviewers
+  and write-capable implementation agents have explicit, non-conflicting file
+  ownership rules.
+- Aligned bundled prompts so read-only agents emit an `Agent Log` YAML block
+  for main Claude to persist, while write-capable agents continue writing their
+  own artifacts and `agent-log/*.yml` files.
+- Synchronized package version metadata for the post-`2.0.0` publish path.
+
 ## [2.0.0] - 2026-04-30
 
 ### BREAKING: structured YAML for tasks and agent-log
