@@ -15,10 +15,10 @@
     "monkey-test-engineer": "claude-sonnet-4-6",
     "stress-soak-engineer": "claude-sonnet-4-6",
     "ui-ux-reviewer": "claude-sonnet-4-6",
-    "visual-reviewer": "claude-sonnet-4-6",
+    "visual-reviewer": "claude-haiku-4-5-20251001",
     "dependency-security-reviewer": "claude-sonnet-4-6",
-    "spec-drift-auditor": "claude-sonnet-4-6",
-    "repo-context-scanner": "claude-haiku-4-5"
+    "spec-drift-auditor": "claude-opus-4-7",
+    "repo-context-scanner": "claude-haiku-4-5-20251001"
   },
   "_notes": "Roles map agent name -> model ID. Override per-project as needed. cdd-kit doctor warns when an installed agent's frontmatter `model:` does not match this policy."
 }

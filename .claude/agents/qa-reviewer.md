@@ -17,7 +17,7 @@ Do not approve based on claims. Approve based on commands, artifacts, screenshot
 - visual evidence provided for UI changes
 - stress/soak evidence provided when required
 - known risks and residual gaps documented
-- agent log discipline: if `files-read` includes any source file (`.py`, `.js`, `.vue`) without listing `.cdd/code-map.yml` first, flag as a process violation (the agent skipped the size-oracle step).
+- agent log discipline: if `files-read` includes any source file with one of the extensions covered by `references/code-map-protocol.md` (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`) without listing `.cdd/code-map.yml` first, flag as a process violation (the agent skipped the size-oracle step).
 
 ## Failure routing
 
@@ -75,7 +75,7 @@ Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it l
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
 
-Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`.
+Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`, `.claude/worktrees/`.
 
 ## Machine-Verifiable Evidence
 

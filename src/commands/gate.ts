@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
+import { homedir } from 'os';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
+import picomatch from 'picomatch';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { agentLogSchema } from '../schemas/agent-log.schema.js';
@@ -94,29 +96,45 @@ function stripHtmlComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '');
 }
 
+/**
+ * Match a repo-relative path against an array of patterns.
+ *
+ * Each pattern may be:
+ *   - A literal directory or file path (matched as exact OR prefix `<pattern>/`)
+ *   - A glob with `*`, `**`, `?`, `[...]`, `{a,b}` (picomatch grammar)
+ *   - The special `specs/changes/*` pattern which, when `currentChangeId` is
+ *     provided, matches OTHER change directories but excludes the current one
+ *     (used for forbidden-path matching)
+ *
+ * Trailing `/` is normalised away. Backslashes are converted to forward slashes.
+ */
 function pathMatches(relPath: string, patterns: string[], currentChangeId?: string): boolean {
   const normalized = relPath.replace(/\\/g, '/').replace(/^\.\//, '');
 
   return patterns.some(rawPattern => {
-    const pattern = rawPattern.replace(/\\/g, '/').replace(/^\.\//, '');
+    const pattern = rawPattern.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+    if (!pattern) return false;
 
+    // Special-case the "other changes" pattern: match any specs/changes/* except current
     if (pattern === 'specs/changes/*' && currentChangeId) {
       const current = `specs/changes/${currentChangeId}`;
       if (normalized === current || normalized.startsWith(`${current}/`)) return false;
       return normalized.startsWith('specs/changes/');
     }
 
-    if (pattern.endsWith('/**')) {
-      const base = pattern.slice(0, -3);
-      return normalized === base || normalized.startsWith(`${base}/`);
+    // Glob pattern — delegate to picomatch (covers **, *, ?, [...], {a,b})
+    if (/[*?[{]/.test(pattern)) {
+      // basename: false so `**` matches across multiple segments
+      if (picomatch.isMatch(normalized, pattern, { dot: true, nocase: false })) return true;
+      // Treat `dir/**` as also matching `dir` itself (common manifest expectation)
+      if (pattern.endsWith('/**')) {
+        const base = pattern.slice(0, -3);
+        if (normalized === base) return true;
+      }
+      return false;
     }
 
-    if (pattern.endsWith('/*')) {
-      const base = pattern.slice(0, -2);
-      if (!normalized.startsWith(`${base}/`)) return false;
-      return !normalized.slice(base.length + 1).includes('/');
-    }
-
+    // Literal path: exact OR prefix-with-slash
     return normalized === pattern || normalized.startsWith(`${pattern}/`);
   });
 }
@@ -132,18 +150,92 @@ function parseListSection(content: string, heading: string): string[] {
     .filter(item => item && item !== '-' && item.toLowerCase() !== 'none');
 }
 
+/**
+ * Count pending Context Expansion Requests in the manifest.
+ *
+ * The canonical writer (`cdd-kit context request`, src/commands/context.ts)
+ * emits each request as a multi-line block:
+ *
+ *   - request-id: CER-001
+ *     requested_paths:
+ *       - some/path
+ *     reason: ...
+ *     status: pending
+ *
+ * `status:` is on its OWN indented line, NOT prefixed by `-`. The previous
+ * implementation required a leading `-` and missed every real-world request.
+ * We mirror context.ts:48-86 — split the section into per-request blocks and
+ * inspect each block's status field independently.
+ */
+function countPendingExpansions(sectionBody: string): number {
+  if (!sectionBody.trim()) return 0;
+  let count = 0;
+  // Same block-split heuristic as context.ts:53
+  const blocks = sectionBody.split(/(?=^\s*-\s*request-id:\s*)/m);
+  for (const block of blocks) {
+    if (!/^\s*-\s*request-id:\s*\S/m.test(block)) continue;
+    const statusMatch = block.match(/^\s*status:\s*(\S+)/im);
+    if (statusMatch && statusMatch[1].trim().toLowerCase() === 'pending') count += 1;
+  }
+  return count;
+}
+
 function parseContextManifest(content: string): { allowedPaths: string[]; approvedExpansions: string[]; pendingExpansions: number } {
   const clean = stripHtmlComments(content);
   const requestMatch = clean.match(/## Context Expansion Requests\s*\n([\s\S]*?)(?:\n## |$)/);
-  const pendingExpansions = requestMatch
-    ? (requestMatch[1].match(/^\s*-\s*status:\s*pending\b/gim) || []).length
-    : 0;
+  const pendingExpansions = requestMatch ? countPendingExpansions(requestMatch[1]) : 0;
 
   return {
     allowedPaths: parseListSection(content, 'Allowed Paths'),
     approvedExpansions: parseListSection(content, 'Approved Expansions'),
     pendingExpansions,
   };
+}
+
+/**
+ * Extract the per-agent required artifact types declared in the agent's prompt
+ * file (`.claude/agents/<agent>.md`). Reads the section that begins with
+ * `Minimum required \`type\` values for this agent` and pulls each bullet line
+ * shaped like `- \`type-name\`: description`.
+ *
+ * Resolution order — first existing file wins:
+ *   1. `<cwd>/.claude/agents/<name>.md` (per-repo override)
+ *   2. `~/.claude/agents/<name>.md`     (global, where `cdd-kit update` installs)
+ *
+ * Returns an empty array when neither file exists or the section cannot be
+ * found — gate then falls back to the schema's "≥ 1 artifact" rule only,
+ * preserving back-compat for repos without the cdd-kit agent prompts shipped.
+ */
+function extractRequiredArtifactTypes(cwd: string, agentName: string): string[] {
+  const candidates = [
+    join(cwd, '.claude', 'agents', `${agentName}.md`),
+    join(homedir(), '.claude', 'agents', `${agentName}.md`),
+  ];
+  let content: string | null = null;
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    try {
+      content = readFileSync(candidate, 'utf8');
+      break;
+    } catch {
+      // try next candidate
+    }
+  }
+  if (content === null) return [];
+
+  // The section starts with the distinctive phrase; the preamble is multi-line
+  // (typically two lines ending in "...):") then a blank line, then the bullets.
+  // Eat everything up to and including the blank line, then capture bullets.
+  const sectionMatch = content.match(
+    /Minimum required `type` values for this agent[\s\S]*?\r?\n\r?\n+((?:[ \t]*- `[a-z][a-z0-9-]+`[^\n]*\r?\n)+)/,
+  );
+  if (!sectionMatch) return [];
+  const types: string[] = [];
+  for (const line of sectionMatch[1].split(/\r?\n/)) {
+    const m = line.match(/^[ \t]*- `([a-z][a-z0-9-]+)`/);
+    if (m) types.push(m[1]);
+  }
+  return types;
 }
 
 function loadContextPolicy(cwd: string): ContextPolicy {
@@ -453,7 +545,11 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   {
     const { checkCodeMapFreshness } = await import('../code-map/freshness.js');
     const freshness = checkCodeMapFreshness(cwd);
-    if (freshness.status === 'stale') {
+    if (freshness.status === 'config-error') {
+      errors.push(
+        `.cdd/code-map-config.yml is invalid: ${freshness.configError}. Fix the config before running gate.`
+      );
+    } else if (freshness.status === 'stale') {
       const more = freshness.staleCount > 5 ? ` (+${freshness.staleCount - 5} more)` : '';
       errors.push(
         `code-map stale: ${freshness.staleFiles.join(', ')}${more} modified after ${freshness.mapPath}; run \`cdd-kit code-map\` to regenerate.`
@@ -640,19 +736,49 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
       if (data.status === 'blocked') {
         const next = (data['next-action'] ?? '').trim();
-        if (!next || next.toLowerCase() === 'none' || next.length < 10) {
-          errors.push(`agent-log/${f}: status=blocked requires concrete "next-action:" line (>= 10 chars, not "none")`);
+        const lower = next.toLowerCase();
+        // Match references/agent-log-protocol.md:75-78 — these placeholders are
+        // not concrete next-actions. Single source of truth: that doc's list.
+        const PLACEHOLDERS = ['none', 'tbd', 'n/a', 'na', 'unknown', 'investigate', 'investigate further', 'todo', 'pending'];
+        const isPlaceholder = PLACEHOLDERS.includes(lower) || /^(tbd|todo)\b/.test(lower);
+        if (!next || isPlaceholder || next.length < 10) {
+          errors.push(`agent-log/${f}: status=blocked requires concrete "next-action:" line (>= 10 chars, not "none/tbd/n/a/investigate/unknown/todo")`);
         }
       }
 
       if (!lax) {
         for (const a of data.artifacts ?? []) {
           const pointer = a.pointer ?? '';
+          // n/a fallback — protocol allows `n/a (<reason>)` for inapplicable types.
+          // The reason text often contains '/' (e.g. "n/a (no contracts/ files)"),
+          // which would otherwise trigger a spurious existence check.
+          if (/^n\/a\b/i.test(pointer.trim())) continue;
           const pathPart = pointer.split(':')[0];
           if (pathPart.includes('/') && !pointer.startsWith('http')) {
             const abs = join(cwd, pathPart);
             if (!existsSync(abs)) {
               errors.push(`agent-log/${f}: artifact pointer not found: ${pathPart}`);
+            }
+          }
+        }
+
+        // Per-agent required artifact types. Each agent prompt declares a
+        // "Minimum required `type` values for this agent" list. This is
+        // enforced here: every declared type must appear at least once in
+        // artifacts. Agents may emit `pointer: "n/a (<reason>)"` for an
+        // inapplicable type — that still counts as present (only the type
+        // membership is checked, not the pointer's content).
+        if (data.agent) {
+          const required = extractRequiredArtifactTypes(cwd, data.agent);
+          if (required.length > 0) {
+            const present = new Set((data.artifacts ?? []).map(a => a.type));
+            const missing = required.filter(t => !present.has(t));
+            if (missing.length > 0) {
+              errors.push(
+                `agent-log/${f}: missing required artifact type(s) for agent "${data.agent}": ${missing.join(', ')} ` +
+                `(declared in .claude/agents/${data.agent}.md → "Minimum required type values"; ` +
+                `emit pointer "n/a (<reason>)" if a type does not apply)`
+              );
             }
           }
         }

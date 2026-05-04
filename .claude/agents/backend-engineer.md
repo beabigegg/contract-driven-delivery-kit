@@ -11,7 +11,7 @@ Before editing production code, read the change artifacts, API/env/data/business
 
 ## Code map (READ FIRST)
 
-Before reading ANY source file (`.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.vue`), FIRST `Read .cdd/code-map.yml`.
+Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST `Read .cdd/code-map.yml`.
 
 The map is the size oracle. For each file you intend to read:
 
@@ -55,7 +55,7 @@ Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it l
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
 
-Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`.
+Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`, `.claude/worktrees/`.
 
 ## Handoff
 

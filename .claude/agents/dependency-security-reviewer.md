@@ -63,6 +63,17 @@ For any change that adds or modifies a database migration:
 approved / changes-required / blocked
 ```
 
+## Read scope
+
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
+Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. `cdd-kit gate` validates `files-read:` against this list and rejects unauthorized paths.
+
+This agent typically also needs to read lockfiles (`package-lock.json`, `yarn.lock`, `requirements*.txt`, `go.sum`) and migration directories — make sure the manifest's Allowed Paths includes them, or file a `## Context Expansion Requests` entry.
+
+Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
+
+Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`, `.claude/worktrees/`.
+
 ## Machine-Verifiable Evidence
 
 After completing your task, end your response with an `Agent Log` YAML block

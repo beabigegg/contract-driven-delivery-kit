@@ -63,7 +63,7 @@ Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it l
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
 
-Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`.
+Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`, `.claude/worktrees/`.
 
 ## Machine-Verifiable Evidence
 

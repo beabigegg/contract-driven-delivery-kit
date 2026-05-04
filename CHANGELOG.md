@@ -1,5 +1,87 @@
 # Changelog
 
+## [2.0.7] - 2026-05-04
+
+Comprehensive cross-consistency audit fixes. Targets the #1 root cause of
+agent ↔ gate friction: prompts that teach a format the gate cannot recognize.
+All 12 drifts surfaced by an opus-model audit are addressed; new gate
+enforcement is added where prompts described policy that was previously
+documented-only.
+
+### Fixed (BLOCKING)
+
+- **CER pending detection**: gate now correctly recognises Context Expansion
+  Requests written by `cdd-kit context request`. Previously the regex
+  required `-` immediately before `status:`, but the canonical writer puts
+  `status:` on its own indented line — every real-world pending CER was
+  silently bypassed. Replaced with a per-block parser mirroring
+  `src/commands/context.ts`.
+- **`pointer: "n/a (...)"` false rejection**: gate skips path-existence checks
+  for pointers starting with `n/a` (case-insensitive). Previously, a natural
+  reason text like `"n/a (no contracts/ files touched)"` was treated as a
+  path because of the `/` and produced a spurious "artifact pointer not
+  found" error.
+- **Per-agent `model:` policy drift**: synced `.cdd/model-policy.json` with
+  the actual `model:` frontmatter on three agent prompts (spec-drift-auditor,
+  visual-reviewer, repo-context-scanner). `cdd-kit doctor` no longer emits
+  drift warnings for these three. Same fix applied to the doctor `--fix`
+  defaults so newly-initialized projects start in sync.
+- **4 review agents had no `## Read scope`**: dependency-security-reviewer,
+  spec-drift-auditor, ui-ux-reviewer, visual-reviewer now point at
+  `context-manifest.md → ## Allowed Paths`, matching the 10 already-scoped
+  agents. Each prompt also lists the agent's typical extra reads (lockfiles,
+  screenshots, contracts) so users know what to add to the manifest up
+  front.
+- **qa-reviewer code-map discipline check**: now lists the full extension set
+  `(.py, .js, .jsx, .mjs, .cjs, .ts, .tsx, .vue)` instead of the 2.0.5
+  three-extension subset that effectively disabled the check on TS-heavy
+  repos.
+
+### Fixed (RISK)
+
+- **`.cdd/code-map-config.yml` errors surface in gate / doctor**: a malformed
+  config no longer silently degrades to "greenfield". `freshness.ts` returns
+  a `config-error` status and gate emits a hard error; doctor reports it as
+  a warning.
+- **`next-action` validation tightened**: gate now rejects placeholder values
+  the agent-log-protocol already disallowed (`tbd`, `n/a`, `investigate`,
+  `unknown`, `todo`) — previously only `none` was rejected.
+- **Allowed-Paths glob grammar upgraded to picomatch**: patterns like
+  `src/**/*.ts`, `lib/{a,b}/**`, `?(...)` now match correctly. The previous
+  hand-rolled matcher only supported trailing `/**` and `/*`. Special
+  `specs/changes/*` exception preserved.
+- **Engineer agent prompts (`backend-engineer`, `frontend-engineer`) now
+  list `.mjs` and `.cjs`** in the code-map "READ FIRST" extension list,
+  matching `BUILTIN_INCLUDE` and `references/code-map-protocol.md`.
+- **`change-classification.md` template aligned with classifier output**:
+  added the `## Inferred Acceptance Criteria` and `## Tasks Not Applicable`
+  sections; renamed `## Required Test Families` → `## Required Tests` and
+  `## Assumptions / Clarifications` → `## Clarifications or Assumptions`
+  to match what `change-classifier` actually produces.
+- **`.claude/worktrees/` added to all agent forbidden lists** to match
+  `.cdd/context-policy.json` defaults (documentation drift only — runtime
+  behaviour was already correct).
+
+### Added
+
+- **Per-agent required-artifact-types enforcement**: gate now reads each
+  agent's prompt file (resolution: `<cwd>/.claude/agents/<name>.md` →
+  `~/.claude/agents/<name>.md`) and extracts the "Minimum required `type`
+  values" bullet list. Every listed type must appear at least once in the
+  agent log's `artifacts:` array (a `pointer: "n/a (<reason>)"` item still
+  counts as present — only type membership is checked). Missing types
+  produce an actionable error naming the agent and the missing types. When
+  no prompt file is found, the check is skipped (back-compat).
+
+### Migration
+
+- Existing 2.0.6 projects: `cdd-kit update --yes` to refresh the agent
+  prompts and `references/code-map-protocol.md`. Then re-run `cdd-kit code-map`.
+- Manifests using literal paths continue to work unchanged. Manifests using
+  the new picomatch grammar (`src/**/*.ts`) start working correctly.
+- The new per-agent required-types check may surface previously-silent
+  gaps. Each error message is actionable and tells you which type to add.
+
 ## [2.0.6] - 2026-05-04
 
 ### Added

@@ -4,10 +4,12 @@ import { walkRepo } from './include-exclude.js';
 import { loadCodeMapConfig } from './config.js';
 
 export interface FreshnessResult {
-  status: 'ok' | 'stale' | 'missing-with-sources' | 'missing-greenfield';
+  status: 'ok' | 'stale' | 'missing-with-sources' | 'missing-greenfield' | 'config-error';
   staleFiles: string[];   // up to 5
   staleCount: number;     // total
   mapPath: string;
+  /** Populated only when status === 'config-error'. */
+  configError?: string;
 }
 
 /**
@@ -16,6 +18,11 @@ export interface FreshnessResult {
  * Uses the resolved code-map config (built-in defaults, optionally replaced by
  * .cdd/code-map-config.yml). Caller-supplied include/exclude are appended on
  * top — passed through for callers (e.g. tests) that want to narrow further.
+ *
+ * If the user's `.cdd/code-map-config.yml` is malformed, this returns
+ * `status: 'config-error'`. Callers (gate, doctor) MUST surface that to the
+ * user — silently degrading to "no files matched" was the 2.0.6 audit's RISK
+ * #5 finding.
  */
 export function checkCodeMapFreshness(
   cwd: string,
@@ -28,10 +35,14 @@ export function checkCodeMapFreshness(
   let cfg;
   try {
     cfg = loadCodeMapConfig(cwd);
-  } catch {
-    // On config error, fall back to empty (treat as if no source files match —
-    // gate's main config-validation path will surface the error elsewhere).
-    cfg = { include: [] as string[], exclude: [] as string[], source: 'builtin' as const };
+  } catch (err) {
+    return {
+      status: 'config-error',
+      staleFiles: [],
+      staleCount: 0,
+      mapPath,
+      configError: (err as Error).message,
+    };
   }
   const includeFinal = [...cfg.include, ...(include ?? [])];
   const excludeFinal = [...cfg.exclude, ...(exclude ?? [])];

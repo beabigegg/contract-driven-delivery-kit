@@ -240,12 +240,18 @@ function checkCodeMap(cwd: string): Finding[] {
   const mapPath = join(cwd, '.cdd', 'code-map.yml');
   if (!existsSync(mapPath)) {
     const probe = checkCodeMapFreshness(cwd);
-    if (probe.status === 'missing-with-sources') {
+    if (probe.status === 'config-error') {
+      findings.push({ level: 'warning', message: `.cdd/code-map-config.yml is invalid: ${probe.configError}` });
+    } else if (probe.status === 'missing-with-sources') {
       findings.push({ level: 'warning', message: '.cdd/code-map.yml is missing; run `cdd-kit code-map`' });
     }
     return findings;
   }
   const probe = checkCodeMapFreshness(cwd);
+  if (probe.status === 'config-error') {
+    findings.push({ level: 'warning', message: `.cdd/code-map-config.yml is invalid: ${probe.configError}` });
+    return findings;
+  }
   if (probe.status === 'stale') {
     const top = probe.staleFiles.slice(0, 3).join(', ');
     const more = probe.staleCount > 3 ? ` (+${probe.staleCount - 3} more)` : '';
@@ -365,10 +371,10 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
             'monkey-test-engineer': 'claude-sonnet-4-6',
             'stress-soak-engineer': 'claude-sonnet-4-6',
             'ui-ux-reviewer': 'claude-sonnet-4-6',
-            'visual-reviewer': 'claude-sonnet-4-6',
+            'visual-reviewer': 'claude-haiku-4-5-20251001',
             'dependency-security-reviewer': 'claude-sonnet-4-6',
-            'spec-drift-auditor': 'claude-sonnet-4-6',
-            'repo-context-scanner': 'claude-haiku-4-5',
+            'spec-drift-auditor': 'claude-opus-4-7',
+            'repo-context-scanner': 'claude-haiku-4-5-20251001',
           },
         };
         const { writeFileSync } = await import('fs');

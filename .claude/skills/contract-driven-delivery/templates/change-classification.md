@@ -38,7 +38,7 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 - Business logic:
 - CI/CD:
 
-## Required Test Families
+## Required Tests
 - unit:
 - contract:
 - integration:
@@ -52,7 +52,19 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 
 ## Required Agents
 
-## Assumptions / Clarifications
+## Inferred Acceptance Criteria
+<!-- 3-8 testable acceptance criteria derived from the change request. Format: AC-N: <criterion>.
+     test-strategist uses these to populate the Acceptance Criteria → Test Mapping table. -->
+- AC-1:
+- AC-2:
+- AC-3:
+
+## Tasks Not Applicable
+<!-- Comma-separated task IDs from tasks.yml that do NOT apply to this change.
+     /cdd-new SKILL marks these as `status: skipped` in tasks.yml. -->
+- not-applicable:
+
+## Clarifications or Assumptions
 
 ## Context Manifest Draft
 <!-- Classifier fills this section. In /cdd-new Step 2.3, Claude copies it verbatim into

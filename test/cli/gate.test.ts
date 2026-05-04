@@ -787,9 +787,11 @@ describe('cdd-kit gate', () => {
       '# Context Manifest',
       '',
       '## Context Expansion Requests',
-      '- status: pending',
+      '- request-id: CER-001',
       '  requested_paths:',
       '    - src/other/file.ts',
+      '  reason: needs read access',
+      '  status: pending',
     ].join('\n'), 'utf8');
 
     const r = runCli(['gate', 'feat-cg-pending'], { cwd: tmpRepo, home: tmpHome });
