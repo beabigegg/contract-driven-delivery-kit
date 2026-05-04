@@ -1,5 +1,52 @@
 # Changelog
 
+## [2.0.5] - 2026-05-04
+
+### Added
+
+- `cdd-kit code-map` subcommand: scans `.py`, `.js`, `.vue` source files
+  via per-language AST parsers and emits a deterministic structural index
+  at `.cdd/code-map.yml`. The map is committed to git and refreshed on
+  demand.
+- `cdd-kit init --hooks` (opt-in): installs a pre-commit hook that
+  regenerates `.cdd/code-map.yml` whenever staged changes touch source
+  files, then re-stages the map. Coexists with `cdd-kit install-hooks`.
+- `cdd-kit gate <change-id>` now hard-fails when any source file is
+  newer than `.cdd/code-map.yml`, naming up to 5 stale files. Emits a
+  warning (not error) when the map is missing but source files exist.
+- `cdd-kit doctor` reports code-map status (missing / stale / compression
+  ratio) and `doctor --fix` regenerates a stale map.
+- New skill reference doc:
+  `.claude/skills/contract-driven-delivery/references/code-map-protocol.md`
+  documenting the map format and the read-first protocol.
+
+### Changed
+
+- `backend-engineer` and `frontend-engineer` agent prompts now require
+  `Read .cdd/code-map.yml` BEFORE reading any source file. The 300-line
+  rule directs agents to use `Read offset:N limit:M` for files larger
+  than 300 lines, eliminating whole-file Reads of large modules.
+- `qa-reviewer` now flags any agent log whose `files-read` lists a
+  source file without listing `.cdd/code-map.yml` first.
+
+### Migration
+
+After upgrading existing projects:
+
+1. Run `cdd-kit code-map` once to create `.cdd/code-map.yml`. Commit it.
+2. (Optional but recommended) Run `cdd-kit init --hooks` to install the
+   auto-regenerate pre-commit hook.
+3. Run `cdd-kit update --yes` to refresh agent prompts in `~/.claude/`.
+
+Greenfield projects with no `.py`/`.js`/`.vue` files yet are unaffected.
+
+### Dependencies
+
+Added: `@babel/parser ^7.25.0`, `@vue/compiler-sfc ^3.4.0`,
+`picomatch ^4.0.2`. Python scanning shells out to the system `python3`
+or `python` interpreter (Python 3.9+); if neither is on PATH, `.py`
+files are skipped with a warning.
+
 ## [2.0.4] - 2026-05-04
 
 ### Fixed

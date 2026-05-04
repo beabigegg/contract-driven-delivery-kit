@@ -1,0 +1,281 @@
+# generated: 2026-05-04T03:30:48Z by cdd-kit 2.0.5
+# files: 24, src-lines: 1764, map-lines: 281, compression: 6.3x
+.spike/code_map.py:  # 104 lines
+  imports:
+    - { module: ast, items: [], line: 2 }
+    - { module: sys, items: [], line: 3 }
+    - { module: pathlib, items: [Path], line: 4 }
+  functions:
+    - { name: scan_file, lines: 7-47 }
+    - { name: render, lines: 50-76 }
+    - { name: main, lines: 79-100 }
+
+assets/code-map/python_scanner.py:  # 167 lines
+  imports:
+    - { module: __future__, items: [annotations], line: 2 }
+    - { module: ast, items: [], line: 4 }
+    - { module: json, items: [], line: 5 }
+    - { module: os, items: [], line: 6 }
+    - { module: sys, items: [], line: 7 }
+    - { module: traceback, items: [], line: 8 }
+  functions:
+    - { name: _check_python_version, lines: 11-18 }
+    - { name: _rel_path, lines: 21-27 }
+    - { name: _is_all_caps, lines: 30-38 }
+    - { name: scan_file, lines: 41-141 }
+    - { name: main, lines: 144-163 }
+
+assets/skills/contract-driven-delivery/scripts/detect_project_profile.py:  # 128 lines
+  imports:
+    - { module: pathlib, items: [Path], line: 3 }
+    - { module: argparse, items: [], line: 4 }
+  constants:
+    - { name: FRONTEND_MARKERS, line: 6 }
+    - { name: BACKEND_MARKERS, line: 7 }
+    - { name: CI_MARKERS, line: 8 }
+    - { name: CONTRACT_DIRS, line: 9 }
+    - { name: CDD_KIT_SKILL, line: 12 }
+  functions:
+    - { name: exists, lines: 14-15 }
+    - { name: list_existing, lines: 17-18 }
+    - { name: cdd_kit_installed, lines: 20-22 }
+    - { name: classify_agents, lines: 24-42 }
+    - { name: classify_skills, lines: 44-57 }
+    - { name: detect_commands, lines: 59-69 }
+    - { name: main, lines: 71-125 }
+
+assets/skills/contract-driven-delivery/scripts/generate_change_scaffold.py:  # 38 lines
+  imports:
+    - { module: pathlib, items: [Path], line: 3 }
+    - { module: argparse, items: [], line: 4 }
+    - { module: shutil, items: [], line: 5 }
+  functions:
+    - { name: main, lines: 7-36 }
+
+assets/skills/contract-driven-delivery/scripts/validate_api_semantic.py:  # 162 lines
+  imports:
+    - { module: sys, items: [], line: 12 }
+    - { module: re, items: [], line: 13 }
+    - { module: pathlib, items: [Path], line: 14 }
+  constants:
+    - { name: VALID_METHODS, line: 16 }
+    - { name: VALID_AUTH, line: 17 }
+    - { name: CONTRACT_PATH, line: 19 }
+  functions:
+    - { name: strip_frontmatter, lines: 22-28 }
+    - { name: parse_table_row, lines: 31-35 }
+    - { name: is_separator_row, lines: 38-40 }
+    - { name: find_endpoint_table, lines: 43-85 }
+    - { name: main, lines: 88-158 }
+
+assets/skills/contract-driven-delivery/scripts/validate_ci_gates.py:  # 42 lines
+  imports:
+    - { module: pathlib, items: [Path], line: 3 }
+    - { module: argparse, items: [], line: 4 }
+    - { module: sys, items: [], line: 4 }
+  constants:
+    - { name: REQUIRED_TERMS, line: 5 }
+  functions:
+    - { name: check_file, lines: 6-15 }
+    - { name: main, lines: 16-41 }
+
+assets/skills/contract-driven-delivery/scripts/validate_contract_versions.py:  # 385 lines
+  imports:
+    - { module: argparse, items: [], line: 13 }
+    - { module: hashlib, items: [], line: 14 }
+    - { module: re, items: [], line: 15 }
+    - { module: subprocess, items: [], line: 16 }
+    - { module: sys, items: [], line: 17 }
+    - { module: pathlib, items: [Path], line: 18 }
+  constants:
+    - { name: CONTRACT_FILES, line: 22 }
+    - { name: VALID_CONTRACT_TYPES, line: 31 }
+    - { name: VALID_BREAKING_POLICIES, line: 32 }
+    - { name: SEMVER_RE, line: 33 }
+    - { name: DATE_RE, line: 34 }
+    - { name: CHANGELOG_PATH, line: 36 }
+  functions:
+    - { name: parse_frontmatter, lines: 40-62 }
+    - { name: strip_frontmatter, lines: 65-68 }
+    - { name: sha256_of, lines: 71-72 }
+    - { name: parse_semver, lines: 77-83 }
+    - { name: is_pre_1_0, lines: 86-87 }
+    - { name: parse_changelog, lines: 92-123 }
+    - { name: git_available, lines: 128-139 }
+    - { name: git_show_head, lines: 142-159 }
+    - { name: validate_format, lines: 164-223 }
+    - { name: validate_file, lines: 226-349 }
+    - { name: main, lines: 354-381 }
+
+assets/skills/contract-driven-delivery/scripts/validate_contracts.py:  # 37 lines
+  imports:
+    - { module: pathlib, items: [Path], line: 3 }
+    - { module: argparse, items: [], line: 4 }
+    - { module: sys, items: [], line: 4 }
+    - { module: re, items: [], line: 4 }
+  constants:
+    - { name: REQUIRED, line: 5 }
+    - { name: PLACEHOLDER_THRESHOLD, line: 6 }
+  functions:
+    - { name: meaningful_chars, lines: 8-19 }
+    - { name: main, lines: 21-36 }
+
+assets/skills/contract-driven-delivery/scripts/validate_env_contract.py:  # 18 lines
+  imports:
+    - { module: pathlib, items: [Path], line: 3 }
+    - { module: argparse, items: [], line: 4 }
+    - { module: sys, items: [], line: 4 }
+  constants:
+    - { name: REQUIRED_COLUMNS, line: 5 }
+  functions:
+    - { name: main, lines: 6-17 }
+
+assets/skills/contract-driven-delivery/scripts/validate_env_semantic.py:  # 182 lines
+  imports:
+    - { module: sys, items: [], line: 14 }
+    - { module: re, items: [], line: 15 }
+    - { module: pathlib, items: [Path], line: 16 }
+  constants:
+    - { name: CONTRACT_PATH, line: 18 }
+    - { name: COL_NAME, line: 21 }
+    - { name: COL_REQUIRED, line: 22 }
+    - { name: COL_SECRET, line: 23 }
+    - { name: COL_DEFAULT, line: 24 }
+  functions:
+    - { name: strip_frontmatter, lines: 27-33 }
+    - { name: parse_table_row, lines: 36-39 }
+    - { name: is_separator_row, lines: 42-44 }
+    - { name: is_truthy, lines: 47-49 }
+    - { name: is_empty_default, lines: 52-54 }
+    - { name: find_variable_table, lines: 57-104 }
+    - { name: main, lines: 107-178 }
+
+assets/skills/contract-driven-delivery/scripts/validate_spec_traceability.py:  # 44 lines
+  imports:
+    - { module: pathlib, items: [Path], line: 3 }
+    - { module: argparse, items: [], line: 4 }
+    - { module: sys, items: [], line: 4 }
+  constants:
+    - { name: REQUIRED, line: 5 }
+  functions:
+    - { name: check_change_dir, lines: 6-19 }
+    - { name: main, lines: 20-43 }
+
+assets/tests-templates/soak/k6-example.js:  # 19 lines
+  imports:
+    - { module: k6/http, items: ['default:http'], line: 1 }
+    - { module: k6, items: [check, sleep], line: 2 }
+  constants:
+    - { name: BASE_URL, line: 13 }
+  functions:
+    - { name: default, lines: 15-19 }
+
+assets/tests-templates/soak/locust-example.py:  # 21 lines
+  imports:
+    - { module: locust, items: [HttpUser, task, between], line: 11 }
+  classes:
+    - name: SoakUser
+      lines: 14-21
+      methods:
+        - { name: health_check, lines: 18-21 }
+
+assets/tests-templates/stress/k6-example.js:  # 22 lines
+  imports:
+    - { module: k6/http, items: ['default:http'], line: 1 }
+    - { module: k6, items: [check, sleep], line: 2 }
+  constants:
+    - { name: BASE_URL, line: 16 }
+  functions:
+    - { name: default, lines: 18-22 }
+
+assets/tests-templates/stress/locust-example.py:  # 21 lines
+  imports:
+    - { module: locust, items: [HttpUser, task, between], line: 7 }
+  classes:
+    - name: StressUser
+      lines: 10-21
+      methods:
+        - { name: health_check, lines: 14-17 }
+        - { name: list_items, lines: 20-21 }
+
+bin/cdd.js:  # 2 lines
+  imports:
+    - { module: '../dist/cli/index.js', items: [], line: 2 }
+
+bin/postinstall.js:  # 20 lines
+  imports:
+    - { module: 'node:child_process', items: [spawnSync], line: 2 }
+    - { module: 'node:fs', items: [existsSync], line: 3 }
+    - { module: 'node:path', items: [join, dirname], line: 4 }
+    - { module: 'node:url', items: [fileURLToPath], line: 5 }
+
+build.js:  # 78 lines
+  imports:
+    - { module: esbuild, items: [build], line: 1 }
+    - { module: fs, items: [cpSync, mkdirSync, rmSync, existsSync], line: 2 }
+    - { module: path, items: [join, dirname], line: 8 }
+    - { module: url, items: [fileURLToPath], line: 9 }
+  functions:
+    - { name: copy, lines: 51-61 }
+
+src/code-map/python/python_scanner.py:  # 167 lines
+  imports:
+    - { module: __future__, items: [annotations], line: 2 }
+    - { module: ast, items: [], line: 4 }
+    - { module: json, items: [], line: 5 }
+    - { module: os, items: [], line: 6 }
+    - { module: sys, items: [], line: 7 }
+    - { module: traceback, items: [], line: 8 }
+  functions:
+    - { name: _check_python_version, lines: 11-18 }
+    - { name: _rel_path, lines: 21-27 }
+    - { name: _is_all_caps, lines: 30-38 }
+    - { name: scan_file, lines: 41-141 }
+    - { name: main, lines: 144-163 }
+
+test/fixtures/code-map/comments-only.js:  # 5 lines
+
+test/fixtures/code-map/empty.py:  # 0 lines
+
+test/fixtures/code-map/sample.js:  # 36 lines
+  imports:
+    - { module: './utils.js', items: [foo, bar], line: 2 }
+    - { module: some-module, items: ['default:defaultExport'], line: 3 }
+    - { module: side-effect-module, items: [], line: 4 }
+    - { module: legacy-module, items: [], line: 7 }
+  constants:
+    - { name: MAX_RETRIES, line: 9 }
+    - { name: API_BASE_URL, line: 10 }
+  classes:
+    - name: Bar
+      lines: 12-16
+      methods:
+        - { name: compute, lines: 13-15 }
+  functions:
+    - { name: async handler, lines: 18-21 }
+    - { name: declared, lines: 23-25 }
+    - { name: helper, lines: 27-29 }
+
+test/fixtures/code-map/sample.py:  # 26 lines
+  imports:
+    - { module: os, items: [], line: 2 }
+    - { module: '.y', items: [a, b], line: 3 }
+  constants:
+    - { name: MAX_BATCH_SIZE, line: 5 }
+    - { name: DEBUG_MODE, line: 6 }
+  classes:
+    - name: Foo
+      lines: 9-17
+      methods:
+        - { name: __init__, lines: 12-13 }
+        - { name: async fetch, lines: 15-17 }
+  functions:
+    - { name: simple_function, lines: 19-21 }
+    - { name: decorated_function, lines: 24-26 }  # @route('/x')
+
+test/fixtures/code-map/sample.vue:  # 40 lines
+  imports:
+    - { module: vue, items: [ref, computed], line: 10 }
+    - { module: vue-router, items: [useRouter], line: 11 }
+  functions:
+    - { name: handleClick, lines: 16-18 }
