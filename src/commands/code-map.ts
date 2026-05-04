@@ -1,10 +1,34 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, relative } from 'path';
+import { createHash } from 'crypto';
 import { log } from '../utils/logger.js';
 import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
 import { loadCodeMapConfig } from '../code-map/config.js';
 import type { ScannerResult } from '../code-map/types.js';
+
+/**
+ * Compute a stable digest of the source files included in a code-map run.
+ * Each entry is rendered as `<repo-relative-path>:<sha256-of-content>`,
+ * sorted, joined with newlines, then sha256-hashed.
+ *
+ * Used by `cdd-kit gate` and `cdd-kit doctor` to verify map freshness
+ * without relying on mtime (which is unreliable after git clone).
+ */
+export function computeSourcesDigest(absolutePaths: string[], cwd: string): string {
+  const lines = absolutePaths.slice().sort()
+    .map(p => {
+      const rel = relative(cwd, p).replace(/\\/g, '/');
+      let contentHash: string;
+      try {
+        contentHash = createHash('sha256').update(readFileSync(p)).digest('hex');
+      } catch {
+        contentHash = 'missing';
+      }
+      return `${rel}:${contentHash}`;
+    });
+  return createHash('sha256').update(lines.join('\n')).digest('hex');
+}
 
 // Read package version at runtime
 import { createRequire } from 'module';
@@ -102,7 +126,14 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
     }
   }
 
-  const yamlBody = renderYaml(result.entries, { generator: `cdd-kit ${_pkg.version}` });
+  // Compute digest from EVERY file the orchestrator considered (including
+  // those that produced parse-warning entries) — sources-digest tracks "what
+  // bytes did we look at", independent of parse success.
+  const sourcesDigest = computeSourcesDigest(files, root);
+  const yamlBody = renderYaml(result.entries, {
+    generator: `cdd-kit ${_pkg.version}`,
+    sourcesDigest,
+  });
   const totalSrc = result.entries.reduce((s, e) => s + e.total_lines, 0);
   const mapLines = yamlBody.split('\n').length;
   const compression = totalSrc === 0 ? 0 : totalSrc / mapLines;

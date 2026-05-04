@@ -1,5 +1,6 @@
-# generated: 2026-05-04T08:09:13Z by cdd-kit 2.0.10
-# files: 103, src-lines: 14742, map-lines: 1361, compression: 10.8x
+# generated: 2026-05-04T08:15:50Z by cdd-kit 2.0.10
+# files: 103, src-lines: 14846, map-lines: 1366, compression: 10.9x
+# sources-digest: ce3d1aa4c2b1094a86974fbad7349f4ea831b8ff62509c2e156735aae7facda9
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -290,16 +291,18 @@ src/code-map/config.ts:  # 135 lines
     - { name: ResolvedConfig, lines: 47-54 }
     - { name: RawConfig, lines: 58-61 }  # local
 
-src/code-map/freshness.ts:  # 85 lines
+src/code-map/freshness.ts:  # 114 lines
   imports:
-    - { module: fs, items: [existsSync, statSync], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync, statSync], line: 1 }
     - { module: path, items: [join], line: 2 }
     - { module: './include-exclude.js', items: [walkRepo], line: 3 }
     - { module: './config.js', items: [loadCodeMapConfig], line: 4 }
+    - { module: '../commands/code-map.js', items: [computeSourcesDigest], line: 5 }
   functions:
-    - { name: checkCodeMapFreshness, lines: 27-85 }
+    - { name: checkCodeMapFreshness, lines: 28-100 }
+    - { name: readSourcesDigest, lines: 106-114 }
   interfaces:
-    - { name: FreshnessResult, lines: 6-13 }
+    - { name: FreshnessResult, lines: 7-14 }
 
 src/code-map/include-exclude.ts:  # 79 lines
   imports:
@@ -448,7 +451,7 @@ src/code-map/types.ts:  # 78 lines
     - { name: ScannerResult, lines: 63-66 }
     - { name: Scanner, lines: 68-78 }
 
-src/code-map/yaml-writer.ts:  # 161 lines
+src/code-map/yaml-writer.ts:  # 173 lines
   imports:
     - { module: './types.js', items: [FileEntry, ClassEntry, FunctionEntry, TypeDefEntry, EnumEntry], line: 1 }
   constants:
@@ -462,9 +465,9 @@ src/code-map/yaml-writer.ts:  # 161 lines
     - { name: renderFunction, lines: 52-60 }
     - { name: renderTypeDef, lines: 62-65 }
     - { name: renderEnum, lines: 67-76 }
-    - { name: renderYaml, lines: 86-161 }
+    - { name: renderYaml, lines: 93-173 }
   interfaces:
-    - { name: RenderOptions, lines: 78-80 }
+    - { name: RenderOptions, lines: 78-87 }
 
 src/commands/abandon.ts:  # 45 lines
   imports:
@@ -496,22 +499,24 @@ src/commands/code-map-hook.ts:  # 77 lines
   functions:
     - { name: async installCodeMapHook, lines: 27-77 }
 
-src/commands/code-map.ts:  # 132 lines
+src/commands/code-map.ts:  # 163 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
-    - { module: path, items: [resolve, dirname], line: 2 }
-    - { module: '../utils/logger.js', items: [log], line: 3 }
-    - { module: '../code-map/yaml-writer.js', items: [renderYaml], line: 4 }
-    - { module: '../code-map/orchestrator.js', items: [walkRepo, bucketByExtension, scanInProcess], line: 5 }
-    - { module: '../code-map/config.js', items: [loadCodeMapConfig], line: 6 }
-    - { module: '../code-map/types.js', items: [ScannerResult], line: 7 }
-    - { module: module, items: [createRequire], line: 10 }
-    - { module: url, items: [fileURLToPath], line: 11 }
-    - { module: path, items: [join], line: 12 }
+    - { module: path, items: [resolve, dirname, relative], line: 2 }
+    - { module: crypto, items: [createHash], line: 3 }
+    - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: '../code-map/yaml-writer.js', items: [renderYaml], line: 5 }
+    - { module: '../code-map/orchestrator.js', items: [walkRepo, bucketByExtension, scanInProcess], line: 6 }
+    - { module: '../code-map/config.js', items: [loadCodeMapConfig], line: 7 }
+    - { module: '../code-map/types.js', items: [ScannerResult], line: 8 }
+    - { module: module, items: [createRequire], line: 34 }
+    - { module: url, items: [fileURLToPath], line: 35 }
+    - { module: path, items: [join], line: 36 }
   functions:
-    - { name: async codeMap, lines: 27-132 }
+    - { name: computeSourcesDigest, lines: 18-31 }
+    - { name: async codeMap, lines: 51-163 }
   interfaces:
-    - { name: CodeMapOptions, lines: 18-25 }
+    - { name: CodeMapOptions, lines: 42-49 }
 
 src/commands/context-scan.ts:  # 359 lines
   imports:
@@ -1018,7 +1023,7 @@ test/cli/gate-bad-artifacts.test.ts:  # 94 lines
     - { name: buildTasksYaml, lines: 11-23 }
     - { name: writeValidChangeArtifacts, lines: 25-33 }
 
-test/cli/gate-code-map.test.ts:  # 122 lines
+test/cli/gate-code-map.test.ts:  # 154 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 5 }

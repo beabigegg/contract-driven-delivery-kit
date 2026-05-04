@@ -106,6 +106,38 @@ describe('cdd-kit gate: code-map freshness', () => {
     expect(r.stdout + r.stderr).toMatch(/sample\.py/);
   });
 
+  it('hash-based freshness: bumping source mtime without changing content does NOT mark code-map stale', () => {
+    const changeId = 'cm-hash-fresh';
+    writeMinimalValidChange(tmpRepo, changeId);
+
+    writeFileSync(join(tmpRepo, 'api.js'), 'export const VERSION = 1;\n', 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+
+    // Force the source mtime to a future time without changing content. This
+    // mimics the post-`git clone` scenario where mtimes are unreliable.
+    const future = new Date(Date.now() + 60_000);
+    require('fs').utimesSync(join(tmpRepo, 'api.js'), future, future);
+
+    // Sanity: mtime IS now ahead of map → mtime check would say stale.
+    // But hash-based fallback should rescue this.
+    const r = runCli(['gate', changeId], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/code-map stale/);
+  });
+
+  it('hash-based freshness: changing content (not mtime) IS detected as stale', () => {
+    const changeId = 'cm-hash-stale';
+    writeMinimalValidChange(tmpRepo, changeId);
+
+    writeFileSync(join(tmpRepo, 'api.js'), 'export const VERSION = 1;\n', 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+
+    // Change content; let mtime naturally update too
+    writeFileSync(join(tmpRepo, 'api.js'), 'export const VERSION = 2;\n// changed\n', 'utf8');
+
+    const r = runCli(['gate', changeId], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/code-map stale/);
+  });
+
   it('fresh code-map produces no code-map error in gate output', () => {
     const changeId = 'cm-fresh-test';
     writeMinimalValidChange(tmpRepo, changeId);

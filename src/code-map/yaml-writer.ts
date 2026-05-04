@@ -77,6 +77,13 @@ function renderEnum(e: EnumEntry): string[] {
 
 export interface RenderOptions {
   generator: string;  // e.g. "cdd-kit 2.0.5"
+  /**
+   * Stable digest of source file contents. When present, written as
+   * `# sources-digest: <hex>` immediately after the generator line.
+   * Used by `cdd-kit gate` and `cdd-kit doctor` to verify map freshness
+   * without relying on mtime (which is unreliable after git clone).
+   */
+  sourcesDigest?: string;
 }
 
 /**
@@ -148,7 +155,9 @@ export function renderYaml(entries: FileEntry[], opts: RenderOptions): string {
     }
   }
 
-  const mapLines = bodyLines.length + 2;  // +2 for header lines
+  // Header line count: 2 fixed (generated, stats) + optional 1 for sources-digest.
+  const headerLineCount = opts.sourcesDigest ? 3 : 2;
+  const mapLines = bodyLines.length + headerLineCount;
   const compression = totalSrc === 0 ? 0 : totalSrc / mapLines;
   const fileCount = entries.length;
 
@@ -156,6 +165,9 @@ export function renderYaml(entries: FileEntry[], opts: RenderOptions): string {
     `# generated: ${now} by ${opts.generator}`,
     `# files: ${fileCount}, src-lines: ${totalSrc}, map-lines: ${mapLines}, compression: ${compression.toFixed(1)}x`,
   ];
+  if (opts.sourcesDigest) {
+    header.push(`# sources-digest: ${opts.sourcesDigest}`);
+  }
 
   return [...header, ...bodyLines].join('\n') + '\n';
 }
