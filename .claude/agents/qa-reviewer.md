@@ -17,6 +17,7 @@ Do not approve based on claims. Approve based on commands, artifacts, screenshot
 - visual evidence provided for UI changes
 - stress/soak evidence provided when required
 - known risks and residual gaps documented
+- agent log discipline: if `files-read` includes any source file (`.py`, `.js`, `.vue`) without listing `.cdd/code-map.yml` first, flag as a process violation (the agent skipped the size-oracle step).
 
 ## Failure routing
 

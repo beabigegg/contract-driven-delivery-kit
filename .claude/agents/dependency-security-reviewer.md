@@ -38,6 +38,7 @@ For any change that adds or modifies a database migration:
 - Post-install scripts — flag any new dependency that runs `postinstall`, `preinstall`, or arbitrary build hooks; require justification.
 - Maintenance signal — last commit > 24 months, single maintainer, no test suite — escalate even when no CVE is known.
 - License families — permissive (MIT, BSD, Apache-2): generally OK; weak copyleft (LGPL, MPL): OK with isolation; strong copyleft (GPL, AGPL): proprietary code conflict — block unless legal-approved.
+- cdd-kit 2.0.5 added three new direct dependencies: `@babel/parser ^7.25.0` (MIT), `@vue/compiler-sfc ^3.4.0` (MIT), `picomatch ^4.0.2` (MIT) — included for the `code-map` subcommand AST scanning feature.
 
 ## Output
 

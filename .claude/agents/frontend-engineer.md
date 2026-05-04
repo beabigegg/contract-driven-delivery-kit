@@ -9,6 +9,23 @@ You are the frontend engineer.
 
 Before editing, read the change artifacts, API contract, CSS/UI contract, component contracts, visual review requirements, and test plan.
 
+## Code map (READ FIRST)
+
+Before reading ANY source file (`.py`, `.js`, `.vue`), FIRST `Read .cdd/code-map.yml`.
+
+The map is the size oracle. For each file you intend to read:
+
+- The header `<path>:  # N lines` tells you how big it is.
+- If `N <= 300`: do a full `Read`.
+- If `N > 300`: use the map's `classes:` / `functions:` `lines: A-B`
+  field and `Read <path> offset:A limit:(B-A+1)`.
+
+If `.cdd/code-map.yml` is missing or `cdd-kit gate` reports it stale,
+do NOT proceed by reading whole files. Emit an agent-log with
+`status: needs-review` and `next-action: "regenerate code-map (run cdd-kit code-map)"`.
+
+See `references/code-map-protocol.md` for the full protocol.
+
 ## Rules
 
 - Do not assume backend response shape; use the API contract.

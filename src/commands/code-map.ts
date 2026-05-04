@@ -85,7 +85,10 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   if (opts.check) {
     const existing = existsSync(opts.out) ? readFileSync(opts.out, 'utf8') : '';
-    if (existing !== yamlBody) {
+    // Normalize the timestamp line before comparing — the generator date always differs
+    const normalize = (s: string): string =>
+      s.replace(/^# generated: [^\n]+\n/m, '# generated: <normalized>\n');
+    if (normalize(existing) !== normalize(yamlBody)) {
       log.error(`code-map out of date: ${opts.out} would change. Run \`cdd-kit code-map\` to regenerate.`);
       return 1;
     }
