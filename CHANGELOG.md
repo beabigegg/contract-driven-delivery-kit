@@ -1,5 +1,66 @@
 # Changelog
 
+## [2.0.8] - 2026-05-04
+
+Adds `cdd-kit refresh` — a one-shot complete upgrade command. The previous
+upgrade flow (`update --yes` + `upgrade --yes`) only touched `~/.claude/`
+and added missing project files; kit-shipped templates that the user already
+had on disk were never refreshed, leaving them stale across releases.
+
+### Added
+
+- **`cdd-kit refresh [--yes]`**: composes `update` + `upgrade` and adds
+  force-refresh for kit-owned templates with automatic timestamped backup.
+  Six steps, each independently skippable:
+  1. `~/.claude/agents` and `~/.claude/skills/contract-driven-delivery`
+     (delegates to `cdd-kit update`)
+  2. Add missing project files (delegates to `cdd-kit upgrade`)
+  3. **Force-refresh kit templates** with backup to
+     `.cdd/.refresh-backup/<timestamp>/`. Targets:
+     `specs/templates/`, `tests/templates/`, `ci-templates/`,
+     `.github/workflows/contract-driven-gates.yml`.
+  4. Re-install pre-commit hook if `.cdd/.hooks-installed` marker exists.
+  5. Resync `.cdd/model-policy.json` roles map from
+     `~/.claude/agents/<name>.md` `model:` frontmatter (drift detector).
+  6. Regenerate `.cdd/code-map.yml`.
+
+  Flags to skip individual steps: `--no-templates`, `--no-hooks`,
+  `--no-code-map`, `--no-update`, `--no-upgrade`. Default is dry-run; pass
+  `--yes` to apply.
+
+- **`.cdd/.hooks-installed` marker**: written by `cdd-kit init --hooks`.
+  Travels in the repo. Lets `cdd-kit refresh` know whether to re-install
+  the pre-commit hook on every refresh — so the hook stays in sync with
+  the latest kit version automatically.
+
+### Fixed
+
+- **Pre-commit hook extension list**: `installCodeMapHook` now triggers
+  on `.py / .js / .jsx / .mjs / .cjs / .ts / .tsx / .vue` (was: `.py / .js / .vue`).
+  Mirrors `BUILTIN_INCLUDE` and the 2.0.7 qa-reviewer fix.
+
+### Boundaries (locked)
+
+`cdd-kit refresh` will **never** touch:
+- `contracts/`, `specs/changes/`, `specs/archive/`
+- `src/`, `tests/*` (except `tests/templates/`)
+- `.cdd/code-map-config.yml`, `.cdd/context-policy.json`
+- `CLAUDE.md`, `AGENTS.md`, `CODEX.md`
+- `package.json`, `.git/` (except `.git/hooks/pre-commit` when marker exists),
+  `node_modules/`, `dist/`, `build/`
+
+### Migration
+
+Existing 2.0.x projects: `npm install -g contract-driven-delivery@latest`
+then `cdd-kit refresh --yes`. The first refresh will surface any drift
+that accumulated across 2.0.3 → 2.0.7 — backups land in
+`.cdd/.refresh-backup/<timestamp>/` so rolling back any specific change
+is a single `cp` away.
+
+To use the auto-refreshing pre-commit hook on every push:
+1. `cdd-kit init --hooks` (writes the marker)
+2. From now on, `cdd-kit refresh --yes` will re-install the hook every time.
+
 ## [2.0.7] - 2026-05-04
 
 Comprehensive cross-consistency audit fixes. Targets the #1 root cause of

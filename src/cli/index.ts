@@ -51,6 +51,42 @@ program
   .option('--postinstall', 'Internal: invoked by npm postinstall; no-op if cdd has not been init-ed', false)
   .action((opts) => update({ yes: opts.yes, provider: opts.provider, postinstall: opts.postinstall }));
 
+// ── cdd refresh ───────────────────────────────────────────────────────────────
+// One-shot complete upgrade. Composes update + upgrade + force-refresh of
+// kit-shipped templates with backup. See src/commands/refresh.ts for the
+// full boundary list.
+program
+  .command('refresh')
+  .description('Complete upgrade: refresh agents, skills, templates, hooks, model-policy, and code-map in one command')
+  .option('--yes', 'Apply changes (default is dry-run)', false)
+  .option('--no-templates', 'Skip force-refresh of specs/templates, tests/templates, ci-templates, .github/workflows')
+  .option('--no-hooks', 'Skip pre-commit hook re-installation')
+  .option('--no-code-map', 'Skip code-map regeneration')
+  .option('--no-update', 'Skip ~/.claude update step')
+  .option('--no-upgrade', 'Skip project add-missing step')
+  .option('--provider <provider>', 'Provider adapter: auto, claude, codex, or both', 'auto')
+  .action(async (opts: {
+    yes?: boolean;
+    templates?: boolean;
+    hooks?: boolean;
+    codeMap?: boolean;
+    update?: boolean;
+    upgrade?: boolean;
+    provider?: ProviderOption;
+  }) => {
+    // Commander represents `--no-X` as `opts.X === false`. Normalise to our flags.
+    const { refresh } = await import('../commands/refresh.js');
+    await refresh({
+      yes: opts.yes,
+      noTemplates: opts.templates === false,
+      noHooks: opts.hooks === false,
+      noCodeMap: opts.codeMap === false,
+      noUpdate: opts.update === false,
+      noUpgrade: opts.upgrade === false,
+      provider: opts.provider,
+    });
+  });
+
 program
   .command('doctor')
   .description('Inspect cdd-kit repo health, provider guidance, and context index freshness')

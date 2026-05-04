@@ -1,5 +1,5 @@
-# generated: 2026-05-04T05:18:37Z by cdd-kit 2.0.7
-# files: 101, src-lines: 13781, map-lines: 1322, compression: 10.4x
+# generated: 2026-05-04T06:47:21Z by cdd-kit 2.0.8
+# files: 103, src-lines: 14453, map-lines: 1358, compression: 10.6x
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -255,7 +255,7 @@ build.js:  # 86 lines
   functions:
     - { name: copy, lines: 51-61 }
 
-src/cli/index.ts:  # 315 lines
+src/cli/index.ts:  # 351 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -270,9 +270,9 @@ src/cli/index.ts:  # 315 lines
     - { module: '../utils/stack-detect.js', items: [detectStack], line: 11 }
     - { module: '../utils/provider.js', items: [ProviderOption], line: 12 }
   functions:
-    - { name: collectRepeatable, lines: 126-129 }
+    - { name: collectRepeatable, lines: 162-165 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 131-137 }  # local
+    - { name: CodeMapCliOpts, lines: 167-173 }  # local
 
 src/code-map/config.ts:  # 135 lines
   imports:
@@ -484,7 +484,7 @@ src/commands/archive.ts:  # 76 lines
   functions:
     - { name: async archive, lines: 6-76 }
 
-src/commands/code-map-hook.ts:  # 68 lines
+src/commands/code-map-hook.ts:  # 77 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -494,7 +494,7 @@ src/commands/code-map-hook.ts:  # 68 lines
     - { name: END_MARKER, line: 6 }
     - { name: CODE_MAP_BLOCK, line: 8 }
   functions:
-    - { name: async installCodeMapHook, lines: 26-68 }
+    - { name: async installCodeMapHook, lines: 27-77 }
 
 src/commands/code-map.ts:  # 132 lines
   imports:
@@ -744,6 +744,35 @@ src/commands/new-change.ts:  # 175 lines
     - { name: async newChange, lines: 105-175 }
   interfaces:
     - { name: NewChangeOptions, lines: 10-15 }
+
+src/commands/refresh.ts:  # 384 lines
+  imports:
+    - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync], line: 29 }
+    - { module: path, items: [dirname, join, relative], line: 30 }
+    - { module: crypto, items: [createHash], line: 31 }
+    - { module: '../utils/paths.js', items: [ASSET, AGENTS_HOME], line: 32 }
+    - { module: '../utils/logger.js', items: [log], line: 33 }
+    - { module: './update.js', items: [update], line: 34 }
+    - { module: './upgrade.js', items: [upgrade], line: 35 }
+    - { module: './code-map.js', items: [codeMap], line: 36 }
+    - { module: './code-map-hook.js', items: [installCodeMapHook], line: 37 }
+    - { module: '../utils/provider.js', items: [ProviderOption], line: 38 }
+  constants:
+    - { name: HOOKS_MARKER_PATH, line: 57 }
+  functions:
+    - { name: fileHash, lines: 59-61 }
+    - { name: planForceRefresh, lines: 63-95 }
+    - { name: planSingleFile, lines: 97-102 }
+    - { name: applyPlan, lines: 104-122 }
+    - { name: parseAgentFrontmatter, lines: 129-140 }
+    - { name: resyncModelPolicy, lines: 146-202 }
+    - { name: planTemplateRefresh, lines: 204-231 }
+    - { name: summarizePlan, lines: 233-239 }
+    - { name: async refresh, lines: 241-384 }
+  interfaces:
+    - { name: RefreshOptions, lines: 40-48 }
+    - { name: PlannedCopy, lines: 50-55 }  # local
+    - { name: AgentFrontmatter, lines: 124-127 }  # local
 
 src/commands/update.ts:  # 181 lines
   imports:
@@ -1081,6 +1110,13 @@ test/cli/new.test.ts:  # 176 lines
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
   constants:
     - { name: REQUIRED_TEMPLATES, line: 7 }
+
+test/cli/refresh.test.ts:  # 243 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync], line: 13 }
+    - { module: path, items: [join], line: 14 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 15 }
 
 test/cli/skill-prompts.test.ts:  # 77 lines
   imports:
