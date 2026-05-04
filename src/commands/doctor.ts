@@ -40,13 +40,8 @@ function findFiles(dir: string, predicate: (name: string) => boolean, found: str
   return found;
 }
 
-function sha256OfFile(path: string): string {
-  try {
-    return createHash('sha256').update(readFileSync(path)).digest('hex');
-  } catch {
-    return '';
-  }
-}
+// Hash uses line-ending normalization — see src/utils/digest.ts for rationale.
+import { sha256OfFileNormalized as sha256OfFile } from '../utils/digest.js';
 
 function inputDigest(paths: string[], cwd: string): string {
   // Use repo-relative paths so the digest is portable across clones.

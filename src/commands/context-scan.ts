@@ -3,13 +3,8 @@ import { createHash } from 'crypto';
 import { basename, dirname, join, relative } from 'path';
 import { log } from '../utils/logger.js';
 
-function sha256OfFile(path: string): string {
-  try {
-    return createHash('sha256').update(readFileSync(path)).digest('hex');
-  } catch {
-    return '';
-  }
-}
+// Hash uses line-ending normalization — see src/utils/digest.ts for rationale.
+import { sha256OfFileNormalized as sha256OfFile } from '../utils/digest.js';
 
 /**
  * Compute a stable digest of a list of input files. Each entry is rendered as

@@ -14,13 +14,8 @@ export interface NewChangeOptions {
   skipScan?: boolean;
 }
 
-function sha256OfFile(path: string): string {
-  try {
-    return createHash('sha256').update(readFileSync(path)).digest('hex');
-  } catch {
-    return '';
-  }
-}
+// Hash uses line-ending normalization — see src/utils/digest.ts for rationale.
+import { sha256OfFileNormalized as sha256OfFile } from '../utils/digest.js';
 
 function inputsDigest(paths: string[], cwd: string): string {
   // Repo-relative for portability — must match context-scan.ts and doctor.ts.

@@ -1,6 +1,6 @@
-# generated: 2026-05-04T08:15:50Z by cdd-kit 2.0.10
-# files: 103, src-lines: 14846, map-lines: 1366, compression: 10.9x
-# sources-digest: ce3d1aa4c2b1094a86974fbad7349f4ea831b8ff62509c2e156735aae7facda9
+# generated: 2026-05-04T08:27:54Z by cdd-kit 2.0.11
+# files: 104, src-lines: 14897, map-lines: 1375, compression: 10.8x
+# sources-digest: fca561e8de53a5b7a968563e53413465ff156b8982e3d6b692eb822d91f49661
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -508,41 +508,42 @@ src/commands/code-map.ts:  # 163 lines
     - { module: '../code-map/yaml-writer.js', items: [renderYaml], line: 5 }
     - { module: '../code-map/orchestrator.js', items: [walkRepo, bucketByExtension, scanInProcess], line: 6 }
     - { module: '../code-map/config.js', items: [loadCodeMapConfig], line: 7 }
-    - { module: '../code-map/types.js', items: [ScannerResult], line: 8 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 8 }
+    - { module: '../code-map/types.js', items: [ScannerResult], line: 9 }
     - { module: module, items: [createRequire], line: 34 }
     - { module: url, items: [fileURLToPath], line: 35 }
     - { module: path, items: [join], line: 36 }
   functions:
-    - { name: computeSourcesDigest, lines: 18-31 }
+    - { name: computeSourcesDigest, lines: 19-31 }
     - { name: async codeMap, lines: 51-163 }
   interfaces:
     - { name: CodeMapOptions, lines: 42-49 }
 
-src/commands/context-scan.ts:  # 359 lines
+src/commands/context-scan.ts:  # 354 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
     - { module: path, items: [basename, dirname, join, relative], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 7 }
   constants:
-    - { name: DEFAULT_FORBIDDEN, line: 34 }
-    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 60 }
-    - { name: PER_DIR_ENTRY_CAP, line: 137 }
+    - { name: DEFAULT_FORBIDDEN, line: 29 }
+    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 55 }
+    - { name: PER_DIR_ENTRY_CAP, line: 132 }
   functions:
-    - { name: sha256OfFile, lines: 6-12 }
-    - { name: inputsDigest, lines: 24-32 }
-    - { name: stripGlobSuffix, lines: 94-96 }
-    - { name: getForbiddenPaths, lines: 98-114 }
-    - { name: isForbidden, lines: 116-128 }
-    - { name: buildTree, lines: 139-181 }
-    - { name: firstHeading, lines: 183-186 }
-    - { name: deriveContractType, lines: 188-192 }
-    - { name: parseContractMetadata, lines: 194-220 }
-    - { name: findContractFiles, lines: 222-230 }
-    - { name: async contextScan, lines: 236-359 }
+    - { name: inputsDigest, lines: 19-27 }
+    - { name: stripGlobSuffix, lines: 89-91 }
+    - { name: getForbiddenPaths, lines: 93-109 }
+    - { name: isForbidden, lines: 111-123 }
+    - { name: buildTree, lines: 134-176 }
+    - { name: firstHeading, lines: 178-181 }
+    - { name: deriveContractType, lines: 183-187 }
+    - { name: parseContractMetadata, lines: 189-215 }
+    - { name: findContractFiles, lines: 217-225 }
+    - { name: async contextScan, lines: 231-354 }
   interfaces:
-    - { name: TreeStats, lines: 130-135 }  # local
-    - { name: ContextScanOptions, lines: 232-234 }
+    - { name: TreeStats, lines: 125-130 }  # local
+    - { name: ContextScanOptions, lines: 227-229 }
 
 src/commands/context.ts:  # 269 lines
   imports:
@@ -571,7 +572,7 @@ src/commands/context.ts:  # 269 lines
   interfaces:
     - { name: ContextRequest, lines: 5-10 }  # local
 
-src/commands/doctor.ts:  # 459 lines
+src/commands/doctor.ts:  # 454 lines
   imports:
     - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -579,20 +580,20 @@ src/commands/doctor.ts:  # 459 lines
     - { module: '../utils/logger.js', items: [log], line: 4 }
     - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, ProviderOption], line: 5 }
     - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 6 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 44 }
   functions:
     - { name: fileExists, lines: 29-31 }
     - { name: findFiles, lines: 33-41 }
-    - { name: sha256OfFile, lines: 43-49 }
-    - { name: inputDigest, lines: 51-63 }
-    - { name: readContextIndexMetadata, lines: 65-74 }
-    - { name: checkContextFreshness, lines: 76-137 }
-    - { name: readAgentModel, lines: 139-147 }
-    - { name: checkModelPolicyDrift, lines: 149-200 }
-    - { name: async checkAgentLint, lines: 202-242 }
-    - { name: checkCodeMap, lines: 244-275 }
-    - { name: async buildDoctorReport, lines: 277-319 }
-    - { name: async attemptAutoFixes, lines: 321-411 }
-    - { name: async doctor, lines: 413-459 }
+    - { name: inputDigest, lines: 46-58 }
+    - { name: readContextIndexMetadata, lines: 60-69 }
+    - { name: checkContextFreshness, lines: 71-132 }
+    - { name: readAgentModel, lines: 134-142 }
+    - { name: checkModelPolicyDrift, lines: 144-195 }
+    - { name: async checkAgentLint, lines: 197-237 }
+    - { name: checkCodeMap, lines: 239-270 }
+    - { name: async buildDoctorReport, lines: 272-314 }
+    - { name: async attemptAutoFixes, lines: 316-406 }
+    - { name: async doctor, lines: 408-454 }
   interfaces:
     - { name: DoctorOptions, lines: 8-13 }
     - { name: Finding, lines: 15-18 }  # local
@@ -727,7 +728,7 @@ src/commands/migrate.ts:  # 513 lines
     - { name: PendingDelete, lines: 23-25 }  # local
     - { name: LegacyTaskRow, lines: 142-147 }  # local
 
-src/commands/new-change.ts:  # 179 lines
+src/commands/new-change.ts:  # 174 lines
   imports:
     - { module: path, items: [join, relative], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -737,18 +738,18 @@ src/commands/new-change.ts:  # 179 lines
     - { module: '../utils/copy.js', items: [copyFile, ensureDir], line: 6 }
     - { module: '../utils/logger.js', items: [log], line: 7 }
     - { module: './context-scan.js', items: [contextScan], line: 8 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 18 }
   constants:
-    - { name: REQUIRED_TEMPLATES, line: 81 }
-    - { name: SAFE_NAME, line: 99 }
+    - { name: REQUIRED_TEMPLATES, line: 76 }
+    - { name: SAFE_NAME, line: 94 }
   functions:
-    - { name: sha256OfFile, lines: 17-23 }
-    - { name: inputsDigest, lines: 25-34 }
-    - { name: findContractFiles, lines: 36-46 }
-    - { name: readIndexDigest, lines: 48-52 }
-    - { name: async ensureFreshContextIndexes, lines: 54-79 }
-    - { name: listOptional, lines: 90-97 }
-    - { name: parseDependsOn, lines: 101-107 }
-    - { name: async newChange, lines: 109-179 }
+    - { name: inputsDigest, lines: 20-29 }
+    - { name: findContractFiles, lines: 31-41 }
+    - { name: readIndexDigest, lines: 43-47 }
+    - { name: async ensureFreshContextIndexes, lines: 49-74 }
+    - { name: listOptional, lines: 85-92 }
+    - { name: parseDependsOn, lines: 96-102 }
+    - { name: async newChange, lines: 104-174 }
   interfaces:
     - { name: NewChangeOptions, lines: 10-15 }
 
@@ -849,6 +850,14 @@ src/utils/copy.ts:  # 156 lines
     - { name: copyDirTracked, lines: 63-108 }
     - { name: copyFile, lines: 110-130 }
     - { name: copyFileTracked, lines: 135-156 }
+
+src/utils/digest.ts:  # 39 lines
+  imports:
+    - { module: fs, items: [readFileSync], line: 1 }
+    - { module: crypto, items: [createHash], line: 2 }
+  functions:
+    - { name: normalizeContentForHash, lines: 16-24 }
+    - { name: sha256OfFileNormalized, lines: 31-39 }
 
 src/utils/logger.ts:  # 27 lines
   constants:
@@ -968,7 +977,7 @@ test/cli/code-map.test.ts:  # 108 lines
   functions:
     - { name: copyFixtures, lines: 17-21 }
 
-test/cli/context-scan.test.ts:  # 204 lines
+test/cli/context-scan.test.ts:  # 231 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }

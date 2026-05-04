@@ -109,6 +109,33 @@ describe('cdd-kit context-scan', () => {
     expect(tree).toMatch(/app\.ts/);
   });
 
+  it('inputs-digest is line-ending agnostic (CRLF vs LF produce same digest)', () => {
+    // Two repos with same logical content but different physical line endings —
+    // mimics autocrlf=true vs autocrlf=false checkouts of the same git repo.
+    const tmpRepo2 = makeTempDir('cdd-context-scan-eol-');
+    try {
+      const r2 = runCli(['init', '--local-only'], { cwd: tmpRepo2, home: tmpHome });
+      if (r2.status !== 0) throw new Error(`second init failed: ${r2.stderr}`);
+
+      const policyLF = '{\n  "forbiddenPaths": [\n    "node_modules/**"\n  ]\n}\n';
+      const policyCRLF = policyLF.replace(/\n/g, '\r\n');
+
+      writeFileSync(join(tmpRepo, '.cdd', 'context-policy.json'), policyLF, 'utf8');
+      writeFileSync(join(tmpRepo2, '.cdd', 'context-policy.json'), policyCRLF, 'utf8');
+
+      runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
+      runCli(['context-scan'], { cwd: tmpRepo2, home: tmpHome });
+
+      const m1 = readFileSync(join(tmpRepo, 'specs', 'context', 'project-map.md'), 'utf8');
+      const m2 = readFileSync(join(tmpRepo2, 'specs', 'context', 'project-map.md'), 'utf8');
+      const d1 = m1.match(/^inputs-digest:\s*([a-f0-9]+)/m)![1];
+      const d2 = m2.match(/^inputs-digest:\s*([a-f0-9]+)/m)![1];
+      expect(d1).toBe(d2);
+    } finally {
+      cleanupDir(tmpRepo2);
+    }
+  });
+
   it('inputs-digest is portable across clones (depends only on repo-relative path + content)', () => {
     // Two repos with IDENTICAL `.cdd/context-policy.json` content but different
     // absolute cwd should produce the SAME inputs-digest.

@@ -1,5 +1,44 @@
 # Changelog
 
+## [2.0.11] - 2026-05-04
+
+Final portability fix in the digest series. After 2.0.10 made digests
+repo-relative and content-keyed, a real consumer repo on Windows
+(`core.autocrlf=true`) still produced different digests than the same
+repo on Linux/Mac (`core.autocrlf=false`) — because the file BYTES
+differ even when the file content is logically identical.
+
+### Fixed
+
+- **All hash inputs are now line-ending normalized**. `\r\n` and stand-alone
+  `\r` are converted to `\n` before SHA-256 is computed. Applied uniformly
+  across the four places that hash files for cdd-kit's digests:
+  - `inputsDigest()` in `src/commands/context-scan.ts`
+    (project-map / contracts-index)
+  - `inputDigest()` in `src/commands/doctor.ts`
+    (freshness check against committed indexes)
+  - `inputsDigest()` in `src/commands/new-change.ts`
+    (auto-rerun decision in /cdd-new flow)
+  - `computeSourcesDigest()` in `src/commands/code-map.ts`
+    (`# sources-digest:` header in code-map.yml)
+
+  All four now share `src/utils/digest.ts → sha256OfFileNormalized()`,
+  so the rule is in exactly one place.
+
+### Migration
+
+After upgrading, re-run **once**:
+
+```bash
+cdd-kit context-scan
+cdd-kit code-map
+git add specs/context/ .cdd/code-map.yml
+git commit -m "chore: regenerate indexes & code-map (cdd-kit 2.0.11)"
+```
+
+From then on, fresh clones on any OS / autocrlf setting produce identical
+digests, eliminating the last source of false-positive doctor warnings.
+
 ## [2.0.10] - 2026-05-04
 
 Two more context-scan determinism bugs, both surfaced verifying the 2.0.9

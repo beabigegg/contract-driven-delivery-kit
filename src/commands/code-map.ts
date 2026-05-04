@@ -5,6 +5,7 @@ import { log } from '../utils/logger.js';
 import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
 import { loadCodeMapConfig } from '../code-map/config.js';
+import { sha256OfFileNormalized } from '../utils/digest.js';
 import type { ScannerResult } from '../code-map/types.js';
 
 /**
@@ -16,15 +17,14 @@ import type { ScannerResult } from '../code-map/types.js';
  * without relying on mtime (which is unreliable after git clone).
  */
 export function computeSourcesDigest(absolutePaths: string[], cwd: string): string {
+  // Use sha256OfFileNormalized so the digest is stable across CRLF/LF line
+  // endings — without normalization, a file checked out with autocrlf=true
+  // (Windows default) produces a different digest than the same file on
+  // Linux/Mac, even though both are bit-identical post-conversion.
   const lines = absolutePaths.slice().sort()
     .map(p => {
       const rel = relative(cwd, p).replace(/\\/g, '/');
-      let contentHash: string;
-      try {
-        contentHash = createHash('sha256').update(readFileSync(p)).digest('hex');
-      } catch {
-        contentHash = 'missing';
-      }
+      const contentHash = sha256OfFileNormalized(p) || 'missing';
       return `${rel}:${contentHash}`;
     });
   return createHash('sha256').update(lines.join('\n')).digest('hex');
