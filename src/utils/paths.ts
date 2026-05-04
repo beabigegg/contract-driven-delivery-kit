@@ -26,4 +26,5 @@ export const ASSET = {
   codexTemplate:  join(ASSETS_DIR, 'CODEX.template.md'),
   agentsTemplate: join(ASSETS_DIR, 'AGENTS.template.md'),
   cddConfig:      join(ASSETS_DIR, 'cdd'),
+  codeMapPython:  join(ASSETS_DIR, 'code-map', 'python_scanner.py'),
 };

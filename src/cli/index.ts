@@ -120,6 +120,41 @@ program
     process.exit(exitCode);
   });
 
+// ── cdd code-map [path] ───────────────────────────────────────────────────────
+function collectRepeatable(val: string, acc: string[]): string[] {
+  acc.push(val);
+  return acc;
+}
+
+interface CodeMapCliOpts {
+  out: string;
+  include: string[];
+  exclude: string[];
+  check: boolean;
+  maxLines: string;
+}
+
+program
+  .command('code-map [path]')
+  .description('Scan source files and emit a structural index at .cdd/code-map.yml')
+  .option('--out <path>', 'Output YAML path', '.cdd/code-map.yml')
+  .option('--include <glob>', 'Additional include glob (repeatable)', collectRepeatable, [])
+  .option('--exclude <glob>', 'Additional exclude glob (repeatable)', collectRepeatable, [])
+  .option('--check', 'Exit 1 if regenerating would change the file (no write)', false)
+  .option('--max-lines <n>', 'Warn for files exceeding this line count (default 100000)', '100000')
+  .action(async (path: string | undefined, opts: CodeMapCliOpts) => {
+    const { codeMap } = await import('../commands/code-map.js');
+    const exit = await codeMap({
+      path: path ?? '.',
+      out: opts.out,
+      include: opts.include,
+      exclude: opts.exclude,
+      check: opts.check,
+      maxLines: parseInt(opts.maxLines, 10),
+    });
+    process.exit(exit);
+  });
+
 // ── cdd gate <change-id> ──────────────────────────────────────────────────────
 program
   .command('gate <change-id>')

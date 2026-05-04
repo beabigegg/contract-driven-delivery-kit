@@ -37,7 +37,7 @@ await build({
   platform: 'node',
   format: 'esm',
   outfile: join(__dirname, 'dist/cli/index.js'),
-  external: ['commander'],
+  external: ['commander', '@babel/parser', '@vue/compiler-sfc', 'js-yaml', 'picomatch'],
   sourcemap: false,
   minify: false,
 });
@@ -73,5 +73,6 @@ copy('CLAUDE.template.md',                      'assets/CLAUDE.template.md');
 copy('CODEX.template.md',                       'assets/CODEX.template.md');
 copy('AGENTS.template.md',                      'assets/AGENTS.template.md');
 copy('.cdd',                                    'assets/cdd');
+copy('src/code-map/python',                     'assets/code-map');
 
 console.log('Build complete.');
