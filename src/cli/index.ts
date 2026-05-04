@@ -109,6 +109,17 @@ program
     }),
   );
 
+// ── cdd lint-agents ───────────────────────────────────────────────────────────
+program
+  .command('lint-agents')
+  .description('Lint .claude/agents/*.md for required-artifacts format and read-scope hygiene')
+  .option('--strict', 'Fail on warnings (e.g. missing protocol pointer)', false)
+  .action(async (opts: { strict?: boolean }) => {
+    const { lintAgents } = await import('../commands/lint-agents.js');
+    const exitCode = await lintAgents({ strict: opts.strict });
+    process.exit(exitCode);
+  });
+
 // ── cdd gate <change-id> ──────────────────────────────────────────────────────
 program
   .command('gate <change-id>')

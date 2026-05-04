@@ -192,7 +192,49 @@ function checkModelPolicyDrift(cwd: string): Finding[] {
   return findings;
 }
 
-function buildDoctorReport(cwd: string, opts: DoctorOptions): DoctorReport {
+async function checkAgentLint(cwd: string): Promise<Finding[]> {
+  const agentsDir = join(cwd, '.claude', 'agents');
+  if (!existsSync(agentsDir)) return [];
+
+  try {
+    // Inline a minimal shape check for doctor output; full detail is from `cdd-kit lint-agents`
+    const { readdirSync: rds, readFileSync: rfs } = await import('fs');
+    const files = rds(agentsDir).filter((f: string) => f.endsWith('.md'));
+    if (files.length === 0) return [];
+
+    // We need to run lintAgents from the cwd context. Use a subprocess approach
+    // to capture findings without forking: re-implement a minimal inline check.
+    const findings: Finding[] = [];
+    for (const filename of files) {
+      const content = rfs(join(agentsDir, filename), 'utf8');
+      // Check for artifacts YAML fence
+      const artifactsSection = content.match(
+        /### Required artifacts for this agent\s*\n[\s\S]*?(?=\n#{2,3} |\n---|\s*$)/,
+      )?.[0];
+      if (!artifactsSection || !/```ya?ml\s*\nartifacts:/.test(artifactsSection)) {
+        findings.push({
+          level: 'warning',
+          message: `lint-agents: ${filename}: missing artifacts YAML block in Required artifacts section`,
+        });
+      }
+      const readScopeCount = (content.match(/^## Read scope\s*$/gm) ?? []).length;
+      if (readScopeCount > 1) {
+        findings.push({
+          level: 'warning',
+          message: `lint-agents: ${filename}: duplicate ## Read scope headings (${readScopeCount})`,
+        });
+      }
+    }
+    if (findings.length === 0) {
+      findings.push({ level: 'ok', message: 'lint-agents: all agent prompts pass shape checks' });
+    }
+    return findings;
+  } catch {
+    return [];
+  }
+}
+
+async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<DoctorReport> {
   const requestedProvider = opts.provider ?? 'auto';
   if (!validateProviderOption(requestedProvider)) {
     log.error(`Invalid provider: ${requestedProvider}. Use auto, claude, codex, or both.`);
@@ -221,6 +263,7 @@ function buildDoctorReport(cwd: string, opts: DoctorOptions): DoctorReport {
 
   findings.push(...checkContextFreshness(cwd));
   findings.push(...checkModelPolicyDrift(cwd));
+  findings.push(...await checkAgentLint(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
   const warnings = findings.filter(finding => finding.level === 'warning').length;
@@ -315,7 +358,7 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
 
 export async function doctor(opts: DoctorOptions = {}): Promise<void> {
   const cwd = process.cwd();
-  let report = buildDoctorReport(cwd, opts);
+  let report = await buildDoctorReport(cwd, opts);
 
   if (opts.fix && !opts.json) {
     log.blank();
@@ -324,7 +367,7 @@ export async function doctor(opts: DoctorOptions = {}): Promise<void> {
     for (const f of fixed) log.ok(`fixed: ${f}`);
     if (fixed.length > 0) {
       // Re-run report to refresh state
-      report = buildDoctorReport(cwd, opts);
+      report = await buildDoctorReport(cwd, opts);
     } else {
       log.info('no auto-fixable findings');
     }

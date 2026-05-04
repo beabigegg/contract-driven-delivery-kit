@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.0.4] - 2026-05-04
+
+### Fixed
+
+- All 16 agent prompts now describe the `Required artifacts` block as a
+  `{type, pointer}` YAML array (matching `src/schemas/agent-log.schema.ts`)
+  instead of a flat key list. Previously agents copied the prompt verbatim
+  and emitted top-level `files-changed:` / `tests-added:` keys, which
+  `cdd-kit gate` correctly rejected as `missing required artifacts`.
+- Removed duplicate `## Read scope` sections from 10 agents
+  (backend-engineer, frontend-engineer, qa-reviewer, contract-reviewer,
+  ci-cd-gatekeeper, spec-architect, test-strategist, e2e-resilience-engineer,
+  monkey-test-engineer, stress-soak-engineer).
+- Read scope in those 10 agents now points to
+  `specs/changes/<change-id>/context-manifest.md → ## Allowed Paths` as the
+  single source of truth (matching what `cdd-kit gate` already enforces),
+  and instructs agents to file a Context Expansion Request rather than
+  reading outside the manifest. Eliminates the most common
+  `read unauthorized path` gate failure.
+
+### Added
+
+- `cdd-kit lint-agents` subcommand: validates every `.claude/agents/*.md`
+  has the new artifacts shape, at most one `## Read scope`, a
+  `context-manifest.md` reference where applicable, and a pointer to
+  `references/agent-log-protocol.md`. Wired into `cdd-kit doctor`.
+- Optional `note:` field on tasks in `tasks.yml` (schema and template) for
+  recording per-task context without breaking the existing `pending |
+  done | skipped` status enum.
+
+### Migration
+
+No project-side migration required — the fix is to the bundled agent
+prompts. After upgrading run `cdd-kit update --yes` to refresh the agents
+in `~/.claude/`.
+
 ## [2.0.3] - 2026-04-30
 
 ### Fixed
