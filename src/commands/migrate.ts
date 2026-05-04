@@ -480,8 +480,34 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
     log.ok(`Migration complete: ${migratedCount} updated, ${upToDateCount} already up to date.`);
     if (migratedCount > 0 && !noBackup) {
       log.info(`Backup: ${backupRoot}`);
+      // Idempotent: ensure `.cdd/migrate-backup/` is gitignored so users don't
+      // accidentally commit local backups (which would otherwise pollute
+      // `specs/context/project-map.md` after `cdd-kit context-scan`).
+      if (ensureGitignoreEntry(cwd, '.cdd/migrate-backup/')) {
+        log.info('Added `.cdd/migrate-backup/` to .gitignore');
+      }
       log.info('Next: git add specs/changes/ && git commit -m "chore: migrate changes to YAML format"');
       log.info('When stable, remove backup: rm -rf .cdd/migrate-backup/');
     }
   }
+}
+
+/**
+ * Idempotently ensure a path entry exists in `.gitignore`. Creates the file
+ * if absent. Returns true if the file was modified.
+ */
+function ensureGitignoreEntry(cwd: string, entry: string): boolean {
+  const path = join(cwd, '.gitignore');
+  const trimmed = entry.trim();
+  if (!trimmed) return false;
+  const re = new RegExp(`^\\s*${trimmed.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s*$`, 'm');
+  let existing = '';
+  if (existsSync(path)) existing = readFileSync(path, 'utf8');
+  if (re.test(existing)) return false;
+  const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  const block = existing.length === 0
+    ? `# cdd-kit generated backups (do not commit)\n${trimmed}\n`
+    : `${sep}\n# cdd-kit generated backups (do not commit)\n${trimmed}\n`;
+  writeFileSync(path, existing + block, 'utf8');
+  return true;
 }

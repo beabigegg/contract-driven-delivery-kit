@@ -84,4 +84,33 @@ describe('cdd-kit context-scan', () => {
     expect(index).toContain('contracts/legacy/legacy-contract.md');
     expect(index).toContain('summary: MISSING');
   });
+
+  it('excludes .cdd/.refresh-backup, .cdd/migrate-backup, .cdd/runtime from project-map', () => {
+    // Plant local kit-generated backup dirs that must NOT pollute the project map.
+    // (This is the 2.0.9 bug fix: previously these paths were not in DEFAULT_FORBIDDEN
+    // so user's local backups landed in specs/context/project-map.md and broke the
+    // inputs-digest match for any fresh clone.)
+    const refreshBackup = join(tmpRepo, '.cdd', '.refresh-backup', '2026-05-04T00-00-00-000Z', 'specs');
+    const migrateBackup = join(tmpRepo, '.cdd', 'migrate-backup', '2026-05-04T00-00-00-000Z', 'feat-x');
+    const runtime = join(tmpRepo, '.cdd', 'runtime');
+    mkdirSync(refreshBackup, { recursive: true });
+    mkdirSync(migrateBackup, { recursive: true });
+    mkdirSync(runtime, { recursive: true });
+    writeFileSync(join(refreshBackup, 'change-classification.md'), '# old\n', 'utf8');
+    writeFileSync(join(migrateBackup, 'tasks.md'), '# old tasks\n', 'utf8');
+    writeFileSync(join(runtime, 'feat-x-files-read.jsonl'), '{}\n', 'utf8');
+
+    const r = runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const map = readFileSync(join(tmpRepo, 'specs', 'context', 'project-map.md'), 'utf8');
+    // The `## Excluded Paths` documentation section legitimately mentions these
+    // names. We only care that they don't appear in the actual file tree.
+    const treeMatch = map.match(/## Tree\s*\n+```\n([\s\S]*?)\n```/);
+    expect(treeMatch, 'tree section must exist').toBeTruthy();
+    const tree = treeMatch![1];
+    expect(tree).not.toMatch(/refresh-backup/);
+    expect(tree).not.toMatch(/migrate-backup/);
+    expect(tree).not.toMatch(/\.cdd\/runtime/);
+  });
 });

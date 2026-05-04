@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.0.9] - 2026-05-04
+
+Bug-fix patch. Discovered when verifying a real consumer repo (TODOLIST)
+after a successful 2.0.8 upgrade: the user's committed
+`specs/context/project-map.md` listed local kit-generated backup directories
+(`.cdd/.refresh-backup/...`, `.cdd/migrate-backup/...`), which then never
+matched fresh-clone digests — `cdd-kit doctor` reported "inputs changed"
+forever even when nothing was wrong.
+
+### Fixed
+
+- **`cdd-kit context-scan` excludes kit runtime artifacts**:
+  `DEFAULT_FORBIDDEN` now includes `.cdd/.refresh-backup`,
+  `.cdd/migrate-backup`, and `.cdd/runtime`. Previously only
+  `.claude / .git / node_modules / dist / build / assets / specs/archive /
+  specs/changes` were excluded, so kit backup dirs polluted the project-map
+  tree section.
+
+### Added
+
+- **`cdd-kit refresh`** auto-appends `.cdd/.refresh-backup/` to `.gitignore`
+  the first time it overwrites a template (idempotent — no duplicate
+  entries on subsequent runs). Logs the action so users know what changed.
+- **`cdd-kit migrate`** auto-appends `.cdd/migrate-backup/` to `.gitignore`
+  with identical idempotent semantics.
+
+### Migration
+
+If you already committed a polluted `specs/context/project-map.md` (signs:
+the tree section contains paths under `.cdd/.refresh-backup/` or
+`.cdd/migrate-backup/`, doctor reports "inputs changed" after a successful
+refresh), recover with:
+
+```bash
+echo ".cdd/.refresh-backup/" >> .gitignore
+rm -rf .cdd/.refresh-backup
+cdd-kit context-scan
+git add .gitignore specs/context/
+git commit -m "fix: exclude cdd-kit refresh-backup from context-scan"
+```
+
+Future refreshes will handle the gitignore entry automatically.
+
 ## [2.0.8] - 2026-05-04
 
 Adds `cdd-kit refresh` — a one-shot complete upgrade command. The previous

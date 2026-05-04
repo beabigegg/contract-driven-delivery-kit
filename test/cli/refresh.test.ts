@@ -165,6 +165,42 @@ describe('cdd-kit refresh — hooks marker', () => {
   });
 });
 
+describe('cdd-kit refresh — auto-gitignore backup dir', () => {
+  it('12: appends `.cdd/.refresh-backup/` to .gitignore on first overwrite', () => {
+    // Tamper a template so refresh creates a backup
+    writeFileSync(join(tmpRepo, 'specs', 'templates', 'change-classification.md'), 'TAMPERED\n', 'utf8');
+
+    // Start without a .gitignore at all
+    const giPath = join(tmpRepo, '.gitignore');
+    if (existsSync(giPath)) writeFileSync(giPath, '', 'utf8');
+
+    const r = runCli(
+      ['refresh', '--yes', '--no-code-map', '--no-update', '--no-upgrade'],
+      { cwd: tmpRepo, home: tmpHome },
+    );
+    expect(r.status, r.stderr).toBe(0);
+
+    expect(existsSync(giPath)).toBe(true);
+    expect(readFileSync(giPath, 'utf8')).toMatch(/^\.cdd\/\.refresh-backup\/\s*$/m);
+    expect(r.stdout + r.stderr).toMatch(/added.*\.cdd\/\.refresh-backup\/.*\.gitignore/);
+  });
+
+  it('13: idempotent — does not duplicate the entry on a second run', () => {
+    writeFileSync(join(tmpRepo, '.gitignore'), '.cdd/.refresh-backup/\nnode_modules/\n', 'utf8');
+    writeFileSync(join(tmpRepo, 'specs', 'templates', 'change-classification.md'), 'TAMPERED\n', 'utf8');
+
+    const r = runCli(
+      ['refresh', '--yes', '--no-code-map', '--no-update', '--no-upgrade'],
+      { cwd: tmpRepo, home: tmpHome },
+    );
+    expect(r.status, r.stderr).toBe(0);
+
+    const gi = readFileSync(join(tmpRepo, '.gitignore'), 'utf8');
+    const matches = gi.match(/^\.cdd\/\.refresh-backup\/\s*$/gm) ?? [];
+    expect(matches.length).toBe(1);
+  });
+});
+
 describe('cdd-kit refresh — model-policy resync', () => {
   it('10: resyncs roles when ~/.claude/agents has different model frontmatter', () => {
     // Plant a fake agent in tmpHome/.claude/agents whose model differs from the

@@ -27,6 +27,12 @@ const DEFAULT_FORBIDDEN = [
   'assets',
   'specs/archive',
   'specs/changes',
+  // cdd-kit runtime artifacts. Without these the user's local backups land
+  // in `specs/context/project-map.md`, polluting it and breaking the
+  // inputs-digest match for any fresh clone.
+  '.cdd/.refresh-backup',
+  '.cdd/migrate-backup',
+  '.cdd/runtime',
 ];
 
 function stripGlobSuffix(pattern: string): string {

@@ -1,5 +1,5 @@
-# generated: 2026-05-04T06:47:21Z by cdd-kit 2.0.8
-# files: 103, src-lines: 14453, map-lines: 1358, compression: 10.6x
+# generated: 2026-05-04T07:26:14Z by cdd-kit 2.0.9
+# files: 103, src-lines: 14579, map-lines: 1360, compression: 10.7x
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -513,7 +513,7 @@ src/commands/code-map.ts:  # 132 lines
   interfaces:
     - { name: CodeMapOptions, lines: 18-25 }
 
-src/commands/context-scan.ts:  # 288 lines
+src/commands/context-scan.ts:  # 294 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -521,22 +521,22 @@ src/commands/context-scan.ts:  # 288 lines
     - { module: '../utils/logger.js', items: [log], line: 4 }
   constants:
     - { name: DEFAULT_FORBIDDEN, line: 21 }
-    - { name: PER_DIR_ENTRY_CAP, line: 66 }
+    - { name: PER_DIR_ENTRY_CAP, line: 72 }
   functions:
     - { name: sha256OfFile, lines: 6-12 }
     - { name: inputsDigest, lines: 14-19 }
-    - { name: stripGlobSuffix, lines: 32-34 }
-    - { name: getForbiddenPaths, lines: 36-52 }
-    - { name: isForbidden, lines: 54-57 }
-    - { name: buildTree, lines: 68-110 }
-    - { name: firstHeading, lines: 112-115 }
-    - { name: deriveContractType, lines: 117-121 }
-    - { name: parseContractMetadata, lines: 123-149 }
-    - { name: findContractFiles, lines: 151-159 }
-    - { name: async contextScan, lines: 165-288 }
+    - { name: stripGlobSuffix, lines: 38-40 }
+    - { name: getForbiddenPaths, lines: 42-58 }
+    - { name: isForbidden, lines: 60-63 }
+    - { name: buildTree, lines: 74-116 }
+    - { name: firstHeading, lines: 118-121 }
+    - { name: deriveContractType, lines: 123-127 }
+    - { name: parseContractMetadata, lines: 129-155 }
+    - { name: findContractFiles, lines: 157-165 }
+    - { name: async contextScan, lines: 171-294 }
   interfaces:
-    - { name: TreeStats, lines: 59-64 }  # local
-    - { name: ContextScanOptions, lines: 161-163 }
+    - { name: TreeStats, lines: 65-70 }  # local
+    - { name: ContextScanOptions, lines: 167-169 }
 
 src/commands/context.ts:  # 269 lines
   imports:
@@ -694,7 +694,7 @@ src/commands/list-changes.ts:  # 42 lines
   functions:
     - { name: async listChanges, lines: 6-42 }
 
-src/commands/migrate.ts:  # 487 lines
+src/commands/migrate.ts:  # 513 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync], line: 2 }
@@ -712,7 +712,8 @@ src/commands/migrate.ts:  # 487 lines
     - { name: migrateAgentLogs, lines: 287-310 }
     - { name: migrateOne, lines: 312-370 }
     - { name: commitWritesAtomically, lines: 372-392 }
-    - { name: async migrate, lines: 394-487 }
+    - { name: async migrate, lines: 394-493 }
+    - { name: ensureGitignoreEntry, lines: 499-513 }
   interfaces:
     - { name: MigrateOptions, lines: 6-11 }  # local
     - { name: MigrateResult, lines: 13-16 }  # local
@@ -745,7 +746,7 @@ src/commands/new-change.ts:  # 175 lines
   interfaces:
     - { name: NewChangeOptions, lines: 10-15 }
 
-src/commands/refresh.ts:  # 384 lines
+src/commands/refresh.ts:  # 413 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync], line: 29 }
     - { module: path, items: [dirname, join, relative], line: 30 }
@@ -763,16 +764,17 @@ src/commands/refresh.ts:  # 384 lines
     - { name: fileHash, lines: 59-61 }
     - { name: planForceRefresh, lines: 63-95 }
     - { name: planSingleFile, lines: 97-102 }
-    - { name: applyPlan, lines: 104-122 }
-    - { name: parseAgentFrontmatter, lines: 129-140 }
-    - { name: resyncModelPolicy, lines: 146-202 }
-    - { name: planTemplateRefresh, lines: 204-231 }
-    - { name: summarizePlan, lines: 233-239 }
-    - { name: async refresh, lines: 241-384 }
+    - { name: ensureGitignoreEntry, lines: 113-127 }
+    - { name: applyPlan, lines: 129-147 }
+    - { name: parseAgentFrontmatter, lines: 154-165 }
+    - { name: resyncModelPolicy, lines: 171-227 }
+    - { name: planTemplateRefresh, lines: 229-256 }
+    - { name: summarizePlan, lines: 258-264 }
+    - { name: async refresh, lines: 266-413 }
   interfaces:
     - { name: RefreshOptions, lines: 40-48 }
     - { name: PlannedCopy, lines: 50-55 }  # local
-    - { name: AgentFrontmatter, lines: 124-127 }  # local
+    - { name: AgentFrontmatter, lines: 149-152 }  # local
 
 src/commands/update.ts:  # 181 lines
   imports:
@@ -960,7 +962,7 @@ test/cli/code-map.test.ts:  # 108 lines
   functions:
     - { name: copyFixtures, lines: 17-21 }
 
-test/cli/context-scan.test.ts:  # 87 lines
+test/cli/context-scan.test.ts:  # 116 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
@@ -1111,7 +1113,7 @@ test/cli/new.test.ts:  # 176 lines
   constants:
     - { name: REQUIRED_TEMPLATES, line: 7 }
 
-test/cli/refresh.test.ts:  # 243 lines
+test/cli/refresh.test.ts:  # 279 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync], line: 13 }
