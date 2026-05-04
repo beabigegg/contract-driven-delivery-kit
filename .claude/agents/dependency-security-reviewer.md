@@ -71,7 +71,31 @@ field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
-- `packages-reviewed`: list of `<name>@<version>`
-- `cve-findings`: count + severity buckets
-- `license-issues`: list or "none"
-- `lockfile-changes`: list of files
+
+`artifacts` is a YAML array of `{type, pointer}` items in your agent log
+(see `references/agent-log-protocol.md` for the full schema and self-validation
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
+those are `type` values, not log keys.
+
+Minimum required `type` values for this agent (each must appear at least once
+in your `artifacts:` array; add more items per type as needed):
+
+- `packages-reviewed`: packages assessed
+- `cve-findings`: CVE findings count by severity
+- `license-issues`: license-compliance findings or "none"
+- `lockfile-changes`: lockfile files changed
+
+Copy this exact shape into your agent log; replace each `<pointer>` with a
+concrete pointer (path:line-range, test-id, URL, or pass/fail string):
+
+```yaml
+artifacts:
+  - { type: packages-reviewed, pointer: "axios@1.7.0, jose@5.2.1" }
+  - { type: cve-findings, pointer: "0 high, 1 medium" }
+  - { type: license-issues, pointer: "none" }
+  - { type: lockfile-changes, pointer: "package-lock.json" }
+```
+
+If a required `type` does not apply to your run, emit one item with
+`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
+counts presence, qa-reviewer audits the reason.
