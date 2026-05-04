@@ -51,12 +51,8 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   // Vue scanner
   if (buckets['.vue']?.length) {
-    try {
-      const { vueScanner } = await import('../code-map/scanners/vue.js');
-      tasks.push(scanInProcess(vueScanner, buckets['.vue'], root));
-    } catch {
-      // scanner not yet wired — skip
-    }
+    const { vueScanner } = await import('../code-map/scanners/vue.js');
+    tasks.push(scanInProcess(vueScanner, buckets['.vue'], root));
   }
 
   for (const r of await Promise.all(tasks)) {
