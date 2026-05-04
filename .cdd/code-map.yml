@@ -1,5 +1,5 @@
-# generated: 2026-05-04T07:26:14Z by cdd-kit 2.0.9
-# files: 103, src-lines: 14579, map-lines: 1360, compression: 10.7x
+# generated: 2026-05-04T07:55:07Z by cdd-kit 2.0.9
+# files: 103, src-lines: 14661, map-lines: 1361, compression: 10.8x
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -513,7 +513,7 @@ src/commands/code-map.ts:  # 132 lines
   interfaces:
     - { name: CodeMapOptions, lines: 18-25 }
 
-src/commands/context-scan.ts:  # 294 lines
+src/commands/context-scan.ts:  # 342 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -521,22 +521,23 @@ src/commands/context-scan.ts:  # 294 lines
     - { module: '../utils/logger.js', items: [log], line: 4 }
   constants:
     - { name: DEFAULT_FORBIDDEN, line: 21 }
-    - { name: PER_DIR_ENTRY_CAP, line: 72 }
+    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 47 }
+    - { name: PER_DIR_ENTRY_CAP, line: 120 }
   functions:
     - { name: sha256OfFile, lines: 6-12 }
     - { name: inputsDigest, lines: 14-19 }
-    - { name: stripGlobSuffix, lines: 38-40 }
-    - { name: getForbiddenPaths, lines: 42-58 }
-    - { name: isForbidden, lines: 60-63 }
-    - { name: buildTree, lines: 74-116 }
-    - { name: firstHeading, lines: 118-121 }
-    - { name: deriveContractType, lines: 123-127 }
-    - { name: parseContractMetadata, lines: 129-155 }
-    - { name: findContractFiles, lines: 157-165 }
-    - { name: async contextScan, lines: 171-294 }
+    - { name: stripGlobSuffix, lines: 77-79 }
+    - { name: getForbiddenPaths, lines: 81-97 }
+    - { name: isForbidden, lines: 99-111 }
+    - { name: buildTree, lines: 122-164 }
+    - { name: firstHeading, lines: 166-169 }
+    - { name: deriveContractType, lines: 171-175 }
+    - { name: parseContractMetadata, lines: 177-203 }
+    - { name: findContractFiles, lines: 205-213 }
+    - { name: async contextScan, lines: 219-342 }
   interfaces:
-    - { name: TreeStats, lines: 65-70 }  # local
-    - { name: ContextScanOptions, lines: 167-169 }
+    - { name: TreeStats, lines: 113-118 }  # local
+    - { name: ContextScanOptions, lines: 215-217 }
 
 src/commands/context.ts:  # 269 lines
   imports:
@@ -962,7 +963,7 @@ test/cli/code-map.test.ts:  # 108 lines
   functions:
     - { name: copyFixtures, lines: 17-21 }
 
-test/cli/context-scan.test.ts:  # 116 lines
+test/cli/context-scan.test.ts:  # 150 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }

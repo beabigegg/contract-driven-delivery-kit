@@ -35,6 +35,45 @@ const DEFAULT_FORBIDDEN = [
   '.cdd/runtime',
 ];
 
+/**
+ * Directory names that must be excluded wherever they appear in the tree
+ * (NOT path-prefix matched). These are runtime / build / IDE caches that the
+ * user's local filesystem produces but that are gitignored — so they exist
+ * locally but not in any clone, breaking inputs-digest determinism.
+ *
+ * Mirrors code-map's `BUILTIN_INCLUDE/EXCLUDE` (src/code-map/config.ts) so
+ * both indexes ignore the same noise.
+ */
+const FORBIDDEN_DIRECTORY_NAMES = new Set([
+  // Node — also caught by top-level prefix, but a nested
+  // `frontend/node_modules` requires basename matching
+  'node_modules',
+  // Python
+  '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
+  '.tox',
+  // JS/TS frameworks
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  '.parcel-cache',
+  '.turbo',
+  '.nyc_output',
+  // Generic build / coverage caches
+  'coverage',
+  'htmlcov',
+  '.cache',
+  // Virtualenvs
+  'venv',
+  '.venv',
+  // IDE / OS noise
+  '.idea',
+  '.vscode',
+  '.DS_Store',
+]);
+
 function stripGlobSuffix(pattern: string): string {
   return pattern.replace(/\/\*\*$/, '').replace(/\/\*$/, '');
 }
@@ -59,7 +98,16 @@ function getForbiddenPaths(cwd: string): string[] {
 
 function isForbidden(relPath: string, forbidden: string[]): boolean {
   const normalized = relPath.replace(/\\/g, '/');
-  return forbidden.some(pattern => normalized === pattern || normalized.startsWith(`${pattern}/`));
+  // Path-prefix forbidden list (e.g. ".claude", "specs/archive", ".cdd/.refresh-backup")
+  if (forbidden.some(pattern => normalized === pattern || normalized.startsWith(`${pattern}/`))) {
+    return true;
+  }
+  // Basename forbidden list — match any segment in the path against the set.
+  // Catches `__pycache__`, `.pytest_cache`, etc. wherever they appear in the tree.
+  for (const segment of normalized.split('/')) {
+    if (FORBIDDEN_DIRECTORY_NAMES.has(segment)) return true;
+  }
+  return false;
 }
 
 interface TreeStats {

@@ -11,12 +11,21 @@ forever even when nothing was wrong.
 
 ### Fixed
 
-- **`cdd-kit context-scan` excludes kit runtime artifacts**:
-  `DEFAULT_FORBIDDEN` now includes `.cdd/.refresh-backup`,
-  `.cdd/migrate-backup`, and `.cdd/runtime`. Previously only
-  `.claude / .git / node_modules / dist / build / assets / specs/archive /
-  specs/changes` were excluded, so kit backup dirs polluted the project-map
-  tree section.
+- **`cdd-kit context-scan` excludes kit runtime artifacts AND common
+  transient cache directories at any depth**:
+  - `DEFAULT_FORBIDDEN` (path-prefix list) now includes
+    `.cdd/.refresh-backup`, `.cdd/migrate-backup`, `.cdd/runtime`.
+  - New `FORBIDDEN_DIRECTORY_NAMES` (basename-anywhere list) catches
+    Python (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+    `.tox`), JS/TS framework caches (`.next`, `.nuxt`, `.svelte-kit`,
+    `.parcel-cache`, `.turbo`, `.nyc_output`), generic build/coverage
+    (`coverage`, `htmlcov`, `.cache`), virtualenvs (`venv`, `.venv`),
+    nested `node_modules`, and IDE noise (`.idea`, `.vscode`, `.DS_Store`).
+  - Mirrors `code-map`'s `BUILTIN_EXCLUDE` so the two indexes ignore the
+    same noise. Previously context-scan only had 8 path-prefix entries
+    (`.claude / .git / node_modules / dist / build / assets / specs/archive /
+    specs/changes`), so locally-generated caches polluted the project-map
+    tree section and broke `inputs-digest` determinism for fresh clones.
 
 ### Added
 
