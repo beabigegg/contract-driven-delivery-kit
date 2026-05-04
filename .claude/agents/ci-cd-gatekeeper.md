@@ -58,9 +58,12 @@ mergeable / blocked / informational-risk
 
 ## Read scope
 
-- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
-- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
-- Forbidden: other `specs/changes/` directories, `specs/archive/`
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
+Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. `cdd-kit gate` validates `files-read:` against this list and rejects unauthorized paths.
+
+Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
+
+Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`.
 
 ## Machine-Verifiable Evidence
 
@@ -70,14 +73,31 @@ field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
-- `tiers-modified`: list of tier numbers
-- `gate-promotions`: list of `<gate>: <from-tier> → <to-tier>` or "none"
-- `workflow-files-changed`: list of paths
-- `required-status-checks`: list of check names
 
-## Read scope
+`artifacts` is a YAML array of `{type, pointer}` items in your agent log
+(see `references/agent-log-protocol.md` for the full schema and self-validation
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
+those are `type` values, not log keys.
 
-- Allowed: `contracts/`, `tests/`, `src/`, `specs/changes/<current-change-id>/`
-- Forbidden: other `specs/changes/` directories, `specs/archive/`
+Minimum required `type` values for this agent (each must appear at least once
+in your `artifacts:` array; add more items per type as needed):
 
-Read only the current change's directory. Do NOT glob `specs/changes/**` — it pulls historical data into context and wastes tokens.
+- `tiers-modified`: gate tiers touched
+- `gate-promotions`: gate moves between tiers or "none"
+- `workflow-files-changed`: workflow files edited
+- `required-status-checks`: PR-required gates after change
+
+Copy this exact shape into your agent log; replace each `<pointer>` with a
+concrete pointer (path:line-range, test-id, URL, or pass/fail string):
+
+```yaml
+artifacts:
+  - { type: tiers-modified, pointer: "1, 3" }
+  - { type: gate-promotions, pointer: "e2e: 3 → 1" }
+  - { type: workflow-files-changed, pointer: ".github/workflows/ci.yml" }
+  - { type: required-status-checks, pointer: "lint, unit-tests, contract-tests" }
+```
+
+If a required `type` does not apply to your run, emit one item with
+`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
+counts presence, qa-reviewer audits the reason.

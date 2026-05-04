@@ -30,9 +30,12 @@ Before editing, read the change artifacts, API contract, CSS/UI contract, compon
 
 ## Read scope
 
-- Allowed: `contracts/`, `tests/`, `src/`, and the change directory provided in `CURRENT_CHANGE_ID` at the top of your prompt
-- **Before reading any file**: confirm the CURRENT_CHANGE_ID from your prompt header. If not provided, ask the caller: "What is the current change-id?" before proceeding.
-- Forbidden: other `specs/changes/` directories, `specs/archive/`
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
+Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. `cdd-kit gate` validates `files-read:` against this list and rejects unauthorized paths.
+
+Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
+
+Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`.
 
 ## Handoff
 
@@ -51,14 +54,31 @@ field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
-- `files-changed`: list of `path/to/file.tsx:line-range`
-- `components-affected`: list of component names
-- `screenshot-paths`: list of paths under `specs/changes/<id>/screenshots/`
-- `accessibility-audit`: tool name + score or "skipped: reason"
 
-## Read scope
+`artifacts` is a YAML array of `{type, pointer}` items in your agent log
+(see `references/agent-log-protocol.md` for the full schema and self-validation
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
+those are `type` values, not log keys.
 
-- Allowed: `contracts/`, `tests/`, `src/`, `specs/changes/<current-change-id>/`
-- Forbidden: other `specs/changes/` directories, `specs/archive/`
+Minimum required `type` values for this agent (each must appear at least once
+in your `artifacts:` array; add more items per type as needed):
 
-Read only the current change's directory. Do NOT glob `specs/changes/**` — it pulls historical data into context and wastes tokens.
+- `files-changed`: source files modified
+- `components-affected`: component names touched
+- `screenshot-paths`: paths to UI screenshots captured
+- `accessibility-audit`: a11y check result
+
+Copy this exact shape into your agent log; replace each `<pointer>` with a
+concrete pointer (path:line-range, test-id, URL, or pass/fail string):
+
+```yaml
+artifacts:
+  - { type: files-changed, pointer: "src/pages/Dashboard.tsx:12-80" }
+  - { type: components-affected, pointer: "DashboardCard, FilterBar" }
+  - { type: screenshot-paths, pointer: "specs/changes/<id>/screenshots/dashboard-desktop.png" }
+  - { type: accessibility-audit, pointer: "axe-core: 0 violations" }
+```
+
+If a required `type` does not apply to your run, emit one item with
+`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
+counts presence, qa-reviewer audits the reason.
