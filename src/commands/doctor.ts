@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
+import { checkCodeMapFreshness } from '../code-map/freshness.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -234,6 +235,33 @@ async function checkAgentLint(cwd: string): Promise<Finding[]> {
   }
 }
 
+function checkCodeMap(cwd: string): Finding[] {
+  const findings: Finding[] = [];
+  const mapPath = join(cwd, '.cdd', 'code-map.yml');
+  if (!existsSync(mapPath)) {
+    const probe = checkCodeMapFreshness(cwd);
+    if (probe.status === 'missing-with-sources') {
+      findings.push({ level: 'warning', message: '.cdd/code-map.yml is missing; run `cdd-kit code-map`' });
+    }
+    return findings;
+  }
+  const probe = checkCodeMapFreshness(cwd);
+  if (probe.status === 'stale') {
+    const top = probe.staleFiles.slice(0, 3).join(', ');
+    const more = probe.staleCount > 3 ? ` (+${probe.staleCount - 3} more)` : '';
+    findings.push({ level: 'warning', message: `code-map stale: ${top}${more}; run \`cdd-kit code-map\`` });
+  }
+  // Compression metric from header
+  const text = readFileSync(mapPath, 'utf8');
+  const m = text.match(/^# files: (\d+), src-lines: (\d+), map-lines: (\d+), compression: ([\d.]+)x/m);
+  if (m) {
+    findings.push({ level: 'ok', message: `code-map: ${m[1]} files, ${m[4]}x compression` });
+  } else {
+    findings.push({ level: 'warning', message: '.cdd/code-map.yml has no metadata header (regenerate with cdd-kit 2.0.5+)' });
+  }
+  return findings;
+}
+
 async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<DoctorReport> {
   const requestedProvider = opts.provider ?? 'auto';
   if (!validateProviderOption(requestedProvider)) {
@@ -264,6 +292,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkContextFreshness(cwd));
   findings.push(...checkModelPolicyDrift(cwd));
   findings.push(...await checkAgentLint(cwd));
+  findings.push(...checkCodeMap(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
   const warnings = findings.filter(finding => finding.level === 'warning').length;
@@ -293,6 +322,19 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
         const { contextScan } = await import('./context-scan.js');
         await contextScan();
         fixed.push(`ran context-scan to refresh specs/context/`);
+        continue;
+      } catch (err) {
+        remaining.push({ level: 'warning', message: `${finding.message} (auto-fix failed: ${(err as Error).message})` });
+        continue;
+      }
+    }
+
+    // code-map stale or missing → regenerate
+    if (/code-map stale|code-map\.yml is missing/i.test(finding.message)) {
+      try {
+        const { codeMap } = await import('./code-map.js');
+        await codeMap({ path: '.', out: '.cdd/code-map.yml', include: [], exclude: [], check: false, maxLines: 100000 });
+        fixed.push('regenerated .cdd/code-map.yml');
         continue;
       } catch (err) {
         remaining.push({ level: 'warning', message: `${finding.message} (auto-fix failed: ${(err as Error).message})` });

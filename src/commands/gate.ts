@@ -448,6 +448,24 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  // Code-map freshness check (runs first — structural issues before manifest checks)
+  {
+    const { checkCodeMapFreshness } = await import('../code-map/freshness.js');
+    const freshness = checkCodeMapFreshness(cwd);
+    if (freshness.status === 'stale') {
+      const more = freshness.staleCount > 5 ? ` (+${freshness.staleCount - 5} more)` : '';
+      errors.push(
+        `code-map stale: ${freshness.staleFiles.join(', ')}${more} modified after ${freshness.mapPath}; run \`cdd-kit code-map\` to regenerate.`
+      );
+    } else if (freshness.status === 'missing-with-sources') {
+      warnings.push(
+        `code-map missing: run \`cdd-kit code-map\` to enable read-scope optimization (agents will fall back to whole-file Reads until generated).`
+      );
+    }
+    // 'missing-greenfield' and 'ok' → no output
+  }
+
   const contextPolicy = loadContextPolicy(cwd);
   const isNewChange = isContextGovernedChange(changeDir);
   const manifestPath = join(changeDir, 'context-manifest.md');

@@ -10,6 +10,7 @@ export const DEFAULT_EXCLUDE = [
   '**/__pycache__/**',
   '**/.git/**',
   '**/.cdd/**',
+  '**/.claude/**',
   '**/.venv/**',
   '**/venv/**',
   '**/coverage/**',
@@ -19,6 +20,8 @@ export const DEFAULT_EXCLUDE = [
   '**/.pytest_cache/**',
   '**/.mypy_cache/**',
   'specs/archive/**',
+  'specs/templates/**',
+  'tests/templates/**',
   '**/*.min.js',
 ];
 
