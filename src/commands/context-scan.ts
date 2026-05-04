@@ -11,9 +11,22 @@ function sha256OfFile(path: string): string {
   }
 }
 
-function inputsDigest(paths: string[]): string {
+/**
+ * Compute a stable digest of a list of input files. Each entry is rendered as
+ * `<repo-relative-path>:<sha256-of-content>`, sorted, joined with newlines,
+ * then hashed.
+ *
+ * Repo-relative path matters: if we used the absolute path, the digest would
+ * differ between every clone (different `cwd`) even when content is identical
+ * — making `cdd-kit doctor` permanently report "inputs changed" after any
+ * fresh clone. Fixed in 2.0.10.
+ */
+function inputsDigest(paths: string[], cwd: string): string {
   const combined = paths.slice().sort()
-    .map(p => `${p}:${sha256OfFile(p)}`)
+    .map(p => {
+      const rel = relative(cwd, p).replace(/\\/g, '/');
+      return `${rel}:${sha256OfFile(p)}`;
+    })
     .join('\n');
   return createHash('sha256').update(combined).digest('hex');
 }
@@ -45,9 +58,13 @@ const DEFAULT_FORBIDDEN = [
  * both indexes ignore the same noise.
  */
 const FORBIDDEN_DIRECTORY_NAMES = new Set([
-  // Node — also caught by top-level prefix, but a nested
-  // `frontend/node_modules` requires basename matching
+  // Node / generic build outputs — also in DEFAULT_FORBIDDEN at top level,
+  // but nested cases like `frontend/dist`, `apps/foo/build`, `packages/x/out`
+  // require basename matching.
   'node_modules',
+  'dist',
+  'build',
+  'out',
   // Python
   '__pycache__',
   '.pytest_cache',
@@ -254,7 +271,7 @@ export async function contextScan(opts: ContextScanOptions = {}): Promise<void> 
       `visible-files: ${treeStats.files}`,
       `omitted-dirs: ${treeStats.omittedDirs}`,
       `truncated-dirs: ${treeStats.truncatedDirs}`,
-      `inputs-digest: ${inputsDigest(projectMapInputs)}`,
+      `inputs-digest: ${inputsDigest(projectMapInputs, cwd)}`,
       '---',
       '',
       '# Project Map',
@@ -315,7 +332,7 @@ export async function contextScan(opts: ContextScanOptions = {}): Promise<void> 
     'schema-version: 1',
     `contract-count: ${contractFiles.length}`,
     `missing-summary-count: ${missingSummary}`,
-    `inputs-digest: ${inputsDigest(contractFiles)}`,
+    `inputs-digest: ${inputsDigest(contractFiles, cwd)}`,
     '---',
     '',
     '# Contracts Index',

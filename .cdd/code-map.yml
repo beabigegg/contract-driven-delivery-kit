@@ -1,5 +1,5 @@
-# generated: 2026-05-04T07:55:07Z by cdd-kit 2.0.9
-# files: 103, src-lines: 14661, map-lines: 1361, compression: 10.8x
+# generated: 2026-05-04T08:09:13Z by cdd-kit 2.0.10
+# files: 103, src-lines: 14742, map-lines: 1361, compression: 10.8x
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -513,31 +513,31 @@ src/commands/code-map.ts:  # 132 lines
   interfaces:
     - { name: CodeMapOptions, lines: 18-25 }
 
-src/commands/context-scan.ts:  # 342 lines
+src/commands/context-scan.ts:  # 359 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
     - { module: path, items: [basename, dirname, join, relative], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
   constants:
-    - { name: DEFAULT_FORBIDDEN, line: 21 }
-    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 47 }
-    - { name: PER_DIR_ENTRY_CAP, line: 120 }
+    - { name: DEFAULT_FORBIDDEN, line: 34 }
+    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 60 }
+    - { name: PER_DIR_ENTRY_CAP, line: 137 }
   functions:
     - { name: sha256OfFile, lines: 6-12 }
-    - { name: inputsDigest, lines: 14-19 }
-    - { name: stripGlobSuffix, lines: 77-79 }
-    - { name: getForbiddenPaths, lines: 81-97 }
-    - { name: isForbidden, lines: 99-111 }
-    - { name: buildTree, lines: 122-164 }
-    - { name: firstHeading, lines: 166-169 }
-    - { name: deriveContractType, lines: 171-175 }
-    - { name: parseContractMetadata, lines: 177-203 }
-    - { name: findContractFiles, lines: 205-213 }
-    - { name: async contextScan, lines: 219-342 }
+    - { name: inputsDigest, lines: 24-32 }
+    - { name: stripGlobSuffix, lines: 94-96 }
+    - { name: getForbiddenPaths, lines: 98-114 }
+    - { name: isForbidden, lines: 116-128 }
+    - { name: buildTree, lines: 139-181 }
+    - { name: firstHeading, lines: 183-186 }
+    - { name: deriveContractType, lines: 188-192 }
+    - { name: parseContractMetadata, lines: 194-220 }
+    - { name: findContractFiles, lines: 222-230 }
+    - { name: async contextScan, lines: 236-359 }
   interfaces:
-    - { name: TreeStats, lines: 113-118 }  # local
-    - { name: ContextScanOptions, lines: 215-217 }
+    - { name: TreeStats, lines: 130-135 }  # local
+    - { name: ContextScanOptions, lines: 232-234 }
 
 src/commands/context.ts:  # 269 lines
   imports:
@@ -566,11 +566,11 @@ src/commands/context.ts:  # 269 lines
   interfaces:
     - { name: ContextRequest, lines: 5-10 }  # local
 
-src/commands/doctor.ts:  # 453 lines
+src/commands/doctor.ts:  # 459 lines
   imports:
     - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
-    - { module: path, items: [join], line: 3 }
+    - { module: path, items: [join, relative], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
     - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, ProviderOption], line: 5 }
     - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 6 }
@@ -578,16 +578,16 @@ src/commands/doctor.ts:  # 453 lines
     - { name: fileExists, lines: 29-31 }
     - { name: findFiles, lines: 33-41 }
     - { name: sha256OfFile, lines: 43-49 }
-    - { name: inputDigest, lines: 51-57 }
-    - { name: readContextIndexMetadata, lines: 59-68 }
-    - { name: checkContextFreshness, lines: 70-131 }
-    - { name: readAgentModel, lines: 133-141 }
-    - { name: checkModelPolicyDrift, lines: 143-194 }
-    - { name: async checkAgentLint, lines: 196-236 }
-    - { name: checkCodeMap, lines: 238-269 }
-    - { name: async buildDoctorReport, lines: 271-313 }
-    - { name: async attemptAutoFixes, lines: 315-405 }
-    - { name: async doctor, lines: 407-453 }
+    - { name: inputDigest, lines: 51-63 }
+    - { name: readContextIndexMetadata, lines: 65-74 }
+    - { name: checkContextFreshness, lines: 76-137 }
+    - { name: readAgentModel, lines: 139-147 }
+    - { name: checkModelPolicyDrift, lines: 149-200 }
+    - { name: async checkAgentLint, lines: 202-242 }
+    - { name: checkCodeMap, lines: 244-275 }
+    - { name: async buildDoctorReport, lines: 277-319 }
+    - { name: async attemptAutoFixes, lines: 321-411 }
+    - { name: async doctor, lines: 413-459 }
   interfaces:
     - { name: DoctorOptions, lines: 8-13 }
     - { name: Finding, lines: 15-18 }  # local
@@ -722,9 +722,9 @@ src/commands/migrate.ts:  # 513 lines
     - { name: PendingDelete, lines: 23-25 }  # local
     - { name: LegacyTaskRow, lines: 142-147 }  # local
 
-src/commands/new-change.ts:  # 175 lines
+src/commands/new-change.ts:  # 179 lines
   imports:
-    - { module: path, items: [join], line: 1 }
+    - { module: path, items: [join, relative], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
     - { module: fs, items: [existsSync, readFileSync, readdirSync, writeFileSync], line: 3 }
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
@@ -733,17 +733,17 @@ src/commands/new-change.ts:  # 175 lines
     - { module: '../utils/logger.js', items: [log], line: 7 }
     - { module: './context-scan.js', items: [contextScan], line: 8 }
   constants:
-    - { name: REQUIRED_TEMPLATES, line: 77 }
-    - { name: SAFE_NAME, line: 95 }
+    - { name: REQUIRED_TEMPLATES, line: 81 }
+    - { name: SAFE_NAME, line: 99 }
   functions:
     - { name: sha256OfFile, lines: 17-23 }
-    - { name: inputsDigest, lines: 25-30 }
-    - { name: findContractFiles, lines: 32-42 }
-    - { name: readIndexDigest, lines: 44-48 }
-    - { name: async ensureFreshContextIndexes, lines: 50-75 }
-    - { name: listOptional, lines: 86-93 }
-    - { name: parseDependsOn, lines: 97-103 }
-    - { name: async newChange, lines: 105-175 }
+    - { name: inputsDigest, lines: 25-34 }
+    - { name: findContractFiles, lines: 36-46 }
+    - { name: readIndexDigest, lines: 48-52 }
+    - { name: async ensureFreshContextIndexes, lines: 54-79 }
+    - { name: listOptional, lines: 90-97 }
+    - { name: parseDependsOn, lines: 101-107 }
+    - { name: async newChange, lines: 109-179 }
   interfaces:
     - { name: NewChangeOptions, lines: 10-15 }
 
@@ -963,7 +963,7 @@ test/cli/code-map.test.ts:  # 108 lines
   functions:
     - { name: copyFixtures, lines: 17-21 }
 
-test/cli/context-scan.test.ts:  # 150 lines
+test/cli/context-scan.test.ts:  # 204 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
@@ -48,10 +48,16 @@ function sha256OfFile(path: string): string {
   }
 }
 
-function inputDigest(paths: string[]): string {
-  // Sort for determinism. Each path is hashed and combined.
+function inputDigest(paths: string[], cwd: string): string {
+  // Use repo-relative paths so the digest is portable across clones.
+  // (See context-scan.ts inputsDigest for the same fix; the two MUST stay in
+  // lockstep — doctor compares its computed digest against the one stamped
+  // in `specs/context/*.md` by context-scan.)
   const combined = paths.slice().sort()
-    .map(p => `${p}:${sha256OfFile(p)}`)
+    .map(p => {
+      const rel = relative(cwd, p).replace(/\\/g, '/');
+      return `${rel}:${sha256OfFile(p)}`;
+    })
     .join('\n');
   return createHash('sha256').update(combined).digest('hex');
 }
@@ -91,7 +97,7 @@ function checkContextFreshness(cwd: string): Finding[] {
   const projectMapMeta = readContextIndexMetadata(projectMap);
   const contractsIndexMeta = readContextIndexMetadata(contractsIndex);
 
-  const projectInputDigest = inputDigest([contextPolicy].filter(existsSync));
+  const projectInputDigest = inputDigest([contextPolicy].filter(existsSync), cwd);
   if (projectMapMeta.inputsDigest === undefined) {
     findings.push({
       level: 'warning',
@@ -104,7 +110,7 @@ function checkContextFreshness(cwd: string): Finding[] {
     });
   }
 
-  const contractsInputDigest = inputDigest(contractFiles);
+  const contractsInputDigest = inputDigest(contractFiles, cwd);
   if (contractsIndexMeta.inputsDigest === undefined) {
     findings.push({
       level: 'warning',

@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.0.10] - 2026-05-04
+
+Two more context-scan determinism bugs, both surfaced verifying the 2.0.9
+fix on the same consumer repo.
+
+### Fixed
+
+- **`inputs-digest` is now portable across clones**: previously the digest
+  was computed from `<absolute-path>:<content-sha>`, so the value depended
+  on `cwd`. A user's local repo at `D:\TODO\` and a fresh CI clone at
+  `/runner/work/TODO/` would always produce different digests for the
+  same content, causing `cdd-kit doctor` to report "inputs changed"
+  permanently after every fresh clone. Now uses repo-relative path —
+  digest depends only on the file's logical location and content.
+  Applied identically to `src/commands/context-scan.ts`,
+  `src/commands/doctor.ts`, and `src/commands/new-change.ts`.
+- **Nested build outputs (`dist/`, `build/`, `out/`) excluded at any depth**:
+  `FORBIDDEN_DIRECTORY_NAMES` now lists these as basename matches, so
+  `frontend/dist/`, `apps/web/build/`, `packages/lib/out/` get pruned
+  from the project-map tree. Previously only top-level `dist/` and
+  `build/` were caught.
+
+### Migration
+
+After upgrading, re-run `cdd-kit context-scan` once and commit the new
+`specs/context/*.md`. The new `inputs-digest` is in a different format
+(repo-relative paths) so existing maps will look stale to `cdd-kit doctor`
+until regenerated. This is one-time. From then on, fresh clones and CI
+will produce stable digests that match the committed value.
+
 ## [2.0.9] - 2026-05-04
 
 Bug-fix patch. Discovered when verifying a real consumer repo (TODOLIST)

@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { join, relative } from 'path';
 import { createHash } from 'crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import yaml from 'js-yaml';
@@ -22,9 +22,13 @@ function sha256OfFile(path: string): string {
   }
 }
 
-function inputsDigest(paths: string[]): string {
+function inputsDigest(paths: string[], cwd: string): string {
+  // Repo-relative for portability — must match context-scan.ts and doctor.ts.
   const combined = paths.slice().sort()
-    .map(p => `${p}:${sha256OfFile(p)}`)
+    .map(p => {
+      const rel = relative(cwd, p).replace(/\\/g, '/');
+      return `${rel}:${sha256OfFile(p)}`;
+    })
     .join('\n');
   return createHash('sha256').update(combined).digest('hex');
 }
@@ -55,8 +59,8 @@ async function ensureFreshContextIndexes(cwd: string): Promise<void> {
   const policyInputs = [policyPath].filter(existsSync);
   const contractFiles = findContractFiles(join(cwd, 'contracts'));
 
-  const wantProjectDigest = inputsDigest(policyInputs);
-  const wantContractsDigest = inputsDigest(contractFiles);
+  const wantProjectDigest = inputsDigest(policyInputs, cwd);
+  const wantContractsDigest = inputsDigest(contractFiles, cwd);
 
   const haveProjectDigest = readIndexDigest(projectMap);
   const haveContractsDigest = readIndexDigest(contractsIndex);

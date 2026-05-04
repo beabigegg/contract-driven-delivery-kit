@@ -85,6 +85,60 @@ describe('cdd-kit context-scan', () => {
     expect(index).toContain('summary: MISSING');
   });
 
+  it('excludes nested build outputs (dist/, build/, out/) at any depth', () => {
+    // Plant nested build outputs that are gitignored locally but exist on user's
+    // filesystem. Without basename matching, only top-level dist/ is excluded.
+    mkdirSync(join(tmpRepo, 'frontend', 'dist', 'assets'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'frontend', 'dist', 'assets', 'index.js'), '// build output\n', 'utf8');
+    mkdirSync(join(tmpRepo, 'apps', 'web', 'build'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'apps', 'web', 'build', 'main.js'), '// build\n', 'utf8');
+    mkdirSync(join(tmpRepo, 'packages', 'lib', 'out'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'packages', 'lib', 'out', 'lib.js'), '// out\n', 'utf8');
+    // Real source must survive
+    mkdirSync(join(tmpRepo, 'apps', 'web', 'src'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'apps', 'web', 'src', 'app.ts'), '// real source\n', 'utf8');
+
+    const r = runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    const map = readFileSync(join(tmpRepo, 'specs', 'context', 'project-map.md'), 'utf8');
+    const treeMatch = map.match(/## Tree\s*\n+```\n([\s\S]*?)\n```/);
+    const tree = treeMatch![1];
+    expect(tree).not.toMatch(/frontend\/dist/);
+    expect(tree).not.toMatch(/apps\/web\/build/);
+    expect(tree).not.toMatch(/packages\/lib\/out/);
+    expect(tree).toMatch(/app\.ts/);
+  });
+
+  it('inputs-digest is portable across clones (depends only on repo-relative path + content)', () => {
+    // Two repos with IDENTICAL `.cdd/context-policy.json` content but different
+    // absolute cwd should produce the SAME inputs-digest.
+    const tmpRepo2 = makeTempDir('cdd-context-scan-portable-');
+    try {
+      const r2 = runCli(['init', '--local-only'], { cwd: tmpRepo2, home: tmpHome });
+      if (r2.status !== 0) throw new Error(`second init failed: ${r2.stderr}`);
+
+      // Force both context-policy.json files to identical content
+      const policy = JSON.stringify({
+        forbiddenPaths: ['.git/**'],
+        contextExpansion: { mode: 'auto-safe', autoApprovePatterns: [] },
+        audit: { requireFilesRead: true, unknownFilesRead: 'warn' },
+      }, null, 2);
+      writeFileSync(join(tmpRepo, '.cdd', 'context-policy.json'), policy, 'utf8');
+      writeFileSync(join(tmpRepo2, '.cdd', 'context-policy.json'), policy, 'utf8');
+
+      runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
+      runCli(['context-scan'], { cwd: tmpRepo2, home: tmpHome });
+
+      const map1 = readFileSync(join(tmpRepo, 'specs', 'context', 'project-map.md'), 'utf8');
+      const map2 = readFileSync(join(tmpRepo2, 'specs', 'context', 'project-map.md'), 'utf8');
+      const d1 = map1.match(/^inputs-digest:\s*([a-f0-9]+)/m)![1];
+      const d2 = map2.match(/^inputs-digest:\s*([a-f0-9]+)/m)![1];
+      expect(d1).toBe(d2);
+    } finally {
+      cleanupDir(tmpRepo2);
+    }
+  });
+
   it('excludes Python/JS transient cache dirs at any depth (__pycache__, .pytest_cache, etc.)', () => {
     // Plant nested kit-irrelevant cache dirs that the user's filesystem
     // produces locally. They are gitignored so they exist on the user's
