@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.12] - 2026-05-04
+
+Tiny patch — closes the last line-ending hole.
+
+### Fixed
+
+- **`cdd-kit code-map --check` is now line-ending agnostic**: 2.0.11 fixed
+  the digest paths (`# sources-digest:`) to be portable, but `--check`'s
+  string-comparison fallback still saw CRLF (committed via
+  `core.autocrlf=true`) vs LF (always emitted) as different and reported
+  "would change". The pre-commit hook then regenerated the map on every
+  commit on Windows even when content was bit-identical. Fixed by
+  normalizing CRLF/CR → LF on both sides before comparison, matching the
+  digest functions' approach.
+
+After upgrading, the hook stops triggering noisy regenerations on
+Windows. No re-scan needed; this is purely a comparison fix.
+
 ## [2.0.11] - 2026-05-04
 
 Final portability fix in the digest series. After 2.0.10 made digests

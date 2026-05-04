@@ -1,6 +1,6 @@
-# generated: 2026-05-04T08:27:54Z by cdd-kit 2.0.11
-# files: 104, src-lines: 14897, map-lines: 1375, compression: 10.8x
-# sources-digest: fca561e8de53a5b7a968563e53413465ff156b8982e3d6b692eb822d91f49661
+# generated: 2026-05-04T08:35:28Z by cdd-kit 2.0.12
+# files: 104, src-lines: 14905, map-lines: 1375, compression: 10.8x
+# sources-digest: 8bcdcca91fca26f01adbae159ddb0dd7f643bd43401be56329430bdd62252293
 .spike/code_map.py:  # 104 lines
   imports:
     - { module: ast, items: [], line: 2 }
@@ -499,7 +499,7 @@ src/commands/code-map-hook.ts:  # 77 lines
   functions:
     - { name: async installCodeMapHook, lines: 27-77 }
 
-src/commands/code-map.ts:  # 163 lines
+src/commands/code-map.ts:  # 171 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -515,7 +515,7 @@ src/commands/code-map.ts:  # 163 lines
     - { module: path, items: [join], line: 36 }
   functions:
     - { name: computeSourcesDigest, lines: 19-31 }
-    - { name: async codeMap, lines: 51-163 }
+    - { name: async codeMap, lines: 51-171 }
   interfaces:
     - { name: CodeMapOptions, lines: 42-49 }
 

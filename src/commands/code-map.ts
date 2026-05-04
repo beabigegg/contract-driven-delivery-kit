@@ -145,9 +145,17 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   if (opts.check) {
     const existing = existsSync(opts.out) ? readFileSync(opts.out, 'utf8') : '';
-    // Normalize the timestamp line before comparing — the generator date always differs
+    // Normalize before comparing:
+    //  1. Strip the generator-timestamp line (always differs run-to-run)
+    //  2. Convert CRLF/CR → LF — handles the case where git autocrlf=true
+    //     stored CRLF on disk while we always emit LF. Without this, every
+    //     commit on Windows triggers a spurious "would regenerate" even
+    //     when content is bit-identical (post-normalization).
     const normalize = (s: string): string =>
-      s.replace(/^# generated: [^\n]+\n/m, '# generated: <normalized>\n');
+      s
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/^# generated: [^\n]+\n/m, '# generated: <normalized>\n');
     if (normalize(existing) !== normalize(yamlBody)) {
       log.error(`code-map out of date: ${opts.out} would change. Run \`cdd-kit code-map\` to regenerate.`);
       return 1;
