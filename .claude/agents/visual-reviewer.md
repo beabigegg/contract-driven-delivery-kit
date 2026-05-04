@@ -60,7 +60,31 @@ field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
-- `screenshots-compared`: list of `<screen>: baseline → current`
-- `diff-percentage`: per-screen
-- `state-coverage`: matrix
-- `tokens-violated`: list of CSS contract violations or "none"
+
+`artifacts` is a YAML array of `{type, pointer}` items in your agent log
+(see `references/agent-log-protocol.md` for the full schema and self-validation
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
+those are `type` values, not log keys.
+
+Minimum required `type` values for this agent (each must appear at least once
+in your `artifacts:` array; add more items per type as needed):
+
+- `screenshots-compared`: baseline → current screenshot pairs
+- `diff-percentage`: pixel diff per surface
+- `state-coverage`: visual states verified (default, loading, error, empty)
+- `tokens-violated`: design-token violations or "none"
+
+Copy this exact shape into your agent log; replace each `<pointer>` with a
+concrete pointer (path:line-range, test-id, URL, or pass/fail string):
+
+```yaml
+artifacts:
+  - { type: screenshots-compared, pointer: "dashboard: baseline.png → current.png" }
+  - { type: diff-percentage, pointer: "dashboard: 0.04%" }
+  - { type: state-coverage, pointer: "default, loading, error, empty" }
+  - { type: tokens-violated, pointer: "none" }
+```
+
+If a required `type` does not apply to your run, emit one item with
+`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
+counts presence, qa-reviewer audits the reason.

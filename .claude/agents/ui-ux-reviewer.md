@@ -58,7 +58,31 @@ field rules, and gate-enforcement behavior are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Required artifacts for this agent
-- `journeys-reviewed`: list of journey names
-- `state-coverage`: list of `<screen>: empty/loading/error/success` matrix
-- `copy-issues`: count + severity
-- `accessibility-findings`: count + severity
+
+`artifacts` is a YAML array of `{type, pointer}` items in your agent log
+(see `references/agent-log-protocol.md` for the full schema and self-validation
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
+those are `type` values, not log keys.
+
+Minimum required `type` values for this agent (each must appear at least once
+in your `artifacts:` array; add more items per type as needed):
+
+- `journeys-reviewed`: user journeys covered
+- `state-coverage`: per-journey state coverage
+- `copy-issues`: copy/wording findings count
+- `accessibility-findings`: a11y findings by severity
+
+Copy this exact shape into your agent log; replace each `<pointer>` with a
+concrete pointer (path:line-range, test-id, URL, or pass/fail string):
+
+```yaml
+artifacts:
+  - { type: journeys-reviewed, pointer: "login, password-reset" }
+  - { type: state-coverage, pointer: "login: empty/loading/error/success" }
+  - { type: copy-issues, pointer: "1 medium" }
+  - { type: accessibility-findings, pointer: "0 high, 2 low" }
+```
+
+If a required `type` does not apply to your run, emit one item with
+`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
+counts presence, qa-reviewer audits the reason.
