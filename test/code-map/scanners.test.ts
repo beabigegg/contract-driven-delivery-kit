@@ -4,10 +4,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { join, dirname } from 'path';
-import { existsSync, writeFileSync, mkdtempSync } from 'fs';
+import { writeFileSync, mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { spawnSync } from 'child_process';
 import { pythonScanner } from '../../src/code-map/scanners/python.js';
+import { jsScanner } from '../../src/code-map/scanners/javascript.js';
+import { vueScanner } from '../../src/code-map/scanners/vue.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -68,27 +70,8 @@ describe('python scanner', () => {
 
 // ── JavaScript scanner tests ──────────────────────────────────────────────
 
-function hasJsScanner(): boolean {
-  try {
-    require.resolve('../../src/code-map/scanners/javascript.js');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Use existsSync check since we can't require a module synchronously in ESM
-import { existsSync as _existsSync } from 'fs';
-const JS_SCANNER_EXISTS = _existsSync(
-  join(import.meta.dirname ?? dirname(new URL(import.meta.url).pathname), '..', '..', 'src', 'code-map', 'scanners', 'javascript.ts')
-);
-const VUE_SCANNER_EXISTS = _existsSync(
-  join(import.meta.dirname ?? dirname(new URL(import.meta.url).pathname), '..', '..', 'src', 'code-map', 'scanners', 'vue.ts')
-);
-
 describe('javascript scanner', () => {
-  it.skipIf(!JS_SCANNER_EXISTS)('extracts imports/exports/functions/classes', async () => {
-    const { jsScanner } = await import('../../src/code-map/scanners/javascript.js');
+  it('extracts imports/exports/functions/classes', async () => {
     const e = await jsScanner.scan(fixturePath('sample.js'), fixtureRoot());
     expect(e).not.toBeNull();
     expect(e!.path).toBe('sample.js');
@@ -98,12 +81,19 @@ describe('javascript scanner', () => {
     expect(e!.functions.find(f => f.name === 'declared')).toBeTruthy();
   });
 
-  it.skipIf(!JS_SCANNER_EXISTS)('returns null or empty for syntactically catastrophic JS but never throws', async () => {
-    const { jsScanner } = await import('../../src/code-map/scanners/javascript.js');
+  it('returns null or empty for syntactically catastrophic JS but never throws', async () => {
     const tmp = writeTempFile('!!!@@##$$', '.js');
     const e = await jsScanner.scan(tmp, dirname(tmp));
     // With errorRecovery, Babel may still produce empty AST; either null or empty entry is acceptable
     expect(e === null || (e.classes.length === 0 && e.functions.length === 0)).toBe(true);
+  });
+
+  it('returns empty sections for comments-only file', async () => {
+    const e = await jsScanner.scan(fixturePath('comments-only.js'), fixtureRoot());
+    expect(e).not.toBeNull();
+    expect(e!.imports).toHaveLength(0);
+    expect(e!.functions).toHaveLength(0);
+    expect(e!.classes).toHaveLength(0);
   });
 });
 
@@ -117,8 +107,7 @@ function writeTempVue(content: string): string {
 }
 
 describe('vue scanner', () => {
-  it.skipIf(!VUE_SCANNER_EXISTS)('offsets line numbers from <script setup> block start', async () => {
-    const { vueScanner } = await import('../../src/code-map/scanners/vue.js');
+  it('offsets line numbers from <script setup> block start', async () => {
     const e = await vueScanner.scan(fixturePath('sample.vue'), fixtureRoot());
     expect(e).not.toBeNull();
     expect(e!.total_lines).toBe(40);
@@ -127,11 +116,19 @@ describe('vue scanner', () => {
     expect(fn.lines[1]).toBeLessThanOrEqual(30);
   });
 
-  it.skipIf(!VUE_SCANNER_EXISTS)('skips <script lang="ts"> with warning (returns empty functions)', async () => {
-    const { vueScanner } = await import('../../src/code-map/scanners/vue.js');
+  it('skips <script lang="ts"> with warning (returns empty functions)', async () => {
     const tmp = writeTempVue('<script lang="ts">export const x = 1;</script>');
     const e = await vueScanner.scan(tmp, dirname(tmp));
     expect(e).not.toBeNull();
     expect(e!.functions).toHaveLength(0);
+  });
+
+  it('returns empty entry for vue file with no script block', async () => {
+    const tmp = writeTempVue('<template><div>Hello</div></template>\n<style>.x{}</style>');
+    const e = await vueScanner.scan(tmp, dirname(tmp));
+    expect(e).not.toBeNull();
+    expect(e!.imports).toHaveLength(0);
+    expect(e!.functions).toHaveLength(0);
+    expect(e!.classes).toHaveLength(0);
   });
 });
