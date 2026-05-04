@@ -37,24 +37,16 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   // Python scanner (batch path)
   if (buckets['.py']?.length) {
-    try {
-      const { pythonScanner } = await import('../code-map/scanners/python.js');
-      if (pythonScanner.scanBatch) {
-        tasks.push(pythonScanner.scanBatch(buckets['.py'], root));
-      }
-    } catch {
-      // scanner not yet wired — skip
+    const { pythonScanner } = await import('../code-map/scanners/python.js');
+    if (pythonScanner.scanBatch) {
+      tasks.push(pythonScanner.scanBatch(buckets['.py'], root));
     }
   }
 
   // JS scanner
   if (buckets['.js']?.length) {
-    try {
-      const { jsScanner } = await import('../code-map/scanners/javascript.js');
-      tasks.push(scanInProcess(jsScanner, buckets['.js'], root));
-    } catch {
-      // scanner not yet wired — skip
-    }
+    const { jsScanner } = await import('../code-map/scanners/javascript.js');
+    tasks.push(scanInProcess(jsScanner, buckets['.js'], root));
   }
 
   // Vue scanner
