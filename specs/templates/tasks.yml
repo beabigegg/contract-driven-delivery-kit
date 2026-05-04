@@ -8,7 +8,7 @@ archive-tasks:
 depends-on: []
 
 tasks:
-  # status: pending | done | skipped
+  # status: pending | done | skipped   (optional: note: "reason or context")
   - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: pending }
   - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: pending }
   - { id: "1.3", section: Preparation, title: "Confirm CI/CD gate plan", status: pending }

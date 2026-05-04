@@ -1,4 +1,4 @@
-import type { FileEntry, ClassEntry, FunctionEntry } from './types.js';
+import type { FileEntry, ClassEntry, FunctionEntry, TypeDefEntry, EnumEntry } from './types.js';
 
 const YAML_RESERVED = /[:[\]{},&*!|>'"%@`#]/;
 
@@ -59,6 +59,22 @@ function renderFunction(f: FunctionEntry): string {
   return `    - { name: ${asyncPrefix}${f.name}, lines: ${f.lines[0]}-${f.lines[1]} }${comment}`;
 }
 
+function renderTypeDef(t: TypeDefEntry): string {
+  const exportedSuffix = t.exported ? '' : '  # local';
+  return `    - { name: ${t.name}, lines: ${t.lines[0]}-${t.lines[1]} }${exportedSuffix}`;
+}
+
+function renderEnum(e: EnumEntry): string[] {
+  const lines: string[] = [];
+  const exportedSuffix = e.exported ? '' : '  # local';
+  lines.push(`    - name: ${e.name}`);
+  lines.push(`      lines: ${e.lines[0]}-${e.lines[1]}${exportedSuffix}`);
+  if (e.members.length > 0) {
+    lines.push(`      members: [${e.members.join(', ')}]`);
+  }
+  return lines;
+}
+
 export interface RenderOptions {
   generator: string;  // e.g. "cdd-kit 2.0.5"
 }
@@ -107,6 +123,27 @@ export function renderYaml(entries: FileEntry[], opts: RenderOptions): string {
       bodyLines.push('  functions:');
       for (const f of e.functions) {
         bodyLines.push(renderFunction(f));
+      }
+    }
+
+    if (e.interfaces && e.interfaces.length > 0) {
+      bodyLines.push('  interfaces:');
+      for (const t of e.interfaces) {
+        bodyLines.push(renderTypeDef(t));
+      }
+    }
+
+    if (e.types && e.types.length > 0) {
+      bodyLines.push('  types:');
+      for (const t of e.types) {
+        bodyLines.push(renderTypeDef(t));
+      }
+    }
+
+    if (e.enums && e.enums.length > 0) {
+      bodyLines.push('  enums:');
+      for (const en of e.enums) {
+        bodyLines.push(...renderEnum(en));
       }
     }
   }

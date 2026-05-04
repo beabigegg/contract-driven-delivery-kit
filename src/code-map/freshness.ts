@@ -1,6 +1,7 @@
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { walkRepo } from './include-exclude.js';
+import { loadCodeMapConfig } from './config.js';
 
 export interface FreshnessResult {
   status: 'ok' | 'stale' | 'missing-with-sources' | 'missing-greenfield';
@@ -11,6 +12,10 @@ export interface FreshnessResult {
 
 /**
  * Check whether .cdd/code-map.yml is fresh relative to source files.
+ *
+ * Uses the resolved code-map config (built-in defaults, optionally replaced by
+ * .cdd/code-map-config.yml). Caller-supplied include/exclude are appended on
+ * top — passed through for callers (e.g. tests) that want to narrow further.
  */
 export function checkCodeMapFreshness(
   cwd: string,
@@ -20,7 +25,18 @@ export function checkCodeMapFreshness(
 ): FreshnessResult {
   const mapPath = join(cwd, mapRel);
 
-  const sourceFiles = walkRepo(cwd, { include, exclude });
+  let cfg;
+  try {
+    cfg = loadCodeMapConfig(cwd);
+  } catch {
+    // On config error, fall back to empty (treat as if no source files match —
+    // gate's main config-validation path will surface the error elsewhere).
+    cfg = { include: [] as string[], exclude: [] as string[], source: 'builtin' as const };
+  }
+  const includeFinal = [...cfg.include, ...(include ?? [])];
+  const excludeFinal = [...cfg.exclude, ...(exclude ?? [])];
+
+  const sourceFiles = walkRepo(cwd, { include: includeFinal, exclude: excludeFinal });
 
   if (!existsSync(mapPath)) {
     if (sourceFiles.length === 0) {

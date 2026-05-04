@@ -3,6 +3,7 @@ import { resolve, dirname } from 'path';
 import { log } from '../utils/logger.js';
 import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
+import { loadCodeMapConfig } from '../code-map/config.js';
 import type { ScannerResult } from '../code-map/types.js';
 
 // Read package version at runtime
@@ -27,7 +28,19 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   const root = resolve(process.cwd(), opts.path);
   const start = Date.now();
 
-  const files = walkRepo(root, { include: opts.include, exclude: opts.exclude });
+  // Resolve config: built-in defaults, optionally replaced by .cdd/code-map-config.yml.
+  // CLI --include / --exclude are appended on top of whichever lists won.
+  let cfg;
+  try {
+    cfg = loadCodeMapConfig(root);
+  } catch (err) {
+    log.error(`code-map: ${(err as Error).message}`);
+    return 1;
+  }
+  const include = [...cfg.include, ...opts.include];
+  const exclude = [...cfg.exclude, ...opts.exclude];
+
+  const files = walkRepo(root, { include, exclude });
   const buckets = bucketByExtension(files);
 
   const result: ScannerResult = { entries: [], warnings: [] };
@@ -43,10 +56,26 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
     }
   }
 
-  // JS scanner
-  if (buckets['.js']?.length) {
+  // JS scanner — handles .js / .jsx / .mjs / .cjs
+  const jsFiles = [
+    ...(buckets['.js'] ?? []),
+    ...(buckets['.jsx'] ?? []),
+    ...(buckets['.mjs'] ?? []),
+    ...(buckets['.cjs'] ?? []),
+  ];
+  if (jsFiles.length) {
     const { jsScanner } = await import('../code-map/scanners/javascript.js');
-    tasks.push(scanInProcess(jsScanner, buckets['.js'], root));
+    tasks.push(scanInProcess(jsScanner, jsFiles, root));
+  }
+
+  // TypeScript scanner — handles .ts / .tsx
+  const tsFiles = [
+    ...(buckets['.ts'] ?? []),
+    ...(buckets['.tsx'] ?? []),
+  ];
+  if (tsFiles.length) {
+    const { tsScanner } = await import('../code-map/scanners/typescript.js');
+    tasks.push(scanInProcess(tsScanner, tsFiles, root));
   }
 
   // Vue scanner

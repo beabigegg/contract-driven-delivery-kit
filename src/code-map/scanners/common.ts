@@ -18,7 +18,10 @@ export function truncateDecorator(d: string, max = 80): string {
 }
 
 export function isAllCapsConst(name: string): boolean {
-  return /^[A-Z][A-Z0-9_]*$/.test(name) && /[A-Z]/.test(name);
+  // Require length >= 2 so single-letter uppercase identifiers (X, T, Y) — almost
+  // always type params or component aliases in TS/JSX — fall through to the
+  // function-heuristic branch instead of being classified as constants.
+  return name.length >= 2 && /^[A-Z][A-Z0-9_]*$/.test(name);
 }
 
 /**

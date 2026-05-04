@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { load as yamlLoad } from 'js-yaml';
 import { log } from '../utils/logger.js';
 
 export interface LintAgentsOptions {
@@ -40,6 +41,34 @@ function extractFirstReadScopeSection(content: string): string | null {
 function extractYamlBlock(section: string): string | null {
   const match = section.match(/```ya?ml\s*\n([\s\S]*?)```/);
   return match ? match[0] : null;
+}
+
+/**
+ * Extract just the YAML body (without the ```yaml ... ``` fence markers).
+ * Returns null if no fence found.
+ */
+function extractYamlBody(section: string): string | null {
+  const match = section.match(/```ya?ml\s*\n([\s\S]*?)```/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Parse the artifacts YAML body and check it has exactly one top-level key
+ * `artifacts`. Returns the list of stray top-level keys, or null if the YAML
+ * cannot be parsed (caller falls back to existing string-based checks).
+ */
+function strayTopLevelKeys(yamlBody: string): string[] | null {
+  let parsed: unknown;
+  try {
+    parsed = yamlLoad(yamlBody);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+  const keys = Object.keys(parsed as Record<string, unknown>);
+  return keys.filter(k => k !== 'artifacts');
 }
 
 /**
@@ -116,6 +145,23 @@ export async function lintAgents(opts: LintAgentsOptions): Promise<number> {
           message: 'bad Required-artifacts format: YAML block has no { type: ..., pointer: ... } items',
           level: 'error',
         });
+      } else {
+        // Rule A strengthening: parse YAML body and ensure no stray sibling keys
+        // alongside `artifacts:`. The agent-log schema enforces additionalProperties:
+        // false at runtime, but agents copy the prompt example verbatim — a stray
+        // `pointer:` or `type:` at the top level here trains the wrong shape.
+        const yamlBody = extractYamlBody(artifactsSection);
+        if (yamlBody) {
+          const stray = strayTopLevelKeys(yamlBody);
+          if (stray && stray.length > 0) {
+            violations.push({
+              file: filename,
+              rule: 'A',
+              message: `bad Required-artifacts format: stray top-level key(s) alongside artifacts: [${stray.join(', ')}] — these are item keys, not log keys`,
+              level: 'error',
+            });
+          }
+        }
       }
 
       if (hasFlatBacktickKeysWithoutFence(artifactsSection)) {

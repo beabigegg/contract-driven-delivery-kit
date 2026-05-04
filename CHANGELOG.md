@@ -1,5 +1,63 @@
 # Changelog
 
+## [2.0.6] - 2026-05-04
+
+### Added
+
+- TypeScript scanner for `cdd-kit code-map`: `.ts` and `.tsx` files are
+  now indexed alongside `.py` / `.js` / `.vue`. `.jsx` / `.mjs` / `.cjs`
+  also routed through the JS scanner. Real-world scan of a React 19 +
+  TS 5.9 frontend (137 files / 20,119 src lines) compresses to 1,675
+  map lines (12.0x) in ~140 ms.
+- New code-map schema fields for TS files: `interfaces:`, `types:`,
+  `enums:` — each entry carries `name`, `lines`, and an `# local`
+  annotation when the symbol is not exported. Enum entries also list
+  their members.
+- User-overridable `.cdd/code-map-config.yml`: optional file with
+  `include:` / `exclude:` glob lists. When set, each list REPLACES the
+  matching built-in default (replacement semantics keep the mental
+  model simple — copy the built-in list and edit it for partial
+  overrides). CLI `--include` / `--exclude` flags continue to stack on
+  top of whichever lists won. Schema errors produce a clear message
+  and a non-zero exit.
+- `lint-agents` Rule A is now stricter: parses the YAML inside each
+  agent prompt's `artifacts:` fence and rejects stray top-level keys
+  (e.g. a stray `pointer:` or `type:` sibling alongside `artifacts:`).
+  This catches the residual format drift that the runtime gate
+  already rejects but that previously slipped through prompt review.
+
+### Changed
+
+- `backend-engineer` and `frontend-engineer` agent prompts: the
+  `## Code map (READ FIRST)` section now lists `.ts` / `.tsx` /
+  `.jsx` as covered extensions and points agents at the new
+  `interfaces:` / `types:` / `enums:` sections for TS files.
+- `references/code-map-protocol.md` documents the TS schema additions
+  and the `.cdd/code-map-config.yml` override format.
+- Variable-declaration heuristic in the JS/TS scanner now treats an
+  uppercase const initialised by a `CallExpression` (e.g.
+  `const Button = forwardRef(...)`, `const X = memo(...)`) as a
+  function entry, so React HOC-wrapped components show up in the map.
+  Single-letter uppercase identifiers (`X`, `T`, `Y`) are no longer
+  classified as ALL_CAPS constants — they fall through to the
+  function-heuristic branch.
+
+### Fixed
+
+- `build.js` no longer ships `.cdd/code-map.yml` inside `assets/cdd/`.
+  The map is a per-repo runtime artifact; shipping a pre-built copy
+  caused fresh `cdd-kit init` repos to inherit a stale snapshot that
+  fooled freshness checks.
+
+### Migration
+
+- Existing 2.0.5 projects: nothing to do. The TS scanner activates
+  automatically on the next `cdd-kit code-map` run if `.ts` / `.tsx`
+  files are present. Re-run `cdd-kit code-map` to pick them up.
+- To customise scan scope: create `.cdd/code-map-config.yml`. Without
+  it, all built-in defaults apply.
+- `cdd-kit update --yes` to refresh agent prompts in `~/.claude/`.
+
 ## [2.0.5] - 2026-05-04
 
 ### Added

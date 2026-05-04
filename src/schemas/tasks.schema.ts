@@ -36,7 +36,8 @@ export const tasksSchema = {
           id: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)*$" },
           title: { type: "string", minLength: 1 },
           status: { type: "string", enum: ["pending", "done", "skipped"] },
-          section: { type: "string" }
+          section: { type: "string" },
+          note: { type: "string" }
         }
       }
     }

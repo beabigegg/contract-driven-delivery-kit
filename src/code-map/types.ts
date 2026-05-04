@@ -28,6 +28,19 @@ export interface FunctionEntry {
   async: boolean;
 }
 
+export interface TypeDefEntry {
+  name: string;
+  lines: [number, number];
+  exported: boolean;
+}
+
+export interface EnumEntry {
+  name: string;
+  lines: [number, number];
+  exported: boolean;
+  members: string[];         // member identifiers in source order
+}
+
 export interface FileEntry {
   path: string;              // repo-relative, forward-slash, NFC-normalized
   total_lines: number;       // 0 for empty files
@@ -35,6 +48,11 @@ export interface FileEntry {
   constants: ConstantEntry[];
   classes: ClassEntry[];
   functions: FunctionEntry[];
+  // TS-only optional fields. Omitted when scanner doesn't produce them
+  // (Python/JS/Vue scanners leave these undefined; renderer skips empty).
+  interfaces?: TypeDefEntry[];
+  types?: TypeDefEntry[];
+  enums?: EnumEntry[];
 }
 
 export interface ScannerWarning {

@@ -2,44 +2,37 @@ import { readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import picomatch from 'picomatch';
 
-export const DEFAULT_INCLUDE = ['**/*.py', '**/*.js', '**/*.vue'];
-export const DEFAULT_EXCLUDE = [
-  '**/node_modules/**',
-  '**/dist/**',
-  '**/build/**',
-  '**/__pycache__/**',
-  '**/.git/**',
-  '**/.cdd/**',
-  '**/.claude/**',
-  '**/.venv/**',
-  '**/venv/**',
-  '**/coverage/**',
-  '**/.next/**',
-  '**/.nuxt/**',
-  '**/out/**',
-  '**/.pytest_cache/**',
-  '**/.mypy_cache/**',
-  'specs/archive/**',
-  'specs/templates/**',
-  'tests/templates/**',
-  '**/*.min.js',
-];
+// Re-export built-in defaults from config.ts so any external caller still finds them
+// at the include-exclude module path. The single source of truth is config.ts.
+export { BUILTIN_INCLUDE as DEFAULT_INCLUDE, BUILTIN_EXCLUDE as DEFAULT_EXCLUDE } from './config.js';
 
 export interface WalkOptions {
+  /**
+   * Full include glob list — caller is responsible for combining built-ins
+   * with user/CLI additions before calling. Empty list means "no files match".
+   */
   include?: string[];
+  /**
+   * Full exclude glob list — same caller-resolved-set semantics as include.
+   */
   exclude?: string[];
 }
 
 /**
- * Walk a repo root and return absolute paths of all matching source files.
- * Applies include/exclude globs via picomatch.
+ * Walk a repo root and return absolute paths of files matching include and not
+ * matching exclude. NO defaults are prepended — callers must pass the full
+ * resolved list (typically via loadCodeMapConfig).
  */
 export function walkRepo(root: string, opts: WalkOptions = {}): string[] {
-  const includes = [...DEFAULT_INCLUDE, ...(opts.include ?? [])];
-  const excludes = [...DEFAULT_EXCLUDE, ...(opts.exclude ?? [])];
+  const includes = opts.include ?? [];
+  const excludes = opts.exclude ?? [];
+
+  if (includes.length === 0) return [];
 
   const isIncluded = picomatch(includes, { dot: true });
-  const isExcluded = picomatch(excludes, { dot: true });
+  const isExcluded = excludes.length > 0
+    ? picomatch(excludes, { dot: true })
+    : () => false;
 
   const results: string[] = [];
 

@@ -104,6 +104,33 @@ artifacts:
 `;
 }
 
+/** A file whose Required-artifacts YAML has a stray top-level key alongside `artifacts:`. */
+function strayTopLevelKeyContent(): string {
+  return `---
+name: stray-top-key-agent
+description: Stray sibling key alongside artifacts.
+tools: Read
+model: claude-sonnet-4-6
+---
+
+## Read scope
+
+Source of truth: \`specs/changes/<change-id>/context-manifest.md\` → \`## Allowed Paths\`.
+
+## Machine-Verifiable Evidence
+
+See \`references/agent-log-protocol.md\`.
+
+### Required artifacts for this agent
+
+\`\`\`yaml
+artifacts:
+  - { type: files-changed, pointer: "src/x.ts:1-10" }
+pointer: "this-should-not-be-here"
+\`\`\`
+`;
+}
+
 /** A file with ## Read scope but no reference to context-manifest.md. */
 function missingContextManifestContent(): string {
   return `---
@@ -183,5 +210,15 @@ describe('cdd-kit lint-agents', () => {
     const r = runCli(['lint-agents'], { cwd: tmpDir, home: tmpHome });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/context-manifest\.md/i);
+  });
+
+  it('5 — fail A (strengthened): stray top-level key alongside artifacts: is rejected', () => {
+    const agentsDir = makeAgentsDir(tmpDir);
+    writeFileSync(join(agentsDir, 'stray-top-key.md'), strayTopLevelKeyContent(), 'utf8');
+
+    const r = runCli(['lint-agents'], { cwd: tmpDir, home: tmpHome });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/stray top-level key/i);
+    expect(r.stderr).toMatch(/pointer/);
   });
 });
