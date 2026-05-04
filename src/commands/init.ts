@@ -10,6 +10,7 @@ export interface InitOptions {
   localOnly: boolean;
   force: boolean;
   provider: 'claude' | 'codex' | 'both';
+  hooks?: boolean;
 }
 
 /**
@@ -301,6 +302,12 @@ export async function init(opts: InitOptions): Promise<void> {
         );
         if (codexCreated) track([join(cwd, 'CODEX.md')]);
         if (codexWritten) log.ok('CODEX.md created.');
+      }
+
+      // ── code-map pre-commit hook ──────────────────────────────────────────
+      if (!opts.globalOnly && opts.hooks) {
+        const { installCodeMapHook } = await import('./code-map-hook.js');
+        await installCodeMapHook(cwd);
       }
 
       log.blank();
