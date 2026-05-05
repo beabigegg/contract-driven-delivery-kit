@@ -80,9 +80,16 @@ can act on. When `status: complete`, `none` is acceptable.
 ## Per-agent additional artifact requirements
 
 Each agent prompt lists its own `### Required artifacts for this agent`. The
-gate does not enforce those today; they are a discipline contract enforced by
-`qa-reviewer` and `contract-reviewer`. If you add a required artifact in an
-agent prompt, also update the qa-reviewer checklist.
+gate enforces the declared artifact `type` values when the corresponding agent
+prompt file is installed in `.claude/agents/` or `~/.claude/agents/`. This keeps
+agent prompts, evidence logs, and gate behavior aligned without duplicating the
+full protocol in every prompt.
+
+If you add a required artifact type in an agent prompt, also update tests that
+exercise `cdd-kit gate` for that agent. Agents may emit
+`pointer: "n/a (<reason>)"` when a declared type is genuinely inapplicable; the
+type must still be present so reviewers can tell that the omission was
+intentional.
 
 ## Self-validation before submitting your response
 
@@ -132,7 +139,8 @@ ship a known-bad log and rely on the gate to catch it.
 5. `files-read` is missing for a context-governed change, or contains an
    absolute path / `..` segment / forbidden path.
 6. Any `artifacts` item is missing `type` or `pointer`, or the array is empty.
-7. With `--strict`: any `artifacts` pointer that looks like a path but does
+7. A required per-agent artifact `type` declared in the agent prompt is missing.
+8. With `--strict`: any `artifacts` pointer that looks like a path but does
    not exist on disk; or any runtime-logged read not declared in `files-read`.
 
 ## Why this lives in references/

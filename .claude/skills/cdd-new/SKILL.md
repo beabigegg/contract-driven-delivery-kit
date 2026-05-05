@@ -106,7 +106,7 @@ Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` — it 
 
 If the classifier marks an artifact as `no` or leaves it blank, **do not create the file** — even if a review agent could contribute to it.
 
-The 5 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`.
+The 6 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, and `context-manifest.md`.
 
 ## Step 1: Generate change-id, scaffold, and scan context
 
@@ -122,16 +122,18 @@ Create the scaffold with the CLI so every provider gets the same templates:
 cdd-kit new <change-id>
 ```
 
-Then build deterministic context indexes before invoking any classifier:
-
-```bash
-cdd-kit context-scan
-```
+`cdd-kit new` auto-runs `cdd-kit context-scan` when `specs/context/` indexes are missing or stale. Do not run a second scan unless the command warned that context-scan failed, or you intentionally used `--skip-scan`.
 
 Verify these files exist:
 - `specs/changes/<change-id>/context-manifest.md`
 - `specs/context/project-map.md`
 - `specs/context/contracts-index.md`
+
+If either context index is still missing, run:
+
+```bash
+cdd-kit context-scan
+```
 
 Do not use broad search or ad hoc reads to classify the change before `context-scan` has completed.
 

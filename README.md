@@ -99,6 +99,21 @@ or
 8. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
 9. Claude reports a summary and the suggested git commit
 
+### Workflow Lanes: Avoiding Ceremony for Small Fixes
+
+CDD is a governance workflow, not a rule that every edit must become a full proposal. Use the tracked `/cdd-new` flow when a change can affect product behavior, contracts, data shape, API behavior, env/deploy rules, CI/CD, security, permissions, cross-module architecture, or release risk.
+
+Use a lightweight maintenance lane for small corrections where the intent is already obvious:
+
+| Lane | Examples | Required record |
+|---|---|---|
+| maintenance / micro-change | typo fixes, comment updates, README cleanup, formatting, lint-only fixes, tiny local test repair | normal commit message and test output if applicable |
+| tracked CDD change | behavior changes, contract updates, API/data/env/security/CI changes, cross-module refactors, high-risk bug fixes | `specs/changes/<id>/`, `tasks.yml`, `context-manifest.md`, agent logs, and `cdd-kit gate` |
+
+Do not add hard pre-commit rules that block every `src/`, `tests/`, or `contracts/` edit unless your team explicitly wants that policy. The default kit favors low-friction traceability: make risky changes reviewable, but let obvious maintenance edits stay small.
+
+Machine-readable metadata such as future `change.yml` / `trace.yml` should follow the same rule: generated from existing artifacts to reduce token use and markdown parsing, not introduced as extra forms. See `docs/machine-readable-change-design.md` for the proposed shape.
+
 ### Agent Ownership Model
 
 CDD uses two agent classes on purpose:

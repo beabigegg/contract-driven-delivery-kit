@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.13] - 2026-05-05
+
+Documentation and release-prep patch focused on keeping CDD low-friction.
+
+### Changed
+
+- **Clarified workflow lanes**: README now distinguishes full tracked CDD
+  changes from maintenance / micro-change work, so typo fixes, formatting,
+  lint-only changes, and tiny local repairs do not imply proposal-level
+  ceremony.
+- **Documented future machine-readable metadata direction**:
+  `docs/machine-readable-change-design.md` defines `change.yml` and
+  `trace.yml` as generated metadata for reducing markdown parsing and token
+  use, not as new manually-authored forms.
+- **Synced skill/protocol docs with implementation**: `/cdd-new` now reflects
+  that `context-manifest.md` is required and that `cdd-kit new` auto-runs
+  `context-scan` when indexes are missing or stale; the agent-log protocol now
+  reflects that gate enforces per-agent artifact types when prompt files are
+  installed.
+
 ## [2.0.12] - 2026-05-04
 
 Tiny patch — closes the last line-ending hole.
