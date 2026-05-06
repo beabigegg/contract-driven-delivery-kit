@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.15] - 2026-05-06
+
+Prompt guidance patch for agent-log evidence and closeout learning ownership.
+
+### Changed
+
+- **Agent-log pointer guidance matches gate behavior**: `/cdd-new` and
+  `agent-log-protocol.md` now spell out that a pointer whose text before the
+  first `:` contains `/` is validated as a single repo-relative file path, so
+  agents avoid parenthetical path notes and slash-containing labels such as
+  `I/O:` or `WARNING/OVERDUE:`.
+- **Durable learning ownership is explicit**: prompts now consistently say
+  general agents record evidence and findings only, while durable learning
+  promotion happens during `/cdd-close` Step 3 and targets `contracts/` or
+  project guidance (`CLAUDE.md`/`CODEX.md`).
+
 ## [2.0.14] - 2026-05-06
 
 Operational hardening for real multi-agent CDD runs.

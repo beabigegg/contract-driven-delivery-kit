@@ -96,6 +96,21 @@ inevitable re-classification when the agents discover the ambiguity.
 
 **Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.yml` task `status:` from `pending` to `done`.
 
+**Agent-log pointer rule**: When you or an agent writes `artifacts[].pointer`,
+follow `references/agent-log-protocol.md` exactly. If the text before the first
+`:` contains `/`, `cdd-kit gate` treats that text as a repo-relative file path
+and verifies that the file exists. Therefore each pointer may name only one
+file, file pointers must not include parenthetical notes on the path, and
+slash-containing labels such as `I/O:` or `WARNING/OVERDUE:` must not be used as
+pointer prefixes. Put extra explanation in `notes` or a separate non-path
+artifact pointer instead.
+
+**Durable learning rule**: During `/cdd-new`, agents record evidence and
+findings in artifacts and `agent-log/*.yml` only. Do not promote durable lessons
+while the change is still active. Durable learning promotion happens only during
+`/cdd-close` Step 3, where main Claude cross-checks evidence and writes approved
+rules to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`).
+
 ---
 
 ## Artifact opt-in policy
@@ -515,4 +530,4 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 
 The `/cdd-new` workflow is now complete. **Return to normal assistant mode immediately.** Answer any question the user asks — including questions unrelated to this change, new feature discussions, debugging help, or general conversation — without requiring them to use a specific command. The git commit shown in the report is a suggestion, not a required next step; do not wait for it before resuming normal behavior.
 
-When the change is merged and ready to close, run `/cdd-close <change-id>` to promote learnings and archive the change directory.
+When the change is merged and ready to close, run `/cdd-close <change-id>` to promote durable learnings to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`) and archive the change directory.

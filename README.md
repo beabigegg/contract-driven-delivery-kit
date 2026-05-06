@@ -190,7 +190,7 @@ After the PR is merged:
 **What happens:**
 1. Runs `cdd-kit gate` to confirm the change still passes
 2. Synthesizes `archive.md` — a permanent record of what changed, what tests were added, and what lessons were found
-3. Invokes `contract-reviewer` to propose any durable learnings back into `contracts/`
+3. Promotes only evidence-backed durable learnings to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`). General agents record evidence and findings only; durable learning promotion happens during `/cdd-close` Step 3.
 4. Runs `cdd-kit archive add-jwt-auth` — moves the change from `specs/changes/` to `specs/archive/2026/`
 5. Reduces the active context that future Claude sessions need to load
 

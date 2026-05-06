@@ -57,7 +57,10 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Invoke ci-cd-gatekeeper to design and enforce the gate plan.
 8. Archive and audit drift.
    - Use `references/spec-drift-policy.md`.
-   - Durable learnings must be promoted back to contracts or CLAUDE.md.
+   - General agents record evidence and findings only; durable learning
+     promotion happens only during `/cdd-close` Step 3.
+   - Durable learnings must be promoted back to `contracts/` or project
+     guidance (`CLAUDE.md`/`CODEX.md`).
    - `spec-drift-auditor` must run before every release to main and weekly during active multi-iteration development.
 
 ## Required gates by risk

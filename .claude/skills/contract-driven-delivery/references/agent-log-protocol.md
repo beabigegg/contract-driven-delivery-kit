@@ -75,6 +75,22 @@ Concrete pointers only. Allowed forms:
 - `cdd-kit gate <id>: 0 errors`
 - `contracts/api/api-contract.md#endpoints`
 
+Gate path-existence rule: unless gate is run with `--lax`, any pointer whose
+text before the first `:` contains `/` is treated as a repo-relative file path
+and that file must exist. This makes path-like pointers useful, but it also
+means:
+
+- One pointer names one file only. Use separate `artifacts` items for multiple
+  files.
+- Do not attach parenthetical notes to a file path, e.g. use
+  `src/api/users.ts:45-67`, not `src/api/users.ts (updated):45-67`.
+- Do not start a pointer with slash-containing prose labels such as `I/O:` or
+  `WARNING/OVERDUE:`; gate will try to validate `I/O` or `WARNING/OVERDUE` as a
+  path. Write those labels in `notes` or after a non-path command/result
+  pointer.
+- `n/a (<reason>)` is exempt from path validation and is allowed for genuinely
+  inapplicable required artifact types.
+
 Never `verified`, `OK`, `done`, or unscoped prose.
 
 #### `next-action`
@@ -133,7 +149,12 @@ verify each item:
       - BAD: `{ type: tests-added, pointer: verified }`
       - BAD: `{ type: files-changed, pointer: yes }`
       - BAD: `{ type: contract, pointer: OK }`
+      - BAD: `{ type: files-changed, pointer: "src/api/users.ts (updated):45-67" }`
+      - BAD: `{ type: test-output, pointer: "I/O: warning reproduced" }`
+      - BAD: `{ type: test-output, pointer: "WARNING/OVERDUE: manual follow-up" }`
       Reject any line whose pointer would not let a reviewer click through.
+      If the text before the first `:` contains `/`, confirm it is exactly one
+      existing repo-relative file path with no parenthetical note.
 - [ ] **If `status: blocked`**, `next-action` is ≥ 10 chars, is NOT `none`,
       `investigate further`, `tbd`, or `n/a`, and names the actual next step
       a human can act on.
@@ -160,8 +181,9 @@ ship a known-bad log and rely on the gate to catch it.
    `Allowed Paths` and `Approved Expansions`.
 6. Any `artifacts` item is missing `type` or `pointer`, or the array is empty.
 7. A required per-agent artifact `type` declared in the agent prompt is missing.
-8. With `--strict`: any `artifacts` pointer that looks like a path but does
-   not exist on disk; or any runtime-logged read not declared in `files-read`.
+8. Unless gate is run with `--lax`: any `artifacts` pointer whose text before
+   the first `:` contains `/` but does not exist on disk; or any
+   runtime-logged read not declared in `files-read`.
 
 ## Why this lives in references/
 

@@ -10,7 +10,7 @@ description: Close and archive a completed change. Confirms all tasks are done, 
 A change is "done" when:
 1. Gate has passed (`cdd-kit gate <change-id>` exits 0)
 2. PR is merged (or change is abandoned)
-3. Durable learnings have been promoted to hot sources: `contracts/`, `CLAUDE.md`, or `CODEX.md`
+3. Durable learnings have been promoted to hot sources: `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`)
 
 This skill drives steps 2–3 and physically moves the change to `specs/archive/`.
 
@@ -58,7 +58,7 @@ Read `specs/changes/<change-id>/tasks.yml`.
 
 Check section 7:
 - `7.1 Archive change` — will be ticked after Step 4
-- `7.2 Promote durable learnings to contracts or CLAUDE.md` — must be done NOW
+- `7.2 Promote durable learnings to contracts or project guidance` — must be done NOW
 
 If `7.2` is `[ ]`, proceed to Step 2.5. If already `[x]` or `[-]`, skip Steps 2.5 and 3.
 
@@ -91,6 +91,11 @@ This file records the close-out evidence, but Step 3 promotion must still be evi
 ---
 
 ## Step 3: Promote learnings (task 7.2)
+
+General agents do not perform durable learning promotion during `/cdd-new`; they
+only record evidence and findings in artifacts and `agent-log/*.yml`. Durable
+learning promotion happens here, during `/cdd-close` Step 3, and main Claude
+owns the final writes.
 
 Read `specs/changes/<change-id>/archive.md` section `## Lessons Promoted to Standards` and cross-check every proposed lesson against agent-log, QA report, contract/test changes, or gate evidence from this change.
 
@@ -132,7 +137,7 @@ If successful, set task `7.1` to `status: done` in tasks.yml (the file is now in
 
 Change ID: <change-id>
 Archived to: specs/archive/<year>/<change-id>/
-Learnings promoted: <list what was added to contracts/CLAUDE.md/CODEX.md, or "none">
+Learnings promoted: <list what was added to contracts/ or project guidance (CLAUDE.md/CODEX.md), or "none">
 
 specs/changes/<change-id>/ has been removed from the active surface.
 Token cost of future sessions reduced by ~<N> files.

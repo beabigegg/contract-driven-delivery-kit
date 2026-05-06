@@ -60,8 +60,32 @@ describe('CDD skill prompt integration', () => {
     expect(frontend).toMatch(/After completing your task, write or append to/);
   });
 
+  it('documents artifact pointer path-validation rules in cdd-new and agent-log protocol', () => {
+    const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
+    const protocol = readFileSync(
+      join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'references', 'agent-log-protocol.md'),
+      'utf8',
+    );
+
+    for (const content of [cddNew, protocol]) {
+      expect(content).toMatch(/before the first\s+`:` contains `\/`/);
+      expect(content).toMatch(/repo-relative file path/);
+      expect(content).toMatch(/one\s+file/i);
+      expect(content).toMatch(/parenthetical notes?/i);
+      expect(content).toMatch(/I\/O/);
+      expect(content).toMatch(/WARNING\/OVERDUE/);
+    }
+  });
+
   it('cdd-close promotes only evidence-backed durable learnings to hot sources', () => {
     const close = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-close', 'SKILL.md'), 'utf8');
+    const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
+    const workflow = readFileSync(join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'SKILL.md'), 'utf8');
+    const tasks = readFileSync(
+      join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'templates', 'tasks.yml'),
+      'utf8',
+    );
+    const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8');
 
     expect(close).toMatch(/Hot \/ Warm \/ Cold Data Rules/);
     expect(close).toMatch(/Cold data is historical evidence, not current requirements/);
@@ -73,5 +97,13 @@ describe('CDD skill prompt integration', () => {
     expect(close).toMatch(/NEVER promote a lesson without an evidence path from this change/);
     expect(close).toMatch(/cdd-kit context-scan/);
     expect(close).toMatch(/CLAUDE\.md\/CODEX\.md/);
+
+    for (const content of [close, cddNew, workflow, readme]) {
+      expect(content).toMatch(/record evidence and\s+findings/i);
+      expect(content).toMatch(/durable\s+learning\s+promotion\s+happens[\s\S]*\/cdd-close[\s\S]*Step 3/i);
+      expect(content).toMatch(/`contracts\/` or project\s+guidance \(`CLAUDE\.md`\/`CODEX\.md`\)/);
+    }
+
+    expect(tasks).toContain('Promote durable learnings to contracts or project guidance');
   });
 });
