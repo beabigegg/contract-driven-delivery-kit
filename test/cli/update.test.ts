@@ -179,6 +179,20 @@ describe('cdd-kit update', () => {
     expect(restoredContent).not.toBe('MODIFIED');
   });
 
+  it('update --postinstall syncs standalone workflow skills that teach agent-log format', () => {
+    const skillPath = join(tmpHome, '.claude', 'skills', 'cdd-new', 'SKILL.md');
+    const originalContent = readFileSync(skillPath, 'utf8');
+    writeFileSync(skillPath, 'MODIFIED');
+
+    const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const restoredContent = readFileSync(skillPath, 'utf8');
+    expect(restoredContent).toBe(originalContent);
+    expect(restoredContent).toMatch(/agent-log\/<name>\.yml|agent-log\/\*\.yml|agent-log\/<agent>\.yml/);
+    expect(restoredContent).not.toBe('MODIFIED');
+  });
+
   it('update --postinstall syncs correctly even from a non-project cwd', () => {
     const nonProjectDir = makeTempDir('cdd-update-noncwd-');
     try {

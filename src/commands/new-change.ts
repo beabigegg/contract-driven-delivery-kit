@@ -1,7 +1,6 @@
 import { join, relative } from 'path';
 import { createHash } from 'crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
-import yaml from 'js-yaml';
 import { ASSET } from '../utils/paths.js';
 import { copyFile, ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
@@ -101,6 +100,23 @@ function parseDependsOn(raw?: string): string[] {
     .filter(Boolean);
 }
 
+function applyScaffoldMetadata(tasksPath: string, changeId: string, dependencies: string[]): void {
+  if (!existsSync(tasksPath)) return;
+
+  let raw = readFileSync(tasksPath, 'utf8');
+  raw = raw.replace(/^change-id:\s*<change-id>\s*$/m, `change-id: ${changeId}`);
+
+  if (dependencies.length > 0) {
+    const dependsOn = [
+      'depends-on:',
+      ...dependencies.map(dep => `  - ${JSON.stringify(dep)}`),
+    ].join('\n');
+    raw = raw.replace(/^depends-on:\s*\[\]\s*$/m, dependsOn);
+  }
+
+  writeFileSync(tasksPath, raw, 'utf8');
+}
+
 export async function newChange(name: string, opts: NewChangeOptions): Promise<void> {
   if (!SAFE_NAME.test(name)) {
     log.error(`Invalid change name: "${name}". Use letters, numbers, hyphens, or underscores (max 64 chars).`);
@@ -157,15 +173,10 @@ export async function newChange(name: string, opts: NewChangeOptions): Promise<v
     written += 1;
   }
 
+  const tasksPath = join(changeDir, 'tasks.yml');
+  applyScaffoldMetadata(tasksPath, name, dependencies);
   if (dependencies.length > 0) {
-    const tasksPath = join(changeDir, 'tasks.yml');
-    if (existsSync(tasksPath)) {
-      const raw = readFileSync(tasksPath, 'utf8');
-      const data = (yaml.load(raw) ?? {}) as Record<string, unknown>;
-      data['depends-on'] = dependencies;
-      writeFileSync(tasksPath, yaml.dump(data, { lineWidth: -1, noRefs: true }), 'utf8');
-      log.dim(`depends-on: ${dependencies.join(', ')}`);
-    }
+    log.dim(`depends-on: ${dependencies.join(', ')}`);
   }
 
   log.blank();

@@ -45,7 +45,32 @@ describe('cdd-kit new', () => {
 
     const raw = readFileSync(join(changeDir, 'tasks.yml'), 'utf8');
     const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['change-id']).toBe('feat-001');
     expect(data['context-governance']).toBe('v1');
+  });
+
+  it('new uses bundled package templates, not stale project specs/templates', () => {
+    writeFileSync(
+      join(tmpRepo, 'specs', 'templates', 'tasks.yml'),
+      [
+        'change-id: stale-project-template',
+        'status: in-progress',
+        'tasks: []',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const r = runCli(['new', 'feat-bundled-template'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const raw = readFileSync(join(tmpRepo, 'specs', 'changes', 'feat-bundled-template', 'tasks.yml'), 'utf8');
+    const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['change-id']).toBe('feat-bundled-template');
+    expect(data['context-governance']).toBe('v1');
+    expect(Array.isArray(data.tasks)).toBe(true);
+    expect(data.tasks as unknown[]).toHaveLength(28);
+    expect(raw).not.toContain('stale-project-template');
   });
 
   it('new feat-002 --all creates required + at least 1 optional template', () => {

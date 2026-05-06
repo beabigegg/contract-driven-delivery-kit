@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.16] - 2026-05-06
+
+New-change scaffold hardening so freshly opened proposals use the installed
+kit version even when an existing project has stale templates on disk.
+
+### Changed
+
+- **`cdd-kit new` stamps `tasks.yml` with the real change id**: new changes no
+  longer start with the `<change-id>` placeholder in the machine-validated task
+  metadata.
+
+### Fixed
+
+- **Fresh proposals ignore stale project templates**: regression coverage now
+  locks `cdd-kit new` to bundled package templates, so old
+  `specs/templates/*` files in a user repo cannot leak into a newly created
+  change.
+- **Postinstall sync coverage includes workflow skills**: regression coverage
+  now verifies npm postinstall updates standalone skills such as `/cdd-new`,
+  keeping agent-log instructions aligned with the installed gate.
+
 ## [2.0.15] - 2026-05-06
 
 Prompt guidance patch for agent-log evidence and closeout learning ownership.
