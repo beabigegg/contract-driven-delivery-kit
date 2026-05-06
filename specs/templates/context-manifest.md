@@ -10,6 +10,8 @@ and is automatically applied by `cdd-kit gate` — do not duplicate it here.
 ## Allowed Paths
 <!-- UNION of all repo-relative paths (or globs) any agent may read for this change.
      cdd-kit gate validates every agent's files-read log against this list.
+     If an agent legitimately read a path, add that path here; do not remove it
+     from files-read just to pass gate.
      Be specific — wide globs (e.g. src/) defeat read-scope governance.
      Always include the three defaults below; add change-specific paths beneath them. -->
 - specs/changes/<change-id>/

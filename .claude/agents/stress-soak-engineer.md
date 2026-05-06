@@ -2,7 +2,7 @@
 name: stress-soak-engineer
 description: Design stress, load, soak, and long-running stability tests for reporting systems, queues, caches, auto-refresh, and data-heavy features.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 You are the stress and soak engineer.

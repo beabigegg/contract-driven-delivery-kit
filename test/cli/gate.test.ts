@@ -222,7 +222,7 @@ interface AgentLogOptions {
   changeId: string;
   agent?: string;
   timestamp?: string;
-  status?: 'complete' | 'needs-review' | 'blocked';
+  status?: 'complete' | 'done' | 'approved' | 'needs-review' | 'blocked';
   filesRead?: string[] | null;
   artifacts?: Array<{ type: string; pointer: string }>;
   nextAction?: string;
@@ -391,8 +391,82 @@ describe('cdd-kit gate', () => {
     }), 'utf8');
 
     const r = runCli(['gate', 'feat-006'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/missing or invalid.*status/i);
+    expect(r.stdout + r.stderr).not.toMatch(/invalid "status:"|missing required "status:"/i);
     expect(r.stdout + r.stderr).not.toMatch(/status=blocked/i);
+  });
+
+  it('7b: gate keeps unquoted ISO timestamps as strings in agent-log YAML', () => {
+    runCli(['new', 'feat-006b'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006b');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), [
+      'change-id: feat-006b',
+      'agent: backend-engineer',
+      'timestamp: 2026-05-04T10:00:00Z',
+      'status: complete',
+      'artifacts:',
+      '  - { type: files-changed, pointer: "src/api/users.ts:10-45" }',
+      'next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-006b', '--lax'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/timestamp.*must be string/i);
+  });
+
+  it('7b2: gate accepts ISO timestamps with numeric timezone offsets', () => {
+    runCli(['new', 'feat-006b2'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006b2');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), [
+      'change-id: feat-006b2',
+      'agent: backend-engineer',
+      'timestamp: 2026-05-05T00:00:00+08:00',
+      'status: complete',
+      'artifacts:',
+      '  - { type: files-changed, pointer: "src/api/users.ts:10-45" }',
+      'next-action: none',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-006b2', '--lax'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/timestamp.*must be string|timestamp.*format/i);
+  });
+
+  it('7c: gate accepts agent-log status done as a complete alias', () => {
+    runCli(['new', 'feat-006c'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006c');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
+      changeId: 'feat-006c',
+      status: 'done',
+    }), 'utf8');
+
+    const r = runCli(['gate', 'feat-006c', '--lax'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/invalid "status:"|missing required "status:"/i);
+  });
+
+  it('7d: gate accepts agent-log status approved as a complete alias', () => {
+    runCli(['new', 'feat-006d'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006d');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
+      changeId: 'feat-006d',
+      status: 'approved',
+    }), 'utf8');
+
+    const r = runCli(['gate', 'feat-006d', '--lax'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/invalid "status:"|missing required "status:"/i);
   });
 
   it('8: gate fails on agent log missing status line', () => {
@@ -413,7 +487,29 @@ describe('cdd-kit gate', () => {
 
     const r = runCli(['gate', 'feat-007'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/missing or invalid.*status/i);
+    expect(r.stdout + r.stderr).toMatch(/missing required "status:" line/i);
+  });
+
+  it('8b: gate reports invalid agent-log status value directly', () => {
+    runCli(['new', 'feat-007b'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-007b');
+    writeValidChangeArtifacts(changeDir);
+
+    const agentLogDir = join(changeDir, 'agent-log');
+    mkdirSync(agentLogDir, { recursive: true });
+    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), yaml.dump({
+      'change-id': 'feat-007b',
+      agent: 'backend-engineer',
+      timestamp: '2026-04-27T14:30:00Z',
+      status: 'verified',
+      artifacts: [{ type: 'files-changed', pointer: 'src/api/users.ts:10-45' }],
+      'next-action': 'none',
+    }, { lineWidth: -1 }), 'utf8');
+
+    const r = runCli(['gate', 'feat-007b'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid "status:" value verified/i);
+    expect(r.stdout + r.stderr).toMatch(/aliases accepted: done, approved/i);
   });
 
   it('9: gate fails on status=blocked with empty next-action', () => {
@@ -749,6 +845,7 @@ describe('cdd-kit gate', () => {
     const r = runCli(['gate', 'feat-cg-unauthorized'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/read unauthorized path -> src\/secret\/file\.ts/i);
+    expect(r.stdout + r.stderr).toMatch(/add it to the manifest instead of deleting it from files-read/i);
   });
 
   it('21: gate allows approved expansion paths and current change paths', () => {

@@ -2,7 +2,7 @@
 name: spec-drift-auditor
 description: Audit drift between live contracts, implementation code, tests, and CI gates. Does NOT read historical specs/changes — contracts/ is the single source of truth.
 tools: Read, Grep, Glob, Bash
-model: claude-opus-4-7
+model: opus
 ---
 
 You are the spec drift auditor.

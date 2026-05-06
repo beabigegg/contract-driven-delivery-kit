@@ -348,4 +348,14 @@ context
     await listContextExpansions(changeId, opts.json);
   });
 
+context
+  .command('check <change-id>')
+  .description('Preflight-check repo-relative read paths against context-manifest Allowed Paths')
+  .requiredOption('--path <paths...>', 'Repo-relative path(s) an agent is expected to read')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string, opts: { path: string[]; json?: boolean }) => {
+    const { checkContextPaths } = await import('../commands/context.js');
+    await checkContextPaths(changeId, opts.path, opts.json);
+  });
+
 program.parse();

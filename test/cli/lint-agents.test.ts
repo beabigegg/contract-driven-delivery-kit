@@ -19,7 +19,7 @@ function passingAgentContent(): string {
 name: test-agent
 description: A test agent.
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 ## Read scope
@@ -57,7 +57,7 @@ function flatListAgentContent(): string {
 name: bad-agent
 description: Bad artifacts section.
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 ## Read scope
@@ -80,7 +80,7 @@ function duplicateScopeAgentContent(): string {
 name: dup-scope-agent
 description: Duplicate read scope.
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 ## Read scope
@@ -110,7 +110,7 @@ function strayTopLevelKeyContent(): string {
 name: stray-top-key-agent
 description: Stray sibling key alongside artifacts.
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 ## Read scope
@@ -137,7 +137,7 @@ function missingContextManifestContent(): string {
 name: no-manifest-agent
 description: Missing context manifest ref.
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 ## Read scope

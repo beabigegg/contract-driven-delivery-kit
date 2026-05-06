@@ -24,7 +24,7 @@ The file is pure YAML (no markdown wrapping, no checklist).
 ```yaml
 change-id: <id>
 agent: <agent-name>
-timestamp: <ISO 8601 UTC, e.g. 2026-04-27T14:30:00Z>
+timestamp: "<ISO 8601 date-time, e.g. 2026-04-27T14:30:00Z>"
 status: complete            # complete | needs-review | blocked
 files-read:
   - <repo-relative path>
@@ -42,8 +42,8 @@ notes: <optional free-form>
 |---|---|---|
 | `change-id` | yes | must equal the parent change directory name |
 | `agent` | yes | canonical agent name (matches the agent's filename) |
-| `timestamp` | yes | ISO 8601 UTC; used by spec-drift-auditor for ordering |
-| `status` | yes | exactly one of `complete` \| `needs-review` \| `blocked` |
+| `timestamp` | yes | ISO 8601 date-time string; quote it to avoid YAML timestamp coercion in non-cdd tools. UTC `Z` is preferred; numeric offsets such as `+08:00` are accepted. |
+| `status` | yes | canonical values are `complete` \| `needs-review` \| `blocked`; `done` and `approved` are accepted by gate as compatibility aliases for `complete` |
 | `files-read` | conditional | required for context-governed changes (see below) |
 | `artifacts` | yes | array of `{type, pointer}` objects, ≥ 1 item |
 | `next-action` | yes | when `status: blocked`, ≥ 10 chars and not `none` |
@@ -59,6 +59,12 @@ legitimately read nothing beyond your own change directory, write:
 files-read:
   - specs/changes/<change-id>/
 ```
+
+If `cdd-kit gate` reports `read unauthorized path`, do not delete that
+`files-read` entry to silence the gate. If the read was legitimate work scope,
+add the repo-relative path to `context-manifest.md` under `## Allowed Paths` or
+approve a Context Expansion Request. `files-read` is the audit trail; the
+manifest is the authorization boundary.
 
 #### `artifacts`
 
@@ -76,6 +82,14 @@ Never `verified`, `OK`, `done`, or unscoped prose.
 When `status: blocked`, this must be ≥ 10 chars, must not be `none`, `tbd`,
 `investigate further`, or `n/a`, and must name the actual next step a human
 can act on. When `status: complete`, `none` is acceptable.
+
+#### `status`
+
+Use `status: complete` for a finished agent-log. `tasks.yml` task entries use
+`status: done`, and review language may say "approved", but agent-log
+completion is canonically `complete`. `cdd-kit gate` accepts `done` and
+`approved` as compatibility aliases so these common mix-ups do not block
+delivery.
 
 ## Per-agent additional artifact requirements
 
@@ -104,8 +118,13 @@ verify each item:
 - [ ] **All required keys exist**: `change-id`, `agent`, `timestamp`,
       `status`, `artifacts`, `next-action` (plus `files-read` for
       context-governed changes).
-- [ ] **`status` is one of**: `complete`, `needs-review`, `blocked` — not
-      `done`, `OK`, `pending`, `wip`, or anything else.
+- [ ] **`timestamp` is quoted** and uses ISO 8601 date-time form. Prefer
+      UTC `Z`, e.g. `timestamp: "2026-04-27T14:30:00Z"`. Numeric offsets
+      such as `timestamp: "2026-05-05T00:00:00+08:00"` are valid.
+- [ ] **`status` is one of**: `complete`, `needs-review`, `blocked`.
+      Prefer `complete` for finished logs; `done` and `approved` are accepted
+      only as compatibility aliases. Do not use `OK`, `pending`, `wip`, or
+      anything else.
 - [ ] **Every `artifacts` item is a `{type, pointer}` mapping** with a
       concrete pointer:
       - GOOD: `{ type: tests-added, pointer: "tests/foo.test.ts::should reject empty body" }`
@@ -137,7 +156,8 @@ ship a known-bad log and rely on the gate to catch it.
 3. `status` is missing or has an unknown value.
 4. `status: blocked` without a concrete `next-action`.
 5. `files-read` is missing for a context-governed change, or contains an
-   absolute path / `..` segment / forbidden path.
+   absolute path / `..` segment / forbidden path / path outside manifest
+   `Allowed Paths` and `Approved Expansions`.
 6. Any `artifacts` item is missing `type` or `pointer`, or the array is empty.
 7. A required per-agent artifact `type` declared in the agent prompt is missing.
 8. With `--strict`: any `artifacts` pointer that looks like a path but does

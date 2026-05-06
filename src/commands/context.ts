@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import picomatch from 'picomatch';
 import { log } from '../utils/logger.js';
 
 interface ContextRequest {
@@ -8,6 +9,21 @@ interface ContextRequest {
   reason?: string;
   status: string;
 }
+
+interface ContextPolicy {
+  forbiddenPaths: string[];
+}
+
+const DEFAULT_FORBIDDEN_PATHS = [
+  '.claude/worktrees/**',
+  '.git/**',
+  'node_modules/**',
+  'dist/**',
+  'build/**',
+  'assets/**',
+  'specs/archive/**',
+  'specs/changes/*',
+];
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\.\//, '').trim();
@@ -41,8 +57,64 @@ function writeManifest(changeId: string, content: string): void {
 }
 
 function sectionBody(content: string, heading: string): string {
-  const match = content.match(new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`));
+  const match = stripHtmlComments(content).match(new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`));
   return match?.[1] ?? '';
+}
+
+function stripHtmlComments(text: string): string {
+  return text.replace(/<!--[\s\S]*?-->/g, '');
+}
+
+function parseListSection(content: string, heading: string): string[] {
+  return sectionBody(content, heading)
+    .split(/\r?\n/)
+    .map(line => line.replace(/^\s*-\s*/, '').trim())
+    .filter(item => item && item !== '-' && item.toLowerCase() !== 'none')
+    .map(normalizePath);
+}
+
+function pathMatches(relPath: string, patterns: string[], currentChangeId?: string): boolean {
+  const normalized = normalizePath(relPath);
+
+  return patterns.some(rawPattern => {
+    const pattern = normalizePath(rawPattern).replace(/\/+$/, '');
+    if (!pattern) return false;
+
+    if (pattern === 'specs/changes/*' && currentChangeId) {
+      const current = `specs/changes/${currentChangeId}`;
+      if (normalized === current || normalized.startsWith(`${current}/`)) return false;
+      return normalized.startsWith('specs/changes/');
+    }
+
+    if (/[*?[{]/.test(pattern)) {
+      if (picomatch.isMatch(normalized, pattern, { dot: true, nocase: false })) return true;
+      if (pattern.endsWith('/**')) {
+        const base = pattern.slice(0, -3);
+        if (normalized === base) return true;
+      }
+      return false;
+    }
+
+    return normalized === pattern || normalized.startsWith(`${pattern}/`);
+  });
+}
+
+function loadContextPolicy(): ContextPolicy {
+  const policyPath = join(process.cwd(), '.cdd', 'context-policy.json');
+  if (!existsSync(policyPath)) return { forbiddenPaths: DEFAULT_FORBIDDEN_PATHS };
+
+  try {
+    const custom = JSON.parse(readFileSync(policyPath, 'utf8')) as Partial<ContextPolicy>;
+    return {
+      forbiddenPaths: Array.from(new Set([
+        ...DEFAULT_FORBIDDEN_PATHS,
+        ...(custom.forbiddenPaths ?? []),
+      ])),
+    };
+  } catch {
+    log.warn('could not parse .cdd/context-policy.json; using default context policy');
+    return { forbiddenPaths: DEFAULT_FORBIDDEN_PATHS };
+  }
 }
 
 function parseRequests(content: string): ContextRequest[] {
@@ -185,6 +257,49 @@ export async function listContextExpansions(changeId: string, json = false): Pro
     log.info(`- ${request.requestId} [${request.status}] ${request.reason ?? ''}`.trimEnd());
     for (const path of request.paths) log.dim(`    ${path}`);
   }
+}
+
+export async function checkContextPaths(changeId: string, paths: string[], json = false): Promise<void> {
+  if (paths.length === 0) {
+    log.error('at least one --path value is required');
+    process.exit(1);
+  }
+
+  const content = readManifest(changeId);
+  const allowedPaths = parseListSection(content, 'Allowed Paths');
+  const approvedExpansions = parseListSection(content, 'Approved Expansions');
+  const policy = loadContextPolicy();
+  const normalizedPaths = [...new Set(paths.map(normalizePath).filter(Boolean))];
+
+  const results = normalizedPaths.map(path => {
+    const validationError = validateRepoRelativePath(path);
+    const forbidden = !validationError && pathMatches(path, policy.forbiddenPaths, changeId);
+    const authorized = !validationError && !forbidden && (
+      pathMatches(path, allowedPaths) || pathMatches(path, approvedExpansions)
+    );
+    let reason = 'authorized';
+    if (validationError) reason = validationError;
+    else if (forbidden) reason = 'forbidden by .cdd/context-policy.json baseline';
+    else if (!authorized) reason = 'not in context-manifest Allowed Paths or Approved Expansions';
+
+    return { path, authorized, reason };
+  });
+
+  if (json) {
+    console.log(JSON.stringify({ changeId, results }, null, 2));
+  } else {
+    for (const result of results) {
+      if (result.authorized) log.ok(`authorized: ${result.path}`);
+      else log.error(`unauthorized: ${result.path} (${result.reason})`);
+    }
+    const unauthorized = results.filter(r => !r.authorized).map(r => r.path);
+    if (unauthorized.length > 0) {
+      log.info(`If these reads are legitimate, add them to specs/changes/${changeId}/context-manifest.md Allowed Paths or request expansion:`);
+      log.info(`  cdd-kit context request ${changeId} CER-<id> --path ${unauthorized.join(' ')} --reason "<why needed>"`);
+    }
+  }
+
+  if (results.some(result => !result.authorized)) process.exit(1);
 }
 
 function applyApproval(content: string, request: ContextRequest): string {

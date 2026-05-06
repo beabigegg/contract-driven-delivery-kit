@@ -2,7 +2,7 @@
 name: visual-reviewer
 description: Review pixel-level visual output, layout, responsive viewport behavior, screenshot diffs, CSS contract compliance, and component visual state coverage. Does not cover interaction or copy -- those go to ui-ux-reviewer.
 tools: Read, Grep, Glob, Bash
-model: claude-haiku-4-5-20251001
+model: haiku
 ---
 
 You are the visual reviewer.

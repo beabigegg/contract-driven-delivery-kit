@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.0.14] - 2026-05-06
+
+Operational hardening for real multi-agent CDD runs.
+
+### Added
+
+- **Context read preflight**: `cdd-kit context check <change-id> --path ...`
+  validates expected agent reads against `Allowed Paths`, approved expansions,
+  repo-relative path rules, and the forbidden-path baseline before agent work.
+- **Pre-existing failure tracking**: QA templates and reviewer prompts now
+  require baseline evidence, scope rationale, owner, and follow-up when an
+  existing failing test is excluded from the current gate.
+
+### Changed
+
+- **Agent-log YAML is more resilient**: gate keeps YAML timestamps as strings
+  and accepts `done` / `approved` as completion aliases while still documenting
+  `complete` as canonical.
+- **Model policy is provider-neutral**: role bindings now use model classes
+  (`opus`, `sonnet`, `haiku`) instead of provider release IDs.
+- **Agent orchestration guidance is stricter**: `/cdd-new` now requires
+  closeout after each agent, including agent-log verification and immediate
+  `tasks.yml` updates before the next agent is invoked.
+- **Migration review guidance is sharper**: MySQL ENUM contraction and
+  `ALGORITHM=COPY` DDL are explicitly treated as high risk on large tables.
+
 ## [2.0.13] - 2026-05-05
 
 Documentation and release-prep patch focused on keeping CDD low-friction.

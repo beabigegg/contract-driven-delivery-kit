@@ -94,7 +94,7 @@ function plantAgentPrompt(repoRoot: string, agentName: string, types: string[]):
 name: ${agentName}
 description: Test agent.
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 You are the ${agentName}.
@@ -112,7 +112,7 @@ ${bullets}
 function writeAgentLog(changeDir: string, agent: string, options: {
   artifacts?: Array<{ type: string; pointer: string }>;
   filesRead?: string[];
-  status?: 'complete' | 'needs-review' | 'blocked';
+  status?: 'complete' | 'done' | 'approved' | 'needs-review' | 'blocked';
   nextAction?: string;
 }): void {
   const dir = join(changeDir, 'agent-log');

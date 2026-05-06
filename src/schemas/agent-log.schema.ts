@@ -9,7 +9,7 @@ export const agentLogSchema = {
     "change-id": { type: "string", pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$" },
     timestamp: { type: "string", format: "date-time" },
     agent: { type: "string", minLength: 1 },
-    status: { type: "string", enum: ["complete", "needs-review", "blocked"] },
+    status: { type: "string", enum: ["complete", "done", "approved", "needs-review", "blocked"] },
     "files-read": { type: "array", items: { type: "string", minLength: 1 } },
     artifacts: {
       type: "array",

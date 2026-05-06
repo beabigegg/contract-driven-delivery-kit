@@ -2,7 +2,7 @@
 name: repo-context-scanner
 description: Scan a repository and summarize its project profile, commands, contracts, tests, CI/CD, and missing standardization surfaces.
 tools: Read, Grep, Glob, Bash
-model: claude-haiku-4-5-20251001
+model: haiku
 ---
 
 You are the repository context scanner.

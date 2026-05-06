@@ -45,7 +45,7 @@ interface AgentLog {
   'change-id': string;
   timestamp: string;
   agent: string;
-  status: 'complete' | 'needs-review' | 'blocked';
+  status: 'complete' | 'done' | 'approved' | 'needs-review' | 'blocked';
   'files-read'?: string[];
   artifacts: { type: string; pointer: string }[];
   'next-action': string;
@@ -276,7 +276,10 @@ function loadContextPolicy(cwd: string): ContextPolicy {
 function loadYamlFile<T>(path: string): { data: T | null; parseError: string | null } {
   try {
     const raw = readFileSync(path, 'utf8');
-    return { data: yaml.load(raw) as T, parseError: null };
+    // Keep YAML scalars JSON-compatible for schema validation. js-yaml's
+    // default schema turns unquoted ISO timestamps into Date objects, while
+    // agent-log.schema.ts requires timestamp to remain a string.
+    return { data: yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as T, parseError: null };
   } catch (err) {
     return { data: null, parseError: (err as Error).message };
   }
@@ -658,12 +661,18 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       let statusReported = false;
       if (!ok) {
         for (const e of validateAgentLog.errors ?? []) {
-          if (
-            (e.keyword === 'required' && (e.params as { missingProperty: string }).missingProperty === 'status') ||
-            (e.instancePath === '/status' && e.keyword === 'enum')
-          ) {
+          if (e.keyword === 'required' && (e.params as { missingProperty: string }).missingProperty === 'status') {
             if (!statusReported) {
-              errors.push(`agent-log/${f}: missing or invalid "status:" line (must be complete | needs-review | blocked)`);
+              errors.push(`agent-log/${f}: missing required "status:" line (expected complete | needs-review | blocked; aliases accepted: done, approved)`);
+              statusReported = true;
+            }
+            continue;
+          }
+          if (e.instancePath === '/status' && e.keyword === 'enum') {
+            if (!statusReported) {
+              const rawStatus = (data as { status?: unknown }).status;
+              const shownStatus = typeof rawStatus === 'string' ? rawStatus : JSON.stringify(rawStatus);
+              errors.push(`agent-log/${f}: invalid "status:" value ${shownStatus ?? '<missing>'} (expected complete | needs-review | blocked; aliases accepted: done, approved)`);
               statusReported = true;
             }
             continue;
@@ -713,7 +722,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
             errors.push(`agent-log/${f}: read forbidden path -> ${p}`);
           }
           if (hasManifest && allowedPaths.length > 0 && !pathMatches(p, allowedPaths) && !pathMatches(p, approvedExpansions)) {
-            errors.push(`agent-log/${f}: read unauthorized path -> ${p} (not in allowed paths or approved expansions)`);
+            errors.push(`agent-log/${f}: read unauthorized path -> ${p} (not in context-manifest Allowed Paths or Approved Expansions; if legitimate, add it to the manifest instead of deleting it from files-read)`);
           }
         }
 

@@ -222,4 +222,109 @@ describe('cdd-kit context', () => {
     const approvedSection = manifest.match(/## Approved Expansions\s*\n([\s\S]*?)$/);
     expect(approvedSection?.[1] ?? '').not.toContain('src/secret.ts');
   });
+
+  it('preflight-checks paths against Allowed Paths and Approved Expansions', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Allowed Paths',
+      '- specs/changes/feat-context/',
+      '- src/components/**',
+      '',
+      '## Approved Expansions',
+      '- tests/monkey/',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli([
+      'context', 'check', 'feat-context',
+      '--path',
+      'src/components/Sidebar.vue',
+      'tests/monkey/test_creator_only_fuzz.py',
+    ], { cwd: tmpRepo, home: tmpHome });
+
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/authorized: src\/components\/Sidebar\.vue/i);
+    expect(r.stdout + r.stderr).toMatch(/authorized: tests\/monkey\/test_creator_only_fuzz\.py/i);
+  });
+
+  it('preflight check fails with manifest expansion guidance for unauthorized paths', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Allowed Paths',
+      '- specs/changes/feat-context/',
+      '- src/components/Sidebar.vue',
+      '',
+      '## Approved Expansions',
+      '-',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli([
+      'context', 'check', 'feat-context',
+      '--path',
+      'src/stores/todos.js',
+      'src/views/DashboardView.vue',
+    ], { cwd: tmpRepo, home: tmpHome });
+
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/unauthorized: src\/stores\/todos\.js/i);
+    expect(r.stdout + r.stderr).toMatch(/not in context-manifest Allowed Paths or Approved Expansions/i);
+    expect(r.stdout + r.stderr).toMatch(/cdd-kit context request feat-context CER-<id> --path src\/stores\/todos\.js src\/views\/DashboardView\.vue/i);
+  });
+
+  it('preflight check rejects forbidden and non-repo-relative paths before agent work', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Allowed Paths',
+      '- node_modules/pkg/index.js',
+      '- src/',
+      '',
+    ].join('\n'), 'utf8');
+
+    const forbidden = runCli([
+      'context', 'check', 'feat-context',
+      '--path', 'node_modules/pkg/index.js',
+    ], { cwd: tmpRepo, home: tmpHome });
+    expect(forbidden.status).not.toBe(0);
+    expect(forbidden.stdout + forbidden.stderr).toMatch(/forbidden by .*context-policy/i);
+
+    const absolute = runCli([
+      'context', 'check', 'feat-context',
+      '--path', 'C:/repo/src/file.ts',
+    ], { cwd: tmpRepo, home: tmpHome });
+    expect(absolute.status).not.toBe(0);
+    expect(absolute.stdout + absolute.stderr).toMatch(/must be repo-relative/i);
+  });
+
+  it('preflight check can emit machine-readable json', () => {
+    const manifestPath = join(tmpRepo, 'specs', 'changes', 'feat-context', 'context-manifest.md');
+    writeFileSync(manifestPath, [
+      '# Context Manifest',
+      '',
+      '## Allowed Paths',
+      '- src/**',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli([
+      'context', 'check', 'feat-context',
+      '--path', 'src/index.ts',
+      '--json',
+    ], { cwd: tmpRepo, home: tmpHome });
+
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout);
+    expect(payload.changeId).toBe('feat-context');
+    expect(payload.results[0]).toEqual({
+      path: 'src/index.ts',
+      authorized: true,
+      reason: 'authorized',
+    });
+  });
 });

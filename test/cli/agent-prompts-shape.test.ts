@@ -123,4 +123,19 @@ describe('agent prompt shapes — all 16 agents', () => {
       ).toContain('references/agent-log-protocol.md');
     },
   );
+
+  it.each(ALL_AGENTS)(
+    '%s: model frontmatter uses a provider-neutral model class',
+    (agentName) => {
+      const content = readAgent(agentName);
+      expect(
+        content,
+        `${agentName}: model must be one of opus, sonnet, haiku`,
+      ).toMatch(/^model:\s*(opus|sonnet|haiku)\s*$/m);
+      expect(
+        content,
+        `${agentName}: model must not pin a provider release ID`,
+      ).not.toMatch(/^model:\s*claude-/m);
+    },
+  );
 });

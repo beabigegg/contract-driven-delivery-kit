@@ -62,6 +62,9 @@ describe('cdd-kit init', () => {
 
     const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
     expect(policy.provider).toBe('codex');
+    expect(policy.roles['change-classifier']).toBe('opus');
+    expect(policy.roles['backend-engineer']).toBe('sonnet');
+    expect(policy.roles['repo-context-scanner']).toBe('haiku');
   });
 
   it('--provider both scaffolds Claude and Codex project files', () => {

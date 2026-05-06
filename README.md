@@ -252,6 +252,8 @@ cdd-kit init --force          # overwrite existing project files
 
 Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`, `AGENTS.md`, and/or `CODEX.md`), `hooks/`
 
+`.cdd/model-policy.json` stores role-to-model **classes** (`opus`, `sonnet`, `haiku`) instead of provider release IDs such as `claude-opus-4-7`. This keeps the policy stable across Claude and Codex adapters; provider-specific tooling can map the class to the concrete model available in that environment.
+
 ---
 
 ### `cdd-kit update`
@@ -316,7 +318,7 @@ Checks:
 - All required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content (not a stub): change-classification ≥ 200 chars, test-plan ≥ 200, ci-gates ≥ 150, others ≥ 100
 - `change-classification.md` contains a tier or risk marker
-- `agent-log/*.yml` files all have `status: complete` (not blocked)
+- `agent-log/*.yml` files all have a completed status (`complete`, with `done` and `approved` accepted as compatibility aliases) and are not blocked
 - For context-governed changes, `agent-log/*.yml` files include a structured `files-read:` list and those repo-relative paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
 - Atomic `depends-on` upstream changes are completed or archived before dependent work gates
 - Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
@@ -411,6 +413,9 @@ files-read:
 ```
 
 Paths must be repo-relative. Absolute paths and `..` parent traversal are rejected.
+If a logged read is legitimate but gate says it is unauthorized, add that path
+to `context-manifest.md` `## Allowed Paths` or approve a Context Expansion
+Request. Do not remove it from `files-read`; that list is the audit trail.
 
 Run this after upgrading from v1.10 or earlier if you have mid-flight changes.
 
@@ -431,6 +436,24 @@ cdd-kit context request add-jwt-auth CER-001 --path src/server/users.ts tests/us
 ```
 
 Use this when an agent needs more context than its current work packet allows.
+
+---
+
+### `cdd-kit context check <change-id>`
+
+Preflight-checks repo-relative read paths against `context-manifest.md` before
+you invoke an agent.
+
+```bash
+cdd-kit context check add-todos-ui --path src/components/Sidebar.vue src/stores/todos.js src/views/DashboardView.vue
+cdd-kit context check add-ci-gate --path contracts/ci/ci-gate-contract.md .github/workflows/contract-driven-gates.yml
+```
+
+The check uses the same authorization model as `cdd-kit gate`: `## Allowed
+Paths`, `## Approved Expansions`, repo-relative path rules, and the forbidden
+baseline in `.cdd/context-policy.json`. If the command fails and the read is
+legitimate, update the manifest or record/approve a Context Expansion Request
+before the agent reads the file.
 
 ---
 

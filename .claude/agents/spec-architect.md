@@ -2,7 +2,7 @@
 name: spec-architect
 description: Evaluate architectural impact, compatibility, data flow, module boundaries, and whether a change requires ADR-like design decisions. Author ADRs when required.
 tools: Read, Grep, Glob, Edit, MultiEdit
-model: claude-opus-4-7
+model: opus
 ---
 
 You are the architecture reviewer.

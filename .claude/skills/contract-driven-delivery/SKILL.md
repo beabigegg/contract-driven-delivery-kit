@@ -41,6 +41,11 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Each engineer must read the matching standard before authoring tests: e2e-resilience-engineer → references/e2e-standard.md, monkey-test-engineer → references/monkey-operation-standard.md, stress-soak-engineer → references/stress-soak-standard.md.
 6. Implement through the right role.
    - Backend/frontend work must follow contracts and tests.
+   - Before invoking an agent with known concrete read paths, run
+     `cdd-kit context check <change-id> --path <paths...>` and expand the
+     manifest before the agent reads legitimate missing paths.
+   - After each agent finishes, verify its agent-log exists and tick the
+     related `tasks.yml` items before starting the next agent.
    - UI changes require UI/UX and visual review.
    - Invoke ui-ux-reviewer for interaction, copy, accessibility, and information hierarchy review whenever UI changes.
    - Invoke visual-reviewer for layout, responsive, CSS contract, and screenshot diff review whenever UI changes.

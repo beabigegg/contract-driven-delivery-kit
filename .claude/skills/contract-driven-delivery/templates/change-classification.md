@@ -75,7 +75,9 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 -
 
 ### Allowed Paths
-<!-- Union of ALL paths any agent will read. Add change-specific paths below the defaults. -->
+<!-- Union of ALL paths any agent will read. Add change-specific paths below the defaults.
+     Include component/store/view files for frontend work and CI contracts/workflows for CI work
+     when those files are legitimate work scope. Gate compares agent-log files-read against this list. -->
 - specs/changes/<change-id>/
 - specs/context/project-map.md
 - specs/context/contracts-index.md

@@ -2,7 +2,7 @@
 name: qa-reviewer
 description: Execute quality gates, verify evidence, route failures back to the correct agent, and decide release readiness.
 tools: Read, Grep, Glob, Bash
-model: claude-opus-4-7
+model: opus
 ---
 
 You are the QA reviewer.
@@ -46,6 +46,10 @@ Invoke `spec-drift-auditor` at the following points (do not wait for issues to s
 - `approved-with-risk` — only when (a) the residual risk is documented in qa-report.md, (b) an owner is assigned, (c) a follow-up issue exists with a date.
 - `blocked` — any required gate failing, any contract claim unverified, any UI change without visual evidence.
 - Sign-off — single reviewer for low/medium risk; two reviewers (qa-reviewer + spec-architect) for high/critical.
+- Pre-existing failures may be excluded from this change's gate only when the
+  report includes the failing test id, baseline commit or prior evidence,
+  reason it is outside the current scope, owner, and follow-up date. Without
+  that record, treat the failure as blocking.
 
 ## Output
 
@@ -60,6 +64,10 @@ Invoke `spec-drift-auditor` at the following points (do not wait for issues to s
 
 ## Failures
 ...
+
+## Pre-existing Failures Excluded From This Gate
+| failure/test | baseline evidence | why outside scope | owner/follow-up |
+|---|---|---|---|
 
 ## Fixback Routing
 ...

@@ -213,7 +213,7 @@ describe('cdd-kit refresh — model-policy resync', () => {
 name: backend-engineer
 description: backend
 tools: Read
-model: claude-haiku-4-5-20251001
+model: haiku
 ---
 
 # stub
@@ -231,7 +231,7 @@ artifacts:
     mkdirSync(join(tmpRepo, '.cdd'), { recursive: true });
     writeFileSync(
       join(tmpRepo, '.cdd', 'model-policy.json'),
-      JSON.stringify({ provider: 'claude', roles: { 'backend-engineer': 'claude-sonnet-4-6' } }, null, 2),
+      JSON.stringify({ provider: 'claude', roles: { 'backend-engineer': 'sonnet' } }, null, 2),
       'utf8',
     );
 
@@ -242,8 +242,8 @@ artifacts:
     expect(r.status, r.stderr).toBe(0);
 
     const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
-    expect(policy.roles['backend-engineer']).toBe('claude-haiku-4-5-20251001');
-    expect(r.stdout + r.stderr).toMatch(/backend-engineer.*claude-sonnet-4-6.*claude-haiku-4-5-20251001/);
+    expect(policy.roles['backend-engineer']).toBe('haiku');
+    expect(r.stdout + r.stderr).toMatch(/backend-engineer.*sonnet.*haiku/);
   });
 
   it('11: leaves roles untouched when frontmatter already matches', () => {
@@ -255,7 +255,7 @@ artifacts:
 name: backend-engineer
 description: backend
 tools: Read
-model: claude-sonnet-4-6
+model: sonnet
 ---
 # stub
 `,
@@ -265,7 +265,7 @@ model: claude-sonnet-4-6
     mkdirSync(join(tmpRepo, '.cdd'), { recursive: true });
     writeFileSync(
       join(tmpRepo, '.cdd', 'model-policy.json'),
-      JSON.stringify({ provider: 'claude', roles: { 'backend-engineer': 'claude-sonnet-4-6' } }, null, 2),
+      JSON.stringify({ provider: 'claude', roles: { 'backend-engineer': 'sonnet' } }, null, 2),
       'utf8',
     );
 

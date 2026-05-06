@@ -1,6 +1,6 @@
 change-id: feat-001
 agent: backend-engineer
-timestamp: 2026-04-27T14:30:00Z
+timestamp: "2026-04-27T14:30:00Z"
 status: complete
 files-read:
   - contracts/api/api-contract.md

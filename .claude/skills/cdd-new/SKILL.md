@@ -168,7 +168,9 @@ Do not authorize the classifier to read `contracts/`, `src/`, `tests/`, or broad
 
 The classifier must include a `## Context Manifest Draft` section with:
 - affected surfaces
-- allowed paths for each required agent work packet
+- allowed paths for each required agent work packet; this must be the union of
+  every file/directory agents are expected to read, including component/store/view
+  files for frontend work and CI contracts/workflows for CI work
 - required contracts
 - required tests
 - any context expansion requests that must be approved before implementation
@@ -237,6 +239,27 @@ Change directory: specs/changes/<change-id>/
 ```
 This ensures the agent's Read scope restriction points to the correct directory.
 
+Before invoking an agent, preflight any concrete paths you already expect that
+agent to read:
+
+```bash
+cdd-kit context check <change-id> --path <repo-relative path> [more paths...]
+```
+
+If the check fails and the paths are legitimate work scope, update
+`context-manifest.md` `## Allowed Paths` or approve a Context Expansion Request
+before the agent reads them. This catches common late gate failures such as UI
+components/stores/views or CI workflow files missing from the manifest.
+
+After every agent returns, complete the closeout before starting the next
+agent:
+- confirm its `agent-log/<agent>.yml` exists or write it for read-only agents
+- confirm the log has a completed status (`complete`, `done`, or `approved`) or
+  halt on `blocked`
+- tick the owned `tasks.yml` items immediately
+- record incidental/pre-existing findings in the appropriate report instead of
+  silently fixing unrelated scope
+
 ### Agent stage badges (UI v1)
 
 When you announce that you are about to invoke an agent, prefix the
@@ -265,9 +288,9 @@ the user; do not put them inside the prompt sent to the agent.
 | Audit | `repo-context-scanner` | ⚫ `[repo-scan]` |
 
 Color semantics:
-- 🟣 purple: deciding what we will do (heavy model, opus-class)
-- 🔵 blue: writing code (sonnet-class implementation)
-- 🟡 yellow: planning tests (sonnet-class)
+- 🟣 purple: deciding what we will do (heavy model, `opus`)
+- 🔵 blue: writing code (`sonnet` implementation)
+- 🟡 yellow: planning tests (`sonnet`)
 - 🟠 orange: heavy testing — only appears for Tier 0–1, signals high-risk scope
 - 🟢 green: reviewing what was done (no code writes; just verdicts)
 - ⚫ neutral: audits and scans (read-only background work)
@@ -366,6 +389,13 @@ All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backe
 - Skip an agent only if the classifier explicitly marks its surface as "not affected"
 - If backend-only with no UI: skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
 - If UI-only with no backend: skip `backend-engineer`
+- If a required or informational test has pre-existing failures unrelated to
+  this change, do not count them as this change's pass/fail result. Record the
+  failing test id, baseline commit or prior evidence, owner, and follow-up in
+  `qa-report.md`; QA may only approve this as `approved-with-risk`.
+- If implementation uncovers unrelated old bugs, fix only those needed to meet
+  this change's acceptance criteria or to avoid a new safety/security risk.
+  Otherwise record them as follow-up with evidence and owner.
 
 **Resuming from blocked**: After the user resolves the blocking issue, re-invoke the blocked agent (do not restart from Step 1). Continue with the remaining agents in their original order.
 

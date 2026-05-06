@@ -98,7 +98,7 @@ Read only paths allowed by the context manifest and approved expansions.
 If more context is needed, stop and output a Context Expansion Request instead of reading outside the manifest.
 ```
 
-Do NOT re-run agents that already have a `status: complete` agent-log.
+Do NOT re-run agents that already have a completed agent-log (`status: complete`, `done`, or `approved`).
 
 Continue until all required agents are done, then run `cdd-kit gate <change-id>`.
 
@@ -106,7 +106,7 @@ Continue until all required agents are done, then run `cdd-kit gate <change-id>`
 
 ## Rules
 
-- Never re-run an agent that already has `status: complete` in its agent-log
+- Never re-run an agent that already has `status: complete`, `done`, or `approved` in its agent-log
 - Never start from Step 1 of `/cdd-new` — only resume from the next pending agent
 - Never use broad search to reconstruct state; resume from `tasks.yml`, `context-manifest.md`, and `agent-log/`
 - Never continue past pending Context Expansion Requests

@@ -2,7 +2,7 @@
 name: ui-ux-reviewer
 description: Review interaction design, information hierarchy, copy, accessibility, empty/error/loading state semantics, and user journey quality. Does not cover pixel-level visuals or CSS -- those go to visual-reviewer.
 tools: Read, Grep, Glob
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 You are the UI/UX reviewer.

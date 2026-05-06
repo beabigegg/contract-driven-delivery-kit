@@ -119,7 +119,7 @@ describe('cdd-kit doctor', () => {
 
     const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
     expect(Object.keys(policy.roles).length).toBeGreaterThan(10);
-    expect(policy.roles['change-classifier']).toMatch(/claude-opus-4-7/);
+    expect(policy.roles['change-classifier']).toBe('opus');
   });
 
   it('PR3-5.3: --fix refreshes legacy indexes missing inputs-digest', () => {
