@@ -52,14 +52,14 @@ For context-governed changes, read `specs/changes/<change-id>/context-manifest.m
   reads are legitimate, expand `Allowed Paths` or approve a Context Expansion
   Request before the agent reads the files.
 - If more context is needed, stop and write a Context Expansion Request in the manifest (`cdd-kit context request`).
-- The full agent-log format (including `files-read:` schema) is defined in
+- Optional agent-log notes are defined in
   `~/.claude/skills/contract-driven-delivery/references/agent-log-protocol.md`.
   Read that once; do not paraphrase it elsewhere.
 
 ## CDD Operational Notes
 
-- After each agent returns, verify its agent-log exists, tick the related
-  `tasks.yml` items immediately, and only then move to the next agent.
+- After each agent returns, tick the related `tasks.yml` items immediately,
+  and only then move to the next agent.
 - Pre-existing test failures may be excluded from the current gate only when
   `qa-report.md` records the failing test, baseline evidence, why it is outside
   scope, owner, and follow-up.

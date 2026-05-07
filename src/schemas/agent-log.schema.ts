@@ -11,6 +11,8 @@ export const agentLogSchema = {
     agent: { type: "string", minLength: 1 },
     status: { type: "string", enum: ["complete", "done", "approved", "needs-review", "blocked"] },
     "files-read": { type: "array", items: { type: "string", minLength: 1 } },
+    "indexes-used": { type: "array", items: { type: "string", minLength: 1 } },
+    "index-queries": { type: "array", items: { type: "string", minLength: 1 } },
     artifacts: {
       type: "array",
       minItems: 1,

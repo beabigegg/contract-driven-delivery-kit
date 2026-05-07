@@ -1,10 +1,10 @@
-# Contract-Driven Delivery Kit
+﻿# Contract-Driven Delivery Kit
 
-**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification, with deterministic context indexes and manifest-backed read-scope auditing to keep long agent runs reviewable.
+**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification, with deterministic context indexes to keep agent work targeted.
 
 Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps), especially when non-engineers or product owners want AI to do the implementation while they stay in the spec-author and reviewer seat.
 
-**Context Governance v1** adds a manifest-driven audit layer for AI agents. New changes include `context-manifest.md`, `agent-log` entries are expected to report `files-read`, and `cdd-kit gate` audits those reads against allowed and forbidden paths. This is governance and review support, not a sandbox.
+**Context Governance v1** adds a manifest-driven planning layer for AI agents. New changes include `context-manifest.md`; agents should use `cdd-kit index query` and `cdd-kit index impact` before broad source reads. `cdd-kit gate` focuses on delivery quality, not post-run read paperwork.
 
 ---
 
@@ -38,7 +38,7 @@ cdd-kit init
 
 ## How to Direct Claude Code
 
-> All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills — not shell commands.
+> All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills ??not shell commands.
 
 ### Starting a new project (first time)
 
@@ -94,8 +94,8 @@ or
 3. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
 4. If the request is too broad, the classifier can return an atomic split proposal instead of forcing one Tier 0/1 monolith
 5. For Tier 0-1 work, Claude's narration uses stage badges so users can tell whether the flow is deciding, implementing, testing, or reviewing
-6. Agents run in order: contracts → test plan → spec/architecture review (if needed) → backend engineer → frontend engineer → CI/CD gates → QA
-7. Each agent produces machine-verifiable evidence (agent-log files)
+6. Agents run in order: contracts ??test plan ??spec/architecture review (if needed) ??backend engineer ??frontend engineer ??CI/CD gates ??QA
+7. Agents write implementation artifacts and optional concise handoff notes
 8. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
 9. Claude reports a summary and the suggested git commit
 
@@ -108,7 +108,7 @@ Use a lightweight maintenance lane for small corrections where the intent is alr
 | Lane | Examples | Required record |
 |---|---|---|
 | maintenance / micro-change | typo fixes, comment updates, README cleanup, formatting, lint-only fixes, tiny local test repair | normal commit message and test output if applicable |
-| tracked CDD change | behavior changes, contract updates, API/data/env/security/CI changes, cross-module refactors, high-risk bug fixes | `specs/changes/<id>/`, `tasks.yml`, `context-manifest.md`, agent logs, and `cdd-kit gate` |
+| tracked CDD change | behavior changes, contract updates, API/data/env/security/CI changes, cross-module refactors, high-risk bug fixes | `specs/changes/<id>/`, `tasks.yml`, `context-manifest.md`, and `cdd-kit gate` |
 
 Do not add hard pre-commit rules that block every `src/`, `tests/`, or `contracts/` edit unless your team explicitly wants that policy. The default kit favors low-friction traceability: make risky changes reviewable, but let obvious maintenance edits stay small.
 
@@ -118,8 +118,8 @@ Machine-readable metadata such as future `change.yml` / `trace.yml` should follo
 
 CDD uses two agent classes on purpose:
 
-- `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or an `Agent Log` YAML block; main Claude writes the corresponding files.
-- `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own implementation artifacts and their own `agent-log/*.yml`.
+- `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or optional handoff notes; main Claude writes the corresponding files.
+- `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own implementation artifacts directly.
 
 This split is deliberate:
 
@@ -130,7 +130,7 @@ This split is deliberate:
 **You stay in control by:**
 - Reviewing the `change-classification.md` before implementation starts
 - Checking the `test-plan.md` to confirm the right test families are planned
-- Reading the final `agent-log/qa-reviewer.yml` for the release-readiness verdict
+- Reading the final QA summary for the release-readiness verdict
 
 ---
 
@@ -148,7 +148,7 @@ This split is deliberate:
 /cdd-new add Redis caching layer to the reporting queries
 ```
 
-The change-classifier will detect that these are architectural or contract-level changes, assign a higher risk tier (0–2), and automatically require:
+The change-classifier will detect that these are architectural or contract-level changes, assign a higher risk tier (0??), and automatically require:
 - Architecture review (`spec-architect` agent)
 - E2E, resilience, stress, and monkey tests
 - Updated contracts before any implementation begins
@@ -170,7 +170,7 @@ What changes are currently in progress? (cdd-kit list)
 ```
 
 **What happens:**
-1. Claude reads `tasks.yml` and `agent-log/` to determine what was completed
+1. Claude reads `tasks.yml` and existing change artifacts to determine what was completed
 2. Reports the current state (which agents ran, which tasks are pending)
 3. Asks if you want to continue from the next pending agent
 4. Resumes the full agent flow from where it stopped, with no duplication
@@ -189,9 +189,9 @@ After the PR is merged:
 
 **What happens:**
 1. Runs `cdd-kit gate` to confirm the change still passes
-2. Synthesizes `archive.md` — a permanent record of what changed, what tests were added, and what lessons were found
+2. Synthesizes `archive.md` ??a permanent record of what changed, what tests were added, and what lessons were found
 3. Promotes only evidence-backed durable learnings to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`). General agents record evidence and findings only; durable learning promotion happens during `/cdd-close` Step 3.
-4. Runs `cdd-kit archive add-jwt-auth` — moves the change from `specs/changes/` to `specs/archive/2026/`
+4. Runs `cdd-kit archive add-jwt-auth` ??moves the change from `specs/changes/` to `specs/archive/2026/`
 5. Reduces the active context that future Claude sessions need to load
 
 ---
@@ -235,7 +235,7 @@ Active changes:
 
 ## CLI Reference
 
-These are shell commands — not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
+These are shell commands ??not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
 
 ### `cdd-kit init`
 
@@ -311,36 +311,27 @@ The single quality gate for a change. Blocks merge if anything is missing or inc
 ```bash
 cdd-kit gate add-jwt-auth
 cdd-kit gate add-jwt-auth --strict
-cdd-kit gate add-jwt-auth --lax
 ```
 
 Checks:
 - All required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
-- Each artifact has sufficient content (not a stub): change-classification ≥ 200 chars, test-plan ≥ 200, ci-gates ≥ 150, others ≥ 100
-- `change-classification.md` contains a tier or risk marker
-- `agent-log/*.yml` files all have a completed status (`complete`, with `done` and `approved` accepted as compatibility aliases) and are not blocked
-- For context-governed changes, `agent-log/*.yml` files include a structured `files-read:` list and those repo-relative paths are audited against `context-manifest.md` and `.cdd/context-policy.json`
-- Atomic `depends-on` upstream changes are completed or archived before dependent work gates
-- Tier 0–1 changes have `e2e-resilience-engineer`, `monkey-test-engineer`, and `stress-soak-engineer` logs
-- Tier 0–3 changes have `contract-reviewer` and `qa-reviewer` logs
-- All contract validators pass
+- Each artifact has sufficient content and is not a stub.
+- `change-classification.md` contains a tier or risk marker.
+- Atomic `depends-on` upstream changes are completed or archived before dependent work gates.
+- All contract validators pass.
 
 `--strict` additionally:
 - Treats any task with `status: pending` (except IDs listed in `archive-tasks`) as an error
-- Treats runtime-vs-declared `files-read` drift as errors
-- Treats legacy changes missing `context-manifest.md` or `files-read` audit data as errors
-
-Default mode also validates that artifact file pointers listed in `agent-log` evidence exist on disk. Use `--lax` only when cleaning up legacy repos with stale historical logs.
+- Treats legacy changes missing `context-manifest.md` as errors
 
 Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks`).
 
 ```
-✓  gate passed for change: add-jwt-auth
+?? gate passed for change: add-jwt-auth
 
-✗  gate failed for change: feat-001
-✗    change-classification.md: appears to be a stub (< 200 meaningful chars)
-✗    Tier 1 change requires agent-log/e2e-resilience-engineer.yml
-✗    1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
+?? gate failed for change: feat-001
+??   change-classification.md: appears to be a stub (< 200 meaningful chars)
+??   1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
 ```
 
 ---
@@ -368,11 +359,11 @@ Physically moves a completed change from `specs/changes/` to `specs/archive/<yea
 
 ```bash
 cdd-kit archive add-jwt-auth
-# ✓  Archived: specs/changes/add-jwt-auth → specs/archive/2026/add-jwt-auth
-# ✓  Index updated: specs/archive/INDEX.md
+# ?? Archived: specs/changes/add-jwt-auth ??specs/archive/2026/add-jwt-auth
+# ?? Index updated: specs/archive/INDEX.md
 ```
 
-Warns (but does not block) if `tasks.yml` has pending items or `status: gate-blocked`. Use after `/cdd-close` — the skill runs this automatically at the end.
+Warns (but does not block) if `tasks.yml` has pending items or `status: gate-blocked`. Use after `/cdd-close` ??the skill runs this automatically at the end.
 
 ---
 
@@ -382,7 +373,7 @@ Marks a change as abandoned. Updates `tasks.yml` status to `abandoned`, records 
 
 ```bash
 cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
-# ✓  Change add-jwt-auth marked as abandoned.
+# ?? Change add-jwt-auth marked as abandoned.
 ```
 
 ---
@@ -401,10 +392,10 @@ cdd-kit migrate --all --enable-context-governance
 What it upgrades:
 - `tasks.yml`: converts legacy `tasks.md` checklist/frontmatter into structured YAML task records
 - `change-classification.md`: detects old `**Tier:** Tier N` format and appends the new `## Tier\n- N` section so tier-based gate checks activate
-- `context-manifest.md`: adds a legacy manifest scaffold by default so old changes can continue with warning-only context audit behavior
-- `--enable-context-governance`: explicitly adds `context-governance: v1` and a context-governed manifest scaffold, making missing manifest or malformed `files-read` data hard gate failures
+- `context-manifest.md`: adds a legacy manifest scaffold by default so old changes can use the same pre-read planning layer
+- `--enable-context-governance`: explicitly adds `context-governance: v1` and a context-governed manifest scaffold for pre-read planning
 
-`agent-log/*.yml` must use this `files-read` format for context-governed changes:
+If you choose to emit `agent-log/*.yml`, keep `files-read` optional and concise:
 
 ```yaml
 files-read:
@@ -412,10 +403,8 @@ files-read:
   - src/server/routes/users.ts
 ```
 
-Paths must be repo-relative. Absolute paths and `..` parent traversal are rejected.
-If a logged read is legitimate but gate says it is unauthorized, add that path
-to `context-manifest.md` `## Allowed Paths` or approve a Context Expansion
-Request. Do not remove it from `files-read`; that list is the audit trail.
+Paths should be repo-relative. Do not reconstruct this list after the fact;
+use `cdd-kit context check` before invoking agents when read scope matters.
 
 Run this after upgrading from v1.10 or earlier if you have mid-flight changes.
 
@@ -449,11 +438,10 @@ cdd-kit context check add-todos-ui --path src/components/Sidebar.vue src/stores/
 cdd-kit context check add-ci-gate --path contracts/ci/ci-gate-contract.md .github/workflows/contract-driven-gates.yml
 ```
 
-The check uses the same authorization model as `cdd-kit gate`: `## Allowed
-Paths`, `## Approved Expansions`, repo-relative path rules, and the forbidden
-baseline in `.cdd/context-policy.json`. If the command fails and the read is
-legitimate, update the manifest or record/approve a Context Expansion Request
-before the agent reads the file.
+The check uses `## Allowed Paths`, `## Approved Expansions`, repo-relative path
+rules, and the forbidden baseline in `.cdd/context-policy.json`. If the command
+fails and the read is legitimate, update the manifest or record/approve a
+Context Expansion Request before the agent reads the file.
 
 ---
 
@@ -466,7 +454,7 @@ cdd-kit context approve add-jwt-auth CER-001
 cdd-kit context approve add-jwt-auth --all-pending   # bulk approve every pending request
 ```
 
-This keeps expansion history explicit while avoiding manual manifest editing. Agents still have to report `files-read` in `agent-log/*.yml`; `cdd-kit gate` audits those paths against the manifest.
+This keeps expansion history explicit while avoiding manual manifest editing.
 
 ---
 
@@ -531,7 +519,7 @@ Installs a pre-commit Git hook that auto-runs `cdd-kit gate --strict` on any sta
 
 ```bash
 cdd-kit install-hooks
-# ✓  pre-commit hook installed at .git/hooks/pre-commit
+# ?? pre-commit hook installed at .git/hooks/pre-commit
 ```
 
 Idempotent. Preserves existing hook content. Bypass with `--no-verify` is possible but defeats enforcement.
@@ -624,8 +612,8 @@ cdd-kit doctor --strict
 
 Then choose one path per active change:
 
-- Conservative path: keep the migrated legacy manifest, resume work, and let `gate` warn on missing `files-read` data while the team transitions.
-- Strict path: run `cdd-kit migrate <change-id> --enable-context-governance`, review `context-manifest.md`, narrow `Allowed Paths`, and require agents to report `- files-read:` before continuing implementation.
+- Conservative path: keep the migrated legacy manifest and resume work; use `context check` before invoking agents.
+- Tight context path: run `cdd-kit migrate <change-id> --enable-context-governance`, review `context-manifest.md`, narrow `Allowed Paths`, and use `cdd-kit context check` before invoking agents.
 
 ### Recommended rollout for production repos already burned by token overuse
 
@@ -642,31 +630,31 @@ Then choose one path per active change:
 
 ```
 your-repo/
-├── contracts/
-│   ├── api/api-contract.md          ← what endpoints exist and how they behave
-│   ├── css/css-contract.md          ← design tokens, component states
-│   ├── data/data-shape-contract.md  ← schemas, types, nullability
-│   ├── env/env-contract.md          ← every env var, secret flags, defaults
-│   ├── business/business-rules.md   ← rules, edge cases, decision tables
-│   └── ci/ci-gate-contract.md       ← gate tiers, promotion, rollback
-├── specs/
-│   ├── project-profile.md           ← overall system description
-│   ├── changes/                     ← active in-progress changes
-│   │   └── <change-id>/
-│   │       ├── change-request.md    (required)
-│   │       ├── change-classification.md (required)
-│   │       ├── test-plan.md         (required)
-│   │       ├── ci-gates.md          (required)
-│   │       ├── tasks.yml            (required)
-│   │       └── agent-log/           ← machine-verifiable evidence per agent
-│   ├── archive/                     ← completed and abandoned changes
-│   │   ├── INDEX.md
-│   │   └── 2026/<change-id>/
-│   └── templates/
-├── tests/
-├── CLAUDE.md                        ← Claude's project guide (edit this)
-├── AGENTS.md                        ← agent roster (auto-managed)
-└── CODEX.md                         ← Codex project guide when initialized for Codex
+??? contracts/
+??  ??? api/api-contract.md          ??what endpoints exist and how they behave
+??  ??? css/css-contract.md          ??design tokens, component states
+??  ??? data/data-shape-contract.md  ??schemas, types, nullability
+??  ??? env/env-contract.md          ??every env var, secret flags, defaults
+??  ??? business/business-rules.md   ??rules, edge cases, decision tables
+??  ??? ci/ci-gate-contract.md       ??gate tiers, promotion, rollback
+??? specs/
+??  ??? project-profile.md           ??overall system description
+??  ??? changes/                     ??active in-progress changes
+??  ??  ??? <change-id>/
+??  ??      ??? change-request.md    (required)
+??  ??      ??? change-classification.md (required)
+??  ??      ??? test-plan.md         (required)
+??  ??      ??? ci-gates.md          (required)
+??  ??      ??? tasks.yml            (required)
+??  ??      ??? agent-log/           optional handoff notes
+??  ??? archive/                     ??completed and abandoned changes
+??  ??  ??? INDEX.md
+??  ??  ??? 2026/<change-id>/
+??  ??? templates/
+??? tests/
+??? CLAUDE.md                        ??Claude's project guide (edit this)
+??? AGENTS.md                        ??agent roster (auto-managed)
+??? CODEX.md                         ??Codex project guide when initialized for Codex
 ```
 
 ---
@@ -675,9 +663,9 @@ your-repo/
 
 | Tier | Risk level | Example changes | Extra agents |
 |---|---|---|---|
-| 0–1 | High / critical | Auth, payments, migrations, concurrency | E2E + monkey + stress/soak |
-| 2–3 | Medium | Feature with API change, bug fix with behavior change | Contract review + QA |
-| 4–5 | Low | Docs, prompts, config only, no behavior change | Contract review + QA |
+| 0?? | High / critical | Auth, payments, migrations, concurrency | E2E + monkey + stress/soak |
+| 2?? | Medium | Feature with API change, bug fix with behavior change | Contract review + QA |
+| 4?? | Low | Docs, prompts, config only, no behavior change | Contract review + QA |
 
 ---
 

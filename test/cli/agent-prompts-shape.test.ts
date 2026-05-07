@@ -44,7 +44,7 @@ function readAgent(name: string): string {
 
 function extractRequiredArtifactsSection(content: string): string | null {
   const match = content.match(
-    /### Required artifacts for this agent\s*\n[\s\S]*?(?=\n#{2,3} |\n---|\s*$)/,
+    /### (?:Suggested|Required) artifacts for this agent\s*\n[\s\S]*?(?=\n#{2,3} |\n---|\s*$)/,
   );
   return match ? match[0] : null;
 }
@@ -64,12 +64,12 @@ function hasFlatBacktickKeysWithoutFence(section: string): boolean {
 
 describe('agent prompt shapes — all 16 agents', () => {
   it.each(ALL_AGENTS)(
-    '%s: Required artifacts section has a YAML fence with artifacts:, at least one {type,pointer} item, and no flat backtick-keyed lines',
+    '%s: Suggested artifacts section has a YAML fence with artifacts:, at least one {type,pointer} item, and no flat backtick-keyed lines',
     (agentName) => {
       const content = readAgent(agentName);
       const section = extractRequiredArtifactsSection(content);
 
-      expect(section, `${agentName}: missing ### Required artifacts for this agent section`).toBeTruthy();
+      expect(section, `${agentName}: missing ### Suggested artifacts for this agent section`).toBeTruthy();
 
       // Must contain a fenced yaml block starting with artifacts:
       expect(section, `${agentName}: missing \`\`\`yaml artifacts: fence`).toMatch(

@@ -69,7 +69,7 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 ## Context Manifest Draft
 <!-- Classifier fills this section. In /cdd-new Step 2.3, Claude copies it verbatim into
      specs/changes/<change-id>/context-manifest.md, replacing the scaffold.
-     All paths must be repo-relative. Gate enforces Allowed Paths against agent files-read logs. -->
+     All paths must be repo-relative. Use cdd-kit context check before invoking agents. -->
 
 ### Affected Surfaces
 -
@@ -77,7 +77,7 @@ Always required: change-request.md, change-classification.md, test-plan.md, ci-g
 ### Allowed Paths
 <!-- Union of ALL paths any agent will read. Add change-specific paths below the defaults.
      Include component/store/view files for frontend work and CI contracts/workflows for CI work
-     when those files are legitimate work scope. Gate compares agent-log files-read against this list. -->
+     when those files are legitimate work scope. -->
 - specs/changes/<change-id>/
 - specs/context/project-map.md
 - specs/context/contracts-index.md

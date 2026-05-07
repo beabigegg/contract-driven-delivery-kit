@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 // Helper: scaffold a minimal .claude/agents/ directory in a temp cwd
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 
 function makeAgentsDir(tmpDir: string): string {
   const dir = join(tmpDir, '.claude', 'agents');
@@ -24,7 +24,7 @@ model: sonnet
 
 ## Read scope
 
-Source of truth: \`specs/changes/<change-id>/context-manifest.md\` → \`## Allowed Paths\`.
+Source of truth: \`specs/changes/<change-id>/context-manifest.md\` ??\`## Allowed Paths\`.
 Read it first (your prompt header has \`CURRENT_CHANGE_ID\`).
 
 ## Machine-Verifiable Evidence
@@ -62,7 +62,7 @@ model: sonnet
 
 ## Read scope
 
-Source of truth: \`specs/changes/<change-id>/context-manifest.md\` → \`## Allowed Paths\`.
+Source of truth: \`specs/changes/<change-id>/context-manifest.md\` ??\`## Allowed Paths\`.
 
 ## Machine-Verifiable Evidence
 
@@ -85,7 +85,7 @@ model: sonnet
 
 ## Read scope
 
-Source of truth: \`specs/changes/<change-id>/context-manifest.md\` → \`## Allowed Paths\`.
+Source of truth: \`specs/changes/<change-id>/context-manifest.md\` ??\`## Allowed Paths\`.
 
 ## Read scope
 
@@ -104,7 +104,7 @@ artifacts:
 `;
 }
 
-/** A file whose Required-artifacts YAML has a stray top-level key alongside `artifacts:`. */
+/** A file whose Suggested-artifacts YAML has a stray top-level key alongside `artifacts:`. */
 function strayTopLevelKeyContent(): string {
   return `---
 name: stray-top-key-agent
@@ -115,7 +115,7 @@ model: sonnet
 
 ## Read scope
 
-Source of truth: \`specs/changes/<change-id>/context-manifest.md\` → \`## Allowed Paths\`.
+Source of truth: \`specs/changes/<change-id>/context-manifest.md\` ??\`## Allowed Paths\`.
 
 ## Machine-Verifiable Evidence
 
@@ -158,9 +158,9 @@ artifacts:
 `;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 
 describe('cdd-kit lint-agents', () => {
   let tmpDir: string;
@@ -176,7 +176,7 @@ describe('cdd-kit lint-agents', () => {
     cleanupDir(tmpHome);
   });
 
-  it('1 — passing: correct shape exits 0 with no errors', () => {
+  it('1 ??passing: correct shape exits 0 with no errors', () => {
     const agentsDir = makeAgentsDir(tmpDir);
     writeFileSync(join(agentsDir, 'passes.md'), passingAgentContent(), 'utf8');
 
@@ -185,16 +185,16 @@ describe('cdd-kit lint-agents', () => {
     expect(r.stdout).toMatch(/0 error\(s\)/);
   });
 
-  it('2 — fail A: flat-list style triggers Rule A error', () => {
+  it('2 ??fail A: flat-list style triggers Rule A error', () => {
     const agentsDir = makeAgentsDir(tmpDir);
     writeFileSync(join(agentsDir, 'flat-list.md'), flatListAgentContent(), 'utf8');
 
     const r = runCli(['lint-agents'], { cwd: tmpDir, home: tmpHome });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/bad Required-artifacts format/i);
+    expect(r.stderr).toMatch(/bad Suggested-artifacts format/i);
   });
 
-  it('3 — fail B: duplicate ## Read scope triggers Rule B error', () => {
+  it('3 ??fail B: duplicate ## Read scope triggers Rule B error', () => {
     const agentsDir = makeAgentsDir(tmpDir);
     writeFileSync(join(agentsDir, 'dup-scope.md'), duplicateScopeAgentContent(), 'utf8');
 
@@ -203,7 +203,7 @@ describe('cdd-kit lint-agents', () => {
     expect(r.stderr).toMatch(/duplicate.*Read scope|duplicate ## Read scope/i);
   });
 
-  it('4 — fail C: ## Read scope without context-manifest.md reference triggers Rule C error', () => {
+  it('4 ??fail C: ## Read scope without context-manifest.md reference triggers Rule C error', () => {
     const agentsDir = makeAgentsDir(tmpDir);
     writeFileSync(join(agentsDir, 'no-manifest.md'), missingContextManifestContent(), 'utf8');
 
@@ -212,7 +212,7 @@ describe('cdd-kit lint-agents', () => {
     expect(r.stderr).toMatch(/context-manifest\.md/i);
   });
 
-  it('5 — fail A (strengthened): stray top-level key alongside artifacts: is rejected', () => {
+  it('5 ??fail A (strengthened): stray top-level key alongside artifacts: is rejected', () => {
     const agentsDir = makeAgentsDir(tmpDir);
     writeFileSync(join(agentsDir, 'stray-top-key.md'), strayTopLevelKeyContent(), 'utf8');
 

@@ -22,9 +22,9 @@ Read `specs/changes/<change-id>/context-manifest.md` before using file-reading o
   Request before the agent reads the files.
 - Do not use broad repository search unless the manifest authorizes it.
 - If more context is needed, stop and write a Context Expansion Request in the manifest.
-- Record every file read through tools in the relevant `agent-log/*.yml` under `files-read:`.
+- Optional `agent-log/*.yml` notes may include `files-read:` when that list is cheap and accurate.
 
-Required `agent-log/*.yml` format:
+Optional `agent-log/*.yml` read note:
 
 ```yaml
 files-read:
@@ -32,7 +32,7 @@ files-read:
   - src/server/routes/users.ts
 ```
 
-Every entry must be a repo-relative path. Do not omit files, use absolute paths, or use `..`.
+Every entry should be a repo-relative path. Do not reconstruct this list after the fact.
 
 ## Hot And Cold Data
 
@@ -44,8 +44,8 @@ Cold historical data is evidence, not current requirements.
 
 ## Operational Notes
 
-- After each agent returns, verify its agent-log exists, tick the related
-  `tasks.yml` items immediately, and only then move to the next agent.
+- After each agent returns, tick the related `tasks.yml` items immediately,
+  then move to the next agent.
 - Pre-existing test failures may be excluded from the current gate only when
   `qa-report.md` records the failing test, baseline evidence, why it is outside
   scope, owner, and follow-up.

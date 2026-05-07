@@ -1,12 +1,12 @@
-import { describe, it, beforeEach, afterEach, expect } from 'vitest';
+﻿import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 // Contract helpers (mirrors validate-semantic.test.ts)
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 
 function buildApiContract(rows: string[]): string {
   const table = [
@@ -290,9 +290,9 @@ function writeContextGovernanceFiles(changeDir: string): void {
   ].join('\n'), 'utf8');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
+// ?????????????????????????????????????????????????????????????????????????????
 
 describe('cdd-kit gate', () => {
   let tmpRepo: string;
@@ -361,11 +361,11 @@ describe('cdd-kit gate', () => {
     expect(r.stdout).toMatch(/gate passed for change: feat-004/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // agent-log validation tests
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
-  it('6: gate passes with no agent-log/ dir (acceptable — no agents logged yet)', () => {
+  it('6: gate passes with no agent-log/ dir (acceptable ??no agents logged yet)', () => {
     runCli(['new', 'feat-005'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-005');
     writeValidChangeArtifacts(changeDir);
@@ -395,144 +395,9 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/status=blocked/i);
   });
 
-  it('7b: gate keeps unquoted ISO timestamps as strings in agent-log YAML', () => {
-    runCli(['new', 'feat-006b'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006b');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), [
-      'change-id: feat-006b',
-      'agent: backend-engineer',
-      'timestamp: 2026-05-04T10:00:00Z',
-      'status: complete',
-      'artifacts:',
-      '  - { type: files-changed, pointer: "src/api/users.ts:10-45" }',
-      'next-action: none',
-    ].join('\n'), 'utf8');
-
-    const r = runCli(['gate', 'feat-006b', '--lax'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/timestamp.*must be string/i);
-  });
-
-  it('7b2: gate accepts ISO timestamps with numeric timezone offsets', () => {
-    runCli(['new', 'feat-006b2'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006b2');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), [
-      'change-id: feat-006b2',
-      'agent: backend-engineer',
-      'timestamp: 2026-05-05T00:00:00+08:00',
-      'status: complete',
-      'artifacts:',
-      '  - { type: files-changed, pointer: "src/api/users.ts:10-45" }',
-      'next-action: none',
-    ].join('\n'), 'utf8');
-
-    const r = runCli(['gate', 'feat-006b2', '--lax'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/timestamp.*must be string|timestamp.*format/i);
-  });
-
-  it('7c: gate accepts agent-log status done as a complete alias', () => {
-    runCli(['new', 'feat-006c'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006c');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-006c',
-      status: 'done',
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-006c', '--lax'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/invalid "status:"|missing required "status:"/i);
-  });
-
-  it('7d: gate accepts agent-log status approved as a complete alias', () => {
-    runCli(['new', 'feat-006d'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-006d');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-006d',
-      status: 'approved',
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-006d', '--lax'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/invalid "status:"|missing required "status:"/i);
-  });
-
-  it('8: gate fails on agent log missing status line', () => {
-    runCli(['new', 'feat-007'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-007');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    // Build an agent log without status field
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), yaml.dump({
-      'change-id': 'feat-007',
-      agent: 'backend-engineer',
-      timestamp: '2026-04-27T14:30:00Z',
-      artifacts: [{ type: 'files-changed', pointer: 'src/api/users.ts:10-45' }],
-      'next-action': 'none',
-    }, { lineWidth: -1 }), 'utf8');
-
-    const r = runCli(['gate', 'feat-007'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/missing required "status:" line/i);
-  });
-
-  it('8b: gate reports invalid agent-log status value directly', () => {
-    runCli(['new', 'feat-007b'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-007b');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), yaml.dump({
-      'change-id': 'feat-007b',
-      agent: 'backend-engineer',
-      timestamp: '2026-04-27T14:30:00Z',
-      status: 'verified',
-      artifacts: [{ type: 'files-changed', pointer: 'src/api/users.ts:10-45' }],
-      'next-action': 'none',
-    }, { lineWidth: -1 }), 'utf8');
-
-    const r = runCli(['gate', 'feat-007b'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/invalid "status:" value verified/i);
-    expect(r.stdout + r.stderr).toMatch(/aliases accepted: done, approved/i);
-  });
-
-  it('9: gate fails on status=blocked with empty next-action', () => {
-    runCli(['new', 'feat-008'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-008');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-008',
-      status: 'blocked',
-      nextAction: 'none',
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-008'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/status=blocked.*next-action/i);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // --strict flag tests
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('10: gate without --strict: pending tasks produce warning but do NOT fail', () => {
     runCli(['new', 'feat-009'], { cwd: tmpRepo, home: tmpHome });
@@ -573,95 +438,13 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/task\(s\) still pending/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // artifact pointer validation
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
-  it('13: gate --strict fails when agent-log artifact pointer references a missing file', () => {
-    runCli(['new', 'feat-013'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-013');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-013',
-      artifacts: [{ type: 'test-plan-path', pointer: 'specs/changes/feat-013/does-not-exist.md' }],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-013', '--strict'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/artifact pointer not found/i);
-  });
-
-  it('13b: gate --lax skips artifact pointer check (legacy escape hatch)', () => {
-    runCli(['new', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-013b');
-    writeValidChangeArtifacts(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-013b',
-      artifacts: [{ type: 'test-plan-path', pointer: 'specs/changes/feat-013b/does-not-exist.md' }],
-    }), 'utf8');
-
-    const def = runCli(['gate', 'feat-013b'], { cwd: tmpRepo, home: tmpHome });
-    expect(def.status).not.toBe(0);
-    expect(def.stdout + def.stderr).toMatch(/artifact pointer not found/i);
-
-    const lax = runCli(['gate', 'feat-013b', '--lax'], { cwd: tmpRepo, home: tmpHome });
-    expect(lax.stdout + lax.stderr).not.toMatch(/artifact pointer not found/i);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // tier-based agent-log requirements
-  // ─────────────────────────────────────────────────────────────────────────
-
-  it('14: gate fails when Tier 1 change is missing required e2e/monkey/stress agent-logs', () => {
-    runCli(['new', 'feat-014'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-014');
-
-    const classificationContent = [
-      '# Change Classification',
-      '',
-      '## Change Types',
-      '- primary: feature',
-      '- secondary: api',
-      '',
-      '## Risk Level',
-      '- high',
-      '',
-      '## Tier',
-      '- 1',
-      '',
-      '## Impact Radius',
-      '- cross-module',
-      '',
-      'This is a high-risk change that touches multiple components and requires careful review. ',
-      'The change introduces new API endpoints with authentication requirements. ',
-      'All changes must be reviewed by the security team before deployment. ',
-      'Performance testing is required before each deployment to production environment. ',
-      'The change follows the established patterns for API development in this codebase. ',
-    ].join('\n');
-    writeFileSync(join(changeDir, 'change-classification.md'), classificationContent, 'utf8');
-
-    const filler = 'This is a meaningful description of the change. '.repeat(4);
-    writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature to support the new requirements. The change is additive only with no breaking changes.\n`, 'utf8');
-    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nUnit tests will cover all new business logic. Integration tests verify the API endpoints. E2E tests cover all user-facing flows affected by this change.\n`, 'utf8');
-    writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n## Required Gates\n| tier | gate | trigger | workflow | description |\n|---|---|---|---|---|\n| 1 | lint | PR | ci.yml | Linting |\n\n## Promotion Policy\nAll tier-1 gates must pass before merge.\n\n## Rollback Policy\nAutomatic rollback on error. ${filler}\n`, 'utf8');
-    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'feat-014' }), 'utf8');
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({ changeId: 'feat-014' }), 'utf8');
-
-    const r = runCli(['gate', 'feat-014'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/e2e-resilience-engineer/i);
-    expect(r.stdout + r.stderr).toMatch(/monkey-test-engineer/i);
-    expect(r.stdout + r.stderr).toMatch(/stress-soak-engineer/i);
-  });
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('14b: gate tier regex does NOT trigger on unfilled template placeholder', () => {
     runCli(['new', 'feat-014b'], { cwd: tmpRepo, home: tmpHome });
@@ -691,9 +474,9 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/monkey-test-engineer/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // per-artifact minimum char counts
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('15: gate fails when change-classification.md has fewer than 200 meaningful chars', () => {
     runCli(['new', 'feat-015'], { cwd: tmpRepo, home: tmpHome });
@@ -793,89 +576,7 @@ describe('cdd-kit gate', () => {
     expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: context-manifest\.md/i);
   });
 
-  it('18: new context-governed change fails when agent-log omits files-read', () => {
-    runCli(['new', 'feat-cg-files-read'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-files-read');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-cg-files-read',
-      filesRead: null,
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-cg-files-read'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/missing "- files-read:" section/i);
-  });
-
-  it('19: gate fails when files-read hits forbidden path', () => {
-    runCli(['new', 'feat-cg-forbidden'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-forbidden');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-cg-forbidden',
-      filesRead: ['node_modules/pkg/index.js'],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-cg-forbidden'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/read forbidden path -> node_modules\/pkg\/index\.js/i);
-  });
-
-  it('20: gate fails when files-read is outside manifest allowed paths', () => {
-    runCli(['new', 'feat-cg-unauthorized'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-unauthorized');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-cg-unauthorized',
-      filesRead: ['src/secret/file.ts'],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-cg-unauthorized'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/read unauthorized path -> src\/secret\/file\.ts/i);
-    expect(r.stdout + r.stderr).toMatch(/add it to the manifest instead of deleting it from files-read/i);
-  });
-
-  it('21: gate allows approved expansion paths and current change paths', () => {
-    runCli(['new', 'feat-cg-approved'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-approved');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-    writeFileSync(join(changeDir, 'context-manifest.md'), [
-      '# Context Manifest',
-      '',
-      '## Allowed Paths',
-      '- specs/changes/feat-cg-approved/',
-      '',
-      '## Approved Expansions',
-      '- src/secret/file.ts',
-    ].join('\n'), 'utf8');
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-cg-approved',
-      filesRead: ['src/secret/file.ts', 'specs/changes/feat-cg-approved/test-plan.md'],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-cg-approved'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/read forbidden path -> specs\/changes\/feat-cg-approved/i);
-    expect(r.stdout + r.stderr).not.toMatch(/read unauthorized path -> src\/secret\/file\.ts/i);
-  });
-
-  it('22: gate fails when context expansion request is pending', () => {
+  it('22: gate warns when context expansion request is pending', () => {
     runCli(['new', 'feat-cg-pending'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-pending');
     writeValidChangeArtifacts(changeDir);
@@ -892,51 +593,7 @@ describe('cdd-kit gate', () => {
     ].join('\n'), 'utf8');
 
     const r = runCli(['gate', 'feat-cg-pending'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/context-manifest\.md: has 1 pending context expansion request/i);
-  });
-
-  it('23: gate fails when files-read has malformed entries', () => {
-    runCli(['new', 'feat-cg-bad-files-read'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-bad-files-read');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    // Use a non-string entry (number) to trigger malformed format error
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), yaml.dump({
-      'change-id': 'feat-cg-bad-files-read',
-      agent: 'backend-engineer',
-      timestamp: '2026-04-27T14:30:00Z',
-      status: 'complete',
-      'files-read': [12345],
-      artifacts: [{ type: 'files-changed', pointer: 'src/api/users.ts:1' }],
-      'next-action': 'none',
-    }, { lineWidth: -1 }), 'utf8');
-
-    const r = runCli(['gate', 'feat-cg-bad-files-read'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/invalid files-read entry format/i);
-  });
-
-  it('24: gate fails when files-read uses absolute or parent-traversal paths', () => {
-    runCli(['new', 'feat-cg-invalid-paths'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-invalid-paths');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-cg-invalid-paths',
-      filesRead: ['C:/Users/example/secret.txt', '../outside.txt'],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-cg-invalid-paths'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/files-read path must be repo-relative/i);
-    expect(r.stdout + r.stderr).toMatch(/files-read path must not contain "\.\."/i);
   });
 
   it('25: gate blocks atomic changes when upstream dependency is still in progress', () => {
@@ -956,26 +613,9 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/dependency dep-db: upstream change is not completed/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // tier source: tasks.yml frontmatter (with classification fallback)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  it('B1.1: tasks.yml frontmatter `tier: 1` triggers tier-1 agent requirements', () => {
-    runCli(['new', 'feat-fm-tier'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-fm-tier');
-    writeValidChangeArtifacts(changeDir);
-
-    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
-      changeId: 'feat-fm-tier',
-      tier: 1,
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-fm-tier'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/e2e-resilience-engineer/i);
-    expect(r.stdout + r.stderr).toMatch(/monkey-test-engineer/i);
-    expect(r.stdout + r.stderr).toMatch(/stress-soak-engineer/i);
-  });
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('B1.2: bold-only `**Tier:** Tier 1` no longer silently triggers enforcement (legacy warn)', () => {
     runCli(['new', 'feat-bold-legacy'], { cwd: tmpRepo, home: tmpHome });
@@ -1035,9 +675,9 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/Tier 4 change requires agent-log\/e2e-resilience-engineer/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // archive-tasks frontmatter
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('B2.1: custom archive-tasks frontmatter exempts listed task IDs in --strict', () => {
     runCli(['new', 'feat-archive-custom'], { cwd: tmpRepo, home: tmpHome });
@@ -1099,9 +739,9 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/task\(s\) still pending/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // tasks.yml frontmatter lint
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('PR3-3.1: missing change-id in tasks.yml frontmatter fails gate', () => {
     runCli(['new', 'feat-fm-no-change-id'], { cwd: tmpRepo, home: tmpHome });
@@ -1152,9 +792,9 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/unknown key `Tier`.*did you mean `tier`/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
   // depends-on cycle detection
-  // ─────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????
 
   it('PR3-4.1: 2-node depends-on cycle is detected', () => {
     runCli(['new', 'feat-cycle-a'], { cwd: tmpRepo, home: tmpHome });
@@ -1180,7 +820,7 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/depends-on cycle detected.*feat-cycle-a.*feat-cycle-b.*feat-cycle-a/i);
   });
 
-  it('PR3-4.2: 3-node A→B→C→A cycle is detected', () => {
+  it('PR3-4.2: 3-node A??? cycle is detected', () => {
     for (const id of ['cyc-a', 'cyc-b', 'cyc-c']) {
       runCli(['new', id], { cwd: tmpRepo, home: tmpHome });
       writeValidChangeArtifacts(join(tmpRepo, 'specs', 'changes', id));
@@ -1197,94 +837,6 @@ describe('cdd-kit gate', () => {
     const r = runCli(['gate', 'cyc-a'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/depends-on cycle detected/i);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // artifact pointer validation default-on
-  // ─────────────────────────────────────────────────────────────────────────
-
-  it('PR3-6.1: missing artifact pointer fails gate by default (no --strict needed)', () => {
-    runCli(['new', 'feat-default-pointer'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-default-pointer');
-    writeValidChangeArtifacts(changeDir);
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-default-pointer',
-      artifacts: [{ type: 'test-plan-path', pointer: 'specs/changes/feat-default-pointer/missing.md' }],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-default-pointer'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/artifact pointer not found/i);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // runtime files-read reconciliation
-  // ─────────────────────────────────────────────────────────────────────────
-
-  it('B3.1: runtime log reads not declared in files-read produce a warning (non-strict)', () => {
-    runCli(['new', 'feat-runtime-recon'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-runtime-recon');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-runtime-recon',
-      filesRead: ['src/api/users.ts'],
-    }), 'utf8');
-
-    const runtimeDir = join(tmpRepo, '.cdd', 'runtime');
-    mkdirSync(runtimeDir, { recursive: true });
-    writeFileSync(join(runtimeDir, 'feat-runtime-recon-files-read.jsonl'), [
-      '{"ts":"2026-04-29T00:00:00Z","change":"feat-runtime-recon","path":"src/api/users.ts"}',
-      '{"ts":"2026-04-29T00:00:01Z","change":"feat-runtime-recon","path":"specs/changes/feat-runtime-recon/test-plan.md"}',
-    ].join('\n'), 'utf8');
-
-    const r = runCli(['gate', 'feat-runtime-recon'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).toMatch(/runtime log shows 1 read\(s\) not declared/i);
-  });
-
-  it('B3.2: runtime undeclared reads become errors in --strict mode', () => {
-    runCli(['new', 'feat-runtime-strict'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-runtime-strict');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-runtime-strict',
-      filesRead: ['src/api/users.ts'],
-    }), 'utf8');
-
-    const runtimeDir = join(tmpRepo, '.cdd', 'runtime');
-    mkdirSync(runtimeDir, { recursive: true });
-    writeFileSync(join(runtimeDir, 'feat-runtime-strict-files-read.jsonl'),
-      '{"ts":"2026-04-29T00:00:00Z","change":"feat-runtime-strict","path":"src/secret.ts"}\n', 'utf8');
-
-    const r = runCli(['gate', 'feat-runtime-strict', '--strict'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/runtime log shows.*not declared/i);
-  });
-
-  it('B3.3: runtime log absent → no reconciliation, no warning', () => {
-    runCli(['new', 'feat-no-runtime'], { cwd: tmpRepo, home: tmpHome });
-    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-no-runtime');
-    writeValidChangeArtifacts(changeDir);
-    writeContextGovernanceFiles(changeDir);
-
-    const agentLogDir = join(changeDir, 'agent-log');
-    mkdirSync(agentLogDir, { recursive: true });
-    writeFileSync(join(agentLogDir, 'backend-engineer.yml'), buildAgentLogYaml({
-      changeId: 'feat-no-runtime',
-      filesRead: ['src/api/users.ts'],
-    }), 'utf8');
-
-    const r = runCli(['gate', 'feat-no-runtime'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/runtime log shows/i);
   });
 
   it('26: gate allows atomic changes when upstream dependency is completed', () => {

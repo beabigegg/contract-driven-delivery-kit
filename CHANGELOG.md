@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.0.17] - 2026-05-07
+
+Focused index-assisted development release. Agents now get a smaller, more
+precise pre-read path through the code-map, while `cdd-kit gate` returns to
+delivery-quality validation instead of post-run harness paperwork.
+
+### Added
+
+- **`cdd-kit index query <term>`**: searches `.cdd/code-map.yml` for matching
+  files, imports, symbols, and line ranges, auto-refreshing a missing or stale
+  map before returning candidates.
+- **`cdd-kit index impact <path-or-symbol>`**: reports indexed local imports and
+  dependent files so agents can inspect the smallest useful modification scope
+  before editing.
+
+### Changed
+
+- **Gate is now delivery-quality only**: `cdd-kit gate` validates required
+  artifacts, tasks, tier consistency, dependencies, and contract validators,
+  without requiring agent logs, files-read lists, or code-map freshness as
+  merge blockers.
+- **Agent prompts prefer index-first targeting**: implementation agents are
+  instructed to use `index query` before broad source reads and `index impact`
+  before editing chosen source files.
+- **Agent logs are optional handoff notes**: prompt templates and protocols no
+  longer require agents to create logs or reconstruct every file they read just
+  to satisfy a gate.
+
 ## [2.0.16] - 2026-05-06
 
 New-change scaffold hardening so freshly opened proposals use the installed

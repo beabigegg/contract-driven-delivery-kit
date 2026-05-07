@@ -42,7 +42,7 @@ describe('CDD skill prompt integration', () => {
     expect(resume).toMatch(/Context Expansion Request instead of reading outside the manifest/);
   });
 
-  it('agent prompts keep write-capable vs read-only logging responsibilities consistent', () => {
+  it('agent prompts keep write-capable vs read-only responsibilities consistent', () => {
     const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
     const codex = readFileSync(join(repoRoot, 'CODEX.template.md'), 'utf8');
     const contractReviewer = readFileSync(join(repoRoot, '.claude', 'agents', 'contract-reviewer.md'), 'utf8');
@@ -50,14 +50,14 @@ describe('CDD skill prompt integration', () => {
     const backend = readFileSync(join(repoRoot, '.claude', 'agents', 'backend-engineer.md'), 'utf8');
     const frontend = readFileSync(join(repoRoot, '.claude', 'agents', 'frontend-engineer.md'), 'utf8');
 
-    expect(cddNew).toMatch(/write-capable agents write their own/);
-    expect(cddNew).toMatch(/YOU write it for read-only agents/);
+    expect(cddNew).toMatch(/optional handoff notes/i);
+    expect(cddNew).toMatch(/only when useful/i);
     expect(codex).toMatch(/agent-log\/\*\.yml/);
-    expect(codex).toMatch(/files-read:/);
-    expect(contractReviewer).toMatch(/end your response with an `Agent Log` YAML block[\s\S]*for main Claude to write to/);
-    expect(qaReviewer).toMatch(/end your response with an `Agent Log` YAML block[\s\S]*for main Claude to write to/);
-    expect(backend).toMatch(/After completing your task, write or append to/);
-    expect(frontend).toMatch(/After completing your task, write or append to/);
+    expect(codex).toMatch(/optional/i);
+    expect(contractReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
+    expect(qaReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
+    expect(backend).toMatch(/If a short handoff note is useful, write or append to/);
+    expect(frontend).toMatch(/If a short handoff note is useful, write or append to/);
   });
 
   it('documents artifact pointer path-validation rules in cdd-new and agent-log protocol', () => {

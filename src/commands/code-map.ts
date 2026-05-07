@@ -46,6 +46,7 @@ export interface CodeMapOptions {
   exclude: string[];
   check: boolean;
   maxLines: number;
+  silent?: boolean;
 }
 
 export async function codeMap(opts: CodeMapOptions): Promise<number> {
@@ -140,7 +141,7 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   const summaryLine = `scanned ${result.entries.length} files, ${totalSrc} src lines -> ${opts.out} (${mapLines} lines, compression ${compression.toFixed(1)}x)`;
 
   for (const w of result.warnings) {
-    log.warn(`${w.path}: ${w.message}`);
+    if (!opts.silent) log.warn(`${w.path}: ${w.message}`);
   }
 
   if (opts.check) {
@@ -157,15 +158,15 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
         .replace(/\r/g, '\n')
         .replace(/^# generated: [^\n]+\n/m, '# generated: <normalized>\n');
     if (normalize(existing) !== normalize(yamlBody)) {
-      log.error(`code-map out of date: ${opts.out} would change. Run \`cdd-kit code-map\` to regenerate.`);
+      if (!opts.silent) log.error(`code-map out of date: ${opts.out} would change. Run \`cdd-kit code-map\` to regenerate.`);
       return 1;
     }
-    log.ok(`code-map up to date: ${opts.out}`);
+    if (!opts.silent) log.ok(`code-map up to date: ${opts.out}`);
     return 0;
   }
 
   mkdirSync(dirname(opts.out), { recursive: true });
   writeFileSync(opts.out, yamlBody, 'utf8');
-  log.ok(`${summaryLine} (${Date.now() - start}ms)`);
+  if (!opts.silent) log.ok(`${summaryLine} (${Date.now() - start}ms)`);
   return 0;
 }

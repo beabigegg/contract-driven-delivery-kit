@@ -1,4 +1,4 @@
----
+﻿---
 name: ci-cd-gatekeeper
 description: Enforce CI/CD as a required delivery artifact; design and implement required, informational, nightly, weekly, and manual gates with promotion policy.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash
@@ -27,12 +27,12 @@ CI/CD is mandatory. Every change must have a `ci-gates.md` plan, even if the pla
 
 ## Operational knowledge
 
-- Secrets and OIDC — prefer GitHub OIDC + cloud trust to long-lived secrets in repo settings.
-- Caching — use built-in cache where possible (`actions/setup-node` `cache: npm`, `actions/setup-python` `cache: pip`); fall back to `actions/cache` for build artifacts.
-- Concurrency — set `concurrency: { group: ${{ github.ref }}, cancel-in-progress: true }` on PR workflows to free runners.
-- Flaky tests — quarantine into a separate informational job rather than disabling; require an owner and an exit date.
-- Artifact retention — set `retention-days` explicitly; default 90 days is wasteful for hot artifacts.
-- Required-check gating — a job must produce a `name` (not job id) for branch protection rules to bind to it.
+- Secrets and OIDC ??prefer GitHub OIDC + cloud trust to long-lived secrets in repo settings.
+- Caching ??use built-in cache where possible (`actions/setup-node` `cache: npm`, `actions/setup-python` `cache: pip`); fall back to `actions/cache` for build artifacts.
+- Concurrency ??set `concurrency: { group: ${{ github.ref }}, cancel-in-progress: true }` on PR workflows to free runners.
+- Flaky tests ??quarantine into a separate informational job rather than disabling; require an owner and an exit date.
+- Artifact retention ??set `retention-days` explicitly; default 90 days is wasteful for hot artifacts.
+- Required-check gating ??a job must produce a `name` (not job id) for branch protection rules to bind to it.
 
 ## Output
 
@@ -58,14 +58,14 @@ mergeable / blocked / informational-risk
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
-Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. `cdd-kit gate` validates `files-read:` against this list and rejects unauthorized paths.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 This agent commonly needs CI contracts and workflow definitions, for example
 `contracts/ci/ci-gate-contract.md`, `ci/`, `ci-templates/`,
 `github-workflows/`, or project `.github/workflows/`. Those paths must appear
 in the manifest before you read them; if they are legitimate scope, expand the
-manifest rather than omitting them from `files-read`.
+manifest before reading them.
 When concrete paths are known, run `cdd-kit context check <change-id> --path ...`
 before reading them.
 
@@ -73,39 +73,35 @@ Need a path not listed? File a `## Context Expansion Requests` entry (see `specs
 
 Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`, `.claude/worktrees/`.
 
-## Machine-Verifiable Evidence
+## Optional Handoff Evidence
 
-After completing your task, write or append to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
-field rules, and gate-enforcement behavior are defined once in
-`references/agent-log-protocol.md` — do not duplicate them in this prompt.
+If a short handoff note is useful, write or append to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
+and field rules are defined once in
+`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
 
-### Required artifacts for this agent
+### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
-those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
 
-Minimum required `type` values for this agent (each must appear at least once
-in your `artifacts:` array; add more items per type as needed):
+Recommended `type` values for this agent when you emit an optional agent log:
 
 - `tiers-modified`: gate tiers touched
 - `gate-promotions`: gate moves between tiers or "none"
 - `workflow-files-changed`: workflow files edited
 - `required-status-checks`: PR-required gates after change
 
-Copy this exact shape into your agent log; replace each `<pointer>` with a
+If you emit a log, copy this shape and replace each `<pointer>` with a
 concrete pointer (path:line-range, test-id, URL, or pass/fail string):
 
 ```yaml
 artifacts:
   - { type: tiers-modified, pointer: "1, 3" }
-  - { type: gate-promotions, pointer: "e2e: 3 → 1" }
+  - { type: gate-promotions, pointer: "e2e: 3 ??1" }
   - { type: workflow-files-changed, pointer: ".github/workflows/ci.yml" }
   - { type: required-status-checks, pointer: "lint, unit-tests, contract-tests" }
 ```
 
-If a required `type` does not apply to your run, emit one item with
-`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
-counts presence, qa-reviewer audits the reason.
+If a recommended `type` does not apply to your run, either omit it or use `pointer: "n/a (<one-line reason>)"` so reviewers can tell the omission was intentional.

@@ -3,9 +3,15 @@ agent: backend-engineer
 timestamp: "2026-04-27T14:30:00Z"
 status: complete
 files-read:
+  - .cdd/code-map.yml
   - contracts/api/api-contract.md
   - src/api/users.ts
   - specs/changes/feat-001/test-plan.md
+indexes-used:
+  - .cdd/code-map.yml
+index-queries:
+  - cdd-kit index query "users.ts"
+  - cdd-kit index impact "src/api/users.ts"
 artifacts:
   - { type: files-changed,     pointer: "src/api/users.ts:45-67" }
   - { type: tests-added,       pointer: "tests/api/users.test.ts::should reject empty body" }

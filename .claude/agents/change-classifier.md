@@ -1,4 +1,4 @@
----
+﻿---
 name: change-classifier
 description: Classify incoming requests into change types and decide required artifacts, contracts, tests, and review gates before implementation.
 tools: Read, Grep, Glob
@@ -25,10 +25,10 @@ Use `project-map.md` to identify candidate source/test paths and `contracts-inde
 
 | Risk Level | Impact Radius | Tier |
 |---|---|---|
-| critical or high | system-wide or cross-module | 0–1 |
-| medium | cross-module or module-level | 2–3 |
-| low | module-level or isolated | 3–4 |
-| low | docs / prompts / config only, no behavior change | 4–5 |
+| critical or high | system-wide or cross-module | 0?? |
+| medium | cross-module or module-level | 2?? |
+| low | module-level or isolated | 3?? |
+| low | docs / prompts / config only, no behavior change | 4?? |
 
 When in doubt, classify upward.
 
@@ -45,7 +45,7 @@ Before producing a single classification, check these triggers:
   request (e.g. `feature-add` + `migration` + `ui-redesign`).
 - **Cross-surface**: 3+ distinct surfaces touched (auth + UI + DB + email +
   export).
-- **Contract-heavy**: ≥ 5 of the 6 contracts (api / css / env / data /
+- **Contract-heavy**: ??5 of the 6 contracts (api / css / env / data /
   business / ci) need changes.
 - **Task-heavy**: estimated > 10 task-IDs across sections 3-4 of `tasks.yml`.
 
@@ -82,9 +82,9 @@ If you want to proceed as a single monolithic change anyway, reply with
 instead.
 ```
 
-When emitting an Atomic Split Proposal, **also include the standard
-`## Agent Log` block** at the end so `cdd-kit gate` can record this run, but
-mark `status: needs-review` and include `next-action: wait-for-user-approval`.
+When emitting an Atomic Split Proposal, optionally include a short
+`## Agent Log` handoff block with `status: needs-review` and
+`next-action: wait-for-user-approval` if it helps the coordinator resume.
 Do NOT produce other artifacts (no test-plan, no manifest draft) until the
 user picks a path.
 
@@ -102,13 +102,13 @@ true, output Tier 5 and skip the heavy artifact list:
 - No public API behavior change.
 
 Tier 5 fast-path output minima:
-- `## Tier` → `- 5`
-- `## Required Agents` → `contract-reviewer` (read-only confirmation that no
+- `## Tier` ??`- 5`
+- `## Required Agents` ??`contract-reviewer` (read-only confirmation that no
   contracts are touched) and `qa-reviewer` (release readiness, ~1 paragraph).
-- `## Optional Artifacts` → all `no`.
-- `## Required Tests` → all blank.
+- `## Optional Artifacts` ??all `no`.
+- `## Required Tests` ??all blank.
 
-This exists because previously every doc-only change paid 8–12 agent
+This exists because previously every doc-only change paid 8??2 agent
 invocations of token cost. The fast-path bounds it to 2 read-only reviews. If
 unsure whether the fast-path applies, classify Tier 4 instead and proceed
 through the normal flow.
@@ -142,7 +142,7 @@ Use this structure:
 The following 5 artifacts are always required for implementation changes:
 `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`
 
-## Optional Artifacts (default: no — set yes only with explicit reason)
+## Optional Artifacts (default: no ??set yes only with explicit reason)
 
 | artifact | create? | reason |
 |---|---|---|
@@ -210,7 +210,7 @@ Note: `archive.md` is created during change close-out, not at classification tim
   status: pending
 
 ## Inferred Acceptance Criteria
-(List 3-8 testable acceptance criteria derived from the change request. Format: `AC-N: <criterion>`. These will be used by test-strategist to populate the Acceptance Criteria → Test Mapping table.)
+(List 3-8 testable acceptance criteria derived from the change request. Format: `AC-N: <criterion>`. These will be used by test-strategist to populate the Acceptance Criteria ??Test Mapping table.)
 - AC-1:
 - AC-2:
 - AC-3:
@@ -223,23 +223,20 @@ Note: `archive.md` is created during change close-out, not at classification tim
 ...
 ```
 
-## Machine-Verifiable Evidence
+## Optional Handoff Evidence
 
-After completing your task, end your response with an `Agent Log` YAML block
-for main Claude to write to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Required fields,
-field rules, and gate-enforcement behavior are defined once in
-`references/agent-log-protocol.md` — do not duplicate them in this prompt.
+If a short handoff note is useful, end your response with an optional `Agent Log` YAML block`nfor main Claude to write to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
+and field rules are defined once in
+`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
 
-### Required artifacts for this agent
+### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys —
-those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
 
-Minimum required `type` values for this agent (each must appear at least once
-in your `artifacts:` array; add more items per type as needed):
+Recommended `type` values for this agent when you emit an optional agent log:
 
 - `tier`: tier assigned to the change
 - `risk`: risk level
@@ -247,7 +244,7 @@ in your `artifacts:` array; add more items per type as needed):
 - `required-reviewers`: reviewers the change requires
 - `context-manifest-draft`: pointer to draft Allowed Paths
 
-Copy this exact shape into your agent log; replace each `<pointer>` with a
+If you emit a log, copy this shape and replace each `<pointer>` with a
 concrete pointer (path:line-range, test-id, URL, or pass/fail string):
 
 ```yaml
@@ -259,14 +256,12 @@ artifacts:
   - { type: context-manifest-draft, pointer: "specs/changes/<id>/context-manifest.md#allowed-paths" }
 ```
 
-If a required `type` does not apply to your run, emit one item with
-`pointer: "n/a (<one-line reason>)"` rather than omitting the type — the gate
-counts presence, qa-reviewer audits the reason.
+If a recommended `type` does not apply to your run, either omit it or use `pointer: "n/a (<one-line reason>)"` so reviewers can tell the omission was intentional.
 
 ## Mixed and edge cases
 
-- A single request can be both `ui-only-change` and `api-only-change` — list both as primary; require both UI/UX-visual review AND contract tests.
-- `bug-fix` that requires a contract change is no longer just a bug-fix — promote to `feature-enhancement` or `business-logic-change` to force the contract path.
+- A single request can be both `ui-only-change` and `api-only-change` ??list both as primary; require both UI/UX-visual review AND contract tests.
+- `bug-fix` that requires a contract change is no longer just a bug-fix ??promote to `feature-enhancement` or `business-logic-change` to force the contract path.
 - `refactor` that touches CI gates is also a `ci-cd-change`.
 - When uncertain, classify upward (higher risk, more artifacts); the cost of unnecessary artifacts is small, the cost of skipped artifacts is high.
 

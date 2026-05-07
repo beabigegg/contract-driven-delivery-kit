@@ -193,13 +193,55 @@ program
     process.exit(exit);
   });
 
+// ── cdd index query <term> ────────────────────────────────────────────────────
+const index = program
+  .command('index')
+  .description('Query machine-readable project indexes before opening source files');
+
+index
+  .command('query <term>')
+  .description('Search .cdd/code-map.yml for files, symbols, imports, and line ranges')
+  .option('--map <path>', 'Code-map YAML path', '.cdd/code-map.yml')
+  .option('--limit <n>', 'Maximum result files to print', '10')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate stale or missing code-map before querying')
+  .action(async (term: string, opts: { map: string; limit: string; json?: boolean; refresh?: boolean }) => {
+    const { indexQuery } = await import('../commands/index-query.js');
+    const exit = await indexQuery(term, {
+      map: opts.map,
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
+index
+  .command('impact <path-or-symbol>')
+  .description('Show indexed local imports and dependents for a source file')
+  .option('--map <path>', 'Code-map YAML path', '.cdd/code-map.yml')
+  .option('--limit <n>', 'Maximum dependent files to print', '20')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate stale or missing code-map before querying')
+  .action(async (term: string, opts: { map: string; limit: string; json?: boolean; refresh?: boolean }) => {
+    const { indexImpact } = await import('../commands/index-impact.js');
+    const exit = await indexImpact(term, {
+      map: opts.map,
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd gate <change-id> ──────────────────────────────────────────────────────
 program
   .command('gate <change-id>')
-  .description('Run full orchestration gate for a change (required artifacts, content, tier, contracts)')
-  .option('--strict', 'Treat pending tasks (except section 7) as errors, and treat runtime/declared files-read drift as errors', false)
-  .option('--lax', 'Skip artifact-pointer existence check (for legacy repos with stale logs)', false)
-  .action(async (id: string, opts: { strict?: boolean; lax?: boolean }) => { await gate(id, { strict: opts.strict, lax: opts.lax }); });
+  .description('Run delivery-quality gate for a change (required artifacts, tasks, tier, contracts)')
+  .option('--strict', 'Treat pending tasks (except section 7) as errors', false)
+  .action(async (id: string, opts: { strict?: boolean }) => {
+    await gate(id, { strict: opts.strict });
+  });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────
 program

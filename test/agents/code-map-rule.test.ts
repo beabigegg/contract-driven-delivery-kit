@@ -26,7 +26,7 @@ describe('agent prompts: ## Code map (READ FIRST) section', () => {
     ).toBe(true);
   });
 
-  it('qa-reviewer mentions code-map files-read check', () => {
+  it('qa-reviewer mentions code-map discipline', () => {
     const content = readFileSync(join(AGENTS_DIR, 'qa-reviewer.md'), 'utf8');
     expect(content).toMatch(/code-map\.yml/);
   });

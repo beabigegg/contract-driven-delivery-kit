@@ -44,8 +44,8 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Before invoking an agent with known concrete read paths, run
      `cdd-kit context check <change-id> --path <paths...>` and expand the
      manifest before the agent reads legitimate missing paths.
-   - After each agent finishes, verify its agent-log exists and tick the
-     related `tasks.yml` items before starting the next agent.
+   - After each agent finishes, verify the required artifact files exist and
+     tick the related `tasks.yml` items before starting the next agent.
    - UI changes require UI/UX and visual review.
    - Invoke ui-ux-reviewer for interaction, copy, accessibility, and information hierarchy review whenever UI changes.
    - Invoke visual-reviewer for layout, responsive, CSS contract, and screenshot diff review whenever UI changes.
@@ -128,5 +128,5 @@ Run scripts with Python 3 from the repository root.
 ## Output discipline (file formats)
 
 - `tasks.yml`: structured YAML, validated by `src/schemas/tasks.schema.ts`.
-- `agent-log/<agent>.yml`: structured YAML per `references/agent-log-protocol.md`.
+- `agent-log/<agent>.yml`: optional structured handoff note per `references/agent-log-protocol.md`.
 - All other change artifacts remain markdown prose.

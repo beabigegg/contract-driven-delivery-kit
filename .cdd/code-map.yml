@@ -1,53 +1,6 @@
-# generated: 2026-05-04T08:35:28Z by cdd-kit 2.0.12
-# files: 104, src-lines: 14905, map-lines: 1375, compression: 10.8x
-# sources-digest: 8bcdcca91fca26f01adbae159ddb0dd7f643bd43401be56329430bdd62252293
-.spike/code_map.py:  # 104 lines
-  imports:
-    - { module: ast, items: [], line: 2 }
-    - { module: sys, items: [], line: 3 }
-    - { module: pathlib, items: [Path], line: 4 }
-  functions:
-    - { name: scan_file, lines: 7-47 }
-    - { name: render, lines: 50-76 }
-    - { name: main, lines: 79-100 }
-
-.spike/tests/templates/soak/k6-example.js:  # 19 lines
-  imports:
-    - { module: k6/http, items: ['default:http'], line: 1 }
-    - { module: k6, items: [check, sleep], line: 2 }
-  constants:
-    - { name: BASE_URL, line: 13 }
-  functions:
-    - { name: default, lines: 15-19 }
-
-.spike/tests/templates/soak/locust-example.py:  # 21 lines
-  imports:
-    - { module: locust, items: [HttpUser, task, between], line: 11 }
-  classes:
-    - name: SoakUser
-      lines: 14-21
-      methods:
-        - { name: health_check, lines: 18-21 }
-
-.spike/tests/templates/stress/k6-example.js:  # 22 lines
-  imports:
-    - { module: k6/http, items: ['default:http'], line: 1 }
-    - { module: k6, items: [check, sleep], line: 2 }
-  constants:
-    - { name: BASE_URL, line: 16 }
-  functions:
-    - { name: default, lines: 18-22 }
-
-.spike/tests/templates/stress/locust-example.py:  # 21 lines
-  imports:
-    - { module: locust, items: [HttpUser, task, between], line: 7 }
-  classes:
-    - name: StressUser
-      lines: 10-21
-      methods:
-        - { name: health_check, lines: 14-17 }
-        - { name: list_items, lines: 20-21 }
-
+# generated: 2026-05-07T06:17:39Z by cdd-kit 2.0.17
+# files: 101, src-lines: 14519, map-lines: 1378, compression: 10.5x
+# sources-digest: c805cd969313483ecb06ca8f416c384da51b3131117abcd153f1ce8b48a47ebe
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -256,7 +209,7 @@ build.js:  # 86 lines
   functions:
     - { name: copy, lines: 51-61 }
 
-src/cli/index.ts:  # 351 lines
+src/cli/index.ts:  # 403 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -313,6 +266,22 @@ src/code-map/include-exclude.ts:  # 79 lines
     - { name: walkRepo, lines: 26-79 }
   interfaces:
     - { name: WalkOptions, lines: 9-19 }
+
+src/code-map/index-reader.ts:  # 91 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: js-yaml, items: ['default:yaml'], line: 2 }
+    - { module: './freshness.js', items: [checkCodeMapFreshness], line: 3 }
+    - { module: './types.js', items: [FileEntry], line: 4 }
+  functions:
+    - { name: async ensureCodeMapFresh, lines: 13-45 }
+    - { name: loadCodeMapEntries, lines: 47-74 }
+    - { name: extractTotalLines, lines: 76-84 }
+    - { name: unquoteYamlKey, lines: 86-91 }
+  interfaces:
+    - { name: EnsureCodeMapResult, lines: 8-11 }
+  types:
+    - { name: RawObject, lines: 6-6 }  # local
 
 src/code-map/orchestrator.ts:  # 57 lines
   imports:
@@ -499,7 +468,7 @@ src/commands/code-map-hook.ts:  # 77 lines
   functions:
     - { name: async installCodeMapHook, lines: 27-77 }
 
-src/commands/code-map.ts:  # 171 lines
+src/commands/code-map.ts:  # 172 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -515,9 +484,9 @@ src/commands/code-map.ts:  # 171 lines
     - { module: path, items: [join], line: 36 }
   functions:
     - { name: computeSourcesDigest, lines: 19-31 }
-    - { name: async codeMap, lines: 51-171 }
+    - { name: async codeMap, lines: 52-172 }
   interfaces:
-    - { name: CodeMapOptions, lines: 42-49 }
+    - { name: CodeMapOptions, lines: 42-50 }
 
 src/commands/context-scan.ts:  # 354 lines
   imports:
@@ -545,32 +514,41 @@ src/commands/context-scan.ts:  # 354 lines
     - { name: TreeStats, lines: 125-130 }  # local
     - { name: ContextScanOptions, lines: 227-229 }
 
-src/commands/context.ts:  # 269 lines
+src/commands/context.ts:  # 384 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
-    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: picomatch, items: ['default:picomatch'], line: 3 }
+    - { module: '../utils/logger.js', items: [log], line: 4 }
+  constants:
+    - { name: DEFAULT_FORBIDDEN_PATHS, line: 17 }
   functions:
-    - { name: normalizePath, lines: 12-14 }
-    - { name: validateRepoRelativePath, lines: 16-24 }
-    - { name: manifestPathFor, lines: 26-28 }
-    - { name: readManifest, lines: 30-37 }
-    - { name: writeManifest, lines: 39-41 }
-    - { name: sectionBody, lines: 43-46 }
-    - { name: parseRequests, lines: 48-86 }
-    - { name: approvedExpansionSet, lines: 88-98 }
-    - { name: replaceSection, lines: 100-105 }
-    - { name: renderRequests, lines: 107-120 }
-    - { name: setRequestStatus, lines: 122-136 }
-    - { name: async requestContextExpansion, lines: 138-168 }
-    - { name: async listContextExpansions, lines: 170-188 }
-    - { name: applyApproval, lines: 190-203 }
-    - { name: async approveContextExpansion, lines: 205-222 }
-    - { name: async approveAllPending, lines: 224-249 }
-    - { name: async rejectContextExpansion, lines: 251-255 }
-    - { name: async rejectAllPending, lines: 257-269 }
+    - { name: normalizePath, lines: 28-30 }
+    - { name: validateRepoRelativePath, lines: 32-40 }
+    - { name: manifestPathFor, lines: 42-44 }
+    - { name: readManifest, lines: 46-53 }
+    - { name: writeManifest, lines: 55-57 }
+    - { name: sectionBody, lines: 59-62 }
+    - { name: stripHtmlComments, lines: 64-66 }
+    - { name: parseListSection, lines: 68-74 }
+    - { name: pathMatches, lines: 76-100 }
+    - { name: loadContextPolicy, lines: 102-118 }
+    - { name: parseRequests, lines: 120-158 }
+    - { name: approvedExpansionSet, lines: 160-170 }
+    - { name: replaceSection, lines: 172-177 }
+    - { name: renderRequests, lines: 179-192 }
+    - { name: setRequestStatus, lines: 194-208 }
+    - { name: async requestContextExpansion, lines: 210-240 }
+    - { name: async listContextExpansions, lines: 242-260 }
+    - { name: async checkContextPaths, lines: 262-303 }
+    - { name: applyApproval, lines: 305-318 }
+    - { name: async approveContextExpansion, lines: 320-337 }
+    - { name: async approveAllPending, lines: 339-364 }
+    - { name: async rejectContextExpansion, lines: 366-370 }
+    - { name: async rejectAllPending, lines: 372-384 }
   interfaces:
-    - { name: ContextRequest, lines: 5-10 }  # local
+    - { name: ContextRequest, lines: 6-11 }  # local
+    - { name: ContextPolicy, lines: 13-15 }  # local
 
 src/commands/doctor.ts:  # 454 lines
   imports:
@@ -599,52 +577,94 @@ src/commands/doctor.ts:  # 454 lines
     - { name: Finding, lines: 15-18 }  # local
     - { name: DoctorReport, lines: 20-27 }  # local
 
-src/commands/gate.ts:  # 818 lines
+src/commands/gate.ts:  # 429 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 1 }
-    - { module: os, items: [homedir], line: 2 }
-    - { module: path, items: [join], line: 3 }
-    - { module: js-yaml, items: ['default:yaml'], line: 4 }
-    - { module: ajv, items: ['default:Ajv', ErrorObject], line: 5 }
-    - { module: ajv-formats, items: ['default:addFormats'], line: 6 }
-    - { module: picomatch, items: ['default:picomatch'], line: 7 }
-    - { module: '../utils/logger.js', items: [log], line: 8 }
-    - { module: './validate.js', items: [validate], line: 9 }
-    - { module: '../schemas/agent-log.schema.js', items: [agentLogSchema], line: 10 }
-    - { module: '../schemas/tasks.schema.js', items: [tasksSchema], line: 11 }
+    - { module: path, items: [join], line: 2 }
+    - { module: js-yaml, items: ['default:yaml'], line: 3 }
+    - { module: ajv, items: ['default:Ajv', ErrorObject], line: 4 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 5 }
+    - { module: '../utils/logger.js', items: [log], line: 6 }
+    - { module: './validate.js', items: [validate], line: 7 }
+    - { module: '../schemas/tasks.schema.js', items: [tasksSchema], line: 8 }
   constants:
-    - { name: TASKS_STATUS_ENUM, line: 18 }
-    - { name: REQUIRED_FILES, line: 23 }
-    - { name: TIER_PATTERN, line: 32 }
-    - { name: MIN_CHARS, line: 34 }
-    - { name: DEFAULT_ARCHIVE_TASKS, line: 42 }
+    - { name: TASKS_STATUS_ENUM, line: 14 }
+    - { name: REQUIRED_FILES, line: 19 }
+    - { name: TIER_PATTERN, line: 28 }
+    - { name: MIN_CHARS, line: 30 }
+    - { name: DEFAULT_ARCHIVE_TASKS, line: 38 }
   functions:
-    - { name: meaningfulChars, lines: 72-80 }
-    - { name: stripHtmlComments, lines: 95-97 }
-    - { name: pathMatches, lines: 111-140 }
-    - { name: parseListSection, lines: 142-151 }
-    - { name: countPendingExpansions, lines: 170-181 }
-    - { name: parseContextManifest, lines: 183-193 }
-    - { name: extractRequiredArtifactTypes, lines: 209-239 }
-    - { name: loadContextPolicy, lines: 241-274 }
-    - { name: loadYamlFile, lines: 276-283 }
-    - { name: ajvErrorsToMessages, lines: 285-312 }
-    - { name: isContextGovernedChange, lines: 314-319 }
-    - { name: lintTasksFile, lines: 321-345 }
-    - { name: resolveTier, lines: 354-387 }
-    - { name: getArchiveTaskIds, lines: 389-392 }
-    - { name: enforceTierRequirements, lines: 394-449 }
-    - { name: isArchivedChange, lines: 451-457 }
-    - { name: detectDependencyCycle, lines: 459-486 }
-    - { name: validateDependencies, lines: 488-528 }
-    - { name: async gate, lines: 530-818 }
+    - { name: meaningfulChars, lines: 61-69 }
+    - { name: stripHtmlComments, lines: 71-73 }
+    - { name: countPendingExpansions, lines: 75-85 }
+    - { name: countPendingContextRequests, lines: 87-91 }
+    - { name: loadYamlFile, lines: 93-100 }
+    - { name: ajvErrorsToMessages, lines: 102-129 }
+    - { name: isContextGovernedChange, lines: 131-136 }
+    - { name: lintTasksFile, lines: 138-162 }
+    - { name: resolveTier, lines: 171-204 }
+    - { name: getArchiveTaskIds, lines: 206-209 }
+    - { name: enforceTierConsistency, lines: 211-241 }
+    - { name: isArchivedChange, lines: 243-249 }
+    - { name: detectDependencyCycle, lines: 251-278 }
+    - { name: validateDependencies, lines: 280-320 }
+    - { name: async gate, lines: 322-429 }
   interfaces:
-    - { name: AgentLog, lines: 44-53 }  # local
-    - { name: TaskItem, lines: 55-60 }  # local
-    - { name: TasksFile, lines: 62-70 }  # local
-    - { name: GateOptions, lines: 82-85 }
-    - { name: ContextPolicy, lines: 87-93 }  # local
-    - { name: TierResolution, lines: 347-352 }  # local
+    - { name: TaskItem, lines: 40-45 }  # local
+    - { name: TasksFile, lines: 47-55 }  # local
+    - { name: GateOptions, lines: 57-59 }
+    - { name: TierResolution, lines: 164-169 }  # local
+
+src/commands/index-impact.ts:  # 314 lines
+  imports:
+    - { module: fs, items: [existsSync], line: 1 }
+    - { module: path, items: [posix], line: 2 }
+    - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 3 }
+    - { module: '../code-map/types.js', items: [FileEntry, ImportEntry], line: 4 }
+  constants:
+    - { name: RESOLUTION_EXTENSIONS, line: 6 }
+  functions:
+    - { name: async indexImpact, lines: 49-117 }
+    - { name: findTarget, lines: 119-150 }
+    - { name: ambiguousTarget, lines: 152-156 }
+    - { name: normalizeQueryPath, lines: 158-160 }
+    - { name: resolveImport, lines: 162-170 }
+    - { name: resolveLocalModule, lines: 172-183 }
+    - { name: resolvePythonRelativeImport, lines: 185-195 }
+    - { name: resolutionCandidates, lines: 197-217 }
+    - { name: isLocalImport, lines: 219-221 }
+    - { name: summarizeSymbols, lines: 223-248 }
+    - { name: rangeToString, lines: 250-254 }
+    - { name: firstLine, lines: 256-260 }
+    - { name: printText, lines: 262-305 }
+    - { name: printFailure, lines: 307-314 }
+  interfaces:
+    - { name: IndexImpactOptions, lines: 8-13 }
+    - { name: ResolvedImport, lines: 15-20 }  # local
+    - { name: Dependent, lines: 22-26 }  # local
+    - { name: SymbolSummary, lines: 28-33 }  # local
+    - { name: ImpactPayload, lines: 35-47 }  # local
+
+src/commands/index-query.ts:  # 225 lines
+  imports:
+    - { module: fs, items: [existsSync], line: 1 }
+    - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 2 }
+    - { module: '../code-map/types.js', items: [FileEntry], line: 3 }
+  functions:
+    - { name: async indexQuery, lines: 35-72 }
+    - { name: queryEntries, lines: 74-156 }
+    - { name: addMatch, lines: 158-169 }
+    - { name: scoreText, lines: 171-178 }
+    - { name: rangeToString, lines: 180-184 }
+    - { name: compareMatch, lines: 186-190 }
+    - { name: firstLine, lines: 192-195 }
+    - { name: printText, lines: 197-216 }
+    - { name: printFailure, lines: 218-225 }
+  interfaces:
+    - { name: IndexQueryOptions, lines: 5-10 }
+    - { name: QueryMatch, lines: 12-19 }  # local
+    - { name: QueryResult, lines: 21-26 }  # local
+    - { name: QueryPayload, lines: 28-33 }  # local
 
 src/commands/init.ts:  # 329 lines
   imports:
@@ -728,30 +748,30 @@ src/commands/migrate.ts:  # 513 lines
     - { name: PendingDelete, lines: 23-25 }  # local
     - { name: LegacyTaskRow, lines: 142-147 }  # local
 
-src/commands/new-change.ts:  # 174 lines
+src/commands/new-change.ts:  # 185 lines
   imports:
     - { module: path, items: [join, relative], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
     - { module: fs, items: [existsSync, readFileSync, readdirSync, writeFileSync], line: 3 }
-    - { module: js-yaml, items: ['default:yaml'], line: 4 }
-    - { module: '../utils/paths.js', items: [ASSET], line: 5 }
-    - { module: '../utils/copy.js', items: [copyFile, ensureDir], line: 6 }
-    - { module: '../utils/logger.js', items: [log], line: 7 }
-    - { module: './context-scan.js', items: [contextScan], line: 8 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 18 }
+    - { module: '../utils/paths.js', items: [ASSET], line: 4 }
+    - { module: '../utils/copy.js', items: [copyFile, ensureDir], line: 5 }
+    - { module: '../utils/logger.js', items: [log], line: 6 }
+    - { module: './context-scan.js', items: [contextScan], line: 7 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 17 }
   constants:
-    - { name: REQUIRED_TEMPLATES, line: 76 }
-    - { name: SAFE_NAME, line: 94 }
+    - { name: REQUIRED_TEMPLATES, line: 75 }
+    - { name: SAFE_NAME, line: 93 }
   functions:
-    - { name: inputsDigest, lines: 20-29 }
-    - { name: findContractFiles, lines: 31-41 }
-    - { name: readIndexDigest, lines: 43-47 }
-    - { name: async ensureFreshContextIndexes, lines: 49-74 }
-    - { name: listOptional, lines: 85-92 }
-    - { name: parseDependsOn, lines: 96-102 }
-    - { name: async newChange, lines: 104-174 }
+    - { name: inputsDigest, lines: 19-28 }
+    - { name: findContractFiles, lines: 30-40 }
+    - { name: readIndexDigest, lines: 42-46 }
+    - { name: async ensureFreshContextIndexes, lines: 48-73 }
+    - { name: listOptional, lines: 84-91 }
+    - { name: parseDependsOn, lines: 95-101 }
+    - { name: applyScaffoldMetadata, lines: 103-118 }
+    - { name: async newChange, lines: 120-185 }
   interfaces:
-    - { name: NewChangeOptions, lines: 10-15 }
+    - { name: NewChangeOptions, lines: 9-14 }
 
 src/commands/refresh.ts:  # 413 lines
   imports:
@@ -835,7 +855,7 @@ src/commands/validate.ts:  # 112 lines
     - { name: ValidateOptions, lines: 7-13 }
     - { name: ValidatorEntry, lines: 15-22 }  # local
 
-src/schemas/agent-log.schema.ts:  # 30 lines
+src/schemas/agent-log.schema.ts:  # 32 lines
 
 src/schemas/tasks.schema.ts:  # 45 lines
 
@@ -929,7 +949,7 @@ test/cli/abandon.test.ts:  # 95 lines
   functions:
     - { name: scaffoldChange, lines: 8-16 }
 
-test/cli/agent-prompts-shape.test.ts:  # 126 lines
+test/cli/agent-prompts-shape.test.ts:  # 141 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
@@ -984,7 +1004,7 @@ test/cli/context-scan.test.ts:  # 231 lines
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
 
-test/cli/context.test.ts:  # 225 lines
+test/cli/context.test.ts:  # 330 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [mkdirSync, readFileSync, writeFileSync], line: 2 }
@@ -1005,45 +1025,7 @@ test/cli/doctor.test.ts:  # 169 lines
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
-test/cli/gate-audit-fixes.test.ts:  # 409 lines
-  imports:
-    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 17 }
-    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 18 }
-    - { module: path, items: [join], line: 19 }
-    - { module: js-yaml, items: ['default:yaml'], line: 20 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 21 }
-  functions:
-    - { name: buildTasksYaml, lines: 32-45 }
-    - { name: writeMinChangeDir, lines: 47-54 }
-    - { name: writeManifest, lines: 56-81 }
-    - { name: plantAgentPrompt, lines: 89-110 }
-    - { name: writeAgentLog, lines: 112-130 }
-  interfaces:
-    - { name: TasksFileOptions, lines: 25-30 }  # local
-
-test/cli/gate-bad-artifacts.test.ts:  # 94 lines
-  imports:
-    - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
-    - { module: fs, items: [mkdirSync, writeFileSync, rmSync], line: 2 }
-    - { module: path, items: [join], line: 3 }
-    - { module: js-yaml, items: ['default:yaml'], line: 4 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
-  functions:
-    - { name: buildTasksYaml, lines: 11-23 }
-    - { name: writeValidChangeArtifacts, lines: 25-33 }
-
-test/cli/gate-code-map.test.ts:  # 154 lines
-  imports:
-    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
-    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 5 }
-    - { module: path, items: [join], line: 6 }
-    - { module: js-yaml, items: ['default:yaml'], line: 7 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 8 }
-  functions:
-    - { name: buildTasksYaml, lines: 12-24 }
-    - { name: writeMinimalValidChange, lines: 26-41 }
-
-test/cli/gate.test.ts:  # 1216 lines
+test/cli/gate.test.ts:  # 865 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
@@ -1062,6 +1044,27 @@ test/cli/gate.test.ts:  # 1216 lines
     - { name: TasksFileOptions, lines: 190-199 }  # local
     - { name: AgentLogOptions, lines: 221-230 }  # local
 
+test/cli/index-impact.test.ts:  # 104 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
+    - { module: fs, items: [existsSync, mkdirSync, writeFileSync], line: 5 }
+    - { module: path, items: [join], line: 6 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
+  functions:
+    - { name: writeImpactFixture, lines: 12-50 }
+
+test/cli/index-query.test.ts:  # 89 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
+    - { module: fs, items: [existsSync, copyFileSync, readFileSync, writeFileSync], line: 5 }
+    - { module: path, items: [join, dirname], line: 6 }
+    - { module: url, items: [fileURLToPath], line: 7 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 8 }
+  constants:
+    - { name: FIXTURE_ROOT, line: 10 }
+  functions:
+    - { name: copyFixture, lines: 15-17 }
+
 test/cli/init-hooks.test.ts:  # 60 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
@@ -1070,7 +1073,7 @@ test/cli/init-hooks.test.ts:  # 60 lines
     - { module: child_process, items: [spawnSync], line: 7 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 8 }
 
-test/cli/init.test.ts:  # 139 lines
+test/cli/init.test.ts:  # 142 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -1118,7 +1121,7 @@ test/cli/migrate.test.ts:  # 281 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
-test/cli/new.test.ts:  # 176 lines
+test/cli/new.test.ts:  # 201 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -1135,7 +1138,7 @@ test/cli/refresh.test.ts:  # 279 lines
     - { module: path, items: [join], line: 14 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 15 }
 
-test/cli/skill-prompts.test.ts:  # 77 lines
+test/cli/skill-prompts.test.ts:  # 109 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
@@ -1155,7 +1158,7 @@ test/cli/stress-templates.test.ts:  # 41 lines
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
 
-test/cli/update.test.ts:  # 199 lines
+test/cli/update.test.ts:  # 213 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync], line: 2 }
