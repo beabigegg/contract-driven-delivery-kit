@@ -94,10 +94,11 @@ or
 3. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
 4. If the request is too broad, the classifier can return an atomic split proposal instead of forcing one Tier 0/1 monolith
 5. For Tier 0-1 work, Claude's narration uses stage badges so users can tell whether the flow is deciding, implementing, testing, or reviewing
-6. Agents run in order: contracts ??test plan ??spec/architecture review (if needed) ??backend engineer ??frontend engineer ??CI/CD gates ??QA
-7. Agents write implementation artifacts and optional concise handoff notes
-8. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
-9. Claude reports a summary and the suggested git commit
+6. Agents run in order: contracts ??test plan ??spec/architecture review (if needed) ??CI/CD gates ??implementation plan ??backend engineer ??frontend engineer ??QA
+7. `implementation-planner` writes `implementation-plan.md`, the concise execution packet implementation agents follow
+8. Implementation agents write code/tests from that plan and optional concise handoff notes
+9. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
+10. Claude reports a summary and the suggested git commit
 
 ### Workflow Lanes: Avoiding Ceremony for Small Fixes
 
@@ -108,7 +109,7 @@ Use a lightweight maintenance lane for small corrections where the intent is alr
 | Lane | Examples | Required record |
 |---|---|---|
 | maintenance / micro-change | typo fixes, comment updates, README cleanup, formatting, lint-only fixes, tiny local test repair | normal commit message and test output if applicable |
-| tracked CDD change | behavior changes, contract updates, API/data/env/security/CI changes, cross-module refactors, high-risk bug fixes | `specs/changes/<id>/`, `tasks.yml`, `context-manifest.md`, and `cdd-kit gate` |
+| tracked CDD change | behavior changes, contract updates, API/data/env/security/CI changes, cross-module refactors, high-risk bug fixes | `specs/changes/<id>/`, `implementation-plan.md`, `tasks.yml`, `context-manifest.md`, and `cdd-kit gate` |
 
 Do not add hard pre-commit rules that block every `src/`, `tests/`, or `contracts/` edit unless your team explicitly wants that policy. The default kit favors low-friction traceability: make risky changes reviewable, but let obvious maintenance edits stay small.
 
@@ -119,7 +120,7 @@ Machine-readable metadata such as future `change.yml` / `trace.yml` should follo
 CDD uses two agent classes on purpose:
 
 - `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or optional handoff notes; main Claude writes the corresponding files.
-- `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own implementation artifacts directly.
+- `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own implementation artifacts directly.
 
 This split is deliberate:
 
@@ -130,6 +131,7 @@ This split is deliberate:
 **You stay in control by:**
 - Reviewing the `change-classification.md` before implementation starts
 - Checking the `test-plan.md` to confirm the right test families are planned
+- Checking `implementation-plan.md` when you want to review the exact execution packet before code changes
 - Reading the final QA summary for the release-readiness verdict
 
 ---
@@ -271,6 +273,48 @@ Codex currently has no global assets to update, so Codex-only projects report th
 
 ---
 
+### After Updating the npm Package
+
+Updating npm only replaces the `cdd-kit` CLI package. Existing repos and
+global Claude Code assets keep their previously copied agents, skills,
+templates, hooks, and `.cdd/model-policy.json` until you sync them.
+
+Recommended one-command sync after `npm update -g contract-driven-delivery`:
+
+```bash
+cdd-kit refresh          # dry-run preview
+cdd-kit refresh --yes    # apply agents, skills, templates, model policy, hook, code-map
+cdd-kit migrate --all    # add new per-change scaffolds such as implementation-plan.md
+cdd-kit doctor --strict
+```
+
+What gets updated:
+
+| command | updates | preserves |
+|---|---|---|
+| `cdd-kit update --yes` | `~/.claude/agents/` and `~/.claude/skills/` for Claude provider projects | project files |
+| `cdd-kit upgrade --yes` | missing repo files only: contracts, templates, `.cdd/`, guidance, workflows | existing files and project guidance |
+| `cdd-kit refresh --yes` | global agents/skills, missing project files, kit-shipped templates with backup, model policy roles, hooks, `.cdd/code-map.yml` | user source, contracts content, active change content |
+| `cdd-kit migrate --all` | existing `specs/changes/*` metadata and new required scaffolds | implementation code and completed archive history |
+
+For this release, run `cdd-kit refresh --yes` so the new
+`implementation-planner` agent, updated `/cdd-new` and `/cdd-resume` skills,
+fresh `specs/templates/`, and `.cdd/model-policy.json` role binding are all in
+place. Then run `cdd-kit migrate --all` so existing active change directories
+receive `implementation-plan.md`; fill that plan before resuming implementation
+agents.
+
+If you do not want template overwrites, run the narrower path:
+
+```bash
+cdd-kit update --yes
+cdd-kit upgrade --yes
+cdd-kit migrate --all
+cdd-kit doctor --strict
+```
+
+---
+
 ### `cdd-kit doctor`
 
 Inspects repo-level cdd-kit health. Default mode is read-only; `--fix` applies only the safe auto-remediations.
@@ -304,6 +348,33 @@ Use this for old repos that already have `contracts/` or `specs/` but are missin
 
 ---
 
+### `cdd-kit refresh`
+
+Complete sync after upgrading the npm package. Default mode is a dry run.
+
+```bash
+cdd-kit refresh
+cdd-kit refresh --yes
+cdd-kit refresh --yes --provider both
+cdd-kit refresh --yes --no-templates
+```
+
+`refresh --yes` runs the practical upgrade sequence:
+
+1. `cdd-kit update --yes` for global Claude agents and skills.
+2. `cdd-kit upgrade --yes` for missing project files.
+3. Force-refreshes kit-shipped `specs/templates/`, `tests/templates/`,
+   `ci-templates/`, and `.github/workflows/` with backup under
+   `.cdd/.refresh-backup/`.
+4. Re-installs the code-map hook if the project marker exists.
+5. Resyncs `.cdd/model-policy.json` roles from installed agent frontmatter.
+6. Regenerates `.cdd/code-map.yml`.
+
+Run `cdd-kit migrate --all` separately when you need existing
+`specs/changes/*` directories to gain new required artifacts.
+
+---
+
 ### `cdd-kit gate <change-id>`
 
 The single quality gate for a change. Blocks merge if anything is missing or incomplete.
@@ -314,7 +385,7 @@ cdd-kit gate add-jwt-auth --strict
 ```
 
 Checks:
-- All required artifacts exist (`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
+- All required artifacts exist (`change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content and is not a stub.
 - `change-classification.md` contains a tier or risk marker.
 - Atomic `depends-on` upstream changes are completed or archived before dependent work gates.
@@ -392,6 +463,7 @@ cdd-kit migrate --all --enable-context-governance
 What it upgrades:
 - `tasks.yml`: converts legacy `tasks.md` checklist/frontmatter into structured YAML task records
 - `change-classification.md`: detects old `**Tier:** Tier N` format and appends the new `## Tier\n- N` section so tier-based gate checks activate
+- `implementation-plan.md`: adds the execution-plan scaffold required before backend/frontend/test implementation agents continue
 - `context-manifest.md`: adds a legacy manifest scaffold by default so old changes can use the same pre-read planning layer
 - `--enable-context-governance`: explicitly adds `context-governance: v1` and a context-governed manifest scaffold for pre-read planning
 
@@ -583,8 +655,8 @@ The classifier should read these two files before proposing `context-manifest.md
 
 ```bash
 npm update -g contract-driven-delivery
-cdd-kit upgrade --yes
-cdd-kit context-scan
+cdd-kit refresh --yes
+cdd-kit migrate --all
 cdd-kit doctor --strict
 ```
 
@@ -598,7 +670,9 @@ git add specs/changes/
 git commit -m "chore: migrate changes to current cdd-kit format"
 ```
 
-This gives those legacy specs a new `tasks.yml`, tier markers, and a warning-mode `context-manifest.md` without forcing strict context governance on closed work.
+This gives those legacy specs a new `tasks.yml`, tier markers,
+`implementation-plan.md`, and a warning-mode `context-manifest.md` without
+forcing strict context governance on closed work.
 
 ### Old in-progress specs
 
@@ -613,14 +687,14 @@ cdd-kit doctor --strict
 Then choose one path per active change:
 
 - Conservative path: keep the migrated legacy manifest and resume work; use `context check` before invoking agents.
-- Tight context path: run `cdd-kit migrate <change-id> --enable-context-governance`, review `context-manifest.md`, narrow `Allowed Paths`, and use `cdd-kit context check` before invoking agents.
+- Tight context path: run `cdd-kit migrate <change-id> --enable-context-governance`, review `context-manifest.md`, narrow `Allowed Paths`, fill `implementation-plan.md`, and use `cdd-kit context check` before invoking agents.
 
 ### Recommended rollout for production repos already burned by token overuse
 
-1. Run `cdd-kit upgrade --yes` once per repo after updating the npm package.
-2. Run `cdd-kit context-scan` so classifiers can read `specs/context/project-map.md` and `specs/context/contracts-index.md` instead of broad repo searches.
-3. Run `cdd-kit doctor --strict` in CI.
-4. Migrate old completed specs with plain `cdd-kit migrate`.
+1. Run `cdd-kit refresh --yes` once per repo after updating the npm package.
+2. Run `cdd-kit migrate --all` so existing active changes receive the current required artifact set.
+3. Review and fill `implementation-plan.md` before resuming implementation agents on active changes.
+4. Run `cdd-kit doctor --strict` in CI.
 5. Migrate active specs with `cdd-kit migrate --enable-context-governance` only after reviewing the generated manifest.
 6. Teach agents to use `cdd-kit context request/approve/reject/list` instead of silently widening context.
 

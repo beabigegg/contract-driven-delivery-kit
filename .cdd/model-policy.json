@@ -4,6 +4,7 @@
   "schema-version": "0.2.0",
   "roles": {
     "change-classifier": "opus",
+    "implementation-planner": "opus",
     "spec-architect": "opus",
     "qa-reviewer": "opus",
     "contract-reviewer": "sonnet",

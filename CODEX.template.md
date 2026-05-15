@@ -46,6 +46,10 @@ Cold historical data is evidence, not current requirements.
 
 - After each agent returns, tick the related `tasks.yml` items immediately,
   then move to the next agent.
+- Do not start backend/frontend/test implementation agents until
+  `implementation-plan.md` is ready; implementation agents should follow that
+  plan and report `blocked` instead of inferring missing scope from chat
+  history.
 - Pre-existing test failures may be excluded from the current gate only when
   `qa-report.md` records the failing test, baseline evidence, why it is outside
   scope, owner, and follow-up.

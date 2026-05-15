@@ -21,7 +21,7 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Invoke repo-context-scanner to capture project profile and standardization gaps.
 3. Select required artifacts.
    - Use templates in `templates/`.
-   - Do not force every artifact for tiny changes, but do require `change-classification.md`, `test-plan.md`, and `ci-gates.md` for implementation changes.
+   - Do not force every artifact for tiny changes, but do require `change-classification.md`, `implementation-plan.md`, `test-plan.md`, and `ci-gates.md` for implementation changes.
 4. Update contracts before or alongside implementation. Invoke contract-reviewer to validate API/CSS/env/data/business/CI-CD contracts before or alongside implementation.
    - API: `references/api-contract-standard.md`
    - CSS/UI: `references/css-contract-standard.md`
@@ -39,8 +39,14 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - `stress-soak-engineer` implements load, soak, and long-running stability tests.
    - Invoke the relevant test engineer(s) before or alongside implementation based on the risk tier.
    - Each engineer must read the matching standard before authoring tests: e2e-resilience-engineer → references/e2e-standard.md, monkey-test-engineer → references/monkey-operation-standard.md, stress-soak-engineer → references/stress-soak-standard.md.
-6. Implement through the right role.
+6. Produce the implementation plan.
+   - Invoke `implementation-planner` after classification, contracts, test-plan, design (if any), and CI gate plan are known.
+   - `implementation-plan.md` is the execution packet for implementation agents: scope, non-goals, file-level plan, contract updates, tests, acceptance criteria, and constraints.
+   - Keep the plan concise. It should not duplicate the full investigation history or user discussion.
+   - If the planner reports missing decisions or context, stop before implementation and resolve that gap.
+7. Implement through the right role.
    - Backend/frontend work must follow contracts and tests.
+   - Backend/frontend/test implementation agents must read `implementation-plan.md` and should report `blocked` instead of inferring missing requirements from chat history.
    - Before invoking an agent with known concrete read paths, run
      `cdd-kit context check <change-id> --path <paths...>` and expand the
      manifest before the agent reads legitimate missing paths.
@@ -50,12 +56,12 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Invoke ui-ux-reviewer for interaction, copy, accessibility, and information hierarchy review whenever UI changes.
    - Invoke visual-reviewer for layout, responsive, CSS contract, and screenshot diff review whenever UI changes.
    - If implementation reveals an unexpected boundary or architectural constraint, halt and re-invoke `spec-architect` before continuing.
-7. Run quality gates.
+8. Run quality gates.
    - Use `references/qa-gates.md`.
    - CI/CD gate plan is mandatory.
    - `qa-reviewer` decides release readiness; Tier 1 gates must be green; Tier 3+ gates must be green or explicitly deferred with a recorded promotion policy.
    - Invoke ci-cd-gatekeeper to design and enforce the gate plan.
-8. Archive and audit drift.
+9. Archive and audit drift.
    - Use `references/spec-drift-policy.md`.
    - General agents record evidence and findings only; durable learning
      promotion happens only during `/cdd-close` Step 3.
@@ -76,6 +82,7 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
 - classification
 - current behavior if modifying existing feature
 - proposal/spec/design as needed
+- implementation-plan
 - contracts
 - test-plan
 - ci-gates
@@ -129,4 +136,5 @@ Run scripts with Python 3 from the repository root.
 
 - `tasks.yml`: structured YAML, validated by `src/schemas/tasks.schema.ts`.
 - `agent-log/<agent>.yml`: optional structured handoff note per `references/agent-log-protocol.md`.
+- `implementation-plan.md`: required execution handoff for implementation agents.
 - All other change artifacts remain markdown prose.

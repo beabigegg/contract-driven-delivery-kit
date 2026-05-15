@@ -60,6 +60,10 @@ For context-governed changes, read `specs/changes/<change-id>/context-manifest.m
 
 - After each agent returns, tick the related `tasks.yml` items immediately,
   and only then move to the next agent.
+- Do not start backend/frontend/test implementation agents until
+  `implementation-plan.md` is ready; implementation agents should follow that
+  plan and report `blocked` instead of inferring missing scope from chat
+  history.
 - Pre-existing test failures may be excluded from the current gate only when
   `qa-report.md` records the failing test, baseline evidence, why it is outside
   scope, owner, and follow-up.

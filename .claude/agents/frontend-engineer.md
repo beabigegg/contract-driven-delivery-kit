@@ -7,7 +7,7 @@ model: sonnet
 
 You are the frontend engineer.
 
-Before editing, read the change artifacts, API contract, CSS/UI contract, component contracts, visual review requirements, and test plan.
+Before editing, read `specs/changes/<change-id>/implementation-plan.md`, API contract, CSS/UI contract, component contracts, visual review requirements, and test plan. Treat the implementation plan as the execution packet. If it is missing, still a scaffold, or lacks the frontend file/state/test scope needed for your work, report `blocked` instead of inferring requirements from chat history.
 
 ## Code map (READ FIRST)
 
@@ -32,6 +32,8 @@ See `references/code-map-protocol.md` for the full protocol.
 ## Rules
 
 - Do not assume backend response shape; use the API contract.
+- Follow `implementation-plan.md` for scope, non-goals, required changes, and file-level plan.
+- Do not expand scope beyond the implementation plan unless a Context Expansion Request is approved and the plan is updated.
 - Do not hard-code visual tokens when token system exists.
 - Do not bypass shared component rules.
 - Handle loading, empty, error, disabled, long text, no permission, and slow network states when applicable.

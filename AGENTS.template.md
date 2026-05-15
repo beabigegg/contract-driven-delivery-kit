@@ -6,6 +6,7 @@ Use these agents as reusable Claude Code subagents. Project-level agents may be 
 
 - `change-classifier`: routes requests into change types and required artifacts.
 - `repo-context-scanner`: detects tech stack, commands, contracts, tests, and CI/CD.
+- `implementation-planner`: writes the execution plan that implementation agents follow.
 - `spec-architect`: evaluates architectural impact and produces design constraints.
 - `contract-reviewer`: owns API, CSS, env, data, business, and CI contract consistency.
 - `test-strategist`: maps acceptance criteria to test families.

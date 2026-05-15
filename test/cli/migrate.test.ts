@@ -78,6 +78,7 @@ describe('cdd-kit migrate', () => {
     expect(data['status']).toBe('in-progress');
     expect(data['context-governance']).toBeUndefined();
     expect(existsSync(join(changeDir, 'context-manifest.md'))).toBe(true);
+    expect(existsSync(join(changeDir, 'implementation-plan.md'))).toBe(true);
   });
 
   it('3: migrate populates archive-tasks default in tasks.yml', () => {
@@ -134,6 +135,7 @@ describe('cdd-kit migrate', () => {
 
     writeFileSync(join(changeDir, 'tasks.yml'), originalTasks, 'utf8');
     writeFileSync(join(changeDir, 'change-classification.md'), originalClassif, 'utf8');
+    writeFileSync(join(changeDir, 'implementation-plan.md'), '# Implementation Plan: new-001\n\nAlready filled.\n', 'utf8');
     writeFileSync(join(changeDir, 'context-manifest.md'), '# Context Manifest\n\n## Allowed Paths\n- specs/changes/new-001/\n', 'utf8');
 
     const r = runCli(['migrate', 'new-001'], { cwd: tmpRepo, home: tmpHome });

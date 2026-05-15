@@ -7,6 +7,7 @@ import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 const REQUIRED_TEMPLATES = [
   'change-request.md',
   'change-classification.md',
+  'implementation-plan.md',
   'test-plan.md',
   'ci-gates.md',
   'tasks.yml',
@@ -69,7 +70,7 @@ describe('cdd-kit new', () => {
     expect(data['change-id']).toBe('feat-bundled-template');
     expect(data['context-governance']).toBe('v1');
     expect(Array.isArray(data.tasks)).toBe(true);
-    expect(data.tasks as unknown[]).toHaveLength(28);
+    expect(data.tasks as unknown[]).toHaveLength(29);
     expect(raw).not.toContain('stale-project-template');
   });
 

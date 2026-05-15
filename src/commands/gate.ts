@@ -19,6 +19,7 @@ const TASKS_STATUS_ENUM = new Set([
 const REQUIRED_FILES = [
   'change-request.md',
   'change-classification.md',
+  'implementation-plan.md',
   'test-plan.md',
   'ci-gates.md',
   'tasks.yml',
@@ -29,6 +30,7 @@ const TIER_PATTERN = /\b(tier\s*[0-5]|low|medium|high|critical)\b/i;
 
 const MIN_CHARS: Record<string, number> = {
   'change-classification.md': 200,
+  'implementation-plan.md': 200,
   'test-plan.md': 200,
   'ci-gates.md': 150,
   'change-request.md': 100,

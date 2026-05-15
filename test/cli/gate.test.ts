@@ -247,7 +247,42 @@ function buildAgentLogYaml(opts: AgentLogOptions): string {
   return yaml.dump(data, { lineWidth: -1, noRefs: true });
 }
 
-/** Write all 5 required change artifacts with > 100 meaningful chars each,
+function writeValidImplementationPlan(changeDir: string): void {
+  const changeId = changeDir.split(/[/\\]/).pop() ?? 'unknown-change';
+  const filler = 'Implementation agents receive a bounded execution packet with scope, non-goals, file-level actions, contract updates, tests, and constraints. '.repeat(2);
+  writeFileSync(join(changeDir, 'implementation-plan.md'), [
+    `# Implementation Plan: ${changeId}`,
+    '',
+    '## Objective',
+    filler,
+    '',
+    '## Execution Scope',
+    '### In Scope',
+    '- Implement the classified behavior change within the approved surface.',
+    '### Out of Scope',
+    '- Do not refactor unrelated modules or infer requirements from chat history.',
+    '',
+    '## Required Changes',
+    '| id | area | required action | owner agent |',
+    '|---|---|---|---|',
+    '| IP-1 | user management | Update implementation according to contracts and test plan | backend-engineer |',
+    '',
+    '## File-Level Plan',
+    '| path or glob | action | notes |',
+    '|---|---|---|',
+    '| src/api/users.ts | update | keep response contract stable |',
+    '',
+    '## Test Execution Plan',
+    '| acceptance criterion | test file / command | expected signal |',
+    '|---|---|---|',
+    '| AC-1 | tests/api/users.test.ts | failing test passes after implementation |',
+    '',
+    '## Handoff Constraints',
+    '- Stop as blocked if the plan is incomplete.',
+  ].join('\n'), 'utf8');
+}
+
+/** Write all required change artifacts with > 100 meaningful chars each,
  *  and include a tier marker in change-classification.md. */
 function writeValidChangeArtifacts(changeDir: string): void {
   const filler = 'This is a meaningful description of the change. '.repeat(4);
@@ -256,6 +291,8 @@ function writeValidChangeArtifacts(changeDir: string): void {
   writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature to support the new requirements from the product team. The change is scoped to the user management module and will not affect other systems.\n`, 'utf8');
 
   writeFileSync(join(changeDir, 'change-classification.md'), `# Change Classification\n\n**Risk Level:** medium\n**Tier:** Tier 1\n\n${filler}\n\nThis change is classified as low risk because it is additive only, with no breaking changes to existing APIs or data schemas. Rollback is straightforward by reverting the feature flag.\n`, 'utf8');
+
+  writeValidImplementationPlan(changeDir);
 
   writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nUnit tests will cover all new business logic. Integration tests will verify the API endpoints. E2E tests will cover the user flows affected by this change. Performance tests ensure no regression in response times.\n`, 'utf8');
 
@@ -340,6 +377,7 @@ describe('cdd-kit gate', () => {
 
     writeFileSync(join(changeDir, 'change-classification.md'), `# Classification\n\n${filler}\n\nThis change affects the frontend module only. No database migrations required. Deployment is straightforward with no special procedures needed beyond the standard release process.\n`, 'utf8');
     writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature to support the new requirements. The change is additive only with no breaking changes to any existing APIs or data schemas.\n`, 'utf8');
+    writeValidImplementationPlan(changeDir);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nUnit tests will cover all new business logic paths. Integration tests verify the API endpoints work correctly. E2E tests cover all user-facing flows that are affected by this change.\n`, 'utf8');
     writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n${filler}\n\nAll existing CI gates must pass before merge. Additional integration test suite covering new endpoints. Deploy gate requires manual approval. Automated rollback if error rate exceeds threshold.\n`, 'utf8');
     writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'feat-003' }), 'utf8');
@@ -495,6 +533,7 @@ describe('cdd-kit gate', () => {
 
     const filler = 'This is a meaningful description of the change. '.repeat(4);
     writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature.\n`, 'utf8');
+    writeValidImplementationPlan(changeDir);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nUnit tests will cover all new business logic. Integration tests verify the API endpoints. E2E tests cover all user-facing flows.\n`, 'utf8');
     writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n\n## Required Gates\n| tier | gate | trigger | workflow | description |\n|---|---|---|---|---|\n| 1 | lint | PR | ci.yml | Linting |\n\n## Promotion Policy\nAll tier-1 gates must pass. ${filler}\n`, 'utf8');
     writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'feat-015' }), 'utf8');
@@ -511,6 +550,7 @@ describe('cdd-kit gate', () => {
     const filler = 'This is a meaningful description of the change. '.repeat(4);
     writeFileSync(join(changeDir, 'change-classification.md'), `# Change Classification\n\n**Risk Level:** medium\n**Tier:** Tier 1\n\n${filler}\n\nThis change is classified as low risk. Rollback is straightforward by reverting the feature flag.\n`, 'utf8');
     writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n\n${filler}\n\nMotivation: We need to add this feature. The change is additive only.\n`, 'utf8');
+    writeValidImplementationPlan(changeDir);
 
     writeFileSync(join(changeDir, 'test-plan.md'), [
       '# Test Plan',
@@ -640,6 +680,7 @@ describe('cdd-kit gate', () => {
       'No tier mentioned anywhere in this file.',
     ].join('\n'), 'utf8');
     writeFileSync(join(changeDir, 'change-request.md'), `# Change Request\n${filler}\n`, 'utf8');
+    writeValidImplementationPlan(changeDir);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n${filler}\n`, 'utf8');
     writeFileSync(join(changeDir, 'ci-gates.md'), `# CI Gates\n${filler}\n`, 'utf8');
     writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'feat-no-tier' }), 'utf8');

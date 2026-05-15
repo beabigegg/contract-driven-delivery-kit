@@ -17,6 +17,7 @@ def main():
     mapping={
         'change-request.md':'change-request.md',
         'change-classification.md':'change-classification.md',
+        'implementation-plan.md':'implementation-plan.md',
         'current-behavior.md':'current-behavior.md',
         'proposal.md':'proposal.md',
         'spec.md':'spec.md',

@@ -2,6 +2,7 @@ import { join } from 'path';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
+import { ASSET } from '../utils/paths.js';
 
 interface MigrateOptions {
   all?: boolean;
@@ -309,6 +310,30 @@ function migrateAgentLogs(
   }
 }
 
+function ensureImplementationPlanScaffold(
+  changeId: string,
+  changeDir: string,
+  changed: string[],
+  warnings: string[],
+  pendingWrites: PendingWrite[],
+): void {
+  const planPath = join(changeDir, 'implementation-plan.md');
+  if (existsSync(planPath)) return;
+
+  const templatePath = join(ASSET.specsTemplates, 'implementation-plan.md');
+  if (!existsSync(templatePath)) {
+    warnings.push('implementation-plan.md template not found; run cdd-kit upgrade --yes after updating cdd-kit');
+    return;
+  }
+
+  const template = readFileSync(templatePath, 'utf8')
+    .replace(/<change-id>/g, changeId)
+    .replace(/<id>/g, changeId);
+  pendingWrites.push({ path: planPath, content: template });
+  changed.push('implementation-plan.md: added scaffold');
+  warnings.push('implementation-plan.md scaffold added; fill it before implementation agents continue');
+}
+
 function migrateOne(changeId: string, changeDir: string, enableContextGovernance: boolean): { result: MigrateResult; pending: PendingWrite[]; deletes: PendingDelete[] } {
   const changed: string[] = [];
   const warnings: string[] = [];
@@ -348,6 +373,9 @@ function migrateOne(changeId: string, changeDir: string, enableContextGovernance
 
   // tasks.md -> tasks.yml
   migrateTasksFile(changeId, changeDir, enableContextGovernance, detectedTier, changed, warnings, pending, deletes);
+
+  // implementation-plan.md
+  ensureImplementationPlanScaffold(changeId, changeDir, changed, warnings, pending);
 
   // agent-log/*.md -> agent-log/*.yml
   migrateAgentLogs(changeDir, changed, pending, deletes);

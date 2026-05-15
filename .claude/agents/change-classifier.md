@@ -139,8 +139,8 @@ Use this structure:
 
 ## Required Artifacts
 
-The following 5 artifacts are always required for implementation changes:
-`change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`
+The following 7 artifacts are always required for implementation changes:
+`change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, `context-manifest.md`
 
 ## Optional Artifacts (default: no ??set yes only with explicit reason)
 
@@ -274,3 +274,4 @@ If a recommended `type` does not apply to your run, either omit it or use `point
 - High-load, auto-refresh, queue, cache, report, or long-running job change requires stress or soak consideration.
 - Existing behavior changes require current behavior and regression scope.
 - Bug fixes require reproduction, root cause, failing test, and regression test whenever feasible.
+- Any implementation change requires `implementation-planner` before backend/frontend/test implementation agents. The planner turns decisions, contracts, and tests into the execution packet; implementation agents should not infer missing scope from chat history.

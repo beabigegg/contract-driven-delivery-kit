@@ -42,6 +42,7 @@ Read only these state files first:
 - `specs/changes/<change-id>/context-manifest.md` if present
 - `specs/changes/<change-id>/agent-log/*.yml`
 - `specs/changes/<change-id>/change-classification.md`
+- `specs/changes/<change-id>/implementation-plan.md` if present
 
 Do not run broad repository search during resume. Do not read `src/`, `tests/`, or `contracts/` unless the current `context-manifest.md` authorizes that path or an approved expansion lists it.
 
@@ -53,6 +54,8 @@ From `tasks.yml`:
 Read `specs/changes/<change-id>/agent-log/` to list which agents have already run.
 
 Read `specs/changes/<change-id>/change-classification.md` to recall the tier and required agents.
+
+Read `specs/changes/<change-id>/implementation-plan.md` if it exists. If implementation tasks are still pending and the plan is missing or still a scaffold, resume from `implementation-planner` before invoking backend/frontend/test implementation agents.
 
 Read `specs/changes/<change-id>/context-manifest.md`:
 - Identify allowed paths and approved expansions.
@@ -76,6 +79,7 @@ Completed agents: <list from agent-log/>
 Pending tasks: <list of status: pending items>
 Pending context expansions: <none | list request ids and paths>
 Allowed context: <short summary from context-manifest.md>
+Implementation plan: <ready | missing | scaffold | blocked>
 
 Next agent to run: <agent-name> (based on tier flow and what's missing)
 ```
@@ -110,5 +114,6 @@ Continue until all required agents are done, then run `cdd-kit gate <change-id>`
 - Never start from Step 1 of `/cdd-new` — only resume from the next pending agent
 - Never use broad search to reconstruct state; resume from `tasks.yml`, `context-manifest.md`, and `agent-log/`
 - Never continue past pending Context Expansion Requests
+- Never resume backend/frontend/test implementation agents before `implementation-plan.md` is ready
 - If tasks.yml has `status: abandoned`, report to user and stop
 - If tasks.yml has `status: gate-blocked`, go directly to gate retry (max 3)

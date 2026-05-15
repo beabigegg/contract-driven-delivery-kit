@@ -75,6 +75,7 @@ async function ensureFreshContextIndexes(cwd: string): Promise<void> {
 const REQUIRED_TEMPLATES = [
   'change-request.md',
   'change-classification.md',
+  'implementation-plan.md',
   'test-plan.md',
   'ci-gates.md',
   'tasks.yml',

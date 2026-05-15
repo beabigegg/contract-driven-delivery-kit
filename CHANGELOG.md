@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.0.18] - 2026-05-15
+
+Implementation planning handoff release. This adds a senior planning step so
+implementation agents receive a concise execution packet instead of inferring
+scope from chat history.
+
+### Added
+
+- **`implementation-planner` agent**: writes
+  `specs/changes/<change-id>/implementation-plan.md` after classification,
+  contracts, test plan, design, and CI gate plan are known.
+- **Required `implementation-plan.md` template**: new changes scaffold it by
+  default, `cdd-kit gate` validates it, and `cdd-kit migrate` adds a scaffold
+  for existing active changes.
+- **Upgrade documentation**: README now explains how to sync npm package
+  updates into global agents/skills, repo templates, `.cdd/model-policy.json`,
+  hooks, code-map, and existing change directories.
+
+### Changed
+
+- **Implementation agents now consume the plan**: backend, frontend, E2E,
+  monkey, and stress/soak agents must read `implementation-plan.md` and report
+  `blocked` instead of inferring missing scope.
+- **`/cdd-new` ordering now plans before implementation**: contracts, test
+  plan, design if needed, and CI gate plan come before `implementation-planner`;
+  backend/frontend/test implementation agents start only after task `1.4`
+  confirms the implementation plan.
+- **Traceability helpers include implementation plan**:
+  `generate_change_scaffold.py` copies the new template and
+  `validate_spec_traceability.py` treats it as required.
+
 ## [2.0.17] - 2026-05-07
 
 Focused index-assisted development release. Agents now get a smaller, more

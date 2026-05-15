@@ -92,7 +92,7 @@ inevitable re-classification when the agents discover the ambiguity.
 | Agent type | Who writes artifact files | Who writes optional handoff notes | Who updates tasks.yml |
 |------------|--------------------------|----------------------------------|----------------------|
 | Read-only agents (no Edit tool): `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer` | YOU (main Claude) | YOU, only when useful | YOU (main Claude) |
-| Write-capable agents (have Edit): `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself, only when useful | YOU (main Claude) |
+| Write-capable agents (have Edit): `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself, only when useful | YOU (main Claude) |
 
 **Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.yml` task `status:` from `pending` to `done`.
 
@@ -118,7 +118,7 @@ Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` ??it is
 
 If the classifier marks an artifact as `no` or leaves it blank, **do not create the file** ??even if a review agent could contribute to it.
 
-The 6 always-required artifacts are: `change-request.md`, `change-classification.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, and `context-manifest.md`.
+The 7 always-required artifacts are: `change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, and `context-manifest.md`.
 
 ## Step 1: Generate change-id, scaffold, and scan context
 
@@ -158,6 +158,7 @@ the kit and is bundled into every install.
 |---|---|---|
 | `change-request.md` | `specs/templates/change-request.md` | Fill the `## Original Request` section with the user's exact description before invoking the classifier; leave the rest blank |
 | `change-classification.md` | `specs/templates/change-classification.md` | Replace blank template with classifier output (Step 2) |
+| `implementation-plan.md` | `specs/templates/implementation-plan.md` | `implementation-planner` writes this directly after contracts, tests, design, and CI gate plan are known |
 | `test-plan.md` | `specs/templates/test-plan.md` | `test-strategist` writes this directly |
 | `ci-gates.md` | `specs/templates/ci-gates.md` | `ci-cd-gatekeeper` writes this directly |
 | `tasks.yml` | `specs/templates/tasks.yml` | Tick checkboxes as agents complete; backfill `tier:` frontmatter from classifier (Step 2.4) |
@@ -283,6 +284,7 @@ the user; do not put them inside the prompt sent to the agent.
 |---|---|---|
 | Decision | `change-classifier` | ? `[classifier]` |
 | Decision | `spec-architect` | ? `[architect]` |
+| Decision | `implementation-planner` | ? `[plan]` |
 | Implementation | `backend-engineer` | ? `[backend]` |
 | Implementation | `frontend-engineer` | ? `[frontend]` |
 | Implementation | `ci-cd-gatekeeper` | ? `[ci-cd]` |
@@ -349,32 +351,37 @@ prompt; the agent's behavior is defined by the agent prompt files in
 3. **`spec-architect`** (write-capable) ??only if `change-classification.md` contains `Architecture Review Required: yes`.
    - YOU tick: `1.3` (if it produced a gate plan)
 
-4. **`backend-engineer`** (write-capable) ??if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
+4. **`ci-cd-gatekeeper`** (write-capable) ??writes `specs/changes/<change-id>/ci-gates.md` directly before implementation planning.
+   - YOU tick: `1.3`, `4.4`, applicable items in section 6
+
+5. **`implementation-planner`** (write-capable) ??writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, design, and CI gate plan are available.
+   - This is the handoff packet for implementation agents. It should contain execution scope, non-goals, required changes, file-level plan, contract updates, test execution plan, and constraints.
+   - If it reports `blocked`, halt and surface the missing decision/context to the user.
+   - YOU tick: `1.4`
+
+6. **`backend-engineer`** (write-capable) ??if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.1` and/or `4.3` based on scope
    - Note: `tasks.yml` items 3.1??.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion ??failing tests first, implementation second. Items 3.3??.5 are written by dedicated test engineers (Tier 0?? only or when classifier explicitly requires them).
 
-5. **`frontend-engineer`** (write-capable) ??if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
+7. **`frontend-engineer`** (write-capable) ??if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.2`
 
-6. **`dependency-security-reviewer`** (read-only) ??if the change touches lockfiles, package manifests, or DB migrations.
+8. **`dependency-security-reviewer`** (read-only) ??if the change touches lockfiles, package manifests, or DB migrations.
    - **Only invoke if** `change-classification.md` lists lockfiles, package manifests, or DB migrations as affected.
    - Optional handoff note: `agent-log/dependency-security-reviewer.yml`
    - YOU tick: applicable security-related items
 
-7. **`ui-ux-reviewer`** (read-only) ??if any UI change (run alongside or after frontend-engineer).
+9. **`ui-ux-reviewer`** (read-only) ??if any UI change (run alongside or after frontend-engineer).
    - **Only invoke if** classifier marks UI/CSS as affected.
    - Optional handoff note: `agent-log/ui-ux-reviewer.yml`
    - YOU tick: `5.1`
 
-8. **`visual-reviewer`** (read-only) ??if any UI change (run after ui-ux-reviewer).
+10. **`visual-reviewer`** (read-only) ??if any UI change (run after ui-ux-reviewer).
    - **Only invoke if** classifier marks UI/CSS as affected.
    - Optional handoff note: `agent-log/visual-reviewer.yml`
    - YOU tick: `5.2`
 
-9. **`ci-cd-gatekeeper`** (write-capable) ??writes `specs/changes/<change-id>/ci-gates.md` directly.
-   - YOU tick: `1.3`, `4.4`, applicable items in section 6
-
-10. **`qa-reviewer`** (read-only) ??release readiness decision (always last).
+11. **`qa-reviewer`** (read-only) ??release readiness decision (always last).
     - Optional handoff note: `agent-log/qa-reviewer.yml`
     - YOU tick: `5.4`
 
@@ -511,6 +518,7 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 ## Rules
 
 - Never start implementation (backend/frontend-engineer) before `contract-reviewer` has completed for Tier 0?? changes
+- Never start implementation (backend/frontend-engineer or dedicated test engineers) before `implementation-plan.md` exists and `tasks.yml` item `1.4` is done
 - Never skip `test-plan.md` for Tier 0?? changes
 - Never skip `ci-gates.md` for any implementation change
 - Agent logs are optional; do not create them just to satisfy a gate.

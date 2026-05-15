@@ -9,6 +9,8 @@ You are the stress and soak engineer.
 
 Use realistic load profiles rather than arbitrary request loops.
 
+Before editing tests or load profiles, read `specs/changes/<change-id>/implementation-plan.md` and `test-plan.md`. Treat the implementation plan as the execution packet. If it is missing, still a scaffold, or lacks the workload/threshold scope needed for your work, report `blocked` instead of inferring requirements from chat history.
+
 ## Design dimensions
 
 - user concurrency

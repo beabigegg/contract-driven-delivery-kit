@@ -15,6 +15,9 @@ describe('CDD skill prompt integration', () => {
     expect(skill).toMatch(/Do not authorize the classifier to read `contracts\/`, `src\/`, `tests\/`/);
     expect(skill).toMatch(/Context Manifest Draft/);
     expect(skill).toMatch(/YOU update.*context-manifest\.md/s);
+    expect(skill).toMatch(/implementation-plan\.md/);
+    expect(skill).toMatch(/implementation-planner/);
+    expect(skill).toMatch(/Never start implementation[\s\S]*implementation-plan\.md/);
   });
 
   it('change-classifier is constrained to deterministic context indexes', () => {
@@ -28,6 +31,25 @@ describe('CDD skill prompt integration', () => {
     expect(classifier).toMatch(/Do not read `contracts\/`, `src\/`, `tests\/`/);
     expect(classifier).toMatch(/Do not invent paths/);
     expect(classifier).toMatch(/## Context Manifest Draft/);
+    expect(classifier).toMatch(/implementation-planner/);
+    expect(classifier).toMatch(/implementation-plan\.md/);
+  });
+
+  it('implementation-planner owns the execution packet before implementation agents run', () => {
+    const planner = readFileSync(join(repoRoot, '.claude', 'agents', 'implementation-planner.md'), 'utf8');
+    const backend = readFileSync(join(repoRoot, '.claude', 'agents', 'backend-engineer.md'), 'utf8');
+    const frontend = readFileSync(join(repoRoot, '.claude', 'agents', 'frontend-engineer.md'), 'utf8');
+    const tasks = readFileSync(join(repoRoot, 'specs', 'templates', 'tasks.yml'), 'utf8');
+
+    expect(planner).toMatch(/implementation-plan\.md/);
+    expect(planner).toMatch(/execution packet/i);
+    expect(planner).toMatch(/not infer/i);
+    expect(planner).toMatch(/### Suggested artifacts for this agent/);
+    expect(backend).toMatch(/implementation-plan\.md/);
+    expect(backend).toMatch(/report `blocked` instead of inferring requirements/i);
+    expect(frontend).toMatch(/implementation-plan\.md/);
+    expect(frontend).toMatch(/report `blocked` instead of inferring requirements/i);
+    expect(tasks).toContain('Confirm implementation plan');
   });
 
   it('cdd-resume resumes from manifest and logs without broad repository scans', () => {
@@ -49,6 +71,7 @@ describe('CDD skill prompt integration', () => {
     const qaReviewer = readFileSync(join(repoRoot, '.claude', 'agents', 'qa-reviewer.md'), 'utf8');
     const backend = readFileSync(join(repoRoot, '.claude', 'agents', 'backend-engineer.md'), 'utf8');
     const frontend = readFileSync(join(repoRoot, '.claude', 'agents', 'frontend-engineer.md'), 'utf8');
+    const planner = readFileSync(join(repoRoot, '.claude', 'agents', 'implementation-planner.md'), 'utf8');
 
     expect(cddNew).toMatch(/optional handoff notes/i);
     expect(cddNew).toMatch(/only when useful/i);
@@ -58,6 +81,7 @@ describe('CDD skill prompt integration', () => {
     expect(qaReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
     expect(backend).toMatch(/If a short handoff note is useful, write or append to/);
     expect(frontend).toMatch(/If a short handoff note is useful, write or append to/);
+    expect(planner).toMatch(/If a short handoff note is useful, write or append to/);
   });
 
   it('documents artifact pointer path-validation rules in cdd-new and agent-log protocol', () => {

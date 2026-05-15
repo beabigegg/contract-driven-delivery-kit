@@ -6,8 +6,8 @@ Classify every request before implementation. A request may have more than one t
 
 | Change type | Required path |
 |---|---|
-| new-feature | proposal, spec, design, contracts, test-plan, ci-gates, tasks |
-| feature-enhancement | current-behavior, diff spec, regression scope, contracts, test-plan, ci-gates |
+| new-feature | proposal, spec, design, contracts, test-plan, ci-gates, implementation-plan, tasks |
+| feature-enhancement | current-behavior, diff spec, regression scope, contracts, test-plan, ci-gates, implementation-plan |
 | business-logic-change | current rule, new rule, decision table, examples, edge cases, regression tests |
 | bug-fix | reproduction, root cause, failing test, fix, regression test, QA evidence |
 | regression-fix | broken prior behavior, regression source, failing test, rollback or forward fix |
@@ -28,6 +28,7 @@ Do not create heavyweight artifacts when a tiny change does not need them. Howev
 - which contracts are affected
 - which tests prove it
 - which CI/CD gates must run
+- what execution packet implementation agents should follow
 
 ## Iteration rule
 

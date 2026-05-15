@@ -9,14 +9,17 @@ Use this prompt template with the Contract-Driven Delivery workflow.
 - Constraints:
 
 ## Task
-Produce a concrete, reviewable artifact for implementation-plan. Do not implement code unless this prompt is explicitly for implementation.
+Produce `specs/changes/<change-id>/implementation-plan.md` for implementation agents. Do not implement code.
+
+The plan should be an execution packet, not a history essay. It should convert the senior-agent investigation, design, contracts, and test strategy into precise actions that backend/frontend/test agents can follow without reading the full user discussion.
 
 ## Required Output
-- Summary
-- Findings
-- Required files to create or update
-- Required contracts
-- Required tests
-- Required CI/CD gates
-- Risks
-- Next agent handoff
+- Objective
+- In scope / out of scope
+- Required changes
+- File-level plan
+- Contract updates
+- Test execution plan
+- Acceptance criteria mapping
+- Handoff constraints
+- Known risks
