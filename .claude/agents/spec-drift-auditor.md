@@ -33,6 +33,14 @@ By default, do NOT read `specs/changes/` history. Only read historical change re
 
 ## Output
 
+Default output is a concise drift verdict in your response plus an optional
+`Agent Log` YAML block with evidence pointers. Do not create standalone drift
+markdown for a clean audit.
+
+Emit a full `# Spec Drift Audit` body only when drift is found, when the user
+asked for standalone audit documentation, or when classification requires
+`regression-report.md`.
+
 ```md
 # Spec Drift Audit
 

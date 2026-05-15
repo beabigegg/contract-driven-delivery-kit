@@ -22,6 +22,13 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
 3. Select required artifacts.
    - Use templates in `templates/`.
    - Do not force every artifact for tiny changes, but do require `change-classification.md`, `implementation-plan.md`, `test-plan.md`, and `ci-gates.md` for implementation changes.
+   - Keep each fact in one authoritative artifact. Later artifacts should
+     reference earlier artifacts by path, section, criterion id, decision id, or
+     gate name instead of duplicating full prose.
+   - Use optional `agent-log/*.yml` pointers for routine review evidence.
+     Create report markdown only for blocking findings, approved-with-risk,
+     excluded pre-existing failures, visual evidence bundles, or high-risk
+     load/soak results.
 4. Update contracts before or alongside implementation. Invoke contract-reviewer to validate API/CSS/env/data/business/CI-CD contracts before or alongside implementation.
    - API: `references/api-contract-standard.md`
    - CSS/UI: `references/css-contract-standard.md`
@@ -39,12 +46,16 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - `stress-soak-engineer` implements load, soak, and long-running stability tests.
    - Invoke the relevant test engineer(s) before or alongside implementation based on the risk tier.
    - Each engineer must read the matching standard before authoring tests: e2e-resilience-engineer → references/e2e-standard.md, monkey-test-engineer → references/monkey-operation-standard.md, stress-soak-engineer → references/stress-soak-standard.md.
-6. Produce the implementation plan.
-   - Invoke `implementation-planner` after classification, contracts, test-plan, design (if any), and CI gate plan are known.
+6. Confirm design decisions when required.
+   - If classification marks `Architecture Review Required: yes`, Optional Artifacts `design.md: yes`, or Required Agents includes `spec-architect`, invoke `spec-architect` before `implementation-planner`.
+   - `spec-architect` owns `specs/changes/<id>/design.md`.
+   - `implementation-planner` must not create or repair `design.md`; if required design is missing, route back to `spec-architect`.
+7. Produce the implementation plan.
+   - Invoke `implementation-planner` after classification, contracts, test-plan, required design, and CI gate plan are known.
    - `implementation-plan.md` is the execution packet for implementation agents: scope, non-goals, file-level plan, contract updates, tests, acceptance criteria, and constraints.
    - Keep the plan concise. It should not duplicate the full investigation history or user discussion.
    - If the planner reports missing decisions or context, stop before implementation and resolve that gap.
-7. Implement through the right role.
+8. Implement through the right role.
    - Backend/frontend work must follow contracts and tests.
    - Backend/frontend/test implementation agents must read `implementation-plan.md` and should report `blocked` instead of inferring missing requirements from chat history.
    - Before invoking an agent with known concrete read paths, run
@@ -56,12 +67,12 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Invoke ui-ux-reviewer for interaction, copy, accessibility, and information hierarchy review whenever UI changes.
    - Invoke visual-reviewer for layout, responsive, CSS contract, and screenshot diff review whenever UI changes.
    - If implementation reveals an unexpected boundary or architectural constraint, halt and re-invoke `spec-architect` before continuing.
-8. Run quality gates.
+9. Run quality gates.
    - Use `references/qa-gates.md`.
    - CI/CD gate plan is mandatory.
    - `qa-reviewer` decides release readiness; Tier 1 gates must be green; Tier 3+ gates must be green or explicitly deferred with a recorded promotion policy.
    - Invoke ci-cd-gatekeeper to design and enforce the gate plan.
-9. Archive and audit drift.
+10. Archive and audit drift.
    - Use `references/spec-drift-policy.md`.
    - General agents record evidence and findings only; durable learning
      promotion happens only during `/cdd-close` Step 3.
@@ -87,7 +98,7 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
 - test-plan
 - ci-gates
 - tasks
-- QA report
+- QA verdict; `qa-report.md` only when blocked, approved-with-risk, or required by classification
 
 ### UI change
 
@@ -121,6 +132,10 @@ Required when the change involves report generation, large queries, auto-refresh
 
 When using this skill, produce concrete artifact content instead of vague recommendations. Include exact files to create/update, exact gates to run, exact commands if detectable, and exact acceptance criteria.
 
+Avoid artifact sprawl: do not create optional markdown when a concise verdict
+or `agent-log/*.yml` pointer is enough. Do not duplicate full test strategy,
+CI policy, design rationale, or contract prose across artifacts.
+
 ## Scripts
 
 - `scripts/detect_project_profile.py`: inspect a repository and emit a Markdown project profile.
@@ -137,4 +152,6 @@ Run scripts with Python 3 from the repository root.
 - `tasks.yml`: structured YAML, validated by `src/schemas/tasks.schema.ts`.
 - `agent-log/<agent>.yml`: optional structured handoff note per `references/agent-log-protocol.md`.
 - `implementation-plan.md`: required execution handoff for implementation agents.
-- All other change artifacts remain markdown prose.
+- Report markdown is optional and reserved for durable review evidence. Routine
+  pass/fail evidence belongs in short `agent-log/*.yml` pointers or the final
+  assistant summary.

@@ -11,8 +11,9 @@ tasks:
   # status: pending | done | skipped   (optional: note: "reason or context")
   - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: pending }
   - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: pending }
-  - { id: "1.3", section: Preparation, title: "Confirm CI/CD gate plan", status: pending }
-  - { id: "1.4", section: Preparation, title: "Confirm implementation plan", status: pending }
+  - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: pending }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: pending }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: pending }
   - { id: "2.1", section: "Contract Updates", title: "API contract", status: pending }
   - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: pending }
   - { id: "2.3", section: "Contract Updates", title: "Env contract", status: pending }

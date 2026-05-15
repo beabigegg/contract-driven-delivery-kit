@@ -27,6 +27,15 @@ Frontend visual changes require evidence. Use screenshots, videos, or a clear ma
 
 ## Output
 
+Default output is a concise visual verdict in your response plus an optional
+`Agent Log` YAML block with evidence pointers. Do not ask main Claude to create
+`visual-review-report.md` for a routine approved UI change.
+
+Emit a full `# Visual Review Report` body only when
+`change-classification.md` explicitly requires `visual-review-report.md`, when
+visual evidence must be preserved as a bundle, or when the decision is
+`changes-required`.
+
 ```md
 # Visual Review Report
 

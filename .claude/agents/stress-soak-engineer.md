@@ -37,8 +37,17 @@ Before editing tests or load profiles, read `specs/changes/<change-id>/implement
 
 ## Output
 
+Write or update the actual load/soak test files, profiles, commands, and
+workflow wiring required by `implementation-plan.md` and `test-plan.md`.
+Default reporting should be concise response text plus optional
+`agent-log/*.yml` evidence pointers.
+
+Create `stress-soak-report.md` only when `change-classification.md` explicitly
+requires it, when high-risk load/soak results must be retained as durable
+evidence, or when the run is blocked/failed.
+
 ```md
-# Stress / Soak Plan or Report
+# Stress / Soak Report
 
 ## Workload Model
 ...

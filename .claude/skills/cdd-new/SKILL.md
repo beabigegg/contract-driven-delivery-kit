@@ -12,9 +12,32 @@ description: Start a new tracked change. Scaffolds all required artifacts, class
 - `specs/changes/<id>/` = why we decided this back then (passive archive ??read only when investigating history, never as input to planning)
 - `CLAUDE.md` = what this project is and how to start work
 
-## Spec depth rules
+## Artifact ownership and deduplication
 
-Every artifact under `specs/changes/<id>/` answers **WHAT** and **WHY**, not HOW.
+Every artifact under `specs/changes/<id>/` must have one authoritative job.
+Do not duplicate the same fact across multiple markdown files. Later artifacts
+must reference earlier artifacts by path, section, criterion id, or decision id
+instead of restating full content.
+
+Core artifacts:
+
+| artifact | authority |
+|---|---|
+| `change-classification.md` | risk, tier, required agents, required artifacts, acceptance criteria, context-manifest draft |
+| `context-manifest.md` | read boundary and approved context |
+| `test-plan.md` | acceptance criterion to test family/file mapping |
+| `ci-gates.md` | required/informational/manual gates and promotion policy |
+| `design.md` | architecture/design decisions, only when required |
+| `implementation-plan.md` | concise execution packet that references the above artifacts |
+| `tasks.yml` | centralized task status only |
+
+Evidence and review notes default to short optional `agent-log/*.yml` pointers.
+Create report markdown (`qa-report.md`, `visual-review-report.md`,
+`regression-report.md`, `monkey-test-report.md`, `stress-soak-report.md`) only
+when the classifier explicitly requires it, or when a reviewer finds blocking
+findings or approved-with-risk evidence that needs durable review prose.
+
+Every spec artifact answers **WHAT** and **WHY**, not HOW.
 
 Soft caps (guidance, not gate-enforced):
 - `spec.md` ??200 lines
@@ -112,11 +135,23 @@ rules to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`).
 
 ## Artifact opt-in policy
 
-Only create optional artifacts (`current-behavior.md`, `proposal.md`, `spec.md`, `design.md`, `qa-report.md`, `regression-report.md`) when the classifier's `change-classification.md` explicitly marks them as `yes`.
+Only create optional artifacts (`current-behavior.md`, `proposal.md`, `spec.md`,
+`design.md`, `qa-report.md`, `regression-report.md`, `visual-review-report.md`,
+`monkey-test-report.md`, `stress-soak-report.md`) when the classifier's
+`change-classification.md` explicitly marks them as `yes`, or when a reviewer
+finds blocking findings / approved-with-risk evidence that must be preserved as prose.
+
+`design.md` is owned by `spec-architect`, not `implementation-planner`. If the
+classifier marks `design.md` as `yes`, marks `Architecture Review Required:
+yes`, or lists `spec-architect` in `## Required Agents`, invoke
+`spec-architect` before `implementation-planner`. If none of those triggers is
+present, mark task `1.3` as `skipped`.
 
 Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` ??it is not part of the classifier's opt-in surface.
 
-If the classifier marks an artifact as `no` or leaves it blank, **do not create the file** ??even if a review agent could contribute to it.
+If the classifier marks an artifact as `no` or leaves it blank, **do not create
+the file** just because an agent could contribute to it. Use an optional
+`agent-log/*.yml` pointer instead.
 
 The 7 always-required artifacts are: `change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, and `context-manifest.md`.
 
@@ -158,7 +193,7 @@ the kit and is bundled into every install.
 |---|---|---|
 | `change-request.md` | `specs/templates/change-request.md` | Fill the `## Original Request` section with the user's exact description before invoking the classifier; leave the rest blank |
 | `change-classification.md` | `specs/templates/change-classification.md` | Replace blank template with classifier output (Step 2) |
-| `implementation-plan.md` | `specs/templates/implementation-plan.md` | `implementation-planner` writes this directly after contracts, tests, design, and CI gate plan are known |
+| `implementation-plan.md` | `specs/templates/implementation-plan.md` | `implementation-planner` writes this directly after contracts, tests, required design, and CI gate plan are known |
 | `test-plan.md` | `specs/templates/test-plan.md` | `test-strategist` writes this directly |
 | `ci-gates.md` | `specs/templates/ci-gates.md` | `ci-cd-gatekeeper` writes this directly |
 | `tasks.yml` | `specs/templates/tasks.yml` | Tick checkboxes as agents complete; backfill `tier:` frontmatter from classifier (Step 2.4) |
@@ -239,7 +274,11 @@ Wait until these five writes are done before continuing.
 
 Read `change-classification.md` to determine the tier. Then invoke agents **in the exact order below**.
 
-**For each read-only agent**: wait for its text response ??YOU write its artifact file(s) ??YOU write an optional handoff note when useful ??YOU tick relevant tasks.yml item(s).
+**For each read-only agent**: wait for its text response. YOU write a report
+artifact only if the classifier required that report or the agent found
+blocking findings / approved-with-risk evidence that needs durable prose. Otherwise
+write at most a short optional handoff note, then tick relevant `tasks.yml`
+item(s).
 
 **For each write-capable agent**: wait for it to confirm completion ??YOU tick relevant tasks.yml item(s).
 
@@ -269,8 +308,9 @@ agent:
 - confirm required artifacts exist; optional handoff notes are not gate inputs
 - if the agent reports `blocked`, halt and surface its concrete next action
 - tick the owned `tasks.yml` items immediately
-- record incidental/pre-existing findings in the appropriate report instead of
-  silently fixing unrelated scope
+- record incidental/pre-existing findings in `agent-log/*.yml`; escalate to
+  `qa-report.md` or `regression-report.md` only when the finding blocks release,
+  changes the QA decision, or needs durable follow-up ownership
 
 ### Agent stage badges (UI v1)
 
@@ -348,16 +388,20 @@ prompt; the agent's behavior is defined by the agent prompt files in
    - YOU tick: applicable items in section 3 based on what test families were planned
    - Provide the classifier's `## Inferred Acceptance Criteria` list to test-strategist. These become the `criterion id` column in the Acceptance Criteria ??Test Mapping table.
 
-3. **`spec-architect`** (write-capable) ??only if `change-classification.md` contains `Architecture Review Required: yes`.
-   - YOU tick: `1.3` (if it produced a gate plan)
+3. **`spec-architect`** (write-capable) ??only if `change-classification.md` contains `Architecture Review Required: yes`, marks `design.md` as `yes`, or lists `spec-architect` in `## Required Agents`.
+   - Writes `specs/changes/<change-id>/design.md` directly. This is the design/architecture decision record consumed by `implementation-planner`.
+   - YOU tick: `1.3`
+   - If the classifier did not require design, YOU mark `1.3` as `skipped` before continuing.
 
 4. **`ci-cd-gatekeeper`** (write-capable) ??writes `specs/changes/<change-id>/ci-gates.md` directly before implementation planning.
-   - YOU tick: `1.3`, `4.4`, applicable items in section 6
+   - YOU tick: `1.4`, `4.4`, applicable items in section 6
 
-5. **`implementation-planner`** (write-capable) ??writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, design, and CI gate plan are available.
+5. **`implementation-planner`** (write-capable) ??writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, required design, and CI gate plan are available.
    - This is the handoff packet for implementation agents. It should contain execution scope, non-goals, required changes, file-level plan, contract updates, test execution plan, and constraints.
+   - It must reference `test-plan.md`, `ci-gates.md`, contracts, and `design.md` by path/section/id instead of copying their full content.
+   - It must not create or repair `design.md`. If required design is missing, route back to `spec-architect`.
    - If it reports `blocked`, halt and surface the missing decision/context to the user.
-   - YOU tick: `1.4`
+   - YOU tick: `1.5`
 
 6. **`backend-engineer`** (write-capable) ??if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.1` and/or `4.3` based on scope
@@ -409,7 +453,8 @@ All agents from Tier 2??, plus insert these after `frontend-engineer` / `backend
 - If a required or informational test has pre-existing failures unrelated to
   this change, do not count them as this change's pass/fail result. Record the
   failing test id, baseline commit or prior evidence, owner, and follow-up in
-  `qa-report.md`; QA may only approve this as `approved-with-risk`.
+  optional `agent-log/*.yml`; create `qa-report.md` only when the QA decision is
+  `approved-with-risk` or `blocked`.
 - If implementation uncovers unrelated old bugs, fix only those needed to meet
   this change's acceptance criteria or to avoid a new safety/security risk.
   Otherwise record them as follow-up with evidence and owner.
@@ -490,7 +535,7 @@ Gate: PASSED
 Tasks completed:
 - [x] all applicable items have status: done in specs/changes/<change-id>/tasks.yml
 
-All artifacts written to: specs/changes/<change-id>/
+Core artifacts written to: specs/changes/<change-id>/
 
 Next step:
   git add specs/changes/<change-id>/
@@ -518,7 +563,7 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 ## Rules
 
 - Never start implementation (backend/frontend-engineer) before `contract-reviewer` has completed for Tier 0?? changes
-- Never start implementation (backend/frontend-engineer or dedicated test engineers) before `implementation-plan.md` exists and `tasks.yml` item `1.4` is done
+- Never start implementation (backend/frontend-engineer or dedicated test engineers) before `implementation-plan.md` exists and `tasks.yml` item `1.5` is done
 - Never skip `test-plan.md` for Tier 0?? changes
 - Never skip `ci-gates.md` for any implementation change
 - Agent logs are optional; do not create them just to satisfy a gate.

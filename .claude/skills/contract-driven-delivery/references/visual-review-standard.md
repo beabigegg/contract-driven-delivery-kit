@@ -24,4 +24,7 @@ Visual review is required when frontend output changes.
 
 ## Review output
 
-Use `templates/visual-review-report.md`.
+Use concise verdict text plus optional `agent-log/*.yml` evidence pointers for
+routine approvals. Use `templates/visual-review-report.md` only for blocking
+visual findings, approved-with-risk decisions, or evidence bundles that need
+durable review prose.

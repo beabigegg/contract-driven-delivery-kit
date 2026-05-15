@@ -16,6 +16,7 @@
 ## Architecture Review Required
 - yes / no
 - reason: (fill only if yes)
+<!-- If yes, Optional Artifacts must set design.md to yes and Required Agents must include spec-architect. -->
 
 ## Required Artifacts
 Always required: change-request.md, change-classification.md, implementation-plan.md, test-plan.md, ci-gates.md, tasks.yml, context-manifest.md
@@ -29,6 +30,14 @@ Always required: change-request.md, change-classification.md, implementation-pla
 | design.md | no | |
 | qa-report.md | no | |
 | regression-report.md | no | |
+| visual-review-report.md | no | |
+| monkey-test-report.md | no | |
+| stress-soak-report.md | no | |
+
+Artifact minimization:
+- Prefer optional `agent-log/*.yml` pointers for routine review evidence.
+- Create report markdown only for blocking findings, approved-with-risk, excluded pre-existing failures, visual evidence bundles, or high-risk load/soak results.
+- Later artifacts should reference earlier artifacts by path/section/id instead of duplicating full content.
 
 ## Required Contracts
 - API:
@@ -61,7 +70,8 @@ Always required: change-request.md, change-classification.md, implementation-pla
 
 ## Tasks Not Applicable
 <!-- Comma-separated task IDs from tasks.yml that do NOT apply to this change.
-     /cdd-new SKILL marks these as `status: skipped` in tasks.yml. -->
+     /cdd-new SKILL marks these as `status: skipped` in tasks.yml.
+     Include 1.3 when design.md is not required. -->
 - not-applicable:
 
 ## Clarifications or Assumptions

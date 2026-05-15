@@ -40,3 +40,7 @@ Define:
 - raw logs or metrics
 - pass/fail conclusion
 - follow-up issues for degraded but non-blocking findings
+
+Routine results may be captured as concise response text plus optional
+`agent-log/*.yml` pointers. Create `stress-soak-report.md` only for required
+high-risk evidence, failed/blocked runs, or approved-with-risk decisions.

@@ -211,7 +211,9 @@ function buildTasksYaml(opts: TasksFileOptions): string {
   data['tasks'] = opts.tasks ?? [
     { id: '1.1', section: 'Preparation', title: 'Confirm classification', status: 'done' },
     { id: '1.2', section: 'Preparation', title: 'Confirm contracts', status: 'done' },
-    { id: '1.3', section: 'Preparation', title: 'Confirm CI plan', status: 'done' },
+    { id: '1.3', section: 'Preparation', title: 'Confirm design decisions', status: 'skipped' },
+    { id: '1.4', section: 'Preparation', title: 'Confirm CI plan', status: 'done' },
+    { id: '1.5', section: 'Preparation', title: 'Confirm implementation plan', status: 'done' },
     { id: '7.1', section: 'Archive', title: 'Archive change', status: 'pending' },
     { id: '7.2', section: 'Archive', title: 'Promote learnings', status: 'pending' },
   ];
@@ -578,7 +580,9 @@ describe('cdd-kit gate', () => {
       tasks: [
         { id: '1.1', title: 'Confirm classification', status: 'done' },
         { id: '1.2', title: 'Confirm contracts', status: 'done' },
-        { id: '1.3', title: 'Confirm CI plan', status: 'done' },
+        { id: '1.3', title: 'Confirm design decisions', status: 'skipped' },
+        { id: '1.4', title: 'Confirm CI plan', status: 'done' },
+        { id: '1.5', title: 'Confirm implementation plan', status: 'done' },
         { id: '2.1', title: 'API contract updated', status: 'done' },
         { id: '7.1', title: 'Archive change', status: 'pending' },
         { id: '7.2', title: 'Promote learnings', status: 'pending' },

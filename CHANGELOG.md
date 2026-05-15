@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.0.19] - 2026-05-15
+
+Design ownership patch for the implementation-planning flow.
+
+### Changed
+
+- **`design.md` now has an explicit owner and task**: `spec-architect` owns
+  `specs/changes/<change-id>/design.md`; `tasks.yml` now tracks required
+  design confirmation separately from CI gate planning and implementation
+  planning.
+- **Optional report artifacts are now minimized**: routine reviewer evidence
+  should use concise `agent-log/*.yml` pointers; report markdown is reserved for
+  blocking findings, approved-with-risk decisions, excluded pre-existing
+  failures, visual evidence bundles, or high-risk stress/soak results.
+- **Execution artifacts now reference instead of duplicate**:
+  `implementation-plan.md`, `test-plan.md`, and `ci-gates.md` now instruct
+  agents to reference source artifacts by path/section/id instead of copying
+  full design, test, CI, or contract prose.
+- **Planner no longer backfills design**: `implementation-planner` now blocks
+  and routes back to `spec-architect` if classification requires design but
+  `design.md` is missing or still scaffolded.
+- **Classifier and resume routing are stricter**: classification now keeps
+  `Architecture Review Required`, Optional Artifacts `design.md`, Required
+  Agents, and task `1.3` consistent; `/cdd-resume` resumes from
+  `spec-architect` before planning when required design is missing.
+
 ## [2.0.18] - 2026-05-15
 
 Implementation planning handoff release. This adds a senior planning step so

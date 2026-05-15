@@ -152,8 +152,31 @@ The following 7 artifacts are always required for implementation changes:
 | design.md | no | |
 | qa-report.md | no | |
 | regression-report.md | no | |
+| visual-review-report.md | no | |
+| monkey-test-report.md | no | |
+| stress-soak-report.md | no | |
 
 Note: `archive.md` is created during change close-out, not at classification time.
+
+Artifact minimization rule:
+- Do not create optional markdown just because an agent can write or review it.
+- Prefer short `agent-log/*.yml` pointers for routine evidence, reviewer notes,
+  and pass/fail summaries.
+- Set `qa-report.md`, `visual-review-report.md`, `regression-report.md`,
+  `monkey-test-report.md`, or `stress-soak-report.md` to `yes` only when the
+  change needs durable prose evidence: blocking findings, approved-with-risk,
+  pre-existing failures excluded from the gate, visual evidence bundles, or
+  high-risk load/soak results.
+- Set `current-behavior.md`, `proposal.md`, or `spec.md` to `yes` only when the
+  request needs a separate product investigation or user-facing behavior
+  decision that does not fit in classification, design, or implementation plan.
+- Later artifacts should reference earlier artifacts by path/section/id instead
+  of copying full rationale, tests, CI gates, or design decisions.
+
+Design consistency rule:
+- If `Architecture Review Required` is `yes`, set `design.md` to `yes` and include `spec-architect` in `## Required Agents`.
+- If `design.md` is `yes`, `Architecture Review Required` must also be `yes` and `spec-architect` must be listed.
+- If no design review is needed, include task `1.3` in `## Tasks Not Applicable`.
 
 ## Required Contracts
 - API:
@@ -251,7 +274,7 @@ concrete pointer (path:line-range, test-id, URL, or pass/fail string):
 artifacts:
   - { type: tier, pointer: "Tier 2" }
   - { type: risk, pointer: "medium" }
-  - { type: required-artifacts, pointer: "change-request, classification, test-plan, ci-gates, tasks" }
+  - { type: required-artifacts, pointer: "change-request, classification, context-manifest, test-plan, ci-gates, implementation-plan, tasks" }
   - { type: required-reviewers, pointer: "contract-reviewer, qa-reviewer" }
   - { type: context-manifest-draft, pointer: "specs/changes/<id>/context-manifest.md#allowed-paths" }
 ```
@@ -263,7 +286,10 @@ If a recommended `type` does not apply to your run, either omit it or use `point
 - A single request can be both `ui-only-change` and `api-only-change` ??list both as primary; require both UI/UX-visual review AND contract tests.
 - `bug-fix` that requires a contract change is no longer just a bug-fix ??promote to `feature-enhancement` or `business-logic-change` to force the contract path.
 - `refactor` that touches CI gates is also a `ci-cd-change`.
-- When uncertain, classify upward (higher risk, more artifacts); the cost of unnecessary artifacts is small, the cost of skipped artifacts is high.
+- When uncertain, classify upward for risk and required agents, but keep optional
+  artifacts minimal. The cost of a skipped required artifact is high; the cost
+  of unnecessary optional markdown is also high because it increases token load
+  and creates duplicate sources of truth.
 
 ## Routing rules
 
@@ -274,4 +300,5 @@ If a recommended `type` does not apply to your run, either omit it or use `point
 - High-load, auto-refresh, queue, cache, report, or long-running job change requires stress or soak consideration.
 - Existing behavior changes require current behavior and regression scope.
 - Bug fixes require reproduction, root cause, failing test, and regression test whenever feasible.
+- Architecture review, non-obvious design decisions, module-boundary changes, data-flow changes, migration/rollback decisions, compatibility trade-offs, or operational-risk decisions require `spec-architect` to write `design.md` before `implementation-planner` runs.
 - Any implementation change requires `implementation-planner` before backend/frontend/test implementation agents. The planner turns decisions, contracts, and tests into the execution packet; implementation agents should not infer missing scope from chat history.

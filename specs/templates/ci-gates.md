@@ -29,3 +29,7 @@
 ## Artifact Retention
 
 ## Merge Eligibility Decision
+
+## Notes
+
+Reference test-plan.md rows or gate names instead of duplicating full test strategy.

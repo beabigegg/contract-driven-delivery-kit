@@ -30,6 +30,13 @@ Review the intended interaction, not just whether code compiles.
 
 ## Output
 
+Default output is a concise UI/UX verdict in your response plus an optional
+`Agent Log` YAML block with evidence pointers. Do not ask main Claude to create
+a separate markdown report for a routine approved review.
+
+Emit a full review body only when blocking UX/accessibility issues require
+durable prose or the classifier explicitly requested a report artifact.
+
 ```md
 # UI/UX Review
 

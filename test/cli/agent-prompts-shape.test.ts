@@ -4,7 +4,7 @@ import { join } from 'path';
 
 const repoRoot = process.cwd();
 
-// All 16 agent names
+// All 17 agent names
 const ALL_AGENTS = [
   'backend-engineer',
   'change-classifier',
@@ -13,6 +13,7 @@ const ALL_AGENTS = [
   'dependency-security-reviewer',
   'e2e-resilience-engineer',
   'frontend-engineer',
+  'implementation-planner',
   'monkey-test-engineer',
   'qa-reviewer',
   'repo-context-scanner',
@@ -31,6 +32,7 @@ const SCOPED_AGENTS = [
   'contract-reviewer',
   'e2e-resilience-engineer',
   'frontend-engineer',
+  'implementation-planner',
   'monkey-test-engineer',
   'qa-reviewer',
   'spec-architect',

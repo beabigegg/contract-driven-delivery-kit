@@ -60,6 +60,7 @@ Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to 
 - **DO NOT** write: mock setup details, fixture data, or expected JSON payloads
 - **DO NOT** write: per-test input/output tables with more than 15 rows
 - **DO NOT** write: example assertions or test helper code
+- **DO NOT** duplicate CI gate policy or implementation-plan execution steps; reference the relevant gate names and acceptance criteria instead.
 
 Implementation detail belongs in the test files, not in test-plan.md.
 Target: `test-plan.md` ??100 lines.

@@ -24,6 +24,14 @@ last-changed: <date>
 |---|---|---|---|
 | IP-1 |  |  |  |
 
+## Source Artifact Pointers
+
+| source | relevant pointer | used for |
+|---|---|---|
+| test-plan.md | AC-1 | tests to run/write |
+| ci-gates.md | required gates table | verification commands |
+| design.md | Decision:  | implementation constraint |
+
 ## File-Level Plan
 
 | path or glob | action | notes |
@@ -48,6 +56,7 @@ last-changed: <date>
 ## Handoff Constraints
 
 - Implementation agents must not infer missing requirements from chat history.
+- Do not re-copy full design, test strategy, CI policy, or contract prose into this plan; follow the source pointers above.
 - If this plan omits a required file, behavior, contract, or test, stop and report `blocked`.
 - Keep implementation within the file-level plan unless a Context Expansion Request is approved.
 

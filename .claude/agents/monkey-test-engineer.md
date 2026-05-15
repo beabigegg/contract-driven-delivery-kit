@@ -37,6 +37,11 @@ id, seed/input, baseline commit or prior evidence, and whether this change
 touched the failing surface. Mark it as a follow-up when it is outside this
 change's scope; keep new or regressed failures blocking.
 
+Default reporting should be concise response text plus optional
+`agent-log/*.yml` evidence pointers. Create `monkey-test-report.md` only when
+classification explicitly requires it, when failures or excluded pre-existing
+issues need durable prose, or when QA needs approved-with-risk evidence.
+
 ## Tools
 
 - Property-based ??fast-check (JS/TS), hypothesis (Python), proptest (Rust) for state machine invariants.

@@ -33,7 +33,10 @@ Before editing tests, read `specs/changes/<change-id>/implementation-plan.md` an
 
 ## Output
 
-Record test files, scenarios, fixtures/mocks, commands, screenshots/videos, and mutation checks.
+Record test files, scenarios, fixtures/mocks, commands, screenshots/videos, and
+mutation checks in concise response text plus optional `agent-log/*.yml`
+evidence pointers. Do not create separate markdown reports unless
+classification explicitly requires one or failures need durable prose.
 
 ## Read scope
 

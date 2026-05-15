@@ -70,7 +70,7 @@ describe('cdd-kit new', () => {
     expect(data['change-id']).toBe('feat-bundled-template');
     expect(data['context-governance']).toBe('v1');
     expect(Array.isArray(data.tasks)).toBe(true);
-    expect(data.tasks as unknown[]).toHaveLength(29);
+    expect(data.tasks as unknown[]).toHaveLength(30);
     expect(raw).not.toContain('stale-project-template');
   });
 

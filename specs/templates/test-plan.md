@@ -22,4 +22,4 @@ Mark all that apply: unit / contract / integration / e2e / data-boundary / resil
 
 ## Notes
 
-(Keep this section under 10 lines. Implementation detail belongs in the test files themselves.)
+(Keep this section under 10 lines. Implementation detail belongs in the test files themselves. Do not repeat full implementation-plan or CI-gate content here.)

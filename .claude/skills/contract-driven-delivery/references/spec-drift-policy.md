@@ -25,4 +25,7 @@ Run a drift audit when:
 
 ## Output
 
-Use `templates/regression-report.md` or create `spec-drift-audit.md` when the audit is standalone.
+Use concise verdict text plus optional `agent-log/*.yml` evidence pointers for
+clean audits. Use `templates/regression-report.md` or create
+`spec-drift-audit.md` only when drift is found, the user asked for standalone
+audit documentation, or the change needs durable follow-up prose.

@@ -44,12 +44,55 @@ describe('CDD skill prompt integration', () => {
     expect(planner).toMatch(/implementation-plan\.md/);
     expect(planner).toMatch(/execution packet/i);
     expect(planner).toMatch(/not infer/i);
+    expect(planner).toMatch(/Edit tool/);
+    expect(planner).toMatch(/Do not create or repair\s+`design\.md`/);
     expect(planner).toMatch(/### Suggested artifacts for this agent/);
     expect(backend).toMatch(/implementation-plan\.md/);
     expect(backend).toMatch(/report `blocked` instead of inferring requirements/i);
     expect(frontend).toMatch(/implementation-plan\.md/);
     expect(frontend).toMatch(/report `blocked` instead of inferring requirements/i);
+    expect(tasks).toContain('Confirm design decisions if required');
     expect(tasks).toContain('Confirm implementation plan');
+  });
+
+  it('design.md is owned by spec-architect before implementation planning', () => {
+    const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
+    const classifier = readFileSync(join(repoRoot, '.claude', 'agents', 'change-classifier.md'), 'utf8');
+    const architect = readFileSync(join(repoRoot, '.claude', 'agents', 'spec-architect.md'), 'utf8');
+    const planner = readFileSync(join(repoRoot, '.claude', 'agents', 'implementation-planner.md'), 'utf8');
+    const resume = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-resume', 'SKILL.md'), 'utf8');
+
+    expect(cddNew).toMatch(/`design\.md` is owned by `spec-architect`, not `implementation-planner`/);
+    expect(cddNew).toMatch(/marks `design\.md` as `yes`[\s\S]*lists `spec-architect`/);
+    expect(classifier).toMatch(/If `design\.md` is `yes`[\s\S]*`spec-architect` must be listed/);
+    expect(architect).toMatch(/owner for `specs\/changes\/<change-id>\/design\.md`/);
+    expect(planner).toMatch(/route back to `spec-architect`/);
+    expect(resume).toMatch(/resume from `spec-architect` before invoking `implementation-planner`/);
+  });
+
+  it('keeps optional markdown reports minimized and avoids duplicate artifact content', () => {
+    const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
+    const workflow = readFileSync(join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'SKILL.md'), 'utf8');
+    const classifier = readFileSync(join(repoRoot, '.claude', 'agents', 'change-classifier.md'), 'utf8');
+    const planner = readFileSync(join(repoRoot, '.claude', 'agents', 'implementation-planner.md'), 'utf8');
+    const template = readFileSync(join(repoRoot, 'specs', 'templates', 'implementation-plan.md'), 'utf8');
+    const qa = readFileSync(join(repoRoot, '.claude', 'agents', 'qa-reviewer.md'), 'utf8');
+    const visual = readFileSync(join(repoRoot, '.claude', 'agents', 'visual-reviewer.md'), 'utf8');
+
+    for (const content of [cddNew, workflow, classifier]) {
+      expect(content).toMatch(/agent-log\/\*\.yml/);
+      expect(content).toMatch(/blocking findings/i);
+      expect(content).toMatch(/approved-with-risk/i);
+    }
+
+    expect(classifier).toMatch(/visual-review-report\.md/);
+    expect(classifier).toMatch(/monkey-test-report\.md/);
+    expect(classifier).toMatch(/stress-soak-report\.md/);
+    expect(planner).toMatch(/Do not copy their full\s+prose/i);
+    expect(template).toMatch(/Source Artifact Pointers/);
+    expect(template).toMatch(/Do not re-copy full design/);
+    expect(qa).toMatch(/Do not ask main Claude to create `qa-report\.md` for a\s+routine approved change/i);
+    expect(visual).toMatch(/Do not ask main Claude to create\s+`visual-review-report\.md`/i);
   });
 
   it('cdd-resume resumes from manifest and logs without broad repository scans', () => {

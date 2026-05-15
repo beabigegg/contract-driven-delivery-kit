@@ -94,8 +94,8 @@ or
 3. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
 4. If the request is too broad, the classifier can return an atomic split proposal instead of forcing one Tier 0/1 monolith
 5. For Tier 0-1 work, Claude's narration uses stage badges so users can tell whether the flow is deciding, implementing, testing, or reviewing
-6. Agents run in order: contracts ??test plan ??spec/architecture review (if needed) ??CI/CD gates ??implementation plan ??backend engineer ??frontend engineer ??QA
-7. `implementation-planner` writes `implementation-plan.md`, the concise execution packet implementation agents follow
+6. Agents run in order: contracts ??test plan ??`spec-architect` writes `design.md` if required ??CI/CD gates ??implementation plan ??backend engineer ??frontend engineer ??QA
+7. `implementation-planner` reads the confirmed artifacts and writes `implementation-plan.md`, the concise execution packet implementation agents follow. It does not create `design.md`; missing required design routes back to `spec-architect`.
 8. Implementation agents write code/tests from that plan and optional concise handoff notes
 9. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
 10. Claude reports a summary and the suggested git commit
@@ -120,13 +120,31 @@ Machine-readable metadata such as future `change.yml` / `trace.yml` should follo
 CDD uses two agent classes on purpose:
 
 - `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or optional handoff notes; main Claude writes the corresponding files.
-- `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own implementation artifacts directly.
+- `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own owned artifacts directly: for example, `spec-architect` owns `design.md`, while `implementation-planner` owns `implementation-plan.md`.
 
 This split is deliberate:
 
 - Review and audit agents stay read-only so they do not silently change the thing they are supposed to assess.
 - Implementation and planning agents write directly so large artifacts and code edits do not have to be relayed back through the main orchestrator, which reduces token waste and preserves clearer ownership.
 - `tasks.yml` remains owned by main Claude so task state changes stay centralized even when multiple agents contribute files.
+
+### Artifact Minimization
+
+CDD keeps the authoritative artifact set small. Routine reviewer findings should
+not become new markdown files.
+
+| artifact class | files | rule |
+|---|---|---|
+| Core decision and planning | `change-classification.md`, `context-manifest.md`, `test-plan.md`, `ci-gates.md`, `implementation-plan.md`, `tasks.yml` | required for implementation changes |
+| Conditional design | `design.md` | only when `spec-architect` is required |
+| Durable evidence reports | `qa-report.md`, `visual-review-report.md`, `regression-report.md`, `monkey-test-report.md`, `stress-soak-report.md` | only for blocking findings, approved-with-risk, excluded pre-existing failures, visual evidence bundles, or high-risk load/soak results |
+| Lightweight traces | `agent-log/*.yml` | optional concise pointers for routine evidence and resume/debugging |
+
+Later artifacts should reference earlier artifacts by path, section, acceptance
+criterion, decision id, or gate name. They should not copy full test strategy,
+CI policy, design rationale, or contract prose. This keeps token use bounded
+and prevents multiple markdown files from becoming conflicting sources of
+truth.
 
 **You stay in control by:**
 - Reviewing the `change-classification.md` before implementation starts
@@ -297,12 +315,12 @@ What gets updated:
 | `cdd-kit refresh --yes` | global agents/skills, missing project files, kit-shipped templates with backup, model policy roles, hooks, `.cdd/code-map.yml` | user source, contracts content, active change content |
 | `cdd-kit migrate --all` | existing `specs/changes/*` metadata and new required scaffolds | implementation code and completed archive history |
 
-For this release, run `cdd-kit refresh --yes` so the new
+For releases 2.0.18 and newer, run `cdd-kit refresh --yes` so the
 `implementation-planner` agent, updated `/cdd-new` and `/cdd-resume` skills,
 fresh `specs/templates/`, and `.cdd/model-policy.json` role binding are all in
 place. Then run `cdd-kit migrate --all` so existing active change directories
-receive `implementation-plan.md`; fill that plan before resuming implementation
-agents.
+receive `implementation-plan.md`; fill required `design.md` with
+`spec-architect` before resuming the planner or implementation agents.
 
 If you do not want template overwrites, run the narrower path:
 
@@ -578,6 +596,10 @@ cdd-kit new add-user-auth --force   # overwrite existing directory
 cdd-kit new add-user-api --depends-on add-user-db
 cdd-kit new add-user-auth --skip-scan
 ```
+
+Prefer the default scaffold. `--all` is mainly for template inspection or
+manual workflows; `/cdd-new` should create optional markdown only when
+classification requires it or review evidence needs durable prose.
 
 By default, `cdd-kit new` auto-runs `cdd-kit context-scan` when `specs/context/` indexes are missing or stale. Use `--skip-scan` only if you intentionally want a bare scaffold without refreshing classifier indexes first.
 

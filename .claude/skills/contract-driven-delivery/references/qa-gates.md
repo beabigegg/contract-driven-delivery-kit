@@ -20,7 +20,11 @@
 
 ## QA rule
 
-QA approval requires evidence. Evidence may be command output, CI links, logs, screenshots, videos, traces, metrics, or artifact files.
+QA approval requires evidence. Evidence may be command output, CI links, logs,
+screenshots, videos, traces, metrics, or artifact files. Routine approvals
+should use concise verdict text plus optional `agent-log/*.yml` pointers.
+Create `qa-report.md` only for blocked, approved-with-risk, or excluded
+pre-existing failure decisions.
 
 ## Fixback rule
 
