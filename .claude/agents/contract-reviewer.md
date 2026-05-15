@@ -1,4 +1,4 @@
-﻿---
+---
 name: contract-reviewer
 description: Review and maintain API, CSS/UI, env, data-shape, business-rule, and CI/CD contracts for every change. Dependency and migration contracts are recorded here at contract level only; the active audit lives in dependency-security-reviewer.
 tools: Read, Grep, Glob

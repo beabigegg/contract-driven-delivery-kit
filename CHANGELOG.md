@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.20] - 2026-05-15
+
+Patch release for UTF-8 BOM handling in Claude agent metadata files.
+
+### Fixed
+
+- Removed UTF-8 BOM bytes from packaged Claude agent and skill sources so YAML
+  frontmatter starts at `---` and Claude Code can mount subagents reliably.
+- `cdd-kit lint-agents` now rejects agent files that start with `U+FEFF`, since
+  frontmatter parsers may otherwise treat the first key as invalid.
+- Added package-source and generated-assets regression coverage to prevent BOM
+  bytes from being shipped again.
+
 ## [2.0.19] - 2026-05-15
 
 Design ownership patch for the implementation-planning flow.

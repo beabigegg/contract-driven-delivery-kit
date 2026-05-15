@@ -1,4 +1,4 @@
-﻿---
+---
 name: cdd-new
 description: Start a new tracked change. Scaffolds all required artifacts, classifies the change by risk tier, commissions the right agents in order, and runs cdd-kit gate. Args: <change description in natural language>
 ---

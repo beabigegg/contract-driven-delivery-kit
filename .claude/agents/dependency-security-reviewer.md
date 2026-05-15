@@ -1,4 +1,4 @@
-﻿---
+---
 name: dependency-security-reviewer
 description: Reviews dependency CVE risk, license compliance (GPL/AGPL copyleft vs proprietary), lockfile changes, and database migrations whenever lockfiles, dependency manifests, or database migrations are touched.
 tools: Read, Grep, Glob, Bash

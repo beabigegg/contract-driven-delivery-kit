@@ -1,4 +1,4 @@
-﻿---
+---
 name: qa-reviewer
 description: Execute quality gates, verify evidence, route failures back to the correct agent, and decide release readiness.
 tools: Read, Grep, Glob, Bash

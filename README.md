@@ -1,4 +1,4 @@
-﻿# Contract-Driven Delivery Kit
+# Contract-Driven Delivery Kit
 
 **cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification, with deterministic context indexes to keep agent work targeted.
 

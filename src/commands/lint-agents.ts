@@ -1,4 +1,4 @@
-﻿import { readdirSync, readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { load as yamlLoad } from 'js-yaml';
 import { log } from '../utils/logger.js';
@@ -117,6 +117,16 @@ export async function lintAgents(opts: LintAgentsOptions): Promise<number> {
         level: 'error',
       });
       continue;
+    }
+
+    if (content.charCodeAt(0) === 0xfeff) {
+      violations.push({
+        file: filename,
+        rule: 'Meta',
+        message: 'file starts with UTF-8 BOM (U+FEFF); frontmatter parsers may treat the first key as invalid',
+        level: 'error',
+      });
+      content = content.slice(1);
     }
 
     // ?? Rule A: Suggested artifacts section must have a YAML fence with artifacts:

@@ -1,4 +1,4 @@
-﻿---
+---
 name: e2e-resilience-engineer
 description: Design and implement E2E, browser-behavior, failure-injection, data-boundary, and resilience tests for production-like user journeys.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash

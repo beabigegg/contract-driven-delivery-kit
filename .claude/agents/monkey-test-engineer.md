@@ -1,4 +1,4 @@
-﻿---
+---
 name: monkey-test-engineer
 description: Design preventive specs and structured exploratory tests for invalid user operations, adversarial inputs, malformed data, rapid UI actions, and production misuse. Not random fuzzing -- every monkey scenario is mapped to a known failure mode or hardening goal.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash

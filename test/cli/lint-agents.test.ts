@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
@@ -220,5 +220,17 @@ describe('cdd-kit lint-agents', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/stray top-level key/i);
     expect(r.stderr).toMatch(/pointer/);
+  });
+
+  it('6 rejects UTF-8 BOM before frontmatter', () => {
+    const agentsDir = makeAgentsDir(tmpDir);
+    writeFileSync(
+      join(agentsDir, 'bom.md'),
+      Buffer.from('\uFEFF' + passingAgentContent(), 'utf8'),
+    );
+
+    const r = runCli(['lint-agents'], { cwd: tmpDir, home: tmpHome });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/UTF-8 BOM|U\+FEFF/i);
   });
 });

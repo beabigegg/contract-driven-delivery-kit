@@ -1,4 +1,4 @@
-﻿---
+---
 name: change-classifier
 description: Classify incoming requests into change types and decide required artifacts, contracts, tests, and review gates before implementation.
 tools: Read, Grep, Glob

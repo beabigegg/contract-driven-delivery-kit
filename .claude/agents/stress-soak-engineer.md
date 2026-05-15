@@ -1,4 +1,4 @@
-﻿---
+---
 name: stress-soak-engineer
 description: Design stress, load, soak, and long-running stability tests for reporting systems, queues, caches, auto-refresh, and data-heavy features.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash

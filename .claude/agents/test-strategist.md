@@ -1,4 +1,4 @@
-﻿---
+---
 name: test-strategist
 description: Convert specs and acceptance criteria into TDD-oriented test plans covering unit, contract, integration, E2E, resilience, monkey, stress, and soak tests.
 tools: Read, Grep, Glob, Edit, Write

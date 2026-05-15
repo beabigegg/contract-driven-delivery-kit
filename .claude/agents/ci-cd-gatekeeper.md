@@ -1,4 +1,4 @@
-﻿---
+---
 name: ci-cd-gatekeeper
 description: Enforce CI/CD as a required delivery artifact; design and implement required, informational, nightly, weekly, and manual gates with promotion policy.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash

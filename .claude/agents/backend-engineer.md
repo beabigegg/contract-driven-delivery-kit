@@ -1,4 +1,4 @@
-﻿---
+---
 name: backend-engineer
 description: Implement backend changes only after specs, contracts, tests, and CI gates are defined; maintain thin controllers, service boundaries, validation, and error handling.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash

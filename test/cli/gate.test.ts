@@ -1,4 +1,4 @@
-﻿import { describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
