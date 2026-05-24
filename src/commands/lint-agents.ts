@@ -7,7 +7,7 @@ export interface LintAgentsOptions {
   strict?: boolean;
 }
 
-interface Violation {
+export interface Violation {
   file: string;
   rule: string;
   message: string;
@@ -73,23 +73,147 @@ function strayTopLevelKeys(yamlBody: string): string[] | null {
 
 /**
  * Check whether content outside the YAML fence contains flat backtick-keyed lines
- * like `- \`files-changed\`: ?圳 that look like the OLD artifacts format.
+ * like `- \`files-changed\`:` that look like the OLD artifacts format.
  *
- * Only flags when there is NO yaml fence with `artifacts:` ??the description
+ * Only flags when there is NO yaml fence with `artifacts:` -- the description
  * bullets in the new format (`- \`type\`: description`) are intentionally present
  * alongside the YAML block and must not be flagged.
  */
 function hasFlatBacktickKeysWithoutFence(section: string): boolean {
   // If the section already has the proper yaml fence with artifacts:, the
-  // description bullet lines are part of the new valid format ??not a problem.
+  // description bullet lines are part of the new valid format -- not a problem.
   if (/```ya?ml\s*\nartifacts:/.test(section)) return false;
   // Without a fence, any backtick-keyed list item is the old flat-key format.
   const withoutFence = section.replace(/```ya?ml[\s\S]*?```/g, '');
   return /^- `[a-z][a-z0-9-]+`:/m.test(withoutFence);
 }
 
-export async function lintAgents(opts: LintAgentsOptions): Promise<number> {
-  const cwd = process.cwd();
+/**
+ * Run every agent-prompt lint rule against one file's content and return the
+ * violations found. Pure: no I/O, no process state. This is the single source
+ * of truth for agent-prompt shape rules; both the `lint-agents` CLI and
+ * `cdd-kit doctor` consume it so they cannot drift apart.
+ */
+export function lintAgentContent(
+  filename: string,
+  rawContent: string,
+  opts: LintAgentsOptions = {},
+): Violation[] {
+  const violations: Violation[] = [];
+  let content = rawContent;
+
+  if (content.charCodeAt(0) === 0xfeff) {
+    violations.push({
+      file: filename,
+      rule: 'Meta',
+      message:
+        'file starts with UTF-8 BOM (U+FEFF); frontmatter parsers may treat the first key as invalid',
+      level: 'error',
+    });
+    content = content.slice(1);
+  }
+
+  // Rule A: Suggested artifacts section must have a YAML fence with artifacts:
+  //         and at least one { type, pointer } line; must NOT have flat keys
+  const artifactsSection = extractRequiredArtifactsSection(content);
+  if (!artifactsSection) {
+    violations.push({
+      file: filename,
+      rule: 'A',
+      message: 'missing ### Suggested artifacts for this agent section',
+      level: 'error',
+    });
+  } else {
+    const yamlBlock = extractYamlBlock(artifactsSection);
+    if (!yamlBlock || !/```ya?ml\s*\nartifacts:/.test(yamlBlock)) {
+      violations.push({
+        file: filename,
+        rule: 'A',
+        message: 'bad Suggested-artifacts format: missing fenced yaml block starting with "artifacts:"',
+        level: 'error',
+      });
+    } else if (!yamlBlock.includes('{ type:') && !/- \{/.test(yamlBlock)) {
+      violations.push({
+        file: filename,
+        rule: 'A',
+        message: 'bad Suggested-artifacts format: YAML block has no { type: ..., pointer: ... } items',
+        level: 'error',
+      });
+    } else {
+      // Rule A strengthening: parse YAML body and ensure no stray sibling keys
+      // alongside `artifacts:`. The agent-log schema enforces additionalProperties:
+      // false at runtime, but agents copy the prompt example verbatim -- a stray
+      // `pointer:` or `type:` at the top level here trains the wrong shape.
+      const yamlBody = extractYamlBody(artifactsSection);
+      if (yamlBody) {
+        const stray = strayTopLevelKeys(yamlBody);
+        if (stray && stray.length > 0) {
+          violations.push({
+            file: filename,
+            rule: 'A',
+            message: `bad Suggested-artifacts format: stray top-level key(s) alongside artifacts: [${stray.join(', ')}] -- these are item keys, not log keys`,
+            level: 'error',
+          });
+        }
+      }
+    }
+
+    if (hasFlatBacktickKeysWithoutFence(artifactsSection)) {
+      violations.push({
+        file: filename,
+        rule: 'A',
+        message: 'bad Suggested-artifacts format: flat backtick-keyed lines found outside YAML fence (remove old `key: value` bullet style)',
+        level: 'error',
+      });
+    }
+  }
+
+  // Rule B: At most one ## Read scope heading
+  const readScopeCount = (content.match(/^## Read scope\s*$/gm) ?? []).length;
+  if (readScopeCount > 1) {
+    violations.push({
+      file: filename,
+      rule: 'B',
+      message: `duplicate ## Read scope headings found (${readScopeCount} occurrences -- remove all but the first)`,
+      level: 'error',
+    });
+  }
+
+  // Rule C: When ## Read scope is present, it must reference context-manifest.md
+  if (readScopeCount >= 1) {
+    const readScopeSection = extractFirstReadScopeSection(content);
+    if (readScopeSection && !readScopeSection.includes('context-manifest.md')) {
+      violations.push({
+        file: filename,
+        rule: 'C',
+        message: '## Read scope section does not reference context-manifest.md',
+        level: 'error',
+      });
+    }
+  }
+
+  // Rule D: File must reference references/agent-log-protocol.md
+  if (!content.includes('references/agent-log-protocol.md')) {
+    violations.push({
+      file: filename,
+      rule: 'D',
+      message: 'missing reference to references/agent-log-protocol.md',
+      level: opts.strict ? 'error' : 'warning',
+    });
+  }
+
+  return violations;
+}
+
+/**
+ * Read every `.claude/agents/*.md` under `cwd` and collect lint violations.
+ * Returns `null` when the agents directory cannot be read (not a cdd-kit
+ * project). Shared by the `lint-agents` CLI and `cdd-kit doctor`.
+ */
+export function collectAgentViolations(
+  cwd: string,
+  opts: LintAgentsOptions = {},
+): Violation[] | null {
   const agentsDir = join(cwd, '.claude', 'agents');
 
   let files: string[];
@@ -98,17 +222,14 @@ export async function lintAgents(opts: LintAgentsOptions): Promise<number> {
       .filter(f => f.endsWith('.md'))
       .sort();
   } catch {
-    log.error(`lint-agents: cannot read ${agentsDir} ??is this a cdd-kit project?`);
-    return 1;
+    return null;
   }
 
   const violations: Violation[] = [];
-
   for (const filename of files) {
-    const filePath = join(agentsDir, filename);
     let content: string;
     try {
-      content = readFileSync(filePath, 'utf8');
+      content = readFileSync(join(agentsDir, filename), 'utf8');
     } catch {
       violations.push({
         file: filename,
@@ -118,111 +239,26 @@ export async function lintAgents(opts: LintAgentsOptions): Promise<number> {
       });
       continue;
     }
+    violations.push(...lintAgentContent(filename, content, opts));
+  }
+  return violations;
+}
 
-    if (content.charCodeAt(0) === 0xfeff) {
-      violations.push({
-        file: filename,
-        rule: 'Meta',
-        message: 'file starts with UTF-8 BOM (U+FEFF); frontmatter parsers may treat the first key as invalid',
-        level: 'error',
-      });
-      content = content.slice(1);
-    }
+export async function lintAgents(opts: LintAgentsOptions): Promise<number> {
+  const cwd = process.cwd();
+  const violations = collectAgentViolations(cwd, opts);
 
-    // ?? Rule A: Suggested artifacts section must have a YAML fence with artifacts:
-    //            and at least one { type, pointer } line; must NOT have flat keys
-    const artifactsSection = extractRequiredArtifactsSection(content);
-    if (!artifactsSection) {
-      violations.push({
-        file: filename,
-        rule: 'A',
-        message: 'missing ### Suggested artifacts for this agent section',
-        level: 'error',
-      });
-    } else {
-      const yamlBlock = extractYamlBlock(artifactsSection);
-      if (!yamlBlock || !/```ya?ml\s*\nartifacts:/.test(yamlBlock)) {
-        violations.push({
-          file: filename,
-          rule: 'A',
-          message: 'bad Suggested-artifacts format: missing fenced yaml block starting with "artifacts:"',
-          level: 'error',
-        });
-      } else if (!yamlBlock.includes('{ type:') && !/- \{/.test(yamlBlock)) {
-        violations.push({
-          file: filename,
-          rule: 'A',
-          message: 'bad Suggested-artifacts format: YAML block has no { type: ..., pointer: ... } items',
-          level: 'error',
-        });
-      } else {
-        // Rule A strengthening: parse YAML body and ensure no stray sibling keys
-        // alongside `artifacts:`. The agent-log schema enforces additionalProperties:
-        // false at runtime, but agents copy the prompt example verbatim ??a stray
-        // `pointer:` or `type:` at the top level here trains the wrong shape.
-        const yamlBody = extractYamlBody(artifactsSection);
-        if (yamlBody) {
-          const stray = strayTopLevelKeys(yamlBody);
-          if (stray && stray.length > 0) {
-            violations.push({
-              file: filename,
-              rule: 'A',
-              message: `bad Suggested-artifacts format: stray top-level key(s) alongside artifacts: [${stray.join(', ')}] ??these are item keys, not log keys`,
-              level: 'error',
-            });
-          }
-        }
-      }
-
-      if (hasFlatBacktickKeysWithoutFence(artifactsSection)) {
-        violations.push({
-          file: filename,
-          rule: 'A',
-          message: 'bad Suggested-artifacts format: flat backtick-keyed lines found outside YAML fence (remove old `key: value` bullet style)',
-          level: 'error',
-        });
-      }
-    }
-
-    // ?? Rule B: At most one ## Read scope heading
-    const readScopeCount = (content.match(/^## Read scope\s*$/gm) ?? []).length;
-    if (readScopeCount > 1) {
-      violations.push({
-        file: filename,
-        rule: 'B',
-        message: `duplicate ## Read scope headings found (${readScopeCount} occurrences ??remove all but the first)`,
-        level: 'error',
-      });
-    }
-
-    // ?? Rule C: When ## Read scope is present, it must reference context-manifest.md
-    if (readScopeCount >= 1) {
-      const readScopeSection = extractFirstReadScopeSection(content);
-      if (readScopeSection && !readScopeSection.includes('context-manifest.md')) {
-        violations.push({
-          file: filename,
-          rule: 'C',
-          message: '## Read scope section does not reference context-manifest.md',
-          level: 'error',
-        });
-      }
-    }
-
-    // ?? Rule D: File must reference references/agent-log-protocol.md
-    if (!content.includes('references/agent-log-protocol.md')) {
-      violations.push({
-        file: filename,
-        rule: 'D',
-        message: 'missing reference to references/agent-log-protocol.md',
-        level: opts.strict ? 'error' : 'warning',
-      });
-    }
+  if (violations === null) {
+    log.error(
+      `lint-agents: cannot read ${join(cwd, '.claude', 'agents')} -- is this a cdd-kit project?`,
+    );
+    return 1;
   }
 
-  // ?? Output violations to stderr
+  // Output violations to stderr
   for (const v of violations) {
     const prefix = v.level === 'error' ? 'error' : 'warning';
-    process.stderr.write(`${v.file}: [Rule ${v.rule}] ${prefix} ??${v.message}\n`);
+    process.stderr.write(`${v.file}: [Rule ${v.rule}] ${prefix} -- ${v.message}\n`);
   }
 
   const errorCount = violations.filter(v => v.level === 'error').length;

@@ -129,7 +129,7 @@ function processClassDeclaration(node: ClassDeclaration, nameOverride?: string):
       methods.push({
         name: methodName,
         lines: getLineRange(m),
-        async: m.async,
+        async: m.async ?? false,
       });
     }
   }

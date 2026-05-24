@@ -4,6 +4,7 @@ import { join, relative } from 'path';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
+import { collectAgentViolations } from './lint-agents.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -194,46 +195,32 @@ function checkModelPolicyDrift(cwd: string): Finding[] {
   return findings;
 }
 
-async function checkAgentLint(cwd: string): Promise<Finding[]> {
+function checkAgentLint(cwd: string): Finding[] {
   const agentsDir = join(cwd, '.claude', 'agents');
   if (!existsSync(agentsDir)) return [];
 
-  try {
-    // Inline a minimal shape check for doctor output; full detail is from `cdd-kit lint-agents`
-    const { readdirSync: rds, readFileSync: rfs } = await import('fs');
-    const files = rds(agentsDir).filter((f: string) => f.endsWith('.md'));
-    if (files.length === 0) return [];
-
-    // We need to run lintAgents from the cwd context. Use a subprocess approach
-    // to capture findings without forking: re-implement a minimal inline check.
-    const findings: Finding[] = [];
-    for (const filename of files) {
-      const content = rfs(join(agentsDir, filename), 'utf8');
-      // Check for artifacts YAML fence
-      const artifactsSection = content.match(
-        /### Required artifacts for this agent\s*\n[\s\S]*?(?=\n#{2,3} |\n---|\s*$)/,
-      )?.[0];
-      if (!artifactsSection || !/```ya?ml\s*\nartifacts:/.test(artifactsSection)) {
-        findings.push({
-          level: 'warning',
-          message: `lint-agents: ${filename}: missing artifacts YAML block in Required artifacts section`,
-        });
-      }
-      const readScopeCount = (content.match(/^## Read scope\s*$/gm) ?? []).length;
-      if (readScopeCount > 1) {
-        findings.push({
-          level: 'warning',
-          message: `lint-agents: ${filename}: duplicate ## Read scope headings (${readScopeCount})`,
-        });
-      }
-    }
-    if (findings.length === 0) {
-      findings.push({ level: 'ok', message: 'lint-agents: all agent prompts pass shape checks' });
-    }
-    return findings;
-  } catch {
-    return [];
+  // Delegate to the single source of truth for agent-prompt shape rules so
+  // doctor and `cdd-kit lint-agents` can never report different verdicts.
+  const violations = collectAgentViolations(cwd);
+  if (violations === null) {
+    // The directory exists (checked above) but readdir failed -- a real
+    // permission/IO error, not "no agents configured". Surface it instead of
+    // silently reporting a clean pass.
+    return [{
+      level: 'warning',
+      message: `lint-agents: could not read ${join('.claude', 'agents')} -- agent prompts were not scanned`,
+    }];
   }
+
+  const findings: Finding[] = violations.map(v => ({
+    level: 'warning',
+    message: `lint-agents: ${v.file}: [Rule ${v.rule}] ${v.message}`,
+  }));
+
+  if (findings.length === 0) {
+    findings.push({ level: 'ok', message: 'lint-agents: all agent prompts pass shape checks' });
+  }
+  return findings;
 }
 
 function checkCodeMap(cwd: string): Finding[] {
@@ -298,7 +285,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
 
   findings.push(...checkContextFreshness(cwd));
   findings.push(...checkModelPolicyDrift(cwd));
-  findings.push(...await checkAgentLint(cwd));
+  findings.push(...checkAgentLint(cwd));
   findings.push(...checkCodeMap(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;

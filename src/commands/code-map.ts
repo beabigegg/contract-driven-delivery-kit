@@ -5,8 +5,10 @@ import { log } from '../utils/logger.js';
 import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
 import { loadCodeMapConfig } from '../code-map/config.js';
+import { sidecarPathFor } from '../code-map/index-reader.js';
 import { sha256OfFileNormalized } from '../utils/digest.js';
-import type { ScannerResult } from '../code-map/types.js';
+import { ensureGitignoreEntry } from '../utils/gitignore.js';
+import type { Scanner, ScannerResult } from '../code-map/types.js';
 
 /**
  * Compute a stable digest of the source files included in a code-map run.
@@ -41,7 +43,18 @@ const _pkg = JSON.parse(readFileSync(_pkgPath, 'utf8')) as { version: string };
 
 export interface CodeMapOptions {
   path: string;
-  out: string;
+  out?: string;
+  /**
+   * Monorepo sugar: scope the scan to this subtree and, unless `out` is set
+   * explicitly, name the map `.cdd/code-map.<slug>.yml`. Query it later with
+   * `cdd-kit index query <term> --map .cdd/code-map.<slug>.yml`.
+   */
+  surface?: string;
+  /**
+   * Parallelize JS/TS/Vue scanning across this many child processes. 0/1 = the
+   * default single-process path. Opt-in via `cdd-kit code-map --workers`.
+   */
+  workers?: number;
   include: string[];
   exclude: string[];
   check: boolean;
@@ -49,9 +62,26 @@ export interface CodeMapOptions {
   silent?: boolean;
 }
 
+/** `packages/web` -> `packages-web`; used for the per-surface map filename. */
+function slugifySurface(surface: string): string {
+  return surface.replace(/^[./]+/, '').replace(/\/+$/, '').replace(/[\\/]+/g, '-') || 'root';
+}
+
 export async function codeMap(opts: CodeMapOptions): Promise<number> {
-  const root = resolve(process.cwd(), opts.path);
   const start = Date.now();
+
+  if (opts.surface) {
+    const resolvedSurface = resolve(process.cwd(), opts.surface);
+    if (!existsSync(resolvedSurface)) {
+      log.error(`code-map --surface path not found: ${opts.surface}`);
+      return 1;
+    }
+  }
+
+  const scanPath = opts.surface ?? opts.path;
+  const root = resolve(process.cwd(), scanPath);
+  const out = opts.out
+    ?? (opts.surface ? `.cdd/code-map.${slugifySurface(opts.surface)}.yml` : '.cdd/code-map.yml');
 
   // Resolve config: built-in defaults, optionally replaced by .cdd/code-map-config.yml.
   // CLI --include / --exclude are appended on top of whichever lists won.
@@ -70,10 +100,22 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   const result: ScannerResult = { entries: [], warnings: [] };
 
+  // Optional parallelism for the in-process (Babel) scanners. Default off; the
+  // child worker re-runs this same CLI, so it only works when invoked through
+  // it (process.argv[1] resolvable) — otherwise we transparently use one process.
+  const cliEntry = process.argv[1];
+  const workers = opts.workers ?? 0;
+  const useWorkers = workers > 1 && typeof cliEntry === 'string' && cliEntry.length > 0;
+  const dispatch = async (scanner: Scanner, lang: string, langFiles: string[]): Promise<ScannerResult> => {
+    if (!useWorkers) return scanInProcess(scanner, langFiles, root);
+    const { scanLangWithWorkers } = await import('../code-map/worker-dispatch.js');
+    return scanLangWithWorkers(scanner, lang, langFiles, root, workers, cliEntry);
+  };
+
   // Dynamically import scanners (batch 2–4 will provide them)
   const tasks: Promise<ScannerResult>[] = [];
 
-  // Python scanner (batch path)
+  // Python scanner (batch path) — already runs in its own subprocess.
   if (buckets['.py']?.length) {
     const { pythonScanner } = await import('../code-map/scanners/python.js');
     if (pythonScanner.scanBatch) {
@@ -90,7 +132,7 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   ];
   if (jsFiles.length) {
     const { jsScanner } = await import('../code-map/scanners/javascript.js');
-    tasks.push(scanInProcess(jsScanner, jsFiles, root));
+    tasks.push(dispatch(jsScanner, 'js', jsFiles));
   }
 
   // TypeScript scanner — handles .ts / .tsx
@@ -100,13 +142,13 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   ];
   if (tsFiles.length) {
     const { tsScanner } = await import('../code-map/scanners/typescript.js');
-    tasks.push(scanInProcess(tsScanner, tsFiles, root));
+    tasks.push(dispatch(tsScanner, 'ts', tsFiles));
   }
 
   // Vue scanner
   if (buckets['.vue']?.length) {
     const { vueScanner } = await import('../code-map/scanners/vue.js');
-    tasks.push(scanInProcess(vueScanner, buckets['.vue'], root));
+    tasks.push(dispatch(vueScanner, 'vue', buckets['.vue']));
   }
 
   for (const r of await Promise.all(tasks)) {
@@ -138,14 +180,14 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   const totalSrc = result.entries.reduce((s, e) => s + e.total_lines, 0);
   const mapLines = yamlBody.split('\n').length;
   const compression = totalSrc === 0 ? 0 : totalSrc / mapLines;
-  const summaryLine = `scanned ${result.entries.length} files, ${totalSrc} src lines -> ${opts.out} (${mapLines} lines, compression ${compression.toFixed(1)}x)`;
+  const summaryLine = `scanned ${result.entries.length} files, ${totalSrc} src lines -> ${out} (${mapLines} lines, compression ${compression.toFixed(1)}x)`;
 
   for (const w of result.warnings) {
     if (!opts.silent) log.warn(`${w.path}: ${w.message}`);
   }
 
   if (opts.check) {
-    const existing = existsSync(opts.out) ? readFileSync(opts.out, 'utf8') : '';
+    const existing = existsSync(out) ? readFileSync(out, 'utf8') : '';
     // Normalize before comparing:
     //  1. Strip the generator-timestamp line (always differs run-to-run)
     //  2. Convert CRLF/CR → LF — handles the case where git autocrlf=true
@@ -158,15 +200,31 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
         .replace(/\r/g, '\n')
         .replace(/^# generated: [^\n]+\n/m, '# generated: <normalized>\n');
     if (normalize(existing) !== normalize(yamlBody)) {
-      if (!opts.silent) log.error(`code-map out of date: ${opts.out} would change. Run \`cdd-kit code-map\` to regenerate.`);
+      if (!opts.silent) log.error(`code-map out of date: ${out} would change. Run \`cdd-kit code-map\` to regenerate.`);
       return 1;
     }
-    if (!opts.silent) log.ok(`code-map up to date: ${opts.out}`);
+    if (!opts.silent) log.ok(`code-map up to date: ${out}`);
     return 0;
   }
 
-  mkdirSync(dirname(opts.out), { recursive: true });
-  writeFileSync(opts.out, yamlBody, 'utf8');
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, yamlBody, 'utf8');
+
+  // Write a parsed JSON sidecar next to the map. `index query` / `index impact`
+  // read it in preference to re-running yaml.load (much slower on large maps),
+  // validated against this run's sources-digest. It is a derived local cache —
+  // gitignored, regenerated on every map run, and safe to delete.
+  try {
+    const sidecarPath = sidecarPathFor(out);
+    writeFileSync(sidecarPath, JSON.stringify({ sourcesDigest, entries: result.entries }), 'utf8');
+    const rel = relative(process.cwd(), sidecarPath).replace(/\\/g, '/');
+    if (!rel.startsWith('..')) {
+      ensureGitignoreEntry(process.cwd(), rel, 'cdd-kit local cache (do not commit)');
+    }
+  } catch {
+    // The sidecar is an optimization only — never fail the map write for it.
+  }
+
   if (!opts.silent) log.ok(`${summaryLine} (${Date.now() - start}ms)`);
   return 0;
 }

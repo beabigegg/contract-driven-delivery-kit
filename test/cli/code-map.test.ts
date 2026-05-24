@@ -91,6 +91,67 @@ describe('cdd-kit code-map', () => {
     expect(out).toMatch(/name: Foo/);
   });
 
+  it.skipIf(!hasPython())('6b: chunked python batches accumulate every file (CDD_CODE_MAP_BATCH_SIZE=1)', () => {
+    // Force one .py file per interpreter subprocess so the chunk loop runs
+    // multiple times; all files must still land in the map. Regression for the
+    // single-spawn timeout/buffer cliff that used to drop the whole batch.
+    copyFixtures(tmpRepo, 'sample.py', 'empty.py');
+    const r = runCli(['code-map'], {
+      cwd: tmpRepo,
+      home: tmpHome,
+      env: { CDD_CODE_MAP_BATCH_SIZE: '1' },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const out = readFileSync(join(tmpRepo, '.cdd', 'code-map.yml'), 'utf8');
+    expect(out).toContain('sample.py:');
+    expect(out).toContain('empty.py:');
+  });
+
+  it('9: --surface scopes the scan and names the map after the subtree', () => {
+    mkdirSync(join(tmpRepo, 'packages', 'web', 'src'), { recursive: true });
+    mkdirSync(join(tmpRepo, 'packages', 'api', 'src'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'packages', 'web', 'src', 'app.js'), 'export function renderApp() {}', 'utf8');
+    writeFileSync(join(tmpRepo, 'packages', 'api', 'src', 'server.js'), 'export function startServer() {}', 'utf8');
+
+    const r = runCli(['code-map', '--surface', 'packages/web'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+
+    const surfaceMap = join(tmpRepo, '.cdd', 'code-map.packages-web.yml');
+    expect(existsSync(surfaceMap)).toBe(true);
+    expect(existsSync(join(tmpRepo, '.cdd', 'code-map.yml'))).toBe(false);
+    const out = readFileSync(surfaceMap, 'utf8');
+    expect(out).toContain('renderApp');
+    expect(out).not.toContain('startServer');
+  });
+
+  it('10: --surface with a missing path exits non-zero', () => {
+    const r = runCli(['code-map', '--surface', 'packages/nope'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/surface path not found/i);
+  });
+
+  it('11: --workers produces output identical to single-process scanning', () => {
+    mkdirSync(join(tmpRepo, 'src'), { recursive: true });
+    for (let i = 1; i <= 6; i++) {
+      writeFileSync(
+        join(tmpRepo, 'src', `mod${i}.js`),
+        `export function f${i}() { return ${i}; }\nexport class C${i} { m${i}() {} }\n`,
+        'utf8',
+      );
+    }
+
+    const single = runCli(['code-map', '--out', 'single.yml'], { cwd: tmpRepo, home: tmpHome });
+    expect(single.status, single.stderr).toBe(0);
+    const parallel = runCli(['code-map', '--out', 'workers.yml', '--workers', '4'], { cwd: tmpRepo, home: tmpHome });
+    expect(parallel.status, parallel.stderr).toBe(0);
+
+    // The map body (minus the run-specific generated-timestamp line) must match,
+    // so enabling --workers never changes what gets indexed.
+    const strip = (p: string): string =>
+      readFileSync(join(tmpRepo, p), 'utf8').replace(/^# generated:.*$/m, '# generated: <x>');
+    expect(strip('workers.yml')).toBe(strip('single.yml'));
+  });
+
   it('7: empty repo produces header-only YAML with files: 0', () => {
     const r = runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);

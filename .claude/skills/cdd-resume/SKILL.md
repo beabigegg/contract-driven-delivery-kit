@@ -93,7 +93,7 @@ Ask the user: "Continue from <next-agent>? (yes/no)"
 
 ## Step 3: Continue the flow
 
-If user confirms, resume from the next agent in the Tier sequence (refer to `/cdd-new` Step 3 for the agent order, and `/cdd-new` "Agent stage badges" for the colored badges to use in your narration).
+If user confirms, resume from the next agent in the Tier sequence (refer to `/cdd-new` Step 3 for the agent order, and `/cdd-new` "Agent stage badges" for the colored badges — including the per-agent model class read from `.cdd/model-policy.json` — to use in your narration).
 
 **Critical**: Inject this block at the start of every agent prompt:
 

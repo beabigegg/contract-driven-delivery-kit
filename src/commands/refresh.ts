@@ -31,6 +31,7 @@ import { dirname, join, relative } from 'path';
 import { createHash } from 'crypto';
 import { ASSET, AGENTS_HOME } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
+import { ensureGitignoreEntry } from '../utils/gitignore.js';
 import { update } from './update.js';
 import { upgrade } from './upgrade.js';
 import { codeMap } from './code-map.js';
@@ -99,31 +100,6 @@ function planSingleFile(src: string, dest: string, rel: string): PlannedCopy | n
   if (!existsSync(dest)) return { src, dest, rel, action: 'add' };
   if (fileHash(src) !== fileHash(dest)) return { src, dest, rel, action: 'overwrite' };
   return { src, dest, rel, action: 'skip' };
-}
-
-/**
- * Idempotently ensure a path entry exists in `.gitignore`. Creates the file
- * if absent. Returns true if the file was modified.
- *
- * Why: `cdd-kit refresh` and `cdd-kit migrate` both write backups under `.cdd/`
- * that the user must NOT commit (and which `cdd-kit context-scan` excludes).
- * Without an automatic gitignore entry, users accidentally commit local
- * backups and pollute their project-map.
- */
-function ensureGitignoreEntry(cwd: string, entry: string): boolean {
-  const path = join(cwd, '.gitignore');
-  const trimmed = entry.trim();
-  if (!trimmed) return false;
-  const re = new RegExp(`^\\s*${trimmed.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s*$`, 'm');
-  let existing = '';
-  if (existsSync(path)) existing = readFileSync(path, 'utf8');
-  if (re.test(existing)) return false;
-  const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  const block = existing.length === 0
-    ? `# cdd-kit generated backups (do not commit)\n${trimmed}\n`
-    : `${sep}\n# cdd-kit generated backups (do not commit)\n${trimmed}\n`;
-  writeFileSync(path, existing + block, 'utf8');
-  return true;
 }
 
 function applyPlan(plan: PlannedCopy[], backupRoot: string): { added: number; overwritten: number } {
@@ -213,7 +189,7 @@ function resyncModelPolicy(cwd: string): {
   // Write merged policy: keep existing top-level keys, replace roles map.
   // (We REPLACE rather than merge into roles, because the agent frontmatter is
   // the source of truth — partial merges would re-introduce drift.)
-  const merged = {
+  const merged: Record<string, unknown> = {
     ...existing,
     roles: desired,
   };

@@ -44,12 +44,51 @@ export async function ensureCodeMapFresh(mapPath: string, refresh: boolean): Pro
   return { refreshed: false };
 }
 
+/**
+ * Path of the parsed JSON sidecar that sits next to a code-map. `cdd-kit
+ * code-map` writes it so `index query` / `index impact` can JSON.parse the
+ * entries instead of re-running the much slower `yaml.load` on a large map.
+ */
+export function sidecarPathFor(mapPath: string): string {
+  return `${mapPath.replace(/\.ya?ml$/i, '')}.index.json`;
+}
+
+/**
+ * Try the JSON sidecar fast path. Returns parsed entries only when the sidecar
+ * exists and its embedded `sourcesDigest` matches the map's
+ * `# sources-digest:` header — otherwise null so the caller falls back to the
+ * authoritative YAML. The sidecar is a derived, deletable local cache; the
+ * `.yml` always wins on any mismatch.
+ */
+function tryLoadSidecar(mapPath: string, mapText: string): FileEntry[] | null {
+  const sidecarPath = sidecarPathFor(mapPath);
+  if (!existsSync(sidecarPath)) return null;
+  const headerDigest = mapText.match(/^# sources-digest:\s*([a-f0-9]+)/m)?.[1];
+  if (!headerDigest) return null;
+  try {
+    const raw = JSON.parse(readFileSync(sidecarPath, 'utf8')) as {
+      sourcesDigest?: string;
+      entries?: unknown;
+    };
+    if (raw && raw.sourcesDigest === headerDigest && Array.isArray(raw.entries)) {
+      return raw.entries as FileEntry[];
+    }
+  } catch {
+    // corrupt sidecar — fall back to YAML
+  }
+  return null;
+}
+
 export function loadCodeMapEntries(mapPath: string): FileEntry[] {
   if (!existsSync(mapPath)) {
     throw new Error(`${mapPath} is missing; run \`cdd-kit code-map\` first.`);
   }
 
   const text = readFileSync(mapPath, 'utf8');
+
+  const fromSidecar = tryLoadSidecar(mapPath, text);
+  if (fromSidecar) return fromSidecar;
+
   const totalLinesByPath = extractTotalLines(text);
   const raw = yaml.load(text, { schema: yaml.JSON_SCHEMA }) as RawObject | null;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];

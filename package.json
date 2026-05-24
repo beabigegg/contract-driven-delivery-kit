@@ -38,9 +38,10 @@
   ],
   "scripts": {
     "build": "node build.js",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "node build.js && vitest run",
+    "prepublishOnly": "node build.js && tsc --noEmit && vitest run",
     "postinstall": "node bin/postinstall.js"
   },
   "engines": {

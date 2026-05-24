@@ -671,6 +671,48 @@ surface: user-management
 
 The classifier should read these two files before proposing `context-manifest.md` allowed paths.
 
+### `cdd-kit code-map`
+
+Scans source files into a deterministic structural index so agents read symbols
+and line ranges instead of whole files.
+
+```bash
+cdd-kit code-map                          # whole repo -> .cdd/code-map.yml
+cdd-kit code-map --check                  # exit 1 if regenerating would change the map
+cdd-kit code-map --surface packages/web   # monorepo: scope + auto-name the map
+cdd-kit code-map --workers                # parallelize JS/TS/Vue scanning (default off)
+```
+
+`--workers [n]` (default off; `n` defaults to CPU count − 1, capped at 16)
+parallelizes the synchronous JS/TS/Vue parsing across child processes for large
+repos. Output is byte-identical to a single-process run, and any worker failure
+falls back to in-process scanning, so it can never make a run worse. Python is
+already scanned in its own subprocess.
+
+A JSON sidecar (`.cdd/code-map.<...>.index.json`) is written next to each map and
+gitignored automatically; `cdd-kit index` reads it to skip re-parsing the YAML on
+large maps, and falls back to the YAML whenever the sidecar is absent or stale.
+
+Large Python repos are scanned in chunks (`CDD_CODE_MAP_BATCH_SIZE`, default 400)
+so one slow batch cannot drop the whole language. Raise
+`CDD_CODE_MAP_TIMEOUT_MS` (default 30000) if a single batch still times out.
+
+#### Monorepos: per-surface maps
+
+`--surface <subpath>` scopes the scan to one package and names the map after it
+(`packages/web` → `.cdd/code-map.packages-web.yml`). Paths inside that map are
+relative to the surface root. Query a specific surface map with `--map`:
+
+```bash
+cdd-kit code-map --surface packages/web
+cdd-kit code-map --surface packages/api
+cdd-kit index query OrderService --map .cdd/code-map.packages-api.yml
+cdd-kit context-scan --surface packages/web   # scope the project-map tree too
+```
+
+This keeps each package's index small and token-cheap instead of indexing the
+entire monorepo into one giant map.
+
 ---
 
 ## Migrating an Older Production Repo
