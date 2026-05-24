@@ -5,7 +5,9 @@ import { log } from '../utils/logger.js';
 import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
 import { loadCodeMapConfig } from '../code-map/config.js';
+import { sidecarPathFor } from '../code-map/index-reader.js';
 import { sha256OfFileNormalized } from '../utils/digest.js';
+import { ensureGitignoreEntry } from '../utils/gitignore.js';
 import type { ScannerResult } from '../code-map/types.js';
 
 /**
@@ -167,6 +169,22 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   mkdirSync(dirname(opts.out), { recursive: true });
   writeFileSync(opts.out, yamlBody, 'utf8');
+
+  // Write a parsed JSON sidecar next to the map. `index query` / `index impact`
+  // read it in preference to re-running yaml.load (much slower on large maps),
+  // validated against this run's sources-digest. It is a derived local cache —
+  // gitignored, regenerated on every map run, and safe to delete.
+  try {
+    const sidecarPath = sidecarPathFor(opts.out);
+    writeFileSync(sidecarPath, JSON.stringify({ sourcesDigest, entries: result.entries }), 'utf8');
+    const rel = relative(process.cwd(), sidecarPath).replace(/\\/g, '/');
+    if (!rel.startsWith('..')) {
+      ensureGitignoreEntry(process.cwd(), rel, 'cdd-kit local cache (do not commit)');
+    }
+  } catch {
+    // The sidecar is an optimization only — never fail the map write for it.
+  }
+
   if (!opts.silent) log.ok(`${summaryLine} (${Date.now() - start}ms)`);
   return 0;
 }

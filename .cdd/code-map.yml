@@ -1,6 +1,6 @@
-# generated: 2026-05-24T06:51:23Z by cdd-kit 2.0.20
-# files: 102, src-lines: 14883, map-lines: 1396, compression: 10.7x
-# sources-digest: ec4a8165624bac31a8cdba1a9da0ea539b3b2e0459e296043beac7892eecea8f
+# generated: 2026-05-24T06:58:16Z by cdd-kit 2.0.20
+# files: 103, src-lines: 14967, map-lines: 1407, compression: 10.6x
+# sources-digest: 7eb5e602dd221fd4c2494e0d09fb742800e2c7ddaea6d2c0e069b9e7734bc372
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -200,7 +200,7 @@ bin/postinstall.js:  # 20 lines
     - { module: 'node:path', items: [join, dirname], line: 4 }
     - { module: 'node:url', items: [fileURLToPath], line: 5 }
 
-build.js:  # 86 lines
+build.js:  # 88 lines
   imports:
     - { module: esbuild, items: [build], line: 1 }
     - { module: fs, items: [cpSync, mkdirSync, rmSync, existsSync], line: 2 }
@@ -267,7 +267,7 @@ src/code-map/include-exclude.ts:  # 79 lines
   interfaces:
     - { name: WalkOptions, lines: 9-19 }
 
-src/code-map/index-reader.ts:  # 91 lines
+src/code-map/index-reader.ts:  # 130 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: js-yaml, items: ['default:yaml'], line: 2 }
@@ -275,9 +275,11 @@ src/code-map/index-reader.ts:  # 91 lines
     - { module: './types.js', items: [FileEntry], line: 4 }
   functions:
     - { name: async ensureCodeMapFresh, lines: 13-45 }
-    - { name: loadCodeMapEntries, lines: 47-74 }
-    - { name: extractTotalLines, lines: 76-84 }
-    - { name: unquoteYamlKey, lines: 86-91 }
+    - { name: sidecarPathFor, lines: 52-54 }
+    - { name: tryLoadSidecar, lines: 63-80 }
+    - { name: loadCodeMapEntries, lines: 82-113 }
+    - { name: extractTotalLines, lines: 115-123 }
+    - { name: unquoteYamlKey, lines: 125-130 }
   interfaces:
     - { name: EnsureCodeMapResult, lines: 8-11 }
   types:
@@ -470,7 +472,7 @@ src/commands/code-map-hook.ts:  # 77 lines
   functions:
     - { name: async installCodeMapHook, lines: 27-77 }
 
-src/commands/code-map.ts:  # 172 lines
+src/commands/code-map.ts:  # 190 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -479,16 +481,18 @@ src/commands/code-map.ts:  # 172 lines
     - { module: '../code-map/yaml-writer.js', items: [renderYaml], line: 5 }
     - { module: '../code-map/orchestrator.js', items: [walkRepo, bucketByExtension, scanInProcess], line: 6 }
     - { module: '../code-map/config.js', items: [loadCodeMapConfig], line: 7 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 8 }
-    - { module: '../code-map/types.js', items: [ScannerResult], line: 9 }
-    - { module: module, items: [createRequire], line: 34 }
-    - { module: url, items: [fileURLToPath], line: 35 }
-    - { module: path, items: [join], line: 36 }
+    - { module: '../code-map/index-reader.js', items: [sidecarPathFor], line: 8 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 9 }
+    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 10 }
+    - { module: '../code-map/types.js', items: [ScannerResult], line: 11 }
+    - { module: module, items: [createRequire], line: 36 }
+    - { module: url, items: [fileURLToPath], line: 37 }
+    - { module: path, items: [join], line: 38 }
   functions:
-    - { name: computeSourcesDigest, lines: 19-31 }
-    - { name: async codeMap, lines: 52-172 }
+    - { name: computeSourcesDigest, lines: 21-33 }
+    - { name: async codeMap, lines: 54-190 }
   interfaces:
-    - { name: CodeMapOptions, lines: 42-50 }
+    - { name: CodeMapOptions, lines: 44-52 }
 
 src/commands/context-scan.ts:  # 354 lines
   imports:
@@ -726,34 +730,34 @@ src/commands/list-changes.ts:  # 42 lines
   functions:
     - { name: async listChanges, lines: 6-42 }
 
-src/commands/migrate.ts:  # 541 lines
+src/commands/migrate.ts:  # 523 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync], line: 2 }
     - { module: js-yaml, items: ['default:yaml'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
     - { module: '../utils/paths.js', items: [ASSET], line: 5 }
+    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 6 }
   functions:
-    - { name: backupChangeDir, lines: 28-37 }
-    - { name: buildLegacyContextManifest, lines: 39-67 }
-    - { name: buildContextGovernedManifest, lines: 69-116 }
-    - { name: parseLegacyFrontmatter, lines: 118-130 }
-    - { name: parseListField, lines: 132-141 }
-    - { name: parseLegacyTaskList, lines: 150-171 }
-    - { name: migrateTasksFile, lines: 173-234 }
-    - { name: parseLegacyAgentLog, lines: 236-286 }
-    - { name: migrateAgentLogs, lines: 288-311 }
-    - { name: ensureImplementationPlanScaffold, lines: 313-335 }
-    - { name: migrateOne, lines: 337-398 }
-    - { name: commitWritesAtomically, lines: 400-420 }
-    - { name: async migrate, lines: 422-521 }
-    - { name: ensureGitignoreEntry, lines: 527-541 }
+    - { name: backupChangeDir, lines: 29-38 }
+    - { name: buildLegacyContextManifest, lines: 40-68 }
+    - { name: buildContextGovernedManifest, lines: 70-117 }
+    - { name: parseLegacyFrontmatter, lines: 119-131 }
+    - { name: parseListField, lines: 133-142 }
+    - { name: parseLegacyTaskList, lines: 151-172 }
+    - { name: migrateTasksFile, lines: 174-235 }
+    - { name: parseLegacyAgentLog, lines: 237-287 }
+    - { name: migrateAgentLogs, lines: 289-312 }
+    - { name: ensureImplementationPlanScaffold, lines: 314-336 }
+    - { name: migrateOne, lines: 338-399 }
+    - { name: commitWritesAtomically, lines: 401-421 }
+    - { name: async migrate, lines: 423-522 }
   interfaces:
-    - { name: MigrateOptions, lines: 7-12 }  # local
-    - { name: MigrateResult, lines: 14-17 }  # local
-    - { name: PendingWrite, lines: 19-22 }  # local
-    - { name: PendingDelete, lines: 24-26 }  # local
-    - { name: LegacyTaskRow, lines: 143-148 }  # local
+    - { name: MigrateOptions, lines: 8-13 }  # local
+    - { name: MigrateResult, lines: 15-18 }  # local
+    - { name: PendingWrite, lines: 20-23 }  # local
+    - { name: PendingDelete, lines: 25-27 }  # local
+    - { name: LegacyTaskRow, lines: 144-149 }  # local
 
 src/commands/new-change.ts:  # 186 lines
   imports:
@@ -780,35 +784,35 @@ src/commands/new-change.ts:  # 186 lines
   interfaces:
     - { name: NewChangeOptions, lines: 9-14 }
 
-src/commands/refresh.ts:  # 413 lines
+src/commands/refresh.ts:  # 389 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync], line: 29 }
     - { module: path, items: [dirname, join, relative], line: 30 }
     - { module: crypto, items: [createHash], line: 31 }
     - { module: '../utils/paths.js', items: [ASSET, AGENTS_HOME], line: 32 }
     - { module: '../utils/logger.js', items: [log], line: 33 }
-    - { module: './update.js', items: [update], line: 34 }
-    - { module: './upgrade.js', items: [upgrade], line: 35 }
-    - { module: './code-map.js', items: [codeMap], line: 36 }
-    - { module: './code-map-hook.js', items: [installCodeMapHook], line: 37 }
-    - { module: '../utils/provider.js', items: [ProviderOption], line: 38 }
+    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 34 }
+    - { module: './update.js', items: [update], line: 35 }
+    - { module: './upgrade.js', items: [upgrade], line: 36 }
+    - { module: './code-map.js', items: [codeMap], line: 37 }
+    - { module: './code-map-hook.js', items: [installCodeMapHook], line: 38 }
+    - { module: '../utils/provider.js', items: [ProviderOption], line: 39 }
   constants:
-    - { name: HOOKS_MARKER_PATH, line: 57 }
+    - { name: HOOKS_MARKER_PATH, line: 58 }
   functions:
-    - { name: fileHash, lines: 59-61 }
-    - { name: planForceRefresh, lines: 63-95 }
-    - { name: planSingleFile, lines: 97-102 }
-    - { name: ensureGitignoreEntry, lines: 113-127 }
-    - { name: applyPlan, lines: 129-147 }
-    - { name: parseAgentFrontmatter, lines: 154-165 }
-    - { name: resyncModelPolicy, lines: 171-227 }
-    - { name: planTemplateRefresh, lines: 229-256 }
-    - { name: summarizePlan, lines: 258-264 }
-    - { name: async refresh, lines: 266-413 }
+    - { name: fileHash, lines: 60-62 }
+    - { name: planForceRefresh, lines: 64-96 }
+    - { name: planSingleFile, lines: 98-103 }
+    - { name: applyPlan, lines: 105-123 }
+    - { name: parseAgentFrontmatter, lines: 130-141 }
+    - { name: resyncModelPolicy, lines: 147-203 }
+    - { name: planTemplateRefresh, lines: 205-232 }
+    - { name: summarizePlan, lines: 234-240 }
+    - { name: async refresh, lines: 242-389 }
   interfaces:
-    - { name: RefreshOptions, lines: 40-48 }
-    - { name: PlannedCopy, lines: 50-55 }  # local
-    - { name: AgentFrontmatter, lines: 149-152 }  # local
+    - { name: RefreshOptions, lines: 41-49 }
+    - { name: PlannedCopy, lines: 51-56 }  # local
+    - { name: AgentFrontmatter, lines: 125-128 }  # local
 
 src/commands/update.ts:  # 181 lines
   imports:
@@ -885,6 +889,13 @@ src/utils/digest.ts:  # 39 lines
   functions:
     - { name: normalizeContentForHash, lines: 16-24 }
     - { name: sha256OfFileNormalized, lines: 31-39 }
+
+src/utils/gitignore.ts:  # 31 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+  functions:
+    - { name: ensureGitignoreEntry, lines: 13-31 }
 
 src/utils/logger.ts:  # 27 lines
   constants:
@@ -1061,10 +1072,10 @@ test/cli/index-impact.test.ts:  # 104 lines
   functions:
     - { name: writeImpactFixture, lines: 12-50 }
 
-test/cli/index-query.test.ts:  # 89 lines
+test/cli/index-query.test.ts:  # 125 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
-    - { module: fs, items: [existsSync, copyFileSync, readFileSync, writeFileSync], line: 5 }
+    - { module: fs, items: [existsSync, copyFileSync, readFileSync, writeFileSync, rmSync], line: 5 }
     - { module: path, items: [join, dirname], line: 6 }
     - { module: url, items: [fileURLToPath], line: 7 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 8 }

@@ -11,3 +11,4 @@ coverage/
 test-tmp/
 .npmrc
 .claude/worktrees/
+.cdd/code-map.index.json

@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
 import { ASSET } from '../utils/paths.js';
+import { ensureGitignoreEntry } from '../utils/gitignore.js';
 
 interface MigrateOptions {
   all?: boolean;
@@ -520,22 +521,3 @@ export async function migrate(changeId?: string, opts: MigrateOptions = {}): Pro
   }
 }
 
-/**
- * Idempotently ensure a path entry exists in `.gitignore`. Creates the file
- * if absent. Returns true if the file was modified.
- */
-function ensureGitignoreEntry(cwd: string, entry: string): boolean {
-  const path = join(cwd, '.gitignore');
-  const trimmed = entry.trim();
-  if (!trimmed) return false;
-  const re = new RegExp(`^\\s*${trimmed.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s*$`, 'm');
-  let existing = '';
-  if (existsSync(path)) existing = readFileSync(path, 'utf8');
-  if (re.test(existing)) return false;
-  const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  const block = existing.length === 0
-    ? `# cdd-kit generated backups (do not commit)\n${trimmed}\n`
-    : `${sep}\n# cdd-kit generated backups (do not commit)\n${trimmed}\n`;
-  writeFileSync(path, existing + block, 'utf8');
-  return true;
-}
