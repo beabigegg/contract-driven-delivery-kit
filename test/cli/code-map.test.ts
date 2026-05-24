@@ -91,6 +91,22 @@ describe('cdd-kit code-map', () => {
     expect(out).toMatch(/name: Foo/);
   });
 
+  it.skipIf(!hasPython())('6b: chunked python batches accumulate every file (CDD_CODE_MAP_BATCH_SIZE=1)', () => {
+    // Force one .py file per interpreter subprocess so the chunk loop runs
+    // multiple times; all files must still land in the map. Regression for the
+    // single-spawn timeout/buffer cliff that used to drop the whole batch.
+    copyFixtures(tmpRepo, 'sample.py', 'empty.py');
+    const r = runCli(['code-map'], {
+      cwd: tmpRepo,
+      home: tmpHome,
+      env: { CDD_CODE_MAP_BATCH_SIZE: '1' },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const out = readFileSync(join(tmpRepo, '.cdd', 'code-map.yml'), 'utf8');
+    expect(out).toContain('sample.py:');
+    expect(out).toContain('empty.py:');
+  });
+
   it('7: empty repo produces header-only YAML with files: 0', () => {
     const r = runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);

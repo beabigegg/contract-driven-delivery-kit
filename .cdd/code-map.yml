@@ -1,6 +1,6 @@
-# generated: 2026-05-24T06:35:34Z by cdd-kit 2.0.20
-# files: 102, src-lines: 14823, map-lines: 1394, compression: 10.6x
-# sources-digest: a81c554c29fd4bb26f6983828657c0672a6bc6e2945aef024d18c799a06391c9
+# generated: 2026-05-24T06:51:23Z by cdd-kit 2.0.20
+# files: 102, src-lines: 14883, map-lines: 1396, compression: 10.7x
+# sources-digest: ec4a8165624bac31a8cdba1a9da0ea539b3b2e0459e296043beac7892eecea8f
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -354,7 +354,7 @@ src/code-map/scanners/javascript.ts:  # 417 lines
     - { name: ExtractOptions, lines: 329-332 }
     - { name: ExtractResult, lines: 334-342 }
 
-src/code-map/scanners/python.ts:  # 191 lines
+src/code-map/scanners/python.ts:  # 235 lines
   imports:
     - { module: child_process, items: [spawnSync], line: 1 }
     - { module: fs, items: [writeFileSync, unlinkSync, readFileSync], line: 2 }
@@ -365,20 +365,22 @@ src/code-map/scanners/python.ts:  # 191 lines
     - { module: './common.js', items: [canonicalRelPath], line: 7 }
   constants:
     - { name: TIMEOUT_MS, line: 9 }
+    - { name: BATCH_SIZE, line: 19 }
   classes:
     - name: PythonScanner
-      lines: 47-189
+      lines: 60-233
       methods:
-        - { name: getInterpreter, lines: 52-57 }
-        - { name: async scan, lines: 59-62 }
-        - { name: async scanBatch, lines: 64-188 }
+        - { name: getInterpreter, lines: 65-70 }
+        - { name: async scan, lines: 72-75 }
+        - { name: async scanBatch, lines: 77-112 }
+        - { name: scanChunk, lines: 114-232 }
   functions:
-    - { name: detectPython, lines: 32-45 }
+    - { name: detectPython, lines: 45-58 }
   interfaces:
-    - { name: PythonFileResult, lines: 11-19 }  # local
-    - { name: PythonFileError, lines: 21-25 }  # local
+    - { name: PythonFileResult, lines: 24-32 }  # local
+    - { name: PythonFileError, lines: 34-38 }  # local
   types:
-    - { name: PythonLine, lines: 27-27 }  # local
+    - { name: PythonLine, lines: 40-40 }  # local
 
 src/code-map/scanners/typescript.ts:  # 62 lines
   imports:
@@ -990,7 +992,7 @@ test/cli/code-map-ts-and-config.test.ts:  # 112 lines
   functions:
     - { name: copyFixtures, lines: 19-23 }
 
-test/cli/code-map.test.ts:  # 108 lines
+test/cli/code-map.test.ts:  # 124 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync], line: 5 }
