@@ -1,5 +1,61 @@
 # Changelog
 
+## [2.0.21] - 2026-05-25
+
+Kit review fixes plus large-project capability improvements. All additions are
+opt-in and non-breaking; normal runs are byte-for-byte unchanged.
+
+### Added
+
+- **`cdd-kit code-map --surface <subpath>`**: scopes the scan to a monorepo
+  subtree and names the map `.cdd/code-map.<slug>.yml`, queryable with
+  `cdd-kit index query <term> --map .cdd/code-map.<slug>.yml`, instead of forcing
+  one giant whole-repo map. A missing surface path now errors instead of
+  silently emitting an empty map.
+- **`cdd-kit code-map --workers [n]`** (default off): parallelizes JS/TS/Vue
+  scanning across child processes. Output is deterministic regardless of chunk
+  distribution, and any worker failure falls back to in-process scanning, so
+  enabling workers can never make a run fail that would otherwise succeed.
+- **Model class in dispatch badges**: `/cdd-new` and `/cdd-resume` now render
+  each agent badge as `[role · model]`, resolved at dispatch time from
+  `.cdd/model-policy.json`. Narration only — runtime model selection is unchanged.
+
+### Changed
+
+- **JSON sidecar for `index query` / `index impact`**: `cdd-kit code-map` now
+  writes a parsed `.cdd/code-map.index.json` next to the map so queries skip the
+  slow `yaml.load` on large maps. The sidecar is a derived local cache —
+  gitignored, digest-validated against the map header, regenerated on every map
+  run, stripped from the published package, and never required (queries fall back
+  to the authoritative `.cdd/code-map.yml` on any absence or mismatch).
+- **`typecheck` script** (`tsc --noEmit`) added and wired into `prepublishOnly`
+  so type errors cannot regress.
+- Deduplicated `ensureGitignoreEntry` into `src/utils/gitignore.ts` as the single
+  source of truth.
+
+### Fixed
+
+- **`cdd-kit doctor` no longer false-flags every agent**: doctor kept its own
+  divergent agent-lint check hard-coded to the old `### Required artifacts`
+  heading and flagged all agents after the heading was renamed to
+  `### Suggested artifacts`, while `cdd-kit lint-agents` reported clean. Both now
+  share `lintAgentContent` / `collectAgentViolations` so they cannot drift apart.
+- **`cdd-kit doctor` now warns instead of silently passing** when `.claude/agents`
+  exists but cannot be read (permission/IO error), rather than reporting a clean
+  pass on an unscanned directory.
+- **Python scanning is chunked** (`CDD_CODE_MAP_BATCH_SIZE`, default 400) so a
+  single subprocess timeout or buffer overflow on a large Python repo no longer
+  drops the structure of every `.py` file; completed chunks are preserved.
+- Cleared pre-existing `tsc --noEmit` errors in `include-exclude.ts`,
+  `scanners/javascript.ts`, and `refresh.ts`.
+
+### Security
+
+- The `--workers` / Python batch-list temp files are now created with
+  `crypto.randomBytes` names and mode `0600` to avoid predictable-name
+  symlink/race attacks in the shared tmp dir (CWE-377), and the scan worker spawn
+  is constrained by a language allowlist with an explicit no-shell invocation.
+
 ## [2.0.20] - 2026-05-15
 
 Patch release for UTF-8 BOM handling in Claude agent metadata files.
