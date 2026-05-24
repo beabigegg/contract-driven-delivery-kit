@@ -37,6 +37,47 @@ describe('cdd-kit doctor', () => {
     expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
   });
 
+  it('agent lint accepts the "Suggested artifacts" heading and matches lint-agents (no drift)', () => {
+    // Regression: doctor used to keep its own copy of the lint logic, hard-coded
+    // to the old `### Required artifacts` heading. After the canonical heading
+    // was renamed to `### Suggested artifacts`, doctor falsely flagged every
+    // agent while `cdd-kit lint-agents` (which accepts both) reported clean.
+    // Both now share collectAgentViolations(), so they must agree.
+    const agentsDir = join(tmpRepo, '.claude', 'agents');
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(join(agentsDir, 'test-agent.md'), [
+      '---',
+      'name: test-agent',
+      'description: A test agent.',
+      'tools: Read',
+      'model: sonnet',
+      '---',
+      '',
+      '## Read scope',
+      '',
+      'Source of truth: `specs/changes/<change-id>/context-manifest.md`.',
+      '',
+      '## Machine-Verifiable Evidence',
+      '',
+      'See `references/agent-log-protocol.md` for the full schema.',
+      '',
+      '### Suggested artifacts for this agent',
+      '',
+      '```yaml',
+      'artifacts:',
+      '  - { type: files-changed, pointer: "src/api/users.ts:10-45" }',
+      '```',
+      '',
+    ].join('\n'), 'utf8');
+
+    const doctor = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
+    const lint = runCli(['lint-agents'], { cwd: tmpRepo, home: tmpHome });
+
+    expect(lint.stdout, lint.stderr).toMatch(/0 error\(s\)/);
+    expect(doctor.stdout + doctor.stderr).toMatch(/all agent prompts pass shape checks/i);
+    expect(doctor.stdout + doctor.stderr).not.toMatch(/lint-agents:.*missing.*artifacts/i);
+  });
+
   it('warns when contracts/* changes after context-scan (hash drift)', async () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);

@@ -1,6 +1,6 @@
-# generated: 2026-05-07T06:17:39Z by cdd-kit 2.0.17
-# files: 101, src-lines: 14519, map-lines: 1378, compression: 10.5x
-# sources-digest: c805cd969313483ecb06ca8f416c384da51b3131117abcd153f1ce8b48a47ebe
+# generated: 2026-05-24T06:07:58Z by cdd-kit 2.0.20
+# files: 102, src-lines: 14803, map-lines: 1394, compression: 10.6x
+# sources-digest: 3e0e967ee61f9776926b5f2adf646a0b331072cbcd8c680728ddb0d9459e95f8
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -35,13 +35,13 @@ assets/skills/contract-driven-delivery/scripts/detect_project_profile.py:  # 128
     - { name: detect_commands, lines: 59-69 }
     - { name: main, lines: 71-125 }
 
-assets/skills/contract-driven-delivery/scripts/generate_change_scaffold.py:  # 38 lines
+assets/skills/contract-driven-delivery/scripts/generate_change_scaffold.py:  # 48 lines
   imports:
     - { module: pathlib, items: [Path], line: 3 }
     - { module: argparse, items: [], line: 4 }
     - { module: shutil, items: [], line: 5 }
   functions:
-    - { name: main, lines: 7-36 }
+    - { name: main, lines: 7-46 }
 
 assets/skills/contract-driven-delivery/scripts/validate_api_semantic.py:  # 162 lines
   imports:
@@ -550,7 +550,7 @@ src/commands/context.ts:  # 384 lines
     - { name: ContextRequest, lines: 6-11 }  # local
     - { name: ContextPolicy, lines: 13-15 }  # local
 
-src/commands/doctor.ts:  # 454 lines
+src/commands/doctor.ts:  # 433 lines
   imports:
     - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -558,26 +558,27 @@ src/commands/doctor.ts:  # 454 lines
     - { module: '../utils/logger.js', items: [log], line: 4 }
     - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, ProviderOption], line: 5 }
     - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 6 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 44 }
+    - { module: './lint-agents.js', items: [collectAgentViolations], line: 7 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 45 }
   functions:
-    - { name: fileExists, lines: 29-31 }
-    - { name: findFiles, lines: 33-41 }
-    - { name: inputDigest, lines: 46-58 }
-    - { name: readContextIndexMetadata, lines: 60-69 }
-    - { name: checkContextFreshness, lines: 71-132 }
-    - { name: readAgentModel, lines: 134-142 }
-    - { name: checkModelPolicyDrift, lines: 144-195 }
-    - { name: async checkAgentLint, lines: 197-237 }
-    - { name: checkCodeMap, lines: 239-270 }
-    - { name: async buildDoctorReport, lines: 272-314 }
-    - { name: async attemptAutoFixes, lines: 316-406 }
-    - { name: async doctor, lines: 408-454 }
+    - { name: fileExists, lines: 30-32 }
+    - { name: findFiles, lines: 34-42 }
+    - { name: inputDigest, lines: 47-59 }
+    - { name: readContextIndexMetadata, lines: 61-70 }
+    - { name: checkContextFreshness, lines: 72-133 }
+    - { name: readAgentModel, lines: 135-143 }
+    - { name: checkModelPolicyDrift, lines: 145-196 }
+    - { name: checkAgentLint, lines: 198-216 }
+    - { name: checkCodeMap, lines: 218-249 }
+    - { name: async buildDoctorReport, lines: 251-293 }
+    - { name: async attemptAutoFixes, lines: 295-385 }
+    - { name: async doctor, lines: 387-433 }
   interfaces:
-    - { name: DoctorOptions, lines: 8-13 }
-    - { name: Finding, lines: 15-18 }  # local
-    - { name: DoctorReport, lines: 20-27 }  # local
+    - { name: DoctorOptions, lines: 9-14 }
+    - { name: Finding, lines: 16-19 }  # local
+    - { name: DoctorReport, lines: 21-28 }  # local
 
-src/commands/gate.ts:  # 429 lines
+src/commands/gate.ts:  # 431 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -590,30 +591,30 @@ src/commands/gate.ts:  # 429 lines
   constants:
     - { name: TASKS_STATUS_ENUM, line: 14 }
     - { name: REQUIRED_FILES, line: 19 }
-    - { name: TIER_PATTERN, line: 28 }
-    - { name: MIN_CHARS, line: 30 }
-    - { name: DEFAULT_ARCHIVE_TASKS, line: 38 }
+    - { name: TIER_PATTERN, line: 29 }
+    - { name: MIN_CHARS, line: 31 }
+    - { name: DEFAULT_ARCHIVE_TASKS, line: 40 }
   functions:
-    - { name: meaningfulChars, lines: 61-69 }
-    - { name: stripHtmlComments, lines: 71-73 }
-    - { name: countPendingExpansions, lines: 75-85 }
-    - { name: countPendingContextRequests, lines: 87-91 }
-    - { name: loadYamlFile, lines: 93-100 }
-    - { name: ajvErrorsToMessages, lines: 102-129 }
-    - { name: isContextGovernedChange, lines: 131-136 }
-    - { name: lintTasksFile, lines: 138-162 }
-    - { name: resolveTier, lines: 171-204 }
-    - { name: getArchiveTaskIds, lines: 206-209 }
-    - { name: enforceTierConsistency, lines: 211-241 }
-    - { name: isArchivedChange, lines: 243-249 }
-    - { name: detectDependencyCycle, lines: 251-278 }
-    - { name: validateDependencies, lines: 280-320 }
-    - { name: async gate, lines: 322-429 }
+    - { name: meaningfulChars, lines: 63-71 }
+    - { name: stripHtmlComments, lines: 73-75 }
+    - { name: countPendingExpansions, lines: 77-87 }
+    - { name: countPendingContextRequests, lines: 89-93 }
+    - { name: loadYamlFile, lines: 95-102 }
+    - { name: ajvErrorsToMessages, lines: 104-131 }
+    - { name: isContextGovernedChange, lines: 133-138 }
+    - { name: lintTasksFile, lines: 140-164 }
+    - { name: resolveTier, lines: 173-206 }
+    - { name: getArchiveTaskIds, lines: 208-211 }
+    - { name: enforceTierConsistency, lines: 213-243 }
+    - { name: isArchivedChange, lines: 245-251 }
+    - { name: detectDependencyCycle, lines: 253-280 }
+    - { name: validateDependencies, lines: 282-322 }
+    - { name: async gate, lines: 324-431 }
   interfaces:
-    - { name: TaskItem, lines: 40-45 }  # local
-    - { name: TasksFile, lines: 47-55 }  # local
-    - { name: GateOptions, lines: 57-59 }
-    - { name: TierResolution, lines: 164-169 }  # local
+    - { name: TaskItem, lines: 42-47 }  # local
+    - { name: TasksFile, lines: 49-57 }  # local
+    - { name: GateOptions, lines: 59-61 }
+    - { name: TierResolution, lines: 166-171 }  # local
 
 src/commands/index-impact.ts:  # 314 lines
   imports:
@@ -694,7 +695,7 @@ src/commands/install-hooks.ts:  # 68 lines
   functions:
     - { name: async installHooks, lines: 9-68 }
 
-src/commands/lint-agents.ts:  # 226 lines
+src/commands/lint-agents.ts:  # 272 lines
   imports:
     - { module: fs, items: [readdirSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -707,10 +708,12 @@ src/commands/lint-agents.ts:  # 226 lines
     - { name: extractYamlBody, lines: 50-53 }
     - { name: strayTopLevelKeys, lines: 60-72 }
     - { name: hasFlatBacktickKeysWithoutFence, lines: 82-89 }
-    - { name: async lintAgents, lines: 91-226 }
+    - { name: lintAgentContent, lines: 97-206 }
+    - { name: collectAgentViolations, lines: 213-245 }
+    - { name: async lintAgents, lines: 247-272 }
   interfaces:
     - { name: LintAgentsOptions, lines: 6-8 }
-    - { name: Violation, lines: 10-15 }  # local
+    - { name: Violation, lines: 10-15 }
 
 src/commands/list-changes.ts:  # 42 lines
   imports:
@@ -721,34 +724,36 @@ src/commands/list-changes.ts:  # 42 lines
   functions:
     - { name: async listChanges, lines: 6-42 }
 
-src/commands/migrate.ts:  # 513 lines
+src/commands/migrate.ts:  # 541 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync], line: 2 }
     - { module: js-yaml, items: ['default:yaml'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: '../utils/paths.js', items: [ASSET], line: 5 }
   functions:
-    - { name: backupChangeDir, lines: 27-36 }
-    - { name: buildLegacyContextManifest, lines: 38-66 }
-    - { name: buildContextGovernedManifest, lines: 68-115 }
-    - { name: parseLegacyFrontmatter, lines: 117-129 }
-    - { name: parseListField, lines: 131-140 }
-    - { name: parseLegacyTaskList, lines: 149-170 }
-    - { name: migrateTasksFile, lines: 172-233 }
-    - { name: parseLegacyAgentLog, lines: 235-285 }
-    - { name: migrateAgentLogs, lines: 287-310 }
-    - { name: migrateOne, lines: 312-370 }
-    - { name: commitWritesAtomically, lines: 372-392 }
-    - { name: async migrate, lines: 394-493 }
-    - { name: ensureGitignoreEntry, lines: 499-513 }
+    - { name: backupChangeDir, lines: 28-37 }
+    - { name: buildLegacyContextManifest, lines: 39-67 }
+    - { name: buildContextGovernedManifest, lines: 69-116 }
+    - { name: parseLegacyFrontmatter, lines: 118-130 }
+    - { name: parseListField, lines: 132-141 }
+    - { name: parseLegacyTaskList, lines: 150-171 }
+    - { name: migrateTasksFile, lines: 173-234 }
+    - { name: parseLegacyAgentLog, lines: 236-286 }
+    - { name: migrateAgentLogs, lines: 288-311 }
+    - { name: ensureImplementationPlanScaffold, lines: 313-335 }
+    - { name: migrateOne, lines: 337-398 }
+    - { name: commitWritesAtomically, lines: 400-420 }
+    - { name: async migrate, lines: 422-521 }
+    - { name: ensureGitignoreEntry, lines: 527-541 }
   interfaces:
-    - { name: MigrateOptions, lines: 6-11 }  # local
-    - { name: MigrateResult, lines: 13-16 }  # local
-    - { name: PendingWrite, lines: 18-21 }  # local
-    - { name: PendingDelete, lines: 23-25 }  # local
-    - { name: LegacyTaskRow, lines: 142-147 }  # local
+    - { name: MigrateOptions, lines: 7-12 }  # local
+    - { name: MigrateResult, lines: 14-17 }  # local
+    - { name: PendingWrite, lines: 19-22 }  # local
+    - { name: PendingDelete, lines: 24-26 }  # local
+    - { name: LegacyTaskRow, lines: 143-148 }  # local
 
-src/commands/new-change.ts:  # 185 lines
+src/commands/new-change.ts:  # 186 lines
   imports:
     - { module: path, items: [join, relative], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -760,16 +765,16 @@ src/commands/new-change.ts:  # 185 lines
     - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 17 }
   constants:
     - { name: REQUIRED_TEMPLATES, line: 75 }
-    - { name: SAFE_NAME, line: 93 }
+    - { name: SAFE_NAME, line: 94 }
   functions:
     - { name: inputsDigest, lines: 19-28 }
     - { name: findContractFiles, lines: 30-40 }
     - { name: readIndexDigest, lines: 42-46 }
     - { name: async ensureFreshContextIndexes, lines: 48-73 }
-    - { name: listOptional, lines: 84-91 }
-    - { name: parseDependsOn, lines: 95-101 }
-    - { name: applyScaffoldMetadata, lines: 103-118 }
-    - { name: async newChange, lines: 120-185 }
+    - { name: listOptional, lines: 85-92 }
+    - { name: parseDependsOn, lines: 96-102 }
+    - { name: applyScaffoldMetadata, lines: 104-119 }
+    - { name: async newChange, lines: 121-186 }
   interfaces:
     - { name: NewChangeOptions, lines: 9-14 }
 
@@ -949,18 +954,18 @@ test/cli/abandon.test.ts:  # 95 lines
   functions:
     - { name: scaffoldChange, lines: 8-16 }
 
-test/cli/agent-prompts-shape.test.ts:  # 141 lines
+test/cli/agent-prompts-shape.test.ts:  # 143 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
   constants:
     - { name: ALL_AGENTS, line: 8 }
-    - { name: SCOPED_AGENTS, line: 28 }
+    - { name: SCOPED_AGENTS, line: 29 }
   functions:
-    - { name: readAgent, lines: 41-43 }
-    - { name: extractRequiredArtifactsSection, lines: 45-50 }
-    - { name: hasFlatBacktickKeysWithoutFence, lines: 57-61 }
+    - { name: readAgent, lines: 43-45 }
+    - { name: extractRequiredArtifactsSection, lines: 47-52 }
+    - { name: hasFlatBacktickKeysWithoutFence, lines: 59-63 }
 
 test/cli/archive.test.ts:  # 105 lines
   imports:
@@ -1018,14 +1023,14 @@ test/cli/doctor-code-map.test.ts:  # 72 lines
     - { module: path, items: [join], line: 6 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
 
-test/cli/doctor.test.ts:  # 169 lines
+test/cli/doctor.test.ts:  # 210 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
-test/cli/gate.test.ts:  # 865 lines
+test/cli/gate.test.ts:  # 910 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
@@ -1036,13 +1041,14 @@ test/cli/gate.test.ts:  # 865 lines
     - { name: buildApiContract, lines: 11-47 }
     - { name: buildEnvContract, lines: 49-76 }
     - { name: writeValidContracts, lines: 79-188 }
-    - { name: buildTasksYaml, lines: 201-219 }
-    - { name: buildAgentLogYaml, lines: 232-248 }
-    - { name: writeValidChangeArtifacts, lines: 252-265 }
-    - { name: writeContextGovernanceFiles, lines: 267-291 }
+    - { name: buildTasksYaml, lines: 201-221 }
+    - { name: buildAgentLogYaml, lines: 234-250 }
+    - { name: writeValidImplementationPlan, lines: 252-285 }
+    - { name: writeValidChangeArtifacts, lines: 289-304 }
+    - { name: writeContextGovernanceFiles, lines: 306-330 }
   interfaces:
     - { name: TasksFileOptions, lines: 190-199 }  # local
-    - { name: AgentLogOptions, lines: 221-230 }  # local
+    - { name: AgentLogOptions, lines: 223-232 }  # local
 
 test/cli/index-impact.test.ts:  # 104 lines
   imports:
@@ -1091,7 +1097,7 @@ test/cli/install-hooks.test.ts:  # 63 lines
     - { module: child_process, items: [spawnSync], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
-test/cli/lint-agents.test.ts:  # 224 lines
+test/cli/lint-agents.test.ts:  # 236 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
@@ -1113,7 +1119,7 @@ test/cli/list.test.ts:  # 68 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
-test/cli/migrate.test.ts:  # 281 lines
+test/cli/migrate.test.ts:  # 283 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -1121,7 +1127,7 @@ test/cli/migrate.test.ts:  # 281 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
-test/cli/new.test.ts:  # 201 lines
+test/cli/new.test.ts:  # 202 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -1131,6 +1137,16 @@ test/cli/new.test.ts:  # 201 lines
   constants:
     - { name: REQUIRED_TEMPLATES, line: 7 }
 
+test/cli/no-bom.test.ts:  # 48 lines
+  imports:
+    - { module: vitest, items: [describe, expect, it], line: 1 }
+    - { module: fs, items: [existsSync, readdirSync, readFileSync, statSync], line: 2 }
+    - { module: path, items: [dirname, join, relative, resolve], line: 3 }
+    - { module: url, items: [fileURLToPath], line: 4 }
+  functions:
+    - { name: walk, lines: 20-32 }
+    - { name: hasUtf8Bom, lines: 34-37 }
+
 test/cli/refresh.test.ts:  # 279 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
@@ -1138,7 +1154,7 @@ test/cli/refresh.test.ts:  # 279 lines
     - { module: path, items: [join], line: 14 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 15 }
 
-test/cli/skill-prompts.test.ts:  # 109 lines
+test/cli/skill-prompts.test.ts:  # 176 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
