@@ -43,7 +43,13 @@ const _pkg = JSON.parse(readFileSync(_pkgPath, 'utf8')) as { version: string };
 
 export interface CodeMapOptions {
   path: string;
-  out: string;
+  out?: string;
+  /**
+   * Monorepo sugar: scope the scan to this subtree and, unless `out` is set
+   * explicitly, name the map `.cdd/code-map.<slug>.yml`. Query it later with
+   * `cdd-kit index query <term> --map .cdd/code-map.<slug>.yml`.
+   */
+  surface?: string;
   include: string[];
   exclude: string[];
   check: boolean;
@@ -51,9 +57,26 @@ export interface CodeMapOptions {
   silent?: boolean;
 }
 
+/** `packages/web` -> `packages-web`; used for the per-surface map filename. */
+function slugifySurface(surface: string): string {
+  return surface.replace(/^[./]+/, '').replace(/\/+$/, '').replace(/[\\/]+/g, '-') || 'root';
+}
+
 export async function codeMap(opts: CodeMapOptions): Promise<number> {
-  const root = resolve(process.cwd(), opts.path);
   const start = Date.now();
+
+  if (opts.surface) {
+    const resolvedSurface = resolve(process.cwd(), opts.surface);
+    if (!existsSync(resolvedSurface)) {
+      log.error(`code-map --surface path not found: ${opts.surface}`);
+      return 1;
+    }
+  }
+
+  const scanPath = opts.surface ?? opts.path;
+  const root = resolve(process.cwd(), scanPath);
+  const out = opts.out
+    ?? (opts.surface ? `.cdd/code-map.${slugifySurface(opts.surface)}.yml` : '.cdd/code-map.yml');
 
   // Resolve config: built-in defaults, optionally replaced by .cdd/code-map-config.yml.
   // CLI --include / --exclude are appended on top of whichever lists won.
@@ -140,14 +163,14 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   const totalSrc = result.entries.reduce((s, e) => s + e.total_lines, 0);
   const mapLines = yamlBody.split('\n').length;
   const compression = totalSrc === 0 ? 0 : totalSrc / mapLines;
-  const summaryLine = `scanned ${result.entries.length} files, ${totalSrc} src lines -> ${opts.out} (${mapLines} lines, compression ${compression.toFixed(1)}x)`;
+  const summaryLine = `scanned ${result.entries.length} files, ${totalSrc} src lines -> ${out} (${mapLines} lines, compression ${compression.toFixed(1)}x)`;
 
   for (const w of result.warnings) {
     if (!opts.silent) log.warn(`${w.path}: ${w.message}`);
   }
 
   if (opts.check) {
-    const existing = existsSync(opts.out) ? readFileSync(opts.out, 'utf8') : '';
+    const existing = existsSync(out) ? readFileSync(out, 'utf8') : '';
     // Normalize before comparing:
     //  1. Strip the generator-timestamp line (always differs run-to-run)
     //  2. Convert CRLF/CR → LF — handles the case where git autocrlf=true
@@ -160,22 +183,22 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
         .replace(/\r/g, '\n')
         .replace(/^# generated: [^\n]+\n/m, '# generated: <normalized>\n');
     if (normalize(existing) !== normalize(yamlBody)) {
-      if (!opts.silent) log.error(`code-map out of date: ${opts.out} would change. Run \`cdd-kit code-map\` to regenerate.`);
+      if (!opts.silent) log.error(`code-map out of date: ${out} would change. Run \`cdd-kit code-map\` to regenerate.`);
       return 1;
     }
-    if (!opts.silent) log.ok(`code-map up to date: ${opts.out}`);
+    if (!opts.silent) log.ok(`code-map up to date: ${out}`);
     return 0;
   }
 
-  mkdirSync(dirname(opts.out), { recursive: true });
-  writeFileSync(opts.out, yamlBody, 'utf8');
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, yamlBody, 'utf8');
 
   // Write a parsed JSON sidecar next to the map. `index query` / `index impact`
   // read it in preference to re-running yaml.load (much slower on large maps),
   // validated against this run's sources-digest. It is a derived local cache —
   // gitignored, regenerated on every map run, and safe to delete.
   try {
-    const sidecarPath = sidecarPathFor(opts.out);
+    const sidecarPath = sidecarPathFor(out);
     writeFileSync(sidecarPath, JSON.stringify({ sourcesDigest, entries: result.entries }), 'utf8');
     const rel = relative(process.cwd(), sidecarPath).replace(/\\/g, '/');
     if (!rel.startsWith('..')) {

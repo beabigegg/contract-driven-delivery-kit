@@ -107,6 +107,29 @@ describe('cdd-kit code-map', () => {
     expect(out).toContain('empty.py:');
   });
 
+  it('9: --surface scopes the scan and names the map after the subtree', () => {
+    mkdirSync(join(tmpRepo, 'packages', 'web', 'src'), { recursive: true });
+    mkdirSync(join(tmpRepo, 'packages', 'api', 'src'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'packages', 'web', 'src', 'app.js'), 'export function renderApp() {}', 'utf8');
+    writeFileSync(join(tmpRepo, 'packages', 'api', 'src', 'server.js'), 'export function startServer() {}', 'utf8');
+
+    const r = runCli(['code-map', '--surface', 'packages/web'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+
+    const surfaceMap = join(tmpRepo, '.cdd', 'code-map.packages-web.yml');
+    expect(existsSync(surfaceMap)).toBe(true);
+    expect(existsSync(join(tmpRepo, '.cdd', 'code-map.yml'))).toBe(false);
+    const out = readFileSync(surfaceMap, 'utf8');
+    expect(out).toContain('renderApp');
+    expect(out).not.toContain('startServer');
+  });
+
+  it('10: --surface with a missing path exits non-zero', () => {
+    const r = runCli(['code-map', '--surface', 'packages/nope'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/surface path not found/i);
+  });
+
   it('7: empty repo produces header-only YAML with files: 0', () => {
     const r = runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);

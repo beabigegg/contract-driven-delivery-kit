@@ -165,7 +165,8 @@ function collectRepeatable(val: string, acc: string[]): string[] {
 }
 
 interface CodeMapCliOpts {
-  out: string;
+  out?: string;
+  surface?: string;
   include: string[];
   exclude: string[];
   check: boolean;
@@ -175,7 +176,8 @@ interface CodeMapCliOpts {
 program
   .command('code-map [path]')
   .description('Scan source files and emit a structural index at .cdd/code-map.yml')
-  .option('--out <path>', 'Output YAML path', '.cdd/code-map.yml')
+  .option('--out <path>', 'Output YAML path (default .cdd/code-map.yml; with --surface, .cdd/code-map.<surface>.yml)')
+  .option('--surface <subpath>', 'Scope the scan to a monorepo subtree and name the map after it')
   .option('--include <glob>', 'Additional include glob (repeatable)', collectRepeatable, [])
   .option('--exclude <glob>', 'Additional exclude glob (repeatable)', collectRepeatable, [])
   .option('--check', 'Exit 1 if regenerating would change the file (no write)', false)
@@ -185,6 +187,7 @@ program
     const exit = await codeMap({
       path: path ?? '.',
       out: opts.out,
+      surface: opts.surface,
       include: opts.include,
       exclude: opts.exclude,
       check: opts.check,

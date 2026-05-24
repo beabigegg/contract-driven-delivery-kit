@@ -1,6 +1,6 @@
-# generated: 2026-05-24T06:58:16Z by cdd-kit 2.0.20
-# files: 103, src-lines: 14967, map-lines: 1407, compression: 10.6x
-# sources-digest: 7eb5e602dd221fd4c2494e0d09fb742800e2c7ddaea6d2c0e069b9e7734bc372
+# generated: 2026-05-24T07:06:00Z by cdd-kit 2.0.20
+# files: 103, src-lines: 15016, map-lines: 1408, compression: 10.7x
+# sources-digest: 15f81b015ac42bab7698e073d2e4f532905e7b4a8ef135515763b9a8c971f87e
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -209,7 +209,7 @@ build.js:  # 88 lines
   functions:
     - { name: copy, lines: 51-61 }
 
-src/cli/index.ts:  # 403 lines
+src/cli/index.ts:  # 406 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -226,7 +226,7 @@ src/cli/index.ts:  # 403 lines
   functions:
     - { name: collectRepeatable, lines: 162-165 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 167-173 }  # local
+    - { name: CodeMapCliOpts, lines: 167-174 }  # local
 
 src/code-map/config.ts:  # 135 lines
   imports:
@@ -472,7 +472,7 @@ src/commands/code-map-hook.ts:  # 77 lines
   functions:
     - { name: async installCodeMapHook, lines: 27-77 }
 
-src/commands/code-map.ts:  # 190 lines
+src/commands/code-map.ts:  # 213 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -490,9 +490,10 @@ src/commands/code-map.ts:  # 190 lines
     - { module: path, items: [join], line: 38 }
   functions:
     - { name: computeSourcesDigest, lines: 21-33 }
-    - { name: async codeMap, lines: 54-190 }
+    - { name: slugifySurface, lines: 61-63 }
+    - { name: async codeMap, lines: 65-213 }
   interfaces:
-    - { name: CodeMapOptions, lines: 44-52 }
+    - { name: CodeMapOptions, lines: 44-58 }
 
 src/commands/context-scan.ts:  # 354 lines
   imports:
@@ -1003,7 +1004,7 @@ test/cli/code-map-ts-and-config.test.ts:  # 112 lines
   functions:
     - { name: copyFixtures, lines: 19-23 }
 
-test/cli/code-map.test.ts:  # 124 lines
+test/cli/code-map.test.ts:  # 147 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync], line: 5 }
