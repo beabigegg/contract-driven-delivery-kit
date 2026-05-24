@@ -1,5 +1,6 @@
 import { spawnSync } from 'child_process';
 import { writeFileSync, unlinkSync, readFileSync } from 'fs';
+import { randomBytes } from 'crypto';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import type { Scanner, ScannerResult, FileEntry } from '../types.js';
@@ -120,10 +121,9 @@ class PythonScanner implements Scanner {
     const warnings: ScannerResult['warnings'] = [];
 
     const scriptPath = ASSET.codeMapPython;
-    const rand = Math.random().toString(36).slice(2);
-    const listFile = join(tmpdir(), `cdd-codemap-${process.pid}-${rand}.txt`);
+    const listFile = join(tmpdir(), `cdd-codemap-${process.pid}-${randomBytes(12).toString('hex')}.txt`);
 
-    writeFileSync(listFile, absolutePaths.join('\n') + '\n', 'utf8');
+    writeFileSync(listFile, absolutePaths.join('\n') + '\n', { encoding: 'utf8', mode: 0o600 });
 
     let stdout = '';
     let stderr = '';

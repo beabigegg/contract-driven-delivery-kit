@@ -1,6 +1,6 @@
-# generated: 2026-05-24T07:12:02Z by cdd-kit 2.0.20
-# files: 106, src-lines: 15239, map-lines: 1445, compression: 10.5x
-# sources-digest: efb56387e10765dc297742e6c01800143039e50f94b726d9af175118b1a6ff21
+# generated: 2026-05-24T07:32:49Z by cdd-kit 2.0.20
+# files: 106, src-lines: 15254, map-lines: 1448, compression: 10.5x
+# sources-digest: b12fccf812a943cbb4eeceba8880a3b24045d9af0872956dea981cfb69730118
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -362,29 +362,30 @@ src/code-map/scanners/python.ts:  # 235 lines
   imports:
     - { module: child_process, items: [spawnSync], line: 1 }
     - { module: fs, items: [writeFileSync, unlinkSync, readFileSync], line: 2 }
-    - { module: path, items: [join], line: 3 }
-    - { module: os, items: [tmpdir], line: 4 }
-    - { module: '../types.js', items: [Scanner, ScannerResult, FileEntry], line: 5 }
-    - { module: '../../utils/paths.js', items: [ASSET], line: 6 }
-    - { module: './common.js', items: [canonicalRelPath], line: 7 }
+    - { module: crypto, items: [randomBytes], line: 3 }
+    - { module: path, items: [join], line: 4 }
+    - { module: os, items: [tmpdir], line: 5 }
+    - { module: '../types.js', items: [Scanner, ScannerResult, FileEntry], line: 6 }
+    - { module: '../../utils/paths.js', items: [ASSET], line: 7 }
+    - { module: './common.js', items: [canonicalRelPath], line: 8 }
   constants:
-    - { name: TIMEOUT_MS, line: 9 }
-    - { name: BATCH_SIZE, line: 19 }
+    - { name: TIMEOUT_MS, line: 10 }
+    - { name: BATCH_SIZE, line: 20 }
   classes:
     - name: PythonScanner
-      lines: 60-233
+      lines: 61-233
       methods:
-        - { name: getInterpreter, lines: 65-70 }
-        - { name: async scan, lines: 72-75 }
-        - { name: async scanBatch, lines: 77-112 }
-        - { name: scanChunk, lines: 114-232 }
+        - { name: getInterpreter, lines: 66-71 }
+        - { name: async scan, lines: 73-76 }
+        - { name: async scanBatch, lines: 78-113 }
+        - { name: scanChunk, lines: 115-232 }
   functions:
-    - { name: detectPython, lines: 45-58 }
+    - { name: detectPython, lines: 46-59 }
   interfaces:
-    - { name: PythonFileResult, lines: 24-32 }  # local
-    - { name: PythonFileError, lines: 34-38 }  # local
+    - { name: PythonFileResult, lines: 25-33 }  # local
+    - { name: PythonFileError, lines: 35-39 }  # local
   types:
-    - { name: PythonLine, lines: 40-40 }  # local
+    - { name: PythonLine, lines: 41-41 }  # local
 
 src/code-map/scanners/typescript.ts:  # 62 lines
   imports:
@@ -426,20 +427,22 @@ src/code-map/types.ts:  # 78 lines
     - { name: ScannerResult, lines: 63-66 }
     - { name: Scanner, lines: 68-78 }
 
-src/code-map/worker-dispatch.ts:  # 76 lines
+src/code-map/worker-dispatch.ts:  # 91 lines
   imports:
     - { module: child_process, items: [execFile], line: 1 }
     - { module: fs, items: [writeFileSync, unlinkSync], line: 2 }
-    - { module: path, items: [join], line: 3 }
-    - { module: os, items: [tmpdir], line: 4 }
-    - { module: './types.js', items: [Scanner, ScannerResult], line: 5 }
-    - { module: './orchestrator.js', items: [scanInProcess], line: 6 }
+    - { module: crypto, items: [randomBytes], line: 3 }
+    - { module: path, items: [join], line: 4 }
+    - { module: os, items: [tmpdir], line: 5 }
+    - { module: './types.js', items: [Scanner, ScannerResult], line: 6 }
+    - { module: './orchestrator.js', items: [scanInProcess], line: 7 }
   constants:
-    - { name: CHILD_TIMEOUT_MS, line: 8 }
+    - { name: CHILD_TIMEOUT_MS, line: 9 }
+    - { name: ALLOWED_LANGS, line: 14 }
   functions:
-    - { name: chunk, lines: 10-15 }
-    - { name: scanChunkInChild, lines: 17-45 }
-    - { name: async scanLangWithWorkers, lines: 54-76 }
+    - { name: chunk, lines: 16-21 }
+    - { name: scanChunkInChild, lines: 23-60 }
+    - { name: async scanLangWithWorkers, lines: 69-91 }
 
 src/code-map/yaml-writer.ts:  # 173 lines
   imports:
