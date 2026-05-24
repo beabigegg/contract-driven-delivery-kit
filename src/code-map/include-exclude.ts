@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'fs';
+import { readdirSync, statSync, type Dirent } from 'fs';
 import { join } from 'path';
 import picomatch from 'picomatch';
 
@@ -37,7 +37,7 @@ export function walkRepo(root: string, opts: WalkOptions = {}): string[] {
   const results: string[] = [];
 
   function walk(dir: string, relDir: string): void {
-    let entries: ReturnType<typeof readdirSync>;
+    let entries: Dirent[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
     } catch {

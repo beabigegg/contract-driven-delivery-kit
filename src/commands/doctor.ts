@@ -202,7 +202,15 @@ function checkAgentLint(cwd: string): Finding[] {
   // Delegate to the single source of truth for agent-prompt shape rules so
   // doctor and `cdd-kit lint-agents` can never report different verdicts.
   const violations = collectAgentViolations(cwd);
-  if (violations === null) return [];
+  if (violations === null) {
+    // The directory exists (checked above) but readdir failed -- a real
+    // permission/IO error, not "no agents configured". Surface it instead of
+    // silently reporting a clean pass.
+    return [{
+      level: 'warning',
+      message: `lint-agents: could not read ${join('.claude', 'agents')} -- agent prompts were not scanned`,
+    }];
+  }
 
   const findings: Finding[] = violations.map(v => ({
     level: 'warning',

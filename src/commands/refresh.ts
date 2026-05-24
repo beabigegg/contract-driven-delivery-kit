@@ -213,7 +213,7 @@ function resyncModelPolicy(cwd: string): {
   // Write merged policy: keep existing top-level keys, replace roles map.
   // (We REPLACE rather than merge into roles, because the agent frontmatter is
   // the source of truth — partial merges would re-introduce drift.)
-  const merged = {
+  const merged: Record<string, unknown> = {
     ...existing,
     roles: desired,
   };

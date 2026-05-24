@@ -1,6 +1,6 @@
-# generated: 2026-05-24T06:07:58Z by cdd-kit 2.0.20
-# files: 102, src-lines: 14803, map-lines: 1394, compression: 10.6x
-# sources-digest: 3e0e967ee61f9776926b5f2adf646a0b331072cbcd8c680728ddb0d9459e95f8
+# generated: 2026-05-24T06:35:34Z by cdd-kit 2.0.20
+# files: 102, src-lines: 14823, map-lines: 1394, compression: 10.6x
+# sources-digest: a81c554c29fd4bb26f6983828657c0672a6bc6e2945aef024d18c799a06391c9
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -259,7 +259,7 @@ src/code-map/freshness.ts:  # 114 lines
 
 src/code-map/include-exclude.ts:  # 79 lines
   imports:
-    - { module: fs, items: [readdirSync, statSync], line: 1 }
+    - { module: fs, items: [readdirSync, statSync, Dirent], line: 1 }
     - { module: path, items: [join], line: 2 }
     - { module: picomatch, items: ['default:picomatch'], line: 3 }
   functions:
@@ -550,7 +550,7 @@ src/commands/context.ts:  # 384 lines
     - { name: ContextRequest, lines: 6-11 }  # local
     - { name: ContextPolicy, lines: 13-15 }  # local
 
-src/commands/doctor.ts:  # 433 lines
+src/commands/doctor.ts:  # 441 lines
   imports:
     - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -568,11 +568,11 @@ src/commands/doctor.ts:  # 433 lines
     - { name: checkContextFreshness, lines: 72-133 }
     - { name: readAgentModel, lines: 135-143 }
     - { name: checkModelPolicyDrift, lines: 145-196 }
-    - { name: checkAgentLint, lines: 198-216 }
-    - { name: checkCodeMap, lines: 218-249 }
-    - { name: async buildDoctorReport, lines: 251-293 }
-    - { name: async attemptAutoFixes, lines: 295-385 }
-    - { name: async doctor, lines: 387-433 }
+    - { name: checkAgentLint, lines: 198-224 }
+    - { name: checkCodeMap, lines: 226-257 }
+    - { name: async buildDoctorReport, lines: 259-301 }
+    - { name: async attemptAutoFixes, lines: 303-393 }
+    - { name: async doctor, lines: 395-441 }
   interfaces:
     - { name: DoctorOptions, lines: 9-14 }
     - { name: Finding, lines: 16-19 }  # local
@@ -1023,7 +1023,7 @@ test/cli/doctor-code-map.test.ts:  # 72 lines
     - { module: path, items: [join], line: 6 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
 
-test/cli/doctor.test.ts:  # 210 lines
+test/cli/doctor.test.ts:  # 222 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }

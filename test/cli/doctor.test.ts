@@ -78,6 +78,18 @@ describe('cdd-kit doctor', () => {
     expect(doctor.stdout + doctor.stderr).not.toMatch(/lint-agents:.*missing.*artifacts/i);
   });
 
+  it('warns (not silently passes) when .claude/agents exists but cannot be scanned', () => {
+    // Regression for the read-failure path: when the agents dir exists but
+    // readdir fails (here: it is a file, not a directory), doctor must surface
+    // a warning rather than treating the unscanned prompts as a clean pass.
+    mkdirSync(join(tmpRepo, '.claude'), { recursive: true });
+    writeFileSync(join(tmpRepo, '.claude', 'agents'), 'not a directory', 'utf8');
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/agent prompts were not scanned/i);
+    expect(r.stdout + r.stderr).not.toMatch(/all agent prompts pass shape checks/i);
+  });
+
   it('warns when contracts/* changes after context-scan (hash drift)', async () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);
