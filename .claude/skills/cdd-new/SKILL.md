@@ -315,10 +315,18 @@ agent:
 ### Agent stage badges (UI v1)
 
 When you announce that you are about to invoke an agent, prefix the
-announcement with the matching emoji + role tag from the table below. This
-helps a non-engineer scanning the chat stream tell what stage they are in
+announcement with the matching emoji + role tag from the table below, and
+include the model class that agent runs on. This helps a non-engineer scanning
+the chat stream tell what stage they are in AND which model is doing the work,
 without reading the full prompt. Use the badges only in your own narration to
 the user; do not put them inside the prompt sent to the agent.
+
+The model class is not something you guess from the color. Read it at dispatch
+time from `.cdd/model-policy.json` (`roles.<agent-name>`), which is the
+authoritative source and is kept in sync with each agent's `model:` frontmatter
+by `cdd-kit doctor`. Show that value (e.g. `opus`, `sonnet`, `haiku`) in the
+badge so the user always sees the actual model, even after a project overrides
+the defaults.
 
 | Stage | Agent | Badge |
 |---|---|---|
@@ -348,8 +356,12 @@ Color semantics:
 - ? green: reviewing what was done (no code writes; just verdicts)
 - ??neutral: audits and scans (read-only background work)
 
-Format: emoji is followed by a single space, then the bracket-tag, then the
-human-readable narration.
+Format: emoji is followed by a single space, then the bracket-tag with the
+model class appended as `[role · model]`, then a single space, then the
+human-readable narration. Resolve `model` from `.cdd/model-policy.json`
+`roles.<agent-name>` (defaults: classifier / architect / plan / qa / drift =
+`opus`; backend / frontend / ci-cd / test-plan / e2e / monkey / stress /
+ui-ux / deps-sec = `sonnet`; visual / repo-scan = `haiku`).
 
 Examples:
 
@@ -360,9 +372,19 @@ Examples:
 ?? [stress] Tier 1 high-risk change ??running soak test for 30 min.
 ```
 
+Model-labeled examples (the model class sits inside the bracket tag):
+
+```
+🟣 [classifier · opus] Reading the request and project map.
+🔵 [backend · sonnet] Implementing the JWT issuance endpoint, failing tests first.
+⚫ [repo-scan · haiku] Indexing the repository structure. (read-only)
+```
+
 These badges are pure narration. They MUST NOT be sent inside the agent's
 prompt; the agent's behavior is defined by the agent prompt files in
-`.claude/agents/<name>.md`, not by this badge.
+`.claude/agents/<name>.md`, not by this badge. The model label is for the
+user's visibility only — it does not change which model the runtime selects
+(that is governed by the agent's `model:` frontmatter).
 
 ---
 
