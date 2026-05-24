@@ -130,6 +130,28 @@ describe('cdd-kit code-map', () => {
     expect(r.stderr).toMatch(/surface path not found/i);
   });
 
+  it('11: --workers produces output identical to single-process scanning', () => {
+    mkdirSync(join(tmpRepo, 'src'), { recursive: true });
+    for (let i = 1; i <= 6; i++) {
+      writeFileSync(
+        join(tmpRepo, 'src', `mod${i}.js`),
+        `export function f${i}() { return ${i}; }\nexport class C${i} { m${i}() {} }\n`,
+        'utf8',
+      );
+    }
+
+    const single = runCli(['code-map', '--out', 'single.yml'], { cwd: tmpRepo, home: tmpHome });
+    expect(single.status, single.stderr).toBe(0);
+    const parallel = runCli(['code-map', '--out', 'workers.yml', '--workers', '4'], { cwd: tmpRepo, home: tmpHome });
+    expect(parallel.status, parallel.stderr).toBe(0);
+
+    // The map body (minus the run-specific generated-timestamp line) must match,
+    // so enabling --workers never changes what gets indexed.
+    const strip = (p: string): string =>
+      readFileSync(join(tmpRepo, p), 'utf8').replace(/^# generated:.*$/m, '# generated: <x>');
+    expect(strip('workers.yml')).toBe(strip('single.yml'));
+  });
+
   it('7: empty repo produces header-only YAML with files: 0', () => {
     const r = runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);

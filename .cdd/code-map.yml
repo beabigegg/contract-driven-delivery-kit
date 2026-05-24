@@ -1,6 +1,6 @@
-# generated: 2026-05-24T07:06:00Z by cdd-kit 2.0.20
-# files: 103, src-lines: 15016, map-lines: 1408, compression: 10.7x
-# sources-digest: 15f81b015ac42bab7698e073d2e4f532905e7b4a8ef135515763b9a8c971f87e
+# generated: 2026-05-24T07:12:02Z by cdd-kit 2.0.20
+# files: 106, src-lines: 15239, map-lines: 1445, compression: 10.5x
+# sources-digest: efb56387e10765dc297742e6c01800143039e50f94b726d9af175118b1a6ff21
 assets/code-map/python_scanner.py:  # 167 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
@@ -209,24 +209,26 @@ build.js:  # 88 lines
   functions:
     - { name: copy, lines: 51-61 }
 
-src/cli/index.ts:  # 406 lines
+src/cli/index.ts:  # 432 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
-    - { module: url, items: [fileURLToPath], line: 2 }
-    - { module: path, items: [dirname, join], line: 3 }
-    - { module: commander, items: [Command], line: 4 }
-    - { module: '../commands/init.js', items: [init], line: 5 }
-    - { module: '../commands/update.js', items: [update], line: 6 }
-    - { module: '../commands/new-change.js', items: [newChange], line: 7 }
-    - { module: '../commands/validate.js', items: [validate], line: 8 }
-    - { module: '../commands/gate.js', items: [gate], line: 9 }
-    - { module: '../commands/install-hooks.js', items: [installHooks], line: 10 }
-    - { module: '../utils/stack-detect.js', items: [detectStack], line: 11 }
-    - { module: '../utils/provider.js', items: [ProviderOption], line: 12 }
+    - { module: os, items: ['default:os'], line: 2 }
+    - { module: url, items: [fileURLToPath], line: 3 }
+    - { module: path, items: [dirname, join], line: 4 }
+    - { module: commander, items: [Command], line: 5 }
+    - { module: '../commands/init.js', items: [init], line: 6 }
+    - { module: '../commands/update.js', items: [update], line: 7 }
+    - { module: '../commands/new-change.js', items: [newChange], line: 8 }
+    - { module: '../commands/validate.js', items: [validate], line: 9 }
+    - { module: '../commands/gate.js', items: [gate], line: 10 }
+    - { module: '../commands/install-hooks.js', items: [installHooks], line: 11 }
+    - { module: '../utils/stack-detect.js', items: [detectStack], line: 12 }
+    - { module: '../utils/provider.js', items: [ProviderOption], line: 13 }
   functions:
-    - { name: collectRepeatable, lines: 162-165 }
+    - { name: collectRepeatable, lines: 163-166 }
+    - { name: resolveWorkers, lines: 179-186 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 167-174 }  # local
+    - { name: CodeMapCliOpts, lines: 168-176 }  # local
 
 src/code-map/config.ts:  # 135 lines
   imports:
@@ -424,6 +426,21 @@ src/code-map/types.ts:  # 78 lines
     - { name: ScannerResult, lines: 63-66 }
     - { name: Scanner, lines: 68-78 }
 
+src/code-map/worker-dispatch.ts:  # 76 lines
+  imports:
+    - { module: child_process, items: [execFile], line: 1 }
+    - { module: fs, items: [writeFileSync, unlinkSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: os, items: [tmpdir], line: 4 }
+    - { module: './types.js', items: [Scanner, ScannerResult], line: 5 }
+    - { module: './orchestrator.js', items: [scanInProcess], line: 6 }
+  constants:
+    - { name: CHILD_TIMEOUT_MS, line: 8 }
+  functions:
+    - { name: chunk, lines: 10-15 }
+    - { name: scanChunkInChild, lines: 17-45 }
+    - { name: async scanLangWithWorkers, lines: 54-76 }
+
 src/code-map/yaml-writer.ts:  # 173 lines
   imports:
     - { module: './types.js', items: [FileEntry, ClassEntry, FunctionEntry, TypeDefEntry, EnumEntry], line: 1 }
@@ -472,7 +489,17 @@ src/commands/code-map-hook.ts:  # 77 lines
   functions:
     - { name: async installCodeMapHook, lines: 27-77 }
 
-src/commands/code-map.ts:  # 213 lines
+src/commands/code-map-scan-worker.ts:  # 49 lines
+  imports:
+    - { module: fs, items: [readFileSync], line: 1 }
+    - { module: '../code-map/orchestrator.js', items: [scanInProcess], line: 2 }
+    - { module: '../code-map/types.js', items: [Scanner], line: 3 }
+  functions:
+    - { name: async runScanWorker, lines: 18-49 }
+  interfaces:
+    - { name: ScanWorkerOptions, lines: 5-9 }
+
+src/commands/code-map.ts:  # 230 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -484,16 +511,16 @@ src/commands/code-map.ts:  # 213 lines
     - { module: '../code-map/index-reader.js', items: [sidecarPathFor], line: 8 }
     - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 9 }
     - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 10 }
-    - { module: '../code-map/types.js', items: [ScannerResult], line: 11 }
+    - { module: '../code-map/types.js', items: [Scanner, ScannerResult], line: 11 }
     - { module: module, items: [createRequire], line: 36 }
     - { module: url, items: [fileURLToPath], line: 37 }
     - { module: path, items: [join], line: 38 }
   functions:
     - { name: computeSourcesDigest, lines: 21-33 }
-    - { name: slugifySurface, lines: 61-63 }
-    - { name: async codeMap, lines: 65-213 }
+    - { name: slugifySurface, lines: 66-68 }
+    - { name: async codeMap, lines: 70-230 }
   interfaces:
-    - { name: CodeMapOptions, lines: 44-58 }
+    - { name: CodeMapOptions, lines: 44-63 }
 
 src/commands/context-scan.ts:  # 354 lines
   imports:
@@ -1004,7 +1031,7 @@ test/cli/code-map-ts-and-config.test.ts:  # 112 lines
   functions:
     - { name: copyFixtures, lines: 19-23 }
 
-test/cli/code-map.test.ts:  # 147 lines
+test/cli/code-map.test.ts:  # 169 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync], line: 5 }
@@ -1278,6 +1305,16 @@ test/code-map/scanners.test.ts:  # 134 lines
     - { name: fixtureRoot, lines: 34-36 }
     - { name: writeTempFile, lines: 38-43 }
     - { name: writeTempVue, lines: 102-107 }
+
+test/code-map/worker-dispatch.test.ts:  # 33 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: path, items: [dirname, join], line: 2 }
+    - { module: url, items: [fileURLToPath], line: 3 }
+    - { module: '../../src/code-map/worker-dispatch.js', items: [scanLangWithWorkers], line: 4 }
+    - { module: '../../src/code-map/scanners/javascript.js', items: [jsScanner], line: 5 }
+  constants:
+    - { name: FIXTURE_ROOT, line: 7 }
 
 test/fixtures/code-map/comments-only.js:  # 5 lines
 

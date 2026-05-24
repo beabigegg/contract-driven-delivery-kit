@@ -8,7 +8,7 @@ import { loadCodeMapConfig } from '../code-map/config.js';
 import { sidecarPathFor } from '../code-map/index-reader.js';
 import { sha256OfFileNormalized } from '../utils/digest.js';
 import { ensureGitignoreEntry } from '../utils/gitignore.js';
-import type { ScannerResult } from '../code-map/types.js';
+import type { Scanner, ScannerResult } from '../code-map/types.js';
 
 /**
  * Compute a stable digest of the source files included in a code-map run.
@@ -50,6 +50,11 @@ export interface CodeMapOptions {
    * `cdd-kit index query <term> --map .cdd/code-map.<slug>.yml`.
    */
   surface?: string;
+  /**
+   * Parallelize JS/TS/Vue scanning across this many child processes. 0/1 = the
+   * default single-process path. Opt-in via `cdd-kit code-map --workers`.
+   */
+  workers?: number;
   include: string[];
   exclude: string[];
   check: boolean;
@@ -95,10 +100,22 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   const result: ScannerResult = { entries: [], warnings: [] };
 
+  // Optional parallelism for the in-process (Babel) scanners. Default off; the
+  // child worker re-runs this same CLI, so it only works when invoked through
+  // it (process.argv[1] resolvable) — otherwise we transparently use one process.
+  const cliEntry = process.argv[1];
+  const workers = opts.workers ?? 0;
+  const useWorkers = workers > 1 && typeof cliEntry === 'string' && cliEntry.length > 0;
+  const dispatch = async (scanner: Scanner, lang: string, langFiles: string[]): Promise<ScannerResult> => {
+    if (!useWorkers) return scanInProcess(scanner, langFiles, root);
+    const { scanLangWithWorkers } = await import('../code-map/worker-dispatch.js');
+    return scanLangWithWorkers(scanner, lang, langFiles, root, workers, cliEntry);
+  };
+
   // Dynamically import scanners (batch 2–4 will provide them)
   const tasks: Promise<ScannerResult>[] = [];
 
-  // Python scanner (batch path)
+  // Python scanner (batch path) — already runs in its own subprocess.
   if (buckets['.py']?.length) {
     const { pythonScanner } = await import('../code-map/scanners/python.js');
     if (pythonScanner.scanBatch) {
@@ -115,7 +132,7 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   ];
   if (jsFiles.length) {
     const { jsScanner } = await import('../code-map/scanners/javascript.js');
-    tasks.push(scanInProcess(jsScanner, jsFiles, root));
+    tasks.push(dispatch(jsScanner, 'js', jsFiles));
   }
 
   // TypeScript scanner — handles .ts / .tsx
@@ -125,13 +142,13 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   ];
   if (tsFiles.length) {
     const { tsScanner } = await import('../code-map/scanners/typescript.js');
-    tasks.push(scanInProcess(tsScanner, tsFiles, root));
+    tasks.push(dispatch(tsScanner, 'ts', tsFiles));
   }
 
   // Vue scanner
   if (buckets['.vue']?.length) {
     const { vueScanner } = await import('../code-map/scanners/vue.js');
-    tasks.push(scanInProcess(vueScanner, buckets['.vue'], root));
+    tasks.push(dispatch(vueScanner, 'vue', buckets['.vue']));
   }
 
   for (const r of await Promise.all(tasks)) {

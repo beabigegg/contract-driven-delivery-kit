@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { Command } from 'commander';
@@ -167,10 +168,21 @@ function collectRepeatable(val: string, acc: string[]): string[] {
 interface CodeMapCliOpts {
   out?: string;
   surface?: string;
+  workers?: string | boolean;
   include: string[];
   exclude: string[];
   check: boolean;
   maxLines: string;
+}
+
+/** Resolve `--workers [n]` into a worker count (0 = disabled). */
+function resolveWorkers(value: string | boolean | undefined): number {
+  if (value === undefined) return 0;
+  const cpus = Math.max(1, (os.cpus()?.length ?? 2) - 1);
+  if (value === true) return Math.min(cpus, 16);
+  const n = parseInt(String(value), 10);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(n, 16);
 }
 
 program
@@ -178,6 +190,7 @@ program
   .description('Scan source files and emit a structural index at .cdd/code-map.yml')
   .option('--out <path>', 'Output YAML path (default .cdd/code-map.yml; with --surface, .cdd/code-map.<surface>.yml)')
   .option('--surface <subpath>', 'Scope the scan to a monorepo subtree and name the map after it')
+  .option('--workers [n]', 'Parallelize JS/TS/Vue scanning across N child processes (default: CPU count - 1)')
   .option('--include <glob>', 'Additional include glob (repeatable)', collectRepeatable, [])
   .option('--exclude <glob>', 'Additional exclude glob (repeatable)', collectRepeatable, [])
   .option('--check', 'Exit 1 if regenerating would change the file (no write)', false)
@@ -188,11 +201,24 @@ program
       path: path ?? '.',
       out: opts.out,
       surface: opts.surface,
+      workers: resolveWorkers(opts.workers),
       include: opts.include,
       exclude: opts.exclude,
       check: opts.check,
       maxLines: parseInt(opts.maxLines, 10),
     });
+    process.exit(exit);
+  });
+
+// Hidden worker invoked by `code-map --workers`. Not for direct use.
+program
+  .command('__code-map-scan', { hidden: true })
+  .requiredOption('--lang <lang>', 'js | ts | vue')
+  .requiredOption('--batch-file <path>', 'File listing absolute source paths, one per line')
+  .requiredOption('--repo-root <path>', 'Repo root the scanned paths are relative to')
+  .action(async (opts: { lang: string; batchFile: string; repoRoot: string }) => {
+    const { runScanWorker } = await import('../commands/code-map-scan-worker.js');
+    const exit = await runScanWorker({ lang: opts.lang, batchFile: opts.batchFile, repoRoot: opts.repoRoot });
     process.exit(exit);
   });
 

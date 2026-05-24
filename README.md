@@ -680,7 +680,14 @@ and line ranges instead of whole files.
 cdd-kit code-map                          # whole repo -> .cdd/code-map.yml
 cdd-kit code-map --check                  # exit 1 if regenerating would change the map
 cdd-kit code-map --surface packages/web   # monorepo: scope + auto-name the map
+cdd-kit code-map --workers                # parallelize JS/TS/Vue scanning (default off)
 ```
+
+`--workers [n]` (default off; `n` defaults to CPU count − 1, capped at 16)
+parallelizes the synchronous JS/TS/Vue parsing across child processes for large
+repos. Output is byte-identical to a single-process run, and any worker failure
+falls back to in-process scanning, so it can never make a run worse. Python is
+already scanned in its own subprocess.
 
 A JSON sidecar (`.cdd/code-map.<...>.index.json`) is written next to each map and
 gitignored automatically; `cdd-kit index` reads it to skip re-parsing the YAML on
