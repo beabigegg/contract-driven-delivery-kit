@@ -352,6 +352,7 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
             'qa-reviewer': 'opus',
             'contract-reviewer': 'sonnet',
             'test-strategist': 'sonnet',
+            'bug-fix-engineer': 'sonnet',
             'backend-engineer': 'sonnet',
             'frontend-engineer': 'sonnet',
             'ci-cd-gatekeeper': 'sonnet',

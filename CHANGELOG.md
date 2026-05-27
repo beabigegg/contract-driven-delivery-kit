@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.1.0] - 2026-05-27
+
+Native code graph and symptom-driven bug-fix workflow.
+
+### Added
+
+- **Native cdd-kit code graph**: `cdd-kit code-map` now writes
+  `.cdd/code-graph.index.json`, a derived local graph cache with files, symbol
+  nodes, relationship edges, and unresolved references. It is gitignored,
+  regenerated with the code-map, stripped from the published package, and safe
+  to delete.
+- **`cdd-kit graph`**: adds graph-first `status`, `query`, `impact`, `context`,
+  and `sync` commands. The default engine is the native cdd-kit graph; use
+  `--engine codemap` for the older code-map-only fallback or
+  `--engine codegraph` to require an external CodeGraph adapter.
+- **Call/import/inheritance graph extraction** for the existing code-map language
+  surface: JS/TS/JSX/TSX/MJS/CJS, Vue script blocks, and Python.
+- **`bug-fix-engineer` agent**: a write-capable implementation agent for
+  non-engineer symptom reports. It turns user-visible defects into graph-guided
+  hypotheses, reproduces when feasible, applies the smallest fix, and records
+  regression evidence.
+
+### Changed
+
+- Agent and skill guidance now prefers `cdd-kit graph ...` before broad source
+  reads while retaining `cdd-kit index ...` and `.cdd/code-map.yml` as fallback
+  paths.
+- `cdd-kit graph --engine codegraph` remains available as an explicit external
+  adapter, but external CodeGraph is no longer required or auto-selected by
+  default.
+
 ## [2.0.21] - 2026-05-25
 
 Kit review fixes plus large-project capability improvements. All additions are

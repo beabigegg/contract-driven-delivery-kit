@@ -120,6 +120,7 @@ Machine-readable metadata such as future `change.yml` / `trace.yml` should follo
 CDD uses two agent classes on purpose:
 
 - `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or optional handoff notes; main Claude writes the corresponding files.
+- `bug-fix-engineer` is an implementation agent for symptom-driven defects. It converts user-visible reports into graph/index-guided hypotheses, reproduces the issue where feasible, applies the smallest fix, and adds regression evidence.
 - `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own owned artifacts directly: for example, `spec-architect` owns `design.md`, while `implementation-planner` owns `implementation-plan.md`.
 
 This split is deliberate:
@@ -692,6 +693,25 @@ already scanned in its own subprocess.
 A JSON sidecar (`.cdd/code-map.<...>.index.json`) is written next to each map and
 gitignored automatically; `cdd-kit index` reads it to skip re-parsing the YAML on
 large maps, and falls back to the YAML whenever the sidecar is absent or stale.
+
+### `cdd-kit graph`
+
+`cdd-kit graph` is the graph-first query layer. `cdd-kit code-map` also writes
+`.cdd/code-graph.index.json`, a native cdd-kit graph of files, symbols, imports,
+exports, calls, inheritance, and unresolved references. Graph queries use this
+native graph by default. You can still delegate to external CodeGraph explicitly
+with `--engine codegraph`.
+
+```bash
+cdd-kit graph status
+cdd-kit graph query OrderService
+cdd-kit graph context "filter options are empty"
+cdd-kit graph impact src/services/orders.ts --depth 2
+```
+
+Use `--engine native` for the built-in graph, `--engine codemap` for the older
+code-map-only fallback, `--engine codegraph` to require external CodeGraph, or
+`CDD_CODEGRAPH_BIN=/path/to/codegraph` to point at a custom binary.
 
 Large Python repos are scanned in chunks (`CDD_CODE_MAP_BATCH_SIZE`, default 400)
 so one slow batch cannot drop the whole language. Raise

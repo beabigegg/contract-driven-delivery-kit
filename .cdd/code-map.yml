@@ -1,7 +1,7 @@
-# generated: 2026-05-24T07:32:49Z by cdd-kit 2.0.20
-# files: 106, src-lines: 15254, map-lines: 1448, compression: 10.5x
-# sources-digest: b12fccf812a943cbb4eeceba8880a3b24045d9af0872956dea981cfb69730118
-assets/code-map/python_scanner.py:  # 167 lines
+# generated: 2026-05-27T05:00:00Z by cdd-kit 2.1.0
+# files: 112, src-lines: 16716, map-lines: 1575, compression: 10.6x
+# sources-digest: 36b6e0c4040eae35649201939599f69c6079bb3ea155ad643bba4c5db1e5d5be
+assets/code-map/python_scanner.py:  # 206 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
     - { module: ast, items: [], line: 4 }
@@ -13,8 +13,10 @@ assets/code-map/python_scanner.py:  # 167 lines
     - { name: _check_python_version, lines: 11-18 }
     - { name: _rel_path, lines: 21-27 }
     - { name: _is_all_caps, lines: 30-38 }
-    - { name: scan_file, lines: 41-141 }
-    - { name: main, lines: 144-163 }
+    - { name: _expr_name, lines: 41-51 }
+    - { name: _calls_in, lines: 54-65 }
+    - { name: scan_file, lines: 68-180 }
+    - { name: main, lines: 183-202 }
 
 assets/skills/contract-driven-delivery/scripts/detect_project_profile.py:  # 128 lines
   imports:
@@ -209,7 +211,7 @@ build.js:  # 88 lines
   functions:
     - { name: copy, lines: 51-61 }
 
-src/cli/index.ts:  # 432 lines
+src/cli/index.ts:  # 521 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: os, items: ['default:os'], line: 2 }
@@ -230,11 +232,78 @@ src/cli/index.ts:  # 432 lines
   interfaces:
     - { name: CodeMapCliOpts, lines: 168-176 }  # local
 
+src/code-graph/builder.ts:  # 375 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 1 }
+    - { module: path, items: [posix], line: 2 }
+    - { module: '../code-map/types.js', items: [FileEntry, ImportEntry], line: 3 }
+    - { module: './types.js', items: [CodeGraphEdge, CodeGraphFile, CodeGraphIndex, CodeGraphNode, CodeGraphNodeKind, CodeGraphUnresolvedRef], line: 4 }
+  constants:
+    - { name: RESOLUTION_EXTENSIONS, line: 13 }
+  functions:
+    - { name: stableId, lines: 25-27 }
+    - { name: nodeId, lines: 29-31 }
+    - { name: edgeId, lines: 33-35 }
+    - { name: fileNode, lines: 37-47 }
+    - { name: symbolNode, lines: 49-68 }
+    - { name: addEdge, lines: 70-80 }
+    - { name: isLocalImport, lines: 82-84 }
+    - { name: resolvePythonRelativeImport, lines: 86-96 }
+    - { name: resolutionCandidates, lines: 98-118 }
+    - { name: resolveLocalModule, lines: 120-131 }
+    - { name: importedBindings, lines: 133-150 }
+    - { name: simpleName, lines: 152-154 }
+    - { name: isWithin, lines: 156-158 }
+    - { name: findCallerNode, lines: 160-166 }
+    - { name: buildCodeGraph, lines: 168-334 }
+    - { name: resolveSymbol, lines: 336-357 }
+    - { name: symbolLookupNames, lines: 359-363 }
+    - { name: dedupeBy, lines: 365-375 }
+  interfaces:
+    - { name: BuildOptions, lines: 15-18 }  # local
+    - { name: SymbolTarget, lines: 20-23 }  # local
+
+src/code-graph/queries.ts:  # 143 lines
+  imports:
+    - { module: './types.js', items: [CodeGraphEdge, CodeGraphIndex, CodeGraphNode], line: 1 }
+  functions:
+    - { name: searchGraph, lines: 19-41 }
+    - { name: findGraphNode, lines: 43-55 }
+    - { name: graphCallers, lines: 57-61 }
+    - { name: graphCallees, lines: 63-67 }
+    - { name: graphImpact, lines: 69-73 }
+    - { name: graphContext, lines: 75-86 }
+    - { name: traverse, lines: 88-134 }
+    - { name: scoreText, lines: 136-143 }
+  interfaces:
+    - { name: GraphSearchResult, lines: 3-10 }
+    - { name: GraphImpactResult, lines: 12-17 }
+
+src/code-graph/reader.ts:  # 19 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: './types.js', items: [CodeGraphIndex], line: 2 }
+  functions:
+    - { name: graphPathFor, lines: 4-8 }
+    - { name: loadCodeGraph, lines: 10-19 }
+
+src/code-graph/types.ts:  # 67 lines
+  interfaces:
+    - { name: CodeGraphNode, lines: 23-32 }
+    - { name: CodeGraphEdge, lines: 34-42 }
+    - { name: CodeGraphFile, lines: 44-48 }
+    - { name: CodeGraphUnresolvedRef, lines: 50-57 }
+    - { name: CodeGraphIndex, lines: 59-67 }
+  types:
+    - { name: CodeGraphNodeKind, lines: 1-10 }
+    - { name: CodeGraphEdgeKind, lines: 12-19 }
+    - { name: CodeGraphProvenance, lines: 21-21 }
+
 src/code-map/config.ts:  # 135 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
-    - { module: js-yaml, items: [load], line: 3 }
+    - { module: js-yaml, items: ['load:yamlLoad'], line: 3 }
   constants:
     - { name: BUILTIN_INCLUDE, line: 8 }
     - { name: BUILTIN_EXCLUDE, line: 25 }
@@ -297,7 +366,7 @@ src/code-map/orchestrator.ts:  # 57 lines
   interfaces:
     - { name: OrchestratorOptions, lines: 4-6 }
 
-src/code-map/python/python_scanner.py:  # 167 lines
+src/code-map/python/python_scanner.py:  # 206 lines
   imports:
     - { module: __future__, items: [annotations], line: 2 }
     - { module: ast, items: [], line: 4 }
@@ -309,8 +378,10 @@ src/code-map/python/python_scanner.py:  # 167 lines
     - { name: _check_python_version, lines: 11-18 }
     - { name: _rel_path, lines: 21-27 }
     - { name: _is_all_caps, lines: 30-38 }
-    - { name: scan_file, lines: 41-141 }
-    - { name: main, lines: 144-163 }
+    - { name: _expr_name, lines: 41-51 }
+    - { name: _calls_in, lines: 54-65 }
+    - { name: scan_file, lines: 68-180 }
+    - { name: main, lines: 183-202 }
 
 src/code-map/scanners/common.ts:  # 33 lines
   imports:
@@ -321,44 +392,46 @@ src/code-map/scanners/common.ts:  # 33 lines
     - { name: isAllCapsConst, lines: 20-25 }
     - { name: isBinary, lines: 30-33 }
 
-src/code-map/scanners/javascript.ts:  # 417 lines
+src/code-map/scanners/javascript.ts:  # 506 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: '@babel/parser', items: [parse], line: 2 }
     - { module: '@babel/parser', items: [ParserPlugin], line: 3 }
     - { module: '@babel/types', items: [File, Statement, ImportDeclaration, FunctionDeclaration, ClassDeclaration, VariableDeclaration, Expression, ExpressionStatement, ClassMethod, ClassPrivateMethod, Node], line: 4 }
-    - { module: '../types.js', items: [Scanner, FileEntry, FunctionEntry, ClassEntry, MethodEntry, ImportEntry, ConstantEntry, TypeDefEntry, EnumEntry], line: 17 }
-    - { module: './common.js', items: [canonicalRelPath, isAllCapsConst, isBinary], line: 28 }
+    - { module: '../types.js', items: [Scanner, FileEntry, FunctionEntry, ClassEntry, MethodEntry, ImportEntry, ConstantEntry, TypeDefEntry, EnumEntry, CallEntry, ExportEntry], line: 17 }
+    - { module: './common.js', items: [canonicalRelPath, isAllCapsConst, isBinary], line: 30 }
   constants:
-    - { name: COMMON_PLUGINS, line: 35 }
-    - { name: JS_PLUGINS, line: 50 }
+    - { name: COMMON_PLUGINS, line: 37 }
+    - { name: JS_PLUGINS, line: 52 }
   classes:
     - name: JavaScriptScanner
-      lines: 397-415
+      lines: 486-504
       methods:
-        - { name: async scan, lines: 400-414 }
+        - { name: async scan, lines: 489-503 }
   functions:
-    - { name: parseSourceWithPlugins, lines: 52-60 }
-    - { name: isCallExpression, lines: 62-66 }
-    - { name: extractRequireModule, lines: 68-75 }
-    - { name: getLineRange, lines: 77-81 }
-    - { name: processImportDeclaration, lines: 83-100 }
-    - { name: processFunctionDeclaration, lines: 102-111 }
-    - { name: processClassDeclaration, lines: 113-142 }
-    - { name: processVariableDeclaration, lines: 144-194 }
-    - { name: processTsInterfaceDeclaration, lines: 200-208 }
-    - { name: processTsTypeAliasDeclaration, lines: 210-218 }
-    - { name: processTsEnumDeclaration, lines: 220-235 }
-    - { name: processStatement, lines: 252-327 }
-    - { name: parseAndExtract, lines: 348-368 }
-    - { name: countSourceLines, lines: 374-377 }
-    - { name: parseJsSource, lines: 383-395 }
+    - { name: parseSourceWithPlugins, lines: 54-62 }
+    - { name: isCallExpression, lines: 64-68 }
+    - { name: extractRequireModule, lines: 70-77 }
+    - { name: getLineRange, lines: 79-83 }
+    - { name: expressionName, lines: 85-101 }
+    - { name: collectCalls, lines: 103-117 }
+    - { name: processImportDeclaration, lines: 119-137 }
+    - { name: processFunctionDeclaration, lines: 139-149 }
+    - { name: processClassDeclaration, lines: 151-185 }
+    - { name: processVariableDeclaration, lines: 187-247 }
+    - { name: processTsInterfaceDeclaration, lines: 253-261 }
+    - { name: processTsTypeAliasDeclaration, lines: 263-271 }
+    - { name: processTsEnumDeclaration, lines: 273-288 }
+    - { name: processStatement, lines: 307-410 }
+    - { name: parseAndExtract, lines: 433-455 }
+    - { name: countSourceLines, lines: 461-464 }
+    - { name: parseJsSource, lines: 470-484 }
   interfaces:
-    - { name: Buckets, lines: 237-245 }  # local
-    - { name: ExtractOptions, lines: 329-332 }
-    - { name: ExtractResult, lines: 334-342 }
+    - { name: Buckets, lines: 290-300 }  # local
+    - { name: ExtractOptions, lines: 412-415 }
+    - { name: ExtractResult, lines: 417-427 }
 
-src/code-map/scanners/python.ts:  # 235 lines
+src/code-map/scanners/python.ts:  # 243 lines
   imports:
     - { module: child_process, items: [spawnSync], line: 1 }
     - { module: fs, items: [writeFileSync, unlinkSync, readFileSync], line: 2 }
@@ -373,21 +446,21 @@ src/code-map/scanners/python.ts:  # 235 lines
     - { name: BATCH_SIZE, line: 20 }
   classes:
     - name: PythonScanner
-      lines: 61-233
+      lines: 63-241
       methods:
-        - { name: getInterpreter, lines: 66-71 }
-        - { name: async scan, lines: 73-76 }
-        - { name: async scanBatch, lines: 78-113 }
-        - { name: scanChunk, lines: 115-232 }
+        - { name: getInterpreter, lines: 68-73 }
+        - { name: async scan, lines: 75-78 }
+        - { name: async scanBatch, lines: 80-115 }
+        - { name: scanChunk, lines: 117-240 }
   functions:
-    - { name: detectPython, lines: 46-59 }
+    - { name: detectPython, lines: 48-61 }
   interfaces:
-    - { name: PythonFileResult, lines: 25-33 }  # local
-    - { name: PythonFileError, lines: 35-39 }  # local
+    - { name: PythonFileResult, lines: 25-35 }  # local
+    - { name: PythonFileError, lines: 37-41 }  # local
   types:
-    - { name: PythonLine, lines: 41-41 }  # local
+    - { name: PythonLine, lines: 43-43 }  # local
 
-src/code-map/scanners/typescript.ts:  # 62 lines
+src/code-map/scanners/typescript.ts:  # 64 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: '@babel/parser', items: [ParserPlugin], line: 2 }
@@ -396,36 +469,38 @@ src/code-map/scanners/typescript.ts:  # 62 lines
     - { module: './javascript.js', items: [COMMON_PLUGINS, parseAndExtract, countSourceLines], line: 5 }
   classes:
     - name: TypeScriptScanner
-      lines: 22-60
+      lines: 22-62
       methods:
-        - { name: async scan, lines: 25-59 }
+        - { name: async scan, lines: 25-61 }
 
-src/code-map/scanners/vue.ts:  # 115 lines
+src/code-map/scanners/vue.ts:  # 125 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: '@vue/compiler-sfc', items: [parse], line: 2 }
-    - { module: '../types.js', items: [Scanner, FileEntry, FunctionEntry, ClassEntry, ImportEntry, ConstantEntry, ScannerWarning], line: 3 }
+    - { module: '../types.js', items: [Scanner, FileEntry, FunctionEntry, ClassEntry, ImportEntry, ConstantEntry, ScannerWarning, CallEntry, ExportEntry], line: 3 }
     - { module: './common.js', items: [canonicalRelPath, isBinary], line: 4 }
     - { module: './javascript.js', items: [parseJsSource], line: 5 }
   classes:
     - name: VueScanner
-      lines: 7-113
+      lines: 7-123
       methods:
-        - { name: async scan, lines: 10-112 }
+        - { name: async scan, lines: 10-122 }
 
-src/code-map/types.ts:  # 78 lines
+src/code-map/types.ts:  # 96 lines
   interfaces:
     - { name: ImportEntry, lines: 1-5 }
-    - { name: ConstantEntry, lines: 7-10 }
-    - { name: MethodEntry, lines: 12-16 }
-    - { name: ClassEntry, lines: 18-22 }
-    - { name: FunctionEntry, lines: 24-29 }
-    - { name: TypeDefEntry, lines: 31-35 }
-    - { name: EnumEntry, lines: 37-42 }
-    - { name: FileEntry, lines: 44-56 }
-    - { name: ScannerWarning, lines: 58-61 }
-    - { name: ScannerResult, lines: 63-66 }
-    - { name: Scanner, lines: 68-78 }
+    - { name: CallEntry, lines: 7-11 }
+    - { name: ExportEntry, lines: 13-17 }
+    - { name: ConstantEntry, lines: 19-22 }
+    - { name: MethodEntry, lines: 24-28 }
+    - { name: ClassEntry, lines: 30-37 }
+    - { name: FunctionEntry, lines: 39-45 }
+    - { name: TypeDefEntry, lines: 47-51 }
+    - { name: EnumEntry, lines: 53-58 }
+    - { name: FileEntry, lines: 60-74 }
+    - { name: ScannerWarning, lines: 76-79 }
+    - { name: ScannerResult, lines: 81-84 }
+    - { name: Scanner, lines: 86-96 }
 
 src/code-map/worker-dispatch.ts:  # 91 lines
   imports:
@@ -502,7 +577,7 @@ src/commands/code-map-scan-worker.ts:  # 49 lines
   interfaces:
     - { name: ScanWorkerOptions, lines: 5-9 }
 
-src/commands/code-map.ts:  # 230 lines
+src/commands/code-map.ts:  # 242 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -512,18 +587,20 @@ src/commands/code-map.ts:  # 230 lines
     - { module: '../code-map/orchestrator.js', items: [walkRepo, bucketByExtension, scanInProcess], line: 6 }
     - { module: '../code-map/config.js', items: [loadCodeMapConfig], line: 7 }
     - { module: '../code-map/index-reader.js', items: [sidecarPathFor], line: 8 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 9 }
-    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 10 }
-    - { module: '../code-map/types.js', items: [Scanner, ScannerResult], line: 11 }
-    - { module: module, items: [createRequire], line: 36 }
-    - { module: url, items: [fileURLToPath], line: 37 }
-    - { module: path, items: [join], line: 38 }
+    - { module: '../code-graph/builder.js', items: [buildCodeGraph], line: 9 }
+    - { module: '../code-graph/reader.js', items: [graphPathFor], line: 10 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 11 }
+    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 12 }
+    - { module: '../code-map/types.js', items: [Scanner, ScannerResult], line: 13 }
+    - { module: module, items: [createRequire], line: 38 }
+    - { module: url, items: [fileURLToPath], line: 39 }
+    - { module: path, items: [join], line: 40 }
   functions:
-    - { name: computeSourcesDigest, lines: 21-33 }
-    - { name: slugifySurface, lines: 66-68 }
-    - { name: async codeMap, lines: 70-230 }
+    - { name: computeSourcesDigest, lines: 23-35 }
+    - { name: slugifySurface, lines: 68-70 }
+    - { name: async codeMap, lines: 72-242 }
   interfaces:
-    - { name: CodeMapOptions, lines: 44-63 }
+    - { name: CodeMapOptions, lines: 46-65 }
 
 src/commands/context-scan.ts:  # 354 lines
   imports:
@@ -531,7 +608,7 @@ src/commands/context-scan.ts:  # 354 lines
     - { module: crypto, items: [createHash], line: 2 }
     - { module: path, items: [basename, dirname, join, relative], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 7 }
+    - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 7 }
   constants:
     - { name: DEFAULT_FORBIDDEN, line: 29 }
     - { name: FORBIDDEN_DIRECTORY_NAMES, line: 55 }
@@ -587,7 +664,7 @@ src/commands/context.ts:  # 384 lines
     - { name: ContextRequest, lines: 6-11 }  # local
     - { name: ContextPolicy, lines: 13-15 }  # local
 
-src/commands/doctor.ts:  # 441 lines
+src/commands/doctor.ts:  # 442 lines
   imports:
     - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -596,7 +673,7 @@ src/commands/doctor.ts:  # 441 lines
     - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, ProviderOption], line: 5 }
     - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 6 }
     - { module: './lint-agents.js', items: [collectAgentViolations], line: 7 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 45 }
+    - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 45 }
   functions:
     - { name: fileExists, lines: 30-32 }
     - { name: findFiles, lines: 34-42 }
@@ -608,8 +685,8 @@ src/commands/doctor.ts:  # 441 lines
     - { name: checkAgentLint, lines: 198-224 }
     - { name: checkCodeMap, lines: 226-257 }
     - { name: async buildDoctorReport, lines: 259-301 }
-    - { name: async attemptAutoFixes, lines: 303-393 }
-    - { name: async doctor, lines: 395-441 }
+    - { name: async attemptAutoFixes, lines: 303-394 }
+    - { name: async doctor, lines: 396-442 }
   interfaces:
     - { name: DoctorOptions, lines: 9-14 }
     - { name: Finding, lines: 16-19 }  # local
@@ -652,6 +729,44 @@ src/commands/gate.ts:  # 431 lines
     - { name: TasksFile, lines: 49-57 }  # local
     - { name: GateOptions, lines: 59-61 }
     - { name: TierResolution, lines: 166-171 }  # local
+
+src/commands/graph.ts:  # 407 lines
+  imports:
+    - { module: fs, items: [existsSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: child_process, items: [spawnSync, SpawnSyncReturns], line: 3 }
+    - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 4 }
+    - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 5 }
+    - { module: '../code-map/types.js', items: [FileEntry], line: 6 }
+    - { module: '../code-graph/reader.js', items: [graphPathFor, loadCodeGraph], line: 7 }
+    - { module: '../code-graph/queries.js', items: ['graphContext:buildNativeContext', 'graphImpact:nativeImpact', searchGraph], line: 8 }
+    - { module: './index-query.js', items: [indexQuery, queryEntries], line: 9 }
+    - { module: './index-impact.js', items: [indexImpact], line: 10 }
+  functions:
+    - { name: codeGraphCommand, lines: 54-56 }
+    - { name: runCodeGraph, lines: 58-64 }
+    - { name: probeCodeGraph, lines: 66-87 }
+    - { name: selectEngine, lines: 89-109 }
+    - { name: writeJson, lines: 111-113 }
+    - { name: pipeResult, lines: 115-123 }
+    - { name: printEngineError, lines: 125-132 }
+    - { name: async ensureNativeGraph, lines: 134-157 }
+    - { name: async graphStatus, lines: 159-213 }
+    - { name: async graphSync, lines: 215-224 }
+    - { name: async graphQuery, lines: 226-268 }
+    - { name: async graphImpact, lines: 270-321 }
+    - { name: async graphContext, lines: 323-407 }
+  interfaces:
+    - { name: GraphBaseOptions, lines: 14-19 }  # local
+    - { name: GraphStatusOptions, lines: 21-23 }
+    - { name: GraphQueryOptions, lines: 25-27 }
+    - { name: GraphImpactOptions, lines: 29-32 }
+    - { name: GraphContextOptions, lines: 34-36 }
+    - { name: GraphSyncOptions, lines: 38-40 }
+    - { name: CodeGraphProbe, lines: 42-47 }  # local
+    - { name: SelectedEngine, lines: 49-52 }  # local
+  types:
+    - { name: GraphEngine, lines: 12-12 }  # local
 
 src/commands/index-impact.ts:  # 314 lines
   imports:
@@ -700,9 +815,9 @@ src/commands/index-query.ts:  # 225 lines
     - { name: printFailure, lines: 218-225 }
   interfaces:
     - { name: IndexQueryOptions, lines: 5-10 }
-    - { name: QueryMatch, lines: 12-19 }  # local
-    - { name: QueryResult, lines: 21-26 }  # local
-    - { name: QueryPayload, lines: 28-33 }  # local
+    - { name: QueryMatch, lines: 12-19 }
+    - { name: QueryResult, lines: 21-26 }
+    - { name: QueryPayload, lines: 28-33 }
 
 src/commands/init.ts:  # 329 lines
   imports:
@@ -736,7 +851,7 @@ src/commands/lint-agents.ts:  # 272 lines
   imports:
     - { module: fs, items: [readdirSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
-    - { module: js-yaml, items: [load], line: 3 }
+    - { module: js-yaml, items: ['load:yamlLoad'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
   functions:
     - { name: extractRequiredArtifactsSection, lines: 21-26 }
@@ -799,7 +914,7 @@ src/commands/new-change.ts:  # 186 lines
     - { module: '../utils/copy.js', items: [copyFile, ensureDir], line: 5 }
     - { module: '../utils/logger.js', items: [log], line: 6 }
     - { module: './context-scan.js', items: [contextScan], line: 7 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 17 }
+    - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 17 }
   constants:
     - { name: REQUIRED_TEMPLATES, line: 75 }
     - { name: SAFE_NAME, line: 94 }
@@ -903,7 +1018,7 @@ src/schemas/tasks.schema.ts:  # 45 lines
 
 src/utils/copy.ts:  # 156 lines
   imports:
-    - { module: fs, items: [mkdirSync, cpSync, existsSync, readdirSync, statSync, copyFileSync, constants], line: 1 }
+    - { module: fs, items: [mkdirSync, cpSync, existsSync, readdirSync, statSync, copyFileSync, 'constants:fsConstants'], line: 1 }
     - { module: path, items: [join, dirname, relative], line: 10 }
     - { module: './logger.js', items: [log], line: 11 }
   functions:
@@ -978,7 +1093,7 @@ src/utils/stack-detect.ts:  # 120 lines
   types:
     - { name: StackKind, lines: 4-7 }
 
-test/agents/code-map-rule.test.ts:  # 41 lines
+test/agents/code-map-rule.test.ts:  # 40 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 4 }
     - { module: fs, items: [existsSync, readFileSync], line: 5 }
@@ -998,18 +1113,18 @@ test/cli/abandon.test.ts:  # 95 lines
   functions:
     - { name: scaffoldChange, lines: 8-16 }
 
-test/cli/agent-prompts-shape.test.ts:  # 143 lines
+test/cli/agent-prompts-shape.test.ts:  # 145 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
   constants:
     - { name: ALL_AGENTS, line: 8 }
-    - { name: SCOPED_AGENTS, line: 29 }
+    - { name: SCOPED_AGENTS, line: 30 }
   functions:
-    - { name: readAgent, lines: 43-45 }
-    - { name: extractRequiredArtifactsSection, lines: 47-52 }
-    - { name: hasFlatBacktickKeysWithoutFence, lines: 59-63 }
+    - { name: readAgent, lines: 45-47 }
+    - { name: extractRequiredArtifactsSection, lines: 49-54 }
+    - { name: hasFlatBacktickKeysWithoutFence, lines: 61-65 }
 
 test/cli/archive.test.ts:  # 105 lines
   imports:
@@ -1093,6 +1208,18 @@ test/cli/gate.test.ts:  # 910 lines
   interfaces:
     - { name: TasksFileOptions, lines: 190-199 }  # local
     - { name: AgentLogOptions, lines: 223-232 }  # local
+
+test/cli/graph.test.ts:  # 143 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
+    - { module: fs, items: [copyFileSync, existsSync, mkdirSync, writeFileSync], line: 5 }
+    - { module: path, items: [join, dirname], line: 6 }
+    - { module: url, items: [fileURLToPath], line: 7 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 8 }
+  constants:
+    - { name: FIXTURE_ROOT, line: 10 }
+  functions:
+    - { name: copyFixture, lines: 15-17 }
 
 test/cli/index-impact.test.ts:  # 104 lines
   imports:

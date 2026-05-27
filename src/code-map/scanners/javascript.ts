@@ -24,6 +24,8 @@ import type {
   ConstantEntry,
   TypeDefEntry,
   EnumEntry,
+  CallEntry,
+  ExportEntry,
 } from '../types.js';
 import { canonicalRelPath, isAllCapsConst, isBinary } from './common.js';
 
@@ -80,6 +82,40 @@ function getLineRange(node: Node): [number, number] {
   return [start, end];
 }
 
+function expressionName(node: any): string | null {
+  if (!node) return null;
+  if (node.type === 'Identifier') return node.name;
+  if (node.type === 'ThisExpression') return 'this';
+  if (node.type === 'Super') return 'super';
+  if (node.type === 'PrivateName') return `#${node.id?.name ?? 'private'}`;
+  if (node.type === 'StringLiteral') return node.value;
+  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+    const object = expressionName(node.object);
+    const prop = node.computed ? expressionName(node.property) : expressionName(node.property);
+    if (object && prop) return `${object}.${prop}`;
+    return prop ?? object;
+  }
+  if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') return expressionName(node.callee);
+  if (node.type === 'TSExpressionWithTypeArguments') return expressionName(node.expression);
+  return null;
+}
+
+function collectCalls(node: any, caller: string, calls: CallEntry[]): void {
+  if (!node || typeof node !== 'object') return;
+  if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression' || node.type === 'NewExpression') {
+    const callee = expressionName(node.callee);
+    if (callee) calls.push({ caller, callee, line: node.loc?.start.line ?? 1 });
+  }
+  for (const value of Object.values(node)) {
+    if (!value) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) collectCalls(item, caller, calls);
+    } else if (typeof value === 'object' && 'type' in (value as Record<string, unknown>)) {
+      collectCalls(value, caller, calls);
+    }
+  }
+}
+
 function processImportDeclaration(node: ImportDeclaration): ImportEntry {
   const items: string[] = [];
   for (const spec of node.specifiers) {
@@ -89,7 +125,8 @@ function processImportDeclaration(node: ImportDeclaration): ImportEntry {
       items.push(`*:${spec.local.name}`);
     } else if (spec.type === 'ImportSpecifier') {
       const imported = spec.imported;
-      items.push(imported.type === 'Identifier' ? imported.name : spec.local.name);
+      const importedName = imported.type === 'Identifier' ? imported.name : imported.value;
+      items.push(spec.local.name !== importedName ? `${importedName}:${spec.local.name}` : importedName);
     }
   }
   return {
@@ -99,7 +136,7 @@ function processImportDeclaration(node: ImportDeclaration): ImportEntry {
   };
 }
 
-function processFunctionDeclaration(node: FunctionDeclaration, nameOverride?: string): FunctionEntry | null {
+function processFunctionDeclaration(node: FunctionDeclaration, nameOverride?: string, exported = false): FunctionEntry | null {
   const name = nameOverride ?? node.id?.name;
   if (!name) return null;
   return {
@@ -107,10 +144,11 @@ function processFunctionDeclaration(node: FunctionDeclaration, nameOverride?: st
     lines: getLineRange(node),
     decorators: [],
     async: node.async,
+    exported,
   };
 }
 
-function processClassDeclaration(node: ClassDeclaration, nameOverride?: string): ClassEntry | null {
+function processClassDeclaration(node: ClassDeclaration, nameOverride?: string, exported = false): ClassEntry | null {
   const name = nameOverride ?? node.id?.name;
   if (!name) return null;
 
@@ -138,6 +176,11 @@ function processClassDeclaration(node: ClassDeclaration, nameOverride?: string):
     name,
     lines: getLineRange(node),
     methods,
+    extends: node.superClass ? [expressionName(node.superClass) ?? '<computed>'] : [],
+    implements: ((node as any).implements ?? [])
+      .map((impl: any) => impl?.expression ? expressionName(impl.expression) : impl?.id?.name)
+      .filter(Boolean),
+    exported,
   };
 }
 
@@ -146,6 +189,9 @@ function processVariableDeclaration(
   imports: ImportEntry[],
   constants: ConstantEntry[],
   functions: FunctionEntry[],
+  calls: CallEntry[],
+  exports: ExportEntry[],
+  exportedFromWrapper = false,
 ): void {
   for (const decl of node.declarations) {
     if (!decl.id || decl.id.type !== 'Identifier') continue;
@@ -164,6 +210,7 @@ function processVariableDeclaration(
     // ALL_CAPS constant
     if (isAllCapsConst(varName) && init !== null && init !== undefined) {
       constants.push({ name: varName, line: node.loc?.start.line ?? 1 });
+      if (exportedFromWrapper) exports.push({ name: varName, kind: 'constant', line: node.loc?.start.line ?? 1 });
       continue;
     }
 
@@ -176,7 +223,10 @@ function processVariableDeclaration(
         lines: getLineRange(node),
         decorators: [],
         async: init.async,
+        exported: exportedFromWrapper,
       });
+      collectCalls(init.body as any, varName, calls);
+      if (exportedFromWrapper) exports.push({ name: varName, kind: 'function', line: node.loc?.start.line ?? 1 });
     } else if (
       init &&
       init.type === 'CallExpression' &&
@@ -188,7 +238,10 @@ function processVariableDeclaration(
         lines: getLineRange(node),
         decorators: [],
         async: false,
+        exported: exportedFromWrapper,
       });
+      collectCalls(init, varName, calls);
+      if (exportedFromWrapper) exports.push({ name: varName, kind: 'function', line: node.loc?.start.line ?? 1 });
     }
   }
 }
@@ -242,6 +295,8 @@ interface Buckets {
   interfaces: TypeDefEntry[];
   types: TypeDefEntry[];
   enums: EnumEntry[];
+  calls: CallEntry[];
+  exports: ExportEntry[];
 }
 
 /**
@@ -260,14 +315,26 @@ function processStatement(
     processStatement(stmt.declaration as Statement, buckets, extractTsTypes, true);
     return;
   }
+  if (stmt.type === 'ExportNamedDeclaration' && !stmt.declaration) {
+    for (const spec of stmt.specifiers ?? []) {
+      if (spec.type === 'ExportSpecifier') {
+        const exported = spec.exported.type === 'Identifier' ? spec.exported.name : spec.exported.value;
+        buckets.exports.push({ name: exported, kind: 'unknown', line: stmt.loc?.start.line ?? 1 });
+      }
+    }
+    return;
+  }
   if (stmt.type === 'ExportDefaultDeclaration') {
     const decl = stmt.declaration;
     if (decl.type === 'FunctionDeclaration') {
-      const fe = processFunctionDeclaration(decl, decl.id?.name ?? 'default');
+      const fe = processFunctionDeclaration(decl, decl.id?.name ?? 'default', true);
       if (fe) buckets.functions.push(fe);
+      if (fe) buckets.exports.push({ name: fe.name, kind: 'function', line: fe.lines[0] });
+      if (fe) collectCalls(decl.body, fe.name, buckets.calls);
     } else if (decl.type === 'ClassDeclaration') {
-      const ce = processClassDeclaration(decl, decl.id?.name ?? 'default');
+      const ce = processClassDeclaration(decl, decl.id?.name ?? 'default', true);
       if (ce) buckets.classes.push(ce);
+      if (ce) buckets.exports.push({ name: ce.name, kind: 'class', line: ce.lines[0] });
     }
     return;
   }
@@ -278,19 +345,32 @@ function processStatement(
   }
 
   if (stmt.type === 'FunctionDeclaration') {
-    const fe = processFunctionDeclaration(stmt);
+    const fe = processFunctionDeclaration(stmt, undefined, exportedFromWrapper);
     if (fe) buckets.functions.push(fe);
+    if (fe) {
+      collectCalls(stmt.body, fe.name, buckets.calls);
+      if (exportedFromWrapper) buckets.exports.push({ name: fe.name, kind: 'function', line: fe.lines[0] });
+    }
     return;
   }
 
   if (stmt.type === 'ClassDeclaration') {
-    const ce = processClassDeclaration(stmt);
+    const ce = processClassDeclaration(stmt, undefined, exportedFromWrapper);
     if (ce) buckets.classes.push(ce);
+    if (ce && exportedFromWrapper) buckets.exports.push({ name: ce.name, kind: 'class', line: ce.lines[0] });
+    if (ce) {
+      for (const member of stmt.body.body) {
+        if (member.type === 'ClassMethod' || member.type === 'ClassPrivateMethod') {
+          const method = ce.methods.find(m => m.lines[0] === (member.loc?.start.line ?? 0));
+          if (method) collectCalls((member as any).body, `${ce.name}.${method.name}`, buckets.calls);
+        }
+      }
+    }
     return;
   }
 
   if (stmt.type === 'VariableDeclaration') {
-    processVariableDeclaration(stmt, buckets.imports, buckets.constants, buckets.functions);
+    processVariableDeclaration(stmt, buckets.imports, buckets.constants, buckets.functions, buckets.calls, buckets.exports, exportedFromWrapper);
     return;
   }
 
@@ -300,16 +380,19 @@ function processStatement(
     if (anyStmt.type === 'TSInterfaceDeclaration') {
       const e = processTsInterfaceDeclaration(anyStmt, exportedFromWrapper);
       if (e) buckets.interfaces.push(e);
+      if (e && exportedFromWrapper) buckets.exports.push({ name: e.name, kind: 'interface', line: e.lines[0] });
       return;
     }
     if (anyStmt.type === 'TSTypeAliasDeclaration') {
       const e = processTsTypeAliasDeclaration(anyStmt, exportedFromWrapper);
       if (e) buckets.types.push(e);
+      if (e && exportedFromWrapper) buckets.exports.push({ name: e.name, kind: 'type', line: e.lines[0] });
       return;
     }
     if (anyStmt.type === 'TSEnumDeclaration') {
       const e = processTsEnumDeclaration(anyStmt, exportedFromWrapper);
       if (e) buckets.enums.push(e);
+      if (e && exportedFromWrapper) buckets.exports.push({ name: e.name, kind: 'enum', line: e.lines[0] });
       return;
     }
   }
@@ -339,6 +422,8 @@ export interface ExtractResult {
   interfaces: TypeDefEntry[];
   types: TypeDefEntry[];
   enums: EnumEntry[];
+  calls: CallEntry[];
+  exports: ExportEntry[];
 }
 
 /**
@@ -360,6 +445,8 @@ export function parseAndExtract(source: string, opts: ExtractOptions): ExtractRe
     interfaces: [],
     types: [],
     enums: [],
+    calls: [],
+    exports: [],
   };
   for (const stmt of ast.program.body) {
     processStatement(stmt, buckets, !!opts.extractTsTypes);
@@ -391,6 +478,8 @@ export function parseJsSource(source: string, relPath: string): FileEntry | null
     constants: r.constants,
     classes: r.classes,
     functions: r.functions,
+    calls: r.calls,
+    exports: r.exports,
   };
 }
 

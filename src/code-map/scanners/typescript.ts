@@ -52,6 +52,8 @@ class TypeScriptScanner implements Scanner {
       constants: r.constants,
       classes: r.classes,
       functions: r.functions,
+      calls: r.calls,
+      exports: r.exports,
       interfaces: r.interfaces,
       types: r.types,
       enums: r.enums,

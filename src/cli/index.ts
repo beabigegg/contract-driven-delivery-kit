@@ -263,6 +263,95 @@ index
     process.exit(exit);
   });
 
+const graph = program
+  .command('graph')
+  .description('Query native cdd-kit code graph context with optional CodeGraph adapter and code-map fallback');
+
+graph
+  .command('status [path]')
+  .description('Show active graph engine and index health')
+  .option('--engine <engine>', 'Graph engine: auto, native, codegraph, or codemap', 'auto')
+  .option('--map <path>', 'Code-map YAML path for fallback status', '.cdd/code-map.yml')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (path: string | undefined, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; json?: boolean }) => {
+    const { graphStatus } = await import('../commands/graph.js');
+    const exit = await graphStatus({ path, engine: opts.engine, map: opts.map, json: opts.json === true });
+    process.exit(exit);
+  });
+
+graph
+  .command('sync [path]')
+  .description('Run CodeGraph incremental sync (requires CodeGraph)')
+  .option('--engine <engine>', 'Graph engine: codegraph', 'codegraph')
+  .option('--json', 'Print machine-readable JSON on errors', false)
+  .action(async (path: string | undefined, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; json?: boolean }) => {
+    const { graphSync } = await import('../commands/graph.js');
+    const exit = await graphSync({ path, engine: opts.engine, json: opts.json === true });
+    process.exit(exit);
+  });
+
+graph
+  .command('query <term>')
+  .description('Search native graph symbols, optionally delegating to CodeGraph or code-map')
+  .option('--engine <engine>', 'Graph engine: auto, native, codegraph, or codemap', 'auto')
+  .option('--map <path>', 'Code-map YAML path for fallback', '.cdd/code-map.yml')
+  .option('--limit <n>', 'Maximum results to print', '10')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate stale or missing fallback code-map')
+  .action(async (term: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; limit: string; json?: boolean; refresh?: boolean }) => {
+    const { graphQuery } = await import('../commands/graph.js');
+    const exit = await graphQuery(term, {
+      engine: opts.engine,
+      map: opts.map,
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
+graph
+  .command('impact <path-or-symbol>')
+  .description('Analyze impact radius with native graph calls/imports, CodeGraph, or code-map fallback')
+  .option('--engine <engine>', 'Graph engine: auto, native, codegraph, or codemap', 'auto')
+  .option('--map <path>', 'Code-map YAML path for fallback', '.cdd/code-map.yml')
+  .option('--limit <n>', 'Maximum fallback dependent files to print', '20')
+  .option('--depth <n>', 'CodeGraph traversal depth (fallback is direct only)', '2')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate stale or missing fallback code-map')
+  .action(async (term: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; limit: string; depth: string; json?: boolean; refresh?: boolean }) => {
+    const { graphImpact } = await import('../commands/graph.js');
+    const exit = await graphImpact(term, {
+      engine: opts.engine,
+      map: opts.map,
+      limit: parseInt(opts.limit, 10),
+      depth: parseInt(opts.depth, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
+graph
+  .command('context <task>')
+  .description('Build task context with native graph, CodeGraph, or code-map candidates')
+  .option('--engine <engine>', 'Graph engine: auto, native, codegraph, or codemap', 'auto')
+  .option('--map <path>', 'Code-map YAML path for fallback', '.cdd/code-map.yml')
+  .option('--max-nodes <n>', 'Maximum context candidates/nodes', '20')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate stale or missing fallback code-map')
+  .action(async (task: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; maxNodes: string; json?: boolean; refresh?: boolean }) => {
+    const { graphContext } = await import('../commands/graph.js');
+    const exit = await graphContext(task, {
+      engine: opts.engine,
+      map: opts.map,
+      maxNodes: parseInt(opts.maxNodes, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd gate <change-id> ──────────────────────────────────────────────────────
 program
   .command('gate <change-id>')

@@ -11,8 +11,8 @@ Before editing, read `specs/changes/<change-id>/implementation-plan.md`, API con
 
 ## Code map (READ FIRST)
 
-Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit index query "<symbol-or-file>"` or `Read .cdd/code-map.yml`.
-Before editing a chosen source file, run `cdd-kit index impact "<path-or-symbol>"` to identify indexed local imports and dependents.
+Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit graph query "<symbol-or-file>"`, `cdd-kit graph context "<task>"`, `cdd-kit index query "<symbol-or-file>"`, or `Read .cdd/code-map.yml`.
+Before editing a chosen source file, run `cdd-kit graph impact "<path-or-symbol>" --depth 2` or `cdd-kit index impact "<path-or-symbol>"` to identify imports, dependents, callers/callees when available, and likely affected scope.
 
 The map is the size oracle. For each file you intend to read:
 
@@ -22,8 +22,8 @@ The map is the size oracle. For each file you intend to read:
   `interfaces:` / `types:` / `enums:`) `lines: A-B` field and
   `Read <path> offset:A limit:(B-A+1)`.
 
-Prefer `cdd-kit index query` because it auto-refreshes missing or stale maps
-before returning candidates. If you cannot run commands and `.cdd/code-map.yml`
+Prefer `cdd-kit graph ...` because it uses the native code graph and falls
+back to the auto-refreshing code-map path when forced. If you cannot run commands and `.cdd/code-map.yml`
 is missing or stale, avoid broad source reads and ask the harness/user to
 regenerate the map.
 

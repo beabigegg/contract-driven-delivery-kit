@@ -299,6 +299,6 @@ If a recommended `type` does not apply to your run, either omit it or use `point
 - Report/dashboard/data import/export change always requires data-shape boundary tests.
 - High-load, auto-refresh, queue, cache, report, or long-running job change requires stress or soak consideration.
 - Existing behavior changes require current behavior and regression scope.
-- Bug fixes require reproduction, root cause, failing test, and regression test whenever feasible.
+- Bug fixes require reproduction, root cause, failing test, and regression test whenever feasible. If the user describes only a symptom and the code location is unknown, include `bug-fix-engineer` in `## Required Agents`.
 - Architecture review, non-obvious design decisions, module-boundary changes, data-flow changes, migration/rollback decisions, compatibility trade-offs, or operational-risk decisions require `spec-architect` to write `design.md` before `implementation-planner` runs.
 - Any implementation change requires `implementation-planner` before backend/frontend/test implementation agents. The planner turns decisions, contracts, and tests into the execution packet; implementation agents should not infer missing scope from chat history.

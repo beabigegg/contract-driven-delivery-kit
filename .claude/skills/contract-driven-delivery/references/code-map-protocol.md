@@ -7,9 +7,22 @@ when `cdd-kit init --hooks` is installed. `cdd-kit gate` does not enforce
 index hygiene; use `cdd-kit code-map --check`, `cdd-kit doctor --fix`, or the
 auto-refreshing `cdd-kit index ...` commands for that job.
 
-## Preferred workflow: query before reading
+## Preferred workflow: graph/query before reading
 
-Before reading source, run a targeted query:
+Before reading source, use the graph layer when available:
+
+```bash
+cdd-kit graph context "fix login redirect bug"
+cdd-kit graph query "AuthService"
+cdd-kit graph impact "src/services/auth.ts" --depth 2
+```
+
+`cdd-kit graph ...` uses the native `.cdd/code-graph.index.json` by default.
+Use `cdd-kit graph status` to see graph freshness and node/edge counts. External
+CodeGraph remains available with `--engine codegraph` when a project wants that
+adapter explicitly.
+
+If graph commands are not available, run a targeted code-map query:
 
 ```bash
 cdd-kit index query "AuthService"

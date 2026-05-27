@@ -38,6 +38,33 @@ def _is_all_caps(name: str) -> bool:
     return any(c.isalpha() for c in name)
 
 
+def _expr_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _expr_name(node.value)
+        return f"{base}.{node.attr}" if base else node.attr
+    if isinstance(node, ast.Call):
+        return _expr_name(node.func)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _calls_in(node: ast.AST, caller: str) -> list[dict]:
+    calls: list[dict] = []
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Call):
+            callee = _expr_name(sub.func)
+            if callee:
+                calls.append({
+                    "caller": caller,
+                    "callee": callee,
+                    "line": sub.lineno,
+                })
+    return calls
+
+
 def scan_file(abs_path: str, repo_root: str) -> dict:
     src = open(abs_path, encoding="utf-8").read()
     total_lines = len(src.splitlines()) if src else 0
@@ -70,6 +97,8 @@ def scan_file(abs_path: str, repo_root: str) -> dict:
     constants: list[dict] = []
     classes: list[dict] = []
     functions: list[dict] = []
+    calls: list[dict] = []
+    exports: list[dict] = []
 
     for node in ast.iter_child_nodes(tree):
         # ── imports ──────────────────────────────────────────────────────────
@@ -109,11 +138,16 @@ def scan_file(abs_path: str, repo_root: str) -> dict:
                         "lines": [sub.lineno, sub.end_lineno],
                         "async": isinstance(sub, ast.AsyncFunctionDef),
                     })
+                    calls.extend(_calls_in(sub, f"{node.name}.{sub.name}"))
             classes.append({
                 "name": node.name,
                 "lines": [node.lineno, node.end_lineno],
                 "methods": methods,
+                "extends": [name for name in (_expr_name(base) for base in node.bases) if name],
+                "implements": [],
+                "exported": True,
             })
+            exports.append({"name": node.name, "kind": "class", "line": node.lineno})
 
         # ── functions ────────────────────────────────────────────────────────
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -128,7 +162,10 @@ def scan_file(abs_path: str, repo_root: str) -> dict:
                 "lines": [node.lineno, node.end_lineno],
                 "decorators": decos,
                 "async": isinstance(node, ast.AsyncFunctionDef),
+                "exported": True,
             })
+            calls.extend(_calls_in(node, node.name))
+            exports.append({"name": node.name, "kind": "function", "line": node.lineno})
 
     return {
         "path": _rel_path(abs_path, repo_root),
@@ -137,6 +174,8 @@ def scan_file(abs_path: str, repo_root: str) -> dict:
         "constants": constants,
         "classes": classes,
         "functions": functions,
+        "calls": calls,
+        "exports": exports,
         "ok": True,
     }
 

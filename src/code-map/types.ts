@@ -4,6 +4,18 @@ export interface ImportEntry {
   line: number;              // 1-based, file-relative
 }
 
+export interface CallEntry {
+  caller: string;             // function/method symbol name, e.g. "handler" or "Service.fetch"
+  callee: string;             // best-effort simple/member name, e.g. "loadUser" or "api.get"
+  line: number;               // call-site line, 1-based, file-relative
+}
+
+export interface ExportEntry {
+  name: string;
+  kind: 'class' | 'function' | 'constant' | 'interface' | 'type' | 'enum' | 'unknown';
+  line: number;
+}
+
 export interface ConstantEntry {
   name: string;              // ALL_CAPS identifier (Python) or top-level UPPER const (JS)
   line: number;
@@ -19,6 +31,9 @@ export interface ClassEntry {
   name: string;
   lines: [number, number];
   methods: MethodEntry[];
+  extends?: string[];
+  implements?: string[];
+  exported?: boolean;
 }
 
 export interface FunctionEntry {
@@ -26,6 +41,7 @@ export interface FunctionEntry {
   lines: [number, number];
   decorators: string[];      // raw source of each decorator; rendered truncated by yaml-writer
   async: boolean;
+  exported?: boolean;
 }
 
 export interface TypeDefEntry {
@@ -48,6 +64,8 @@ export interface FileEntry {
   constants: ConstantEntry[];
   classes: ClassEntry[];
   functions: FunctionEntry[];
+  calls?: CallEntry[];
+  exports?: ExportEntry[];
   // TS-only optional fields. Omitted when scanner doesn't produce them
   // (Python/JS/Vue scanners leave these undefined; renderer skips empty).
   interfaces?: TypeDefEntry[];

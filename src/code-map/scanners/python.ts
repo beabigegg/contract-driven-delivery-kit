@@ -30,6 +30,8 @@ interface PythonFileResult {
   constants: FileEntry['constants'];
   classes: FileEntry['classes'];
   functions: FileEntry['functions'];
+  calls?: FileEntry['calls'];
+  exports?: FileEntry['exports'];
 }
 
 interface PythonFileError {
@@ -210,13 +212,19 @@ class PythonScanner implements Scanner {
             lines: [m.lines[0], m.lines[1]] as [number, number],
             async: m.async,
           })),
+          extends: c.extends ?? [],
+          implements: c.implements ?? [],
+          exported: c.exported,
         })),
         functions: (r.functions ?? []).map(f => ({
           name: f.name,
           lines: [f.lines[0], f.lines[1]] as [number, number],
           decorators: f.decorators ?? [],
           async: f.async,
+          exported: f.exported,
         })),
+        calls: r.calls ?? [],
+        exports: r.exports ?? [],
       });
     }
 

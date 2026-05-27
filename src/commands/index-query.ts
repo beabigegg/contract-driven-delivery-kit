@@ -9,7 +9,7 @@ export interface IndexQueryOptions {
   refresh: boolean;
 }
 
-interface QueryMatch {
+export interface QueryMatch {
   kind: string;
   name: string;
   line?: number;
@@ -18,14 +18,14 @@ interface QueryMatch {
   score: number;
 }
 
-interface QueryResult {
+export interface QueryResult {
   path: string;
   total_lines: number;
   score: number;
   matches: QueryMatch[];
 }
 
-interface QueryPayload {
+export interface QueryPayload {
   index: string;
   query: string;
   refreshed: boolean;
@@ -71,7 +71,7 @@ export async function indexQuery(term: string, opts: IndexQueryOptions): Promise
   return results.length === 0 ? 1 : 0;
 }
 
-function queryEntries(entries: FileEntry[], term: string): QueryResult[] {
+export function queryEntries(entries: FileEntry[], term: string): QueryResult[] {
   const query = term.trim().toLowerCase();
   if (!query) return [];
 

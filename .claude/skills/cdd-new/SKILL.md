@@ -115,7 +115,7 @@ inevitable re-classification when the agents discover the ambiguity.
 | Agent type | Who writes artifact files | Who writes optional handoff notes | Who updates tasks.yml |
 |------------|--------------------------|----------------------------------|----------------------|
 | Read-only agents (no Edit tool): `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer` | YOU (main Claude) | YOU, only when useful | YOU (main Claude) |
-| Write-capable agents (have Edit): `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself, only when useful | YOU (main Claude) |
+| Write-capable agents (have Edit): `implementation-planner`, `backend-engineer`, `bug-fix-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself, only when useful | YOU (main Claude) |
 
 **Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.yml` task `status:` from `pending` to `done`.
 
@@ -334,6 +334,7 @@ the defaults.
 | Decision | `spec-architect` | ? `[architect]` |
 | Decision | `implementation-planner` | ? `[plan]` |
 | Implementation | `backend-engineer` | ? `[backend]` |
+| Implementation | `bug-fix-engineer` | ? `[bug-fix]` |
 | Implementation | `frontend-engineer` | ? `[frontend]` |
 | Implementation | `ci-cd-gatekeeper` | ? `[ci-cd]` |
 | Implementation | `test-strategist` | ? `[test-plan]` |
@@ -360,7 +361,7 @@ Format: emoji is followed by a single space, then the bracket-tag with the
 model class appended as `[role · model]`, then a single space, then the
 human-readable narration. Resolve `model` from `.cdd/model-policy.json`
 `roles.<agent-name>` (defaults: classifier / architect / plan / qa / drift =
-`opus`; backend / frontend / ci-cd / test-plan / e2e / monkey / stress /
+`opus`; backend / bug-fix / frontend / ci-cd / test-plan / e2e / monkey / stress /
 ui-ux / deps-sec = `sonnet`; visual / repo-scan = `haiku`).
 
 Examples:
@@ -428,6 +429,8 @@ user's visibility only — it does not change which model the runtime selects
 6. **`backend-engineer`** (write-capable) ??if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.1` and/or `4.3` based on scope
    - Note: `tasks.yml` items 3.1??.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion ??failing tests first, implementation second. Items 3.3??.5 are written by dedicated test engineers (Tier 0?? only or when classifier explicitly requires them).
+
+6a. **`bug-fix-engineer`** (write-capable) ??for symptom-driven bug fixes where the user reports behavior but not the code location. Use this instead of backend/frontend as the first implementation agent when root cause is unknown; it may route the final implementation to backend/frontend scope after graph-guided investigation.
 
 7. **`frontend-engineer`** (write-capable) ??if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.2`

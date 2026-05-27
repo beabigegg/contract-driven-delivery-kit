@@ -17,7 +17,7 @@ Do not approve based on claims. Approve based on commands, artifacts, screenshot
 - visual evidence provided for UI changes
 - stress/soak evidence provided when required
 - known risks and residual gaps documented
-- index discipline: agents should prefer `cdd-kit index query ...` or `.cdd/code-map.yml` before targeted source reads and run `cdd-kit index impact ...` before editing source. Treat source-first work as harness/process drift, not a merge-blocking QA finding unless it produced concrete quality risk.
+- index discipline: agents should prefer `cdd-kit graph ...`, `cdd-kit index query ...`, or `.cdd/code-map.yml` before targeted source reads and run `cdd-kit graph impact ...` or `cdd-kit index impact ...` before editing source. Treat source-first work as harness/process drift, not a merge-blocking QA finding unless it produced concrete quality risk.
 
 ## Failure routing
 

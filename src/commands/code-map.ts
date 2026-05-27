@@ -6,6 +6,8 @@ import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
 import { loadCodeMapConfig } from '../code-map/config.js';
 import { sidecarPathFor } from '../code-map/index-reader.js';
+import { buildCodeGraph } from '../code-graph/builder.js';
+import { graphPathFor } from '../code-graph/reader.js';
 import { sha256OfFileNormalized } from '../utils/digest.js';
 import { ensureGitignoreEntry } from '../utils/gitignore.js';
 import type { Scanner, ScannerResult } from '../code-map/types.js';
@@ -220,6 +222,16 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
     const rel = relative(process.cwd(), sidecarPath).replace(/\\/g, '/');
     if (!rel.startsWith('..')) {
       ensureGitignoreEntry(process.cwd(), rel, 'cdd-kit local cache (do not commit)');
+    }
+    const graphPath = graphPathFor(out);
+    const graph = buildCodeGraph(result.entries, {
+      generator: `cdd-kit ${_pkg.version}`,
+      sourcesDigest,
+    });
+    writeFileSync(graphPath, JSON.stringify(graph, null, 2) + '\n', 'utf8');
+    const graphRel = relative(process.cwd(), graphPath).replace(/\\/g, '/');
+    if (!graphRel.startsWith('..')) {
+      ensureGitignoreEntry(process.cwd(), graphRel, 'cdd-kit local cache (do not commit)');
     }
   } catch {
     // The sidecar is an optimization only — never fail the map write for it.

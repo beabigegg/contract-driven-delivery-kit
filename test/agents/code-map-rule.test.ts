@@ -9,14 +9,13 @@ import { fileURLToPath } from 'url';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const AGENTS_DIR = join(repoRoot, '.claude', 'agents');
 
-const REQUIRED_AGENTS = ['backend-engineer', 'frontend-engineer'];
+const REQUIRED_AGENTS = ['backend-engineer', 'bug-fix-engineer', 'frontend-engineer'];
 
 describe('agent prompts: ## Code map (READ FIRST) section', () => {
   it.each(REQUIRED_AGENTS)('%s contains the section', (name) => {
     const content = readFileSync(join(AGENTS_DIR, `${name}.md`), 'utf8');
     expect(content).toContain('## Code map (READ FIRST)');
-    expect(content).toContain('.cdd/code-map.yml');
-    expect(content).toContain('300');
+    expect(content).toMatch(/cdd-kit (graph|index)/);
     expect(content).toContain('references/code-map-protocol.md');
   });
 

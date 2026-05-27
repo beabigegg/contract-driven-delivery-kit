@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { parse } from '@vue/compiler-sfc';
-import type { Scanner, FileEntry, FunctionEntry, ClassEntry, ImportEntry, ConstantEntry, ScannerWarning } from '../types.js';
+import type { Scanner, FileEntry, FunctionEntry, ClassEntry, ImportEntry, ConstantEntry, ScannerWarning, CallEntry, ExportEntry } from '../types.js';
 import { canonicalRelPath, isBinary } from './common.js';
 import { parseJsSource } from './javascript.js';
 
@@ -30,6 +30,8 @@ class VueScanner implements Scanner {
     const allConstants: ConstantEntry[] = [];
     const allFunctions: FunctionEntry[] = [];
     const allClasses: ClassEntry[] = [];
+    const allCalls: CallEntry[] = [];
+    const allExports: ExportEntry[] = [];
     const warnings: ScannerWarning[] = [];
 
     const scriptBlocks = [descriptor.script, descriptor.scriptSetup].filter(Boolean);
@@ -99,6 +101,12 @@ class VueScanner implements Scanner {
           })),
         });
       }
+      for (const call of scriptEntry.calls ?? []) {
+        allCalls.push({ ...call, line: call.line + offset });
+      }
+      for (const exp of scriptEntry.exports ?? []) {
+        allExports.push({ ...exp, line: exp.line + offset });
+      }
     }
 
     return {
@@ -108,6 +116,8 @@ class VueScanner implements Scanner {
       constants: allConstants,
       classes: allClasses,
       functions: allFunctions,
+      calls: allCalls,
+      exports: allExports,
     };
   }
 }
