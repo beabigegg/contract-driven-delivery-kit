@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.3] - 2026-05-29
+
+Correct Claude Code MCP registration guidance.
+
+### Changed
+
+- Install and upgrade guidance now recommends
+  `claude mcp add --scope user cdd-kit -- cdd-kit mcp`, which writes the server
+  to `~/.claude.json`.
+- Documentation now warns that adding `mcpServers` to
+  `~/.claude/settings.json` alone is not sufficient for Claude Code CLI MCP
+  discovery.
+
 ## [2.1.2] - 2026-05-29
 
 Recommended MCP setup during install and upgrade.

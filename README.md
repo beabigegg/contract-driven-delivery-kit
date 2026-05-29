@@ -275,11 +275,18 @@ Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`,
 
 `.cdd/model-policy.json` stores role-to-model **classes** (`opus`, `sonnet`, `haiku`) instead of provider release IDs such as `claude-opus-4-7`. This keeps the policy stable across Claude and Codex adapters; provider-specific tooling can map the class to the concrete model available in that environment.
 
-Recommended: configure MCP-capable AI agents with `command: "cdd-kit"` and
-`args: ["mcp"]` after init. This exposes graph/code-map tools directly to the
-agent (`cdd_graph_context`, `cdd_graph_query`, `cdd_graph_impact`,
-`cdd_index_query`, `cdd_index_impact`) so project exploration does not depend on
-the agent remembering shell commands.
+Recommended: register the cdd-kit MCP server with Claude Code after init:
+
+```bash
+claude mcp add --scope user cdd-kit -- cdd-kit mcp
+claude mcp list
+```
+
+This writes the server to `~/.claude.json` and exposes graph/code-map tools
+directly to the agent (`cdd_graph_context`, `cdd_graph_query`,
+`cdd_graph_impact`, `cdd_index_query`, `cdd_index_impact`). Do not rely on
+manually adding `mcpServers` to `~/.claude/settings.json`; that file is a Claude
+Code UI settings format and is not the MCP registry read by the CLI.
 
 ---
 
@@ -313,9 +320,10 @@ cdd-kit migrate --all    # add new per-change scaffolds such as implementation-p
 cdd-kit doctor --strict
 ```
 
-After syncing, configure MCP-capable agents with `command: "cdd-kit"` and
-`args: ["mcp"]`. This is the recommended way for agents to use the regenerated
-code graph and code-map; shell commands remain the fallback.
+After syncing, register MCP-capable agents with
+`claude mcp add --scope user cdd-kit -- cdd-kit mcp`. This is the recommended
+way for agents to use the regenerated code graph and code-map; shell commands
+remain the fallback.
 
 What gets updated:
 
@@ -399,10 +407,17 @@ cdd-kit refresh --yes --no-templates
 5. Resyncs `.cdd/model-policy.json` roles from installed agent frontmatter.
 6. Regenerates `.cdd/code-map.yml`.
 
-After `refresh --yes`, configure MCP-capable agents to run `cdd-kit mcp`.
+After `refresh --yes`, register the MCP server:
+
+```bash
+claude mcp add --scope user cdd-kit -- cdd-kit mcp
+```
+
 The MCP tools are the recommended graph/code-map exploration interface for AI
-agents; `cdd-kit graph ...` and `cdd-kit index ...` remain the fallback when MCP
-is not available.
+agents. Claude Code CLI stores user-scope MCP servers in `~/.claude.json`; a
+manual `mcpServers` entry in `~/.claude/settings.json` is not sufficient.
+`cdd-kit graph ...` and `cdd-kit index ...` remain the fallback when MCP is not
+available.
 
 Run `cdd-kit migrate --all` separately when you need existing
 `specs/changes/*` directories to gain new required artifacts.
@@ -731,18 +746,16 @@ code-map-only fallback, `--engine codegraph` to require external CodeGraph, or
 ### `cdd-kit mcp`
 
 `cdd-kit mcp` runs a stdio MCP server so agents can call the graph/index layer
-as tools instead of shelling out manually.
+as tools instead of shelling out manually. Register it with Claude Code:
 
-```json
-{
-  "mcpServers": {
-    "cdd-kit": {
-      "command": "cdd-kit",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+claude mcp add --scope user cdd-kit -- cdd-kit mcp
+claude mcp list
 ```
+
+Use the CLI command above so Claude Code writes the server to `~/.claude.json`.
+Do not rely on manually editing `~/.claude/settings.json`; that file is not the
+MCP registry read by the CLI.
 
 Exposed tools:
 
@@ -819,7 +832,7 @@ Then choose one path per active change:
 ### Recommended rollout for production repos already burned by token overuse
 
 1. Run `cdd-kit refresh --yes` once per repo after updating the npm package.
-2. Configure MCP-capable agents with `command: "cdd-kit"` and `args: ["mcp"]`.
+2. Register MCP-capable agents with `claude mcp add --scope user cdd-kit -- cdd-kit mcp`.
 3. Run `cdd-kit migrate --all` so existing active changes receive the current required artifact set.
 4. Review and fill `implementation-plan.md` before resuming implementation agents on active changes.
 5. Run `cdd-kit doctor --strict` in CI.

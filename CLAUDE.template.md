@@ -46,16 +46,15 @@ Run `cdd-kit detect-stack` to verify the detected tech stack.
 
 Configure MCP-capable agents to use the cdd-kit server:
 
-```json
-{
-  "mcpServers": {
-    "cdd-kit": {
-      "command": "cdd-kit",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+claude mcp add --scope user cdd-kit -- cdd-kit mcp
+claude mcp list
 ```
+
+For Claude Code, use `claude mcp add` so the server is written to
+`~/.claude.json`. Do not rely on manually adding `mcpServers` to
+`~/.claude/settings.json`; that is a Claude Code UI settings format and is not
+the MCP registry read by the CLI.
 
 Prefer these MCP tools before reading source files: `cdd_graph_context`,
 `cdd_graph_query`, `cdd_graph_impact`, `cdd_index_query`, and

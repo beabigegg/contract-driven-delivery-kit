@@ -32,16 +32,15 @@ If the repo already has these folders, merge file-by-file instead of overwriting
 Recommended for MCP-capable AI agents: configure the cdd-kit MCP server so the
 agent can use graph/code-map exploration tools directly.
 
-```json
-{
-  "mcpServers": {
-    "cdd-kit": {
-      "command": "cdd-kit",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+claude mcp add --scope user cdd-kit -- cdd-kit mcp
+claude mcp list
 ```
+
+For Claude Code, use `claude mcp add` so the server is written to
+`~/.claude.json`. Do not rely on manually adding `mcpServers` to
+`~/.claude/settings.json`; that is a Claude Code UI settings format and is not
+the MCP registry read by the CLI.
 
 This exposes `cdd_graph_context`, `cdd_graph_query`, `cdd_graph_impact`,
 `cdd_index_query`, and `cdd_index_impact`. Use these before reading source

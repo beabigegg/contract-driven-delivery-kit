@@ -41,8 +41,8 @@ describe('cdd-kit refresh — dry-run safety', () => {
     const r = runCli(['refresh'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/dry-run preview/i);
-    expect(r.stdout + r.stderr).toMatch(/After applying, configure MCP/i);
-    expect(r.stdout + r.stderr).toMatch(/args \["mcp"\]/i);
+    expect(r.stdout + r.stderr).toMatch(/After applying, register MCP/i);
+    expect(r.stdout + r.stderr).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/i);
     // File must still equal the tampered content
     expect(readFileSync(tplPath, 'utf8')).toBe(tampered);
     // No backup directory created
@@ -69,6 +69,7 @@ describe('cdd-kit refresh --yes — applies changes with backup', () => {
     });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/Recommended for AI agents: enable the cdd-kit MCP server/i);
+    expect(r.stdout + r.stderr).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/i);
     expect(r.stdout + r.stderr).toMatch(/cdd_graph_context/);
 
     // Template content should differ from the tampered version (was refreshed)

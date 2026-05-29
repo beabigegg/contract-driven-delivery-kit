@@ -133,8 +133,9 @@ describe('CDD skill prompt integration', () => {
 
     for (const content of [codex, claude]) {
       expect(content).toMatch(/Recommended MCP Tools/);
-      expect(content).toMatch(/"command": "cdd-kit"/);
-      expect(content).toMatch(/"args": \["mcp"\]/);
+      expect(content).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/);
+      expect(content).toMatch(/~\/\.claude\.json/);
+      expect(content).toMatch(/~\/\.claude\/settings\.json/);
       expect(content).toMatch(/cdd_graph_context/);
       expect(content).toMatch(/cdd_graph_impact/);
       expect(content).toMatch(/cdd_index_query/);

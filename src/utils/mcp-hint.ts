@@ -2,8 +2,9 @@ import { log } from './logger.js';
 
 export function logRecommendedMcpSetup(): void {
   log.info('Recommended for AI agents: enable the cdd-kit MCP server.');
-  log.dim('  MCP server command: cdd-kit');
-  log.dim('  MCP server args: ["mcp"]');
+  log.dim('  Claude Code user-scope setup: claude mcp add --scope user cdd-kit -- cdd-kit mcp');
+  log.dim('  Verify in Claude Code: /mcp or `claude mcp list`');
+  log.dim('  Note: Claude Code CLI reads MCP servers from ~/.claude.json; ~/.claude/settings.json is not enough.');
   log.dim('  Tools exposed: cdd_graph_context, cdd_graph_query, cdd_graph_impact, cdd_index_query, cdd_index_impact');
   log.dim('  Use MCP graph tools before source reads; CLI fallback: cdd-kit graph/index.');
 }

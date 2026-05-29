@@ -386,7 +386,7 @@ export async function refresh(opts: RefreshOptions): Promise<void> {
     logRecommendedMcpSetup();
   } else {
     log.info('Dry-run finished. Re-run with `--yes` to apply.');
-    log.info('After applying, configure MCP with command `cdd-kit` and args ["mcp"] so agents use graph/code-map tools directly.');
+    log.info('After applying, register MCP with `claude mcp add --scope user cdd-kit -- cdd-kit mcp` so agents use graph/code-map tools directly.');
   }
   log.blank();
 }
