@@ -354,6 +354,14 @@ graph
 
 // ── cdd gate <change-id> ──────────────────────────────────────────────────────
 program
+  .command('mcp')
+  .description('Run the cdd-kit MCP stdio server exposing graph and code-map tools')
+  .action(async () => {
+    const { runMcpServer } = await import('../mcp/server.js');
+    await runMcpServer({ version: pkg.version });
+  });
+
+program
   .command('gate <change-id>')
   .description('Run delivery-quality gate for a change (required artifacts, tasks, tier, contracts)')
   .option('--strict', 'Treat pending tasks (except section 7) as errors', false)

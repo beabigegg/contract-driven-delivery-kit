@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.1.1] - 2026-05-29
+
+MCP tool access for graph/code-map exploration.
+
+### Added
+
+- **`cdd-kit mcp`**: runs a stdio MCP server exposing graph and code-map tools
+  (`cdd_graph_status`, `cdd_graph_context`, `cdd_graph_query`,
+  `cdd_graph_impact`, `cdd_index_query`, `cdd_index_impact`) so AI agents can
+  use project exploration as native tools instead of shell-only commands.
+
 ## [2.1.0] - 2026-05-27
 
 Native code graph and symptom-driven bug-fix workflow.

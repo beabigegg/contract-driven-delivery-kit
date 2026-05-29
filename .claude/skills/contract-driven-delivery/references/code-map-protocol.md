@@ -9,7 +9,16 @@ auto-refreshing `cdd-kit index ...` commands for that job.
 
 ## Preferred workflow: graph/query before reading
 
-Before reading source, use the graph layer when available:
+Before reading source, use the graph layer when available. If the `cdd-kit`
+MCP server is configured, prefer these tools:
+
+- `cdd_graph_context`
+- `cdd_graph_query`
+- `cdd_graph_impact`
+- `cdd_index_query`
+- `cdd_index_impact`
+
+If MCP tools are not available, use the equivalent CLI commands:
 
 ```bash
 cdd-kit graph context "fix login redirect bug"

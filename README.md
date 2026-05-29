@@ -713,6 +713,31 @@ Use `--engine native` for the built-in graph, `--engine codemap` for the older
 code-map-only fallback, `--engine codegraph` to require external CodeGraph, or
 `CDD_CODEGRAPH_BIN=/path/to/codegraph` to point at a custom binary.
 
+### `cdd-kit mcp`
+
+`cdd-kit mcp` runs a stdio MCP server so agents can call the graph/index layer
+as tools instead of shelling out manually.
+
+```json
+{
+  "mcpServers": {
+    "cdd-kit": {
+      "command": "cdd-kit",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Exposed tools:
+
+- `cdd_graph_status`
+- `cdd_graph_context`
+- `cdd_graph_query`
+- `cdd_graph_impact`
+- `cdd_index_query`
+- `cdd_index_impact`
+
 Large Python repos are scanned in chunks (`CDD_CODE_MAP_BATCH_SIZE`, default 400)
 so one slow batch cannot drop the whole language. Raise
 `CDD_CODE_MAP_TIMEOUT_MS` (default 30000) if a single batch still times out.
