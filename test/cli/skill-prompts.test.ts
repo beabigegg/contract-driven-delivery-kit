@@ -127,6 +127,21 @@ describe('CDD skill prompt integration', () => {
     expect(planner).toMatch(/If a short handoff note is useful, write or append to/);
   });
 
+  it('provider guidance recommends MCP graph/code-map tools', () => {
+    const codex = readFileSync(join(repoRoot, 'CODEX.template.md'), 'utf8');
+    const claude = readFileSync(join(repoRoot, 'CLAUDE.template.md'), 'utf8');
+
+    for (const content of [codex, claude]) {
+      expect(content).toMatch(/Recommended MCP Tools/);
+      expect(content).toMatch(/"command": "cdd-kit"/);
+      expect(content).toMatch(/"args": \["mcp"\]/);
+      expect(content).toMatch(/cdd_graph_context/);
+      expect(content).toMatch(/cdd_graph_impact/);
+      expect(content).toMatch(/cdd_index_query/);
+      expect(content).toMatch(/cdd-kit graph/);
+    }
+  });
+
   it('documents artifact pointer path-validation rules in cdd-new and agent-log protocol', () => {
     const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
     const protocol = readFileSync(

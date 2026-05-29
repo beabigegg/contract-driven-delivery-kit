@@ -275,6 +275,12 @@ Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`,
 
 `.cdd/model-policy.json` stores role-to-model **classes** (`opus`, `sonnet`, `haiku`) instead of provider release IDs such as `claude-opus-4-7`. This keeps the policy stable across Claude and Codex adapters; provider-specific tooling can map the class to the concrete model available in that environment.
 
+Recommended: configure MCP-capable AI agents with `command: "cdd-kit"` and
+`args: ["mcp"]` after init. This exposes graph/code-map tools directly to the
+agent (`cdd_graph_context`, `cdd_graph_query`, `cdd_graph_impact`,
+`cdd_index_query`, `cdd_index_impact`) so project exploration does not depend on
+the agent remembering shell commands.
+
 ---
 
 ### `cdd-kit update`
@@ -306,6 +312,10 @@ cdd-kit refresh --yes    # apply agents, skills, templates, model policy, hook, 
 cdd-kit migrate --all    # add new per-change scaffolds such as implementation-plan.md
 cdd-kit doctor --strict
 ```
+
+After syncing, configure MCP-capable agents with `command: "cdd-kit"` and
+`args: ["mcp"]`. This is the recommended way for agents to use the regenerated
+code graph and code-map; shell commands remain the fallback.
 
 What gets updated:
 
@@ -388,6 +398,11 @@ cdd-kit refresh --yes --no-templates
 4. Re-installs the code-map hook if the project marker exists.
 5. Resyncs `.cdd/model-policy.json` roles from installed agent frontmatter.
 6. Regenerates `.cdd/code-map.yml`.
+
+After `refresh --yes`, configure MCP-capable agents to run `cdd-kit mcp`.
+The MCP tools are the recommended graph/code-map exploration interface for AI
+agents; `cdd-kit graph ...` and `cdd-kit index ...` remain the fallback when MCP
+is not available.
 
 Run `cdd-kit migrate --all` separately when you need existing
 `specs/changes/*` directories to gain new required artifacts.
@@ -769,6 +784,9 @@ cdd-kit migrate --all
 cdd-kit doctor --strict
 ```
 
+Recommended agent setup after the refresh: enable the `cdd-kit` MCP server with
+args `["mcp"]` so agents use graph/code-map tools before opening source files.
+
 ### Old completed specs
 
 If a change is already finished, merged, or only kept for audit/history:
@@ -801,11 +819,12 @@ Then choose one path per active change:
 ### Recommended rollout for production repos already burned by token overuse
 
 1. Run `cdd-kit refresh --yes` once per repo after updating the npm package.
-2. Run `cdd-kit migrate --all` so existing active changes receive the current required artifact set.
-3. Review and fill `implementation-plan.md` before resuming implementation agents on active changes.
-4. Run `cdd-kit doctor --strict` in CI.
-5. Migrate active specs with `cdd-kit migrate --enable-context-governance` only after reviewing the generated manifest.
-6. Teach agents to use `cdd-kit context request/approve/reject/list` instead of silently widening context.
+2. Configure MCP-capable agents with `command: "cdd-kit"` and `args: ["mcp"]`.
+3. Run `cdd-kit migrate --all` so existing active changes receive the current required artifact set.
+4. Review and fill `implementation-plan.md` before resuming implementation agents on active changes.
+5. Run `cdd-kit doctor --strict` in CI.
+6. Migrate active specs with `cdd-kit migrate --enable-context-governance` only after reviewing the generated manifest.
+7. Teach agents to use `cdd-kit context request/approve/reject/list` instead of silently widening context.
 
 ---
 

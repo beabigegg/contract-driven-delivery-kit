@@ -37,6 +37,7 @@ import { upgrade } from './upgrade.js';
 import { codeMap } from './code-map.js';
 import { installCodeMapHook } from './code-map-hook.js';
 import type { ProviderOption } from '../utils/provider.js';
+import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
 
 export interface RefreshOptions {
   yes?: boolean;
@@ -382,8 +383,10 @@ export async function refresh(opts: RefreshOptions): Promise<void> {
     log.info('Next: review changes with `git diff`, then commit:');
     log.dim('  git add .cdd/code-map.yml .cdd/model-policy.json specs/templates tests/templates ci-templates .github/workflows');
     log.dim('  git commit -m "chore: cdd-kit refresh"');
+    logRecommendedMcpSetup();
   } else {
     log.info('Dry-run finished. Re-run with `--yes` to apply.');
+    log.info('After applying, configure MCP with command `cdd-kit` and args ["mcp"] so agents use graph/code-map tools directly.');
   }
   log.blank();
 }

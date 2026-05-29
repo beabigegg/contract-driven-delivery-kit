@@ -4,6 +4,7 @@ import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
+import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
 
 export interface InitOptions {
   globalOnly: boolean;
@@ -325,5 +326,6 @@ export async function init(opts: InitOptions): Promise<void> {
   } else {
     log.info('Use the contract-driven-delivery skill in Claude Code to scan this repo.');
   }
+  logRecommendedMcpSetup();
   log.blank();
 }

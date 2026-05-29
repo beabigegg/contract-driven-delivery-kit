@@ -29,6 +29,25 @@ If the repo already has these folders, merge file-by-file instead of overwriting
 
 ## 3. First run in a repository
 
+Recommended for MCP-capable AI agents: configure the cdd-kit MCP server so the
+agent can use graph/code-map exploration tools directly.
+
+```json
+{
+  "mcpServers": {
+    "cdd-kit": {
+      "command": "cdd-kit",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+This exposes `cdd_graph_context`, `cdd_graph_query`, `cdd_graph_impact`,
+`cdd_index_query`, and `cdd_index_impact`. Use these before reading source
+files. If MCP is unavailable, use `cdd-kit graph ...` and `cdd-kit index ...`
+as the fallback.
+
 Ask Claude Code:
 
 ```text

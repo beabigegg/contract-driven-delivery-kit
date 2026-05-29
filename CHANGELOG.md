@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.2] - 2026-05-29
+
+Recommended MCP setup during install and upgrade.
+
+### Changed
+
+- `cdd-kit init` and `cdd-kit refresh` now explicitly recommend enabling the
+  `cdd-kit mcp` server so AI agents use graph/code-map tools directly.
+- `CLAUDE.md`, `CODEX.md`, README, and install guide now present MCP graph tools
+  as the recommended project exploration path, with `cdd-kit graph/index` as
+  fallback.
+
 ## [2.1.1] - 2026-05-29
 
 MCP tool access for graph/code-map exploration.

@@ -28,6 +28,9 @@ describe('cdd-kit init', () => {
   it('--local-only scaffolds all required project directories and files', () => {
     const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/Recommended for AI agents: enable the cdd-kit MCP server/i);
+    expect(r.stdout + r.stderr).toMatch(/MCP server command: cdd-kit/i);
+    expect(r.stdout + r.stderr).toMatch(/MCP server args: \["mcp"\]/i);
 
     expect(existsSync(join(tmpRepo, 'contracts')), 'contracts/ missing').toBe(true);
     expect(existsSync(join(tmpRepo, 'specs', 'templates')), 'specs/templates/ missing').toBe(true);

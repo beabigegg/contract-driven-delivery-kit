@@ -42,6 +42,28 @@ This repository follows the Contract-Driven Delivery workflow.
 
 Run `cdd-kit detect-stack` to verify the detected tech stack.
 
+## Recommended MCP Tools
+
+Configure MCP-capable agents to use the cdd-kit server:
+
+```json
+{
+  "mcpServers": {
+    "cdd-kit": {
+      "command": "cdd-kit",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Prefer these MCP tools before reading source files: `cdd_graph_context`,
+`cdd_graph_query`, `cdd_graph_impact`, `cdd_index_query`, and
+`cdd_index_impact`. They use `.cdd/code-map.yml` and
+`.cdd/code-graph.index.json` as the project exploration layer. If MCP is not
+available, use the equivalent CLI commands: `cdd-kit graph ...` and
+`cdd-kit index ...`.
+
 ## Context Governance
 
 For context-governed changes, read `specs/changes/<change-id>/context-manifest.md` before using file-reading or broad search tools.

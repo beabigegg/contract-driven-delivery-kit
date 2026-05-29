@@ -11,6 +11,28 @@ This project uses Contract-Driven Delivery (CDD).
 - Run `cdd-kit context-scan` before classification when project context may be stale.
 - Run `cdd-kit gate <change-id>` before proposing a commit or PR.
 
+## Recommended MCP Tools
+
+Configure MCP-capable agents to use the cdd-kit server:
+
+```json
+{
+  "mcpServers": {
+    "cdd-kit": {
+      "command": "cdd-kit",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Prefer these MCP tools before reading source files: `cdd_graph_context`,
+`cdd_graph_query`, `cdd_graph_impact`, `cdd_index_query`, and
+`cdd_index_impact`. They use `.cdd/code-map.yml` and
+`.cdd/code-graph.index.json` as the project exploration layer. If MCP is not
+available, use the equivalent CLI commands: `cdd-kit graph ...` and
+`cdd-kit index ...`.
+
 ## Context Governance
 
 Read `specs/changes/<change-id>/context-manifest.md` before using file-reading or search tools.
