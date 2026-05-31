@@ -172,41 +172,72 @@ def under_api_prefix(path: str, prefixes: list) -> bool:
 
 # ── source scanning ────────────────────────────────────────────────────────────
 
-# Backend route declarations -> list of (method_or_None, raw_path)
-BACKEND_PATTERNS = [
-    # Express / Koa / Fastify / NestJS-ish: app.get('/x'), router.post("/x"), r.put(`/x`)
-    (re.compile(r'\b(?:app|router|api|server|fastify|r|route|routes)\.(get|post|put|delete|patch|options|head|all)\s*\(\s*[\'"`]([^\'"`]+)[\'"`]', re.I), 'verb_first'),
+# Backend route patterns grouped by language. Only the patterns for a file's
+# extension are applied to it, so a Python Flask/Django pattern can never match a
+# PHP or JS file (cross-language false matches were polluting results, e.g. the
+# Flask route regex firing on a Laravel `Route::match` line).
+_JS_BACKEND = [
+    # Express / Koa / Fastify / NestJS-ish: app.get('/x'), router.post("/x").
+    # Client idioms (api/http/client/request/...) are intentionally excluded —
+    # those are frontend calls, not server routes; counting them as backend
+    # would silently satisfy `contractEndpointNotImplemented`.
+    (re.compile(r'\b(?:app|router|server|fastify|route|routes)\.(get|post|put|delete|patch|options|head|all)\s*\(\s*[\'"`]([^\'"`]+)[\'"`]', re.I), 'verb_first'),
+]
+_PY_BACKEND = [
     # FastAPI / APIRouter decorators: @app.get("/x"), @router.post('/x')
-    (re.compile(r'@(?:app|router|api|blueprint|bp|\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
+    (re.compile(r'@(?:app|router|\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
     # Flask: @app.route("/x", methods=["POST"])  (methods captured separately below)
     (re.compile(r'@(?:app|bp|blueprint|\w+)\.route\s*\(\s*[\'"]([^\'"]+)[\'"]([^)]*)', re.I), 'flask_route'),
     # Django urls: path("x/", ...)  re_path(r"^x/$", ...)
-    (re.compile(r'\b(?:path|re_path|url)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'path_only'),
+    (re.compile(r'\b(?:path|re_path|url)\s*\(\s*r?[\'"]([^\'"]+)[\'"]', re.I), 'path_only'),
+]
+_JAVA_BACKEND = [
     # Spring: @GetMapping("/x") @RequestMapping(value="/x", method=RequestMethod.POST)
     (re.compile(r'@(Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
     (re.compile(r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?[\'"]([^\'"]+)[\'"]', re.I), 'path_only'),
-    # Go chi/gin/echo/mux: r.Get("/x", ...) router.POST("/x", ...) mux.HandleFunc("/x", ...)
+]
+_GO_BACKEND = [
+    # chi/gin/echo/mux: r.Get("/x", ...) router.POST("/x", ...) mux.HandleFunc("/x", ...)
     (re.compile(r'\b\w+\.(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s*\(\s*"([^"]+)"', re.I), 'verb_first'),
     (re.compile(r'\b\w+\.HandleFunc\s*\(\s*"([^"]+)"', re.I), 'path_only'),
-    # Laravel: Route::get('/x', ...)
-    (re.compile(r'\bRoute::(get|post|put|delete|patch|options|any|match)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
 ]
+_PHP_BACKEND = [
+    # Laravel verb form: Route::get('/x', ...)
+    (re.compile(r'\bRoute::(get|post|put|delete|patch|options|any)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
+    # Laravel array form: Route::match(['get','post'], '/x', ...)
+    (re.compile(r'\bRoute::match\s*\(\s*\[([^\]]*)\]\s*,\s*[\'"]([^\'"]+)[\'"]', re.I), 'laravel_match'),
+]
+
+BACKEND_PATTERNS_BY_EXT = {
+    '.js': _JS_BACKEND, '.jsx': _JS_BACKEND, '.mjs': _JS_BACKEND, '.cjs': _JS_BACKEND,
+    '.ts': _JS_BACKEND, '.tsx': _JS_BACKEND,
+    '.py': _PY_BACKEND,
+    '.java': _JAVA_BACKEND,
+    '.go': _GO_BACKEND,
+    '.php': _PHP_BACKEND,
+}
 
 FLASK_METHODS_RE = re.compile(r'methods\s*=\s*\[([^\]]*)\]', re.I)
 
-# Frontend HTTP calls -> list of (method_or_None, raw_path)
-# The capture allows ${...} template params (normalize_path collapses them) but
-# stops at the closing quote/backtick, a paren, or whitespace.
+# Frontend HTTP calls -> list of (method_or_None, raw_path). Only scanned in
+# files with a frontend extension. The path capture allows ${...} template
+# params (normalize_path collapses them) but stops at the closing quote/backtick,
+# a paren, or whitespace.
 _FE_PATH = r"([^`'\")\s]+)"
+_FE_EXTS = {'.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.vue', '.svelte'}
 FRONTEND_PATTERNS = [
-    # axios.get('/x'), http.post(`/x`), api.put("/x"), $http.delete('/x'), client.patch('/x')
-    (re.compile(r'\b(?:axios|http|\$http|api|client|request|httpClient|fetcher)\.(get|post|put|delete|patch|head|options)\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'verb_first'),
-    # fetch('/x')  fetch(`/x`)  — method comes from 2nd arg, handled by post-scan
+    # axios.get('/x'), ky.post(`/x`), http.put("/x"), $http.delete('/x'), client.patch('/x')
+    (re.compile(r'\b(?:axios|ky|http|\$http|api|client|request|httpClient|fetcher)\.(get|post|put|delete|patch|head|options)\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'verb_first'),
+    # fetch('/x', { method: 'POST' })  — method parsed from the options object below
     (re.compile(r'\bfetch\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'fetch'),
     # axios({ url: '/x', method: 'post' })  / useFetch('/x') / useSWR('/x')
     (re.compile(r'\burl\s*:\s*[`\'"]' + _FE_PATH, re.I), 'path_only'),
     (re.compile(r'\b(?:useFetch|useSWR|useQuery)\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'path_only'),
 ]
+
+# For a fetch() call, look a short window past the path string for the method.
+FETCH_METHOD_RE = re.compile(r'method\s*:\s*[`\'"](\w+)[`\'"]', re.I)
+FETCH_METHOD_WINDOW = 200
 
 
 def iter_source_files(roots, exts, exclude_dirs):
@@ -240,11 +271,14 @@ def scan_backend(roots, exts, exclude_dirs):
     for path in iter_source_files(roots, exts, exclude_dirs):
         if looks_like_test(path):
             continue
+        patterns = BACKEND_PATTERNS_BY_EXT.get(os.path.splitext(path)[1].lower())
+        if not patterns:
+            continue
         try:
             text = Path(path).read_text(encoding='utf-8', errors='ignore')
         except OSError:
             continue
-        for pat, kind in BACKEND_PATTERNS:
+        for pat, kind in patterns:
             for m in pat.finditer(text):
                 if kind == 'verb_first':
                     method = m.group(1).upper()
@@ -263,6 +297,13 @@ def scan_backend(roots, exts, exclude_dirs):
                         routes.add(('GET', normalize_path(raw)))
                 elif kind == 'path_only':
                     routes.add(('ANY', normalize_path(m.group(1))))
+                elif kind == 'laravel_match':
+                    methods_raw = m.group(1)
+                    raw = m.group(2)
+                    found = [meth.upper() for meth in re.findall(r'[A-Za-z]+', methods_raw)
+                             if meth.upper() in VALID_METHODS]
+                    for meth in (found or ['ANY']):
+                        routes.add((meth, normalize_path(raw)))
     return routes
 
 
@@ -270,6 +311,8 @@ def scan_frontend(roots, exts, exclude_dirs):
     calls = set()
     for path in iter_source_files(roots, exts, exclude_dirs):
         if looks_like_test(path):
+            continue
+        if os.path.splitext(path)[1].lower() not in _FE_EXTS:
             continue
         try:
             text = Path(path).read_text(encoding='utf-8', errors='ignore')
@@ -281,8 +324,13 @@ def scan_frontend(roots, exts, exclude_dirs):
                     method = m.group(1).upper()
                     raw = m.group(2)
                 elif kind == 'fetch':
-                    method = 'ANY'  # method lives in 2nd arg; treat as wildcard
                     raw = m.group(1)
+                    # Per the fetch spec the default method is GET; look a short
+                    # window past the URL for an explicit `method:` so method
+                    # drift (e.g. DELETE on a GET-only endpoint) is caught.
+                    window = text[m.end():m.end() + FETCH_METHOD_WINDOW]
+                    mm = FETCH_METHOD_RE.search(window)
+                    method = mm.group(1).upper() if mm else 'GET'
                 else:  # path_only
                     method = 'ANY'
                     raw = m.group(1)
@@ -295,12 +343,14 @@ def scan_frontend(roots, exts, exclude_dirs):
 # ── contract matching ──────────────────────────────────────────────────────────
 
 def contract_has(method: str, path: str, contract: set) -> bool:
-    """A code endpoint conforms if some contract entry matches the path and
-    (the method matches OR either side is method-agnostic 'ANY')."""
+    """A code endpoint conforms if some entry matches the path and the method
+    matches OR *either* side is method-agnostic ('ANY'). Path-only declarations
+    (Go HandleFunc, Django path(), Spring @RequestMapping) register as 'ANY' and
+    must therefore satisfy a concrete contract method, and vice versa."""
     for c_method, c_path in contract:
         if c_path != path:
             continue
-        if method == 'ANY' or c_method == method:
+        if method == 'ANY' or c_method == 'ANY' or c_method == method:
             return True
     return False
 

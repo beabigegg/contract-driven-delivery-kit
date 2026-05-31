@@ -6,7 +6,7 @@ import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader
 import type { FileEntry } from '../code-map/types.js';
 import { graphPathFor, loadCodeGraph } from '../code-graph/reader.js';
 import { graphContext as buildNativeContext, graphImpact as nativeImpact, searchGraph } from '../code-graph/queries.js';
-import { indexQuery, queryEntries } from './index-query.js';
+import { indexQuery, queryEntries, resolveSourceBudget } from './index-query.js';
 import { indexImpact } from './index-impact.js';
 
 type GraphEngine = 'auto' | 'native' | 'codegraph' | 'codemap';
@@ -243,7 +243,7 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
       const graph = loadCodeGraph(ensured.graphPath);
       const results = searchGraph(graph, term, opts.limit);
       const sources = opts.withSource
-        ? collectNodeSources(results.map(r => r.node), opts.sourceBudget ?? 400)
+        ? collectNodeSources(results.map(r => r.node), resolveSourceBudget(opts.sourceBudget))
         : new Map<string, { source: string; truncated: boolean }>();
       if (opts.json) {
         const withSrc = opts.withSource
@@ -280,7 +280,7 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
     json: opts.json === true,
     refresh: opts.refresh !== false,
     withSource: opts.withSource === true,
-    sourceBudget: opts.sourceBudget ?? 400,
+    sourceBudget: resolveSourceBudget(opts.sourceBudget),
   });
 }
 

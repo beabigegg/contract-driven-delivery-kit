@@ -148,4 +148,62 @@ describe('validate_api_conformance.py', () => {
     expect(strict.status).toBe(1);
     void lenient;
   });
+
+  it('does not count a frontend api.* client wrapper as a backend route', () => {
+    if (!hasPython()) return;
+    // /api/users is documented and called via an axios-style `api.get`, but there
+    // is NO server route — the contract endpoint must still report unimplemented.
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, ENABLED);
+    writeSrc(repo, 'web/api.js', "export const api = axios.create();\napi.get('/api/users');\n");
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0); // unimplemented is a warning by default
+    expect(r.out).toContain('has no backend route');
+  });
+
+  it('treats a path-only backend route (ANY) as satisfying a concrete contract method', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, { ...ENABLED, strict: true });
+    // Django-style path() registers as method-agnostic ANY.
+    writeSrc(repo, 'server/urls.py', "urlpatterns = [path('api/users/', view)]\n");
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('catches fetch() method drift and defaults bare fetch to GET', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, ENABLED);
+    writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\n");
+    writeSrc(repo, 'web/api.js', "fetch('/api/users', { method: 'DELETE' });\n");
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('DELETE /api/users');
+  });
+
+  it('recognizes Laravel Route::match array form', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, [
+      '| GET | /api/users | required | - | User[] | 401 | yes |',
+      '| POST | /api/users | required | User | User | 400 | yes |',
+    ]);
+    writeConfig(repo, { ...ENABLED, strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'server/routes.php', "Route::match(['get', 'post'], '/api/users', 'C@m');\n");
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('scans ky client calls for drift', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, ENABLED);
+    writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\n");
+    writeSrc(repo, 'web/api.js', "ky.get('/api/orders');\n");
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('/api/orders');
+  });
 });

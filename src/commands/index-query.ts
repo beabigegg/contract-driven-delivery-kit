@@ -3,7 +3,14 @@ import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader
 import type { FileEntry } from '../code-map/types.js';
 
 /** Default cap on total source lines emitted by --with-source per query. */
-const DEFAULT_SOURCE_BUDGET = 400;
+export const DEFAULT_SOURCE_BUDGET = 400;
+
+/** Coerce a possibly-NaN/invalid budget to a safe positive integer. */
+export function resolveSourceBudget(budget: number | undefined): number {
+  return Number.isFinite(budget) && (budget as number) > 0
+    ? Math.floor(budget as number)
+    : DEFAULT_SOURCE_BUDGET;
+}
 
 export interface IndexQueryOptions {
   map: string;
@@ -71,7 +78,7 @@ export async function indexQuery(term: string, opts: IndexQueryOptions): Promise
 
   const results = queryEntries(entries, term).slice(0, limit);
   if (opts.withSource) {
-    attachSource(results, opts.sourceBudget ?? DEFAULT_SOURCE_BUDGET);
+    attachSource(results, resolveSourceBudget(opts.sourceBudget));
   }
   const payload: QueryPayload = {
     index: mapPath,
@@ -241,7 +248,6 @@ function attachSource(results: QueryResult[], budget: number): void {
       const range = resolveRange(match);
       if (!range) continue;
       const [start, end] = range;
-      const span = end - start + 1;
       if (used >= budget) {
         match.source_truncated = true;
         continue;
@@ -251,7 +257,6 @@ function attachSource(results: QueryResult[], budget: number): void {
       match.source = slice.join('\n');
       used += slice.length;
       if (allowedEnd < end) match.source_truncated = true;
-      void span;
     }
   }
 }

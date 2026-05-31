@@ -73,4 +73,27 @@ describe('cdd-kit index query --with-source', () => {
     const truncated = file.matches.some((m: { source_truncated?: boolean }) => m.source_truncated === true);
     expect(truncated).toBe(true);
   });
+
+  it('emits the human-readable truncation notice in text mode', () => {
+    const r = runCli(
+      ['index', 'query', 'Service', '--with-source', '--source-budget', '2'],
+      { cwd: tmpRepo, home: tmpHome },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('source budget reached');
+  });
+
+  it('falls back to the default budget when --source-budget is non-numeric', () => {
+    const r = runCli(
+      ['index', 'query', 'Service', '--with-source', '--source-budget', 'abc', '--json'],
+      { cwd: tmpRepo, home: tmpHome },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout);
+    const file = payload.results.find((res: { path: string }) => res.path === 'sample.ts');
+    const klass = file.matches.find((m: { kind: string }) => m.kind === 'class');
+    // With the default 400-line budget the small fixture class is returned whole.
+    expect(klass.source).toContain('export class Service {');
+    expect(klass.source_truncated).toBeUndefined();
+  });
 });
