@@ -1,12 +1,23 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader.js';
 import type { FileEntry } from '../code-map/types.js';
+
+/** Default cap on total source lines emitted by --with-source per query. */
+const DEFAULT_SOURCE_BUDGET = 400;
 
 export interface IndexQueryOptions {
   map: string;
   limit: number;
   json: boolean;
   refresh: boolean;
+  /**
+   * When true, attach the actual source slice for each matched line range so
+   * the caller does not need a separate Read. This makes the index query a
+   * drop-in replacement for opening the file, not an extra step before it.
+   */
+  withSource?: boolean;
+  /** Max total source lines to emit across all matches when withSource. */
+  sourceBudget?: number;
 }
 
 export interface QueryMatch {
@@ -16,6 +27,10 @@ export interface QueryMatch {
   lines?: string;
   detail?: string;
   score: number;
+  /** Source text for this match's line range, populated only with --with-source. */
+  source?: string;
+  /** True when this match's source was dropped because the budget was exhausted. */
+  source_truncated?: boolean;
 }
 
 export interface QueryResult {
@@ -55,6 +70,9 @@ export async function indexQuery(term: string, opts: IndexQueryOptions): Promise
   }
 
   const results = queryEntries(entries, term).slice(0, limit);
+  if (opts.withSource) {
+    attachSource(results, opts.sourceBudget ?? DEFAULT_SOURCE_BUDGET);
+  }
   const payload: QueryPayload = {
     index: mapPath,
     query: term,
@@ -194,6 +212,61 @@ function firstLine(lines: string | undefined): number {
   return m ? Number(m[0]) : Number.MAX_SAFE_INTEGER;
 }
 
+/**
+ * Populate `match.source` for each match that has a known line range, reading
+ * the real file once per path and honoring a global line budget. Ranges are
+ * resolved from `lines` ("A-B") or a single `line`. Out-of-budget matches are
+ * flagged with `source_truncated` so the caller knows to read them directly.
+ */
+function attachSource(results: QueryResult[], budget: number): void {
+  const fileCache = new Map<string, string[] | null>();
+  let used = 0;
+
+  const readLines = (path: string): string[] | null => {
+    if (fileCache.has(path)) return fileCache.get(path) ?? null;
+    let lines: string[] | null = null;
+    try {
+      lines = existsSync(path) ? readFileSync(path, 'utf8').split(/\r?\n/) : null;
+    } catch {
+      lines = null;
+    }
+    fileCache.set(path, lines);
+    return lines;
+  };
+
+  for (const result of results) {
+    const fileLines = readLines(result.path);
+    if (!fileLines) continue;
+    for (const match of result.matches) {
+      const range = resolveRange(match);
+      if (!range) continue;
+      const [start, end] = range;
+      const span = end - start + 1;
+      if (used >= budget) {
+        match.source_truncated = true;
+        continue;
+      }
+      const allowedEnd = Math.min(end, start + (budget - used) - 1);
+      const slice = fileLines.slice(start - 1, allowedEnd);
+      match.source = slice.join('\n');
+      used += slice.length;
+      if (allowedEnd < end) match.source_truncated = true;
+      void span;
+    }
+  }
+}
+
+function resolveRange(match: QueryMatch): [number, number] | null {
+  if (match.lines) {
+    const m = match.lines.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m) return [Number(m[1]), Number(m[2])];
+    const single = match.lines.match(/^(\d+)$/);
+    if (single) return [Number(single[1]), Number(single[1])];
+  }
+  if (typeof match.line === 'number') return [match.line, match.line];
+  return null;
+}
+
 function printText(payload: QueryPayload): void {
   if (payload.results.length === 0) {
     console.log(`No matches for "${payload.query}" in ${payload.index}.`);
@@ -210,9 +283,19 @@ function printText(payload: QueryPayload): void {
       const loc = match.lines ? ` lines ${match.lines}` : match.line ? ` line ${match.line}` : '';
       const detail = match.detail && match.detail !== match.name ? ` - ${match.detail}` : '';
       console.log(`  - ${match.kind}: ${match.name}${loc}${detail}`);
+      if (match.source !== undefined) {
+        for (const srcLine of match.source.split('\n')) {
+          console.log(`      | ${srcLine}`);
+        }
+        if (match.source_truncated) console.log('      | … (source budget reached; Read the rest directly)');
+      } else if (match.source_truncated) {
+        console.log('      (source budget reached; Read this range directly)');
+      }
     }
   }
-  console.log('Next: read only the listed file/ranges first.');
+  console.log(payload.results.some(r => r.matches.some(m => m.source !== undefined))
+    ? 'Source included above — no separate Read needed for these ranges.'
+    : 'Next: read only the listed file/ranges first.');
 }
 
 function printFailure(message: string, json: boolean): number {

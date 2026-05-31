@@ -256,6 +256,31 @@ function checkCodeMap(cwd: string): Finding[] {
   return findings;
 }
 
+function checkApiConformance(cwd: string): Finding[] {
+  // Informational only (level 'ok') so it never trips `doctor --strict`. It
+  // surfaces whether the code-vs-contract API conformance net is actually armed.
+  const hasContract = existsSync(join(cwd, 'contracts', 'api', 'api-contract.md'));
+  if (!hasContract) return [];
+  const configPath = join(cwd, '.cdd', 'conformance.json');
+  if (!existsSync(configPath)) {
+    return [{
+      level: 'ok',
+      message: 'API conformance: not configured (add .cdd/conformance.json with "enabled": true to catch frontend/backend drift against the contract)',
+    }];
+  }
+  try {
+    const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
+    return [{
+      level: 'ok',
+      message: cfg.enabled
+        ? 'API conformance: enabled (cdd-kit validate --contracts checks code against the API contract)'
+        : 'API conformance: present but disabled (set "enabled": true in .cdd/conformance.json to enforce code-vs-contract checks)',
+    }];
+  } catch {
+    return [{ level: 'warning', message: '.cdd/conformance.json is not valid JSON' }];
+  }
+}
+
 async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<DoctorReport> {
   const requestedProvider = opts.provider ?? 'auto';
   if (!validateProviderOption(requestedProvider)) {
@@ -287,6 +312,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkModelPolicyDrift(cwd));
   findings.push(...checkAgentLint(cwd));
   findings.push(...checkCodeMap(cwd));
+  findings.push(...checkApiConformance(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
   const warnings = findings.filter(finding => finding.level === 'warning').length;

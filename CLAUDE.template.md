@@ -63,6 +63,19 @@ Prefer these MCP tools before reading source files: `cdd_graph_context`,
 available, use the equivalent CLI commands: `cdd-kit graph ...` and
 `cdd-kit index ...`.
 
+Pass `withSource: true` (MCP) or `--with-source` (CLI) on `query` to get the
+matched symbol's code inline. The query then replaces a follow-up `Read` instead
+of preceding it — use a plain `Read` only for ranges the query did not return
+(e.g. a range flagged as source-budget truncated).
+
+## API Conformance
+
+If `.cdd/conformance.json` has `"enabled": true`, `cdd-kit validate --contracts`
+(and `cdd-kit gate`) mechanically check real backend routes and frontend call
+sites against `contracts/api/api-contract.md`. Do not add, rename, or call an
+endpoint without updating the contract in the same change, or the gate will fail
+on the drift. See `docs/api-conformance.md`.
+
 ## Context Governance
 
 For context-governed changes, read `specs/changes/<change-id>/context-manifest.md` before using file-reading or broad search tools.

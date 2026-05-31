@@ -11,7 +11,8 @@ Before editing production code, read `specs/changes/<change-id>/implementation-p
 
 ## Code map (READ FIRST)
 
-Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit index query "<symbol-or-file>"` or `Read .cdd/code-map.yml`.
+Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit index query "<symbol-or-file>" --with-source` or `Read .cdd/code-map.yml`.
+Prefer `--with-source`: it returns the matched symbol's code inline, so you do NOT need a separate `Read` for that range. Use a plain `Read` only when you need lines the query did not return (e.g. a range flagged as source-budget truncated).
 Before editing a chosen source file, run `cdd-kit index impact "<path-or-symbol>"` to identify indexed local imports and dependents.
 
 The map is the size oracle. For each file you intend to read:
@@ -31,6 +32,7 @@ See `references/code-map-protocol.md` for the full protocol.
 
 ## Rules
 
+- Do not change API response shape or add/rename/remove endpoints without updating `contracts/api/api-contract.md` in the same change. If `.cdd/conformance.json` is enabled, `cdd-kit validate --contracts` (and the gate) will fail when a backend route is missing from the contract.
 - Do not change API response shape without contract updates.
 - Keep route/controller code thin.
 - Put business logic in service/domain layers.

@@ -233,14 +233,18 @@ index
   .option('--map <path>', 'Code-map YAML path', '.cdd/code-map.yml')
   .option('--limit <n>', 'Maximum result files to print', '10')
   .option('--json', 'Print machine-readable JSON', false)
+  .option('--with-source', 'Include the matched source slices inline so no separate Read is needed', false)
+  .option('--source-budget <n>', 'Max total source lines to emit with --with-source', '400')
   .option('--no-refresh', 'Do not auto-regenerate stale or missing code-map before querying')
-  .action(async (term: string, opts: { map: string; limit: string; json?: boolean; refresh?: boolean }) => {
+  .action(async (term: string, opts: { map: string; limit: string; json?: boolean; refresh?: boolean; withSource?: boolean; sourceBudget?: string }) => {
     const { indexQuery } = await import('../commands/index-query.js');
     const exit = await indexQuery(term, {
       map: opts.map,
       limit: parseInt(opts.limit, 10),
       json: opts.json === true,
       refresh: opts.refresh !== false,
+      withSource: opts.withSource === true,
+      sourceBudget: parseInt(opts.sourceBudget ?? '400', 10),
     });
     process.exit(exit);
   });
@@ -297,8 +301,10 @@ graph
   .option('--map <path>', 'Code-map YAML path for fallback', '.cdd/code-map.yml')
   .option('--limit <n>', 'Maximum results to print', '10')
   .option('--json', 'Print machine-readable JSON', false)
+  .option('--with-source', 'Include matched source slices inline so no separate Read is needed (native/codemap engines)', false)
+  .option('--source-budget <n>', 'Max total source lines to emit with --with-source', '400')
   .option('--no-refresh', 'Do not auto-regenerate stale or missing fallback code-map')
-  .action(async (term: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; limit: string; json?: boolean; refresh?: boolean }) => {
+  .action(async (term: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; limit: string; json?: boolean; refresh?: boolean; withSource?: boolean; sourceBudget?: string }) => {
     const { graphQuery } = await import('../commands/graph.js');
     const exit = await graphQuery(term, {
       engine: opts.engine,
@@ -306,6 +312,8 @@ graph
       limit: parseInt(opts.limit, 10),
       json: opts.json === true,
       refresh: opts.refresh !== false,
+      withSource: opts.withSource === true,
+      sourceBudget: parseInt(opts.sourceBudget ?? '400', 10),
     });
     process.exit(exit);
   });

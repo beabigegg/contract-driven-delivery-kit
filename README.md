@@ -607,12 +607,21 @@ Runs contract validation scripts.
 
 ```bash
 cdd-kit validate                # all validators
-cdd-kit validate --contracts    # API, CSS, data-shape (+ semantic checks)
+cdd-kit validate --contracts    # API, CSS, data-shape (+ semantic + conformance checks)
 cdd-kit validate --env          # env contract
 cdd-kit validate --ci           # CI gate policy
 cdd-kit validate --spec         # spec traceability
 cdd-kit validate --versions     # contract frontmatter schema versions
 ```
+
+`--contracts` includes **API conformance**: a code-vs-contract check that parses
+real backend routes and frontend call sites and fails on drift from
+`contracts/api/api-contract.md` (e.g. the frontend calling an endpoint the
+contract never declares). It is off until you enable it in `.cdd/conformance.json`
+(`"enabled": true`); `cdd-kit init` scaffolds a disabled config. See
+[docs/api-conformance.md](docs/api-conformance.md). This is the mechanical net
+for frontend/backend API drift in a workflow where no human reviews the contract
+by hand.
 
 ---
 
@@ -735,9 +744,21 @@ with `--engine codegraph`.
 ```bash
 cdd-kit graph status
 cdd-kit graph query OrderService
+cdd-kit graph query OrderService --with-source   # include code inline; no follow-up Read needed
 cdd-kit graph context "filter options are empty"
 cdd-kit graph impact src/services/orders.ts --depth 2
 ```
+
+`--with-source` (also on `cdd-kit index query`, and `withSource: true` via MCP)
+returns the matched symbol's code inline so the query *replaces* a `Read` rather
+than preceding it — making the kit tool strictly cheaper than the built-in
+`Read`. `--source-budget <n>` caps total lines returned; truncated ranges are
+flagged so you can `Read` only those.
+
+To make graph-first exploration a real chokepoint instead of a prompt
+preference, wire the shipped `hooks/pre-tool-use-graph-first.sh` as a
+`PreToolUse` hook on `Read` (advisory by default; `CDD_GRAPH_FIRST_STRICT=1`
+hard-blocks source `Read`s when a code-map exists).
 
 Use `--engine native` for the built-in graph, `--engine codemap` for the older
 code-map-only fallback, `--engine codegraph` to require external CodeGraph, or
