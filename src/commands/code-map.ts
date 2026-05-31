@@ -82,6 +82,11 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
 
   const scanPath = opts.surface ?? opts.path;
   const root = resolve(process.cwd(), scanPath);
+  // Repo-relative surface root, recorded in the map header so --with-source can
+  // resolve surface-relative entry paths back to real files.
+  const surfaceRoot = opts.surface
+    ? (relative(process.cwd(), root).replace(/\\/g, '/') || '.')
+    : undefined;
   const out = opts.out
     ?? (opts.surface ? `.cdd/code-map.${slugifySurface(opts.surface)}.yml` : '.cdd/code-map.yml');
 
@@ -178,6 +183,7 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
   const yamlBody = renderYaml(result.entries, {
     generator: `cdd-kit ${_pkg.version}`,
     sourcesDigest,
+    surfaceRoot,
   });
   const totalSrc = result.entries.reduce((s, e) => s + e.total_lines, 0);
   const mapLines = yamlBody.split('\n').length;

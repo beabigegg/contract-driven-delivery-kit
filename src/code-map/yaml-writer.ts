@@ -84,6 +84,13 @@ export interface RenderOptions {
    * without relying on mtime (which is unreliable after git clone).
    */
   sourcesDigest?: string;
+  /**
+   * For a per-surface map (`code-map --surface packages/web`), the repo-relative
+   * surface root. Written as `# surface-root: <path>` so consumers like
+   * `index query --with-source` can resolve the map's surface-relative paths
+   * back to real files on disk instead of reading them from cwd.
+   */
+  surfaceRoot?: string;
 }
 
 /**
@@ -155,8 +162,8 @@ export function renderYaml(entries: FileEntry[], opts: RenderOptions): string {
     }
   }
 
-  // Header line count: 2 fixed (generated, stats) + optional 1 for sources-digest.
-  const headerLineCount = opts.sourcesDigest ? 3 : 2;
+  // Header line count: 2 fixed (generated, stats) + optional sources-digest + surface-root.
+  const headerLineCount = 2 + (opts.sourcesDigest ? 1 : 0) + (opts.surfaceRoot ? 1 : 0);
   const mapLines = bodyLines.length + headerLineCount;
   const compression = totalSrc === 0 ? 0 : totalSrc / mapLines;
   const fileCount = entries.length;
@@ -167,6 +174,9 @@ export function renderYaml(entries: FileEntry[], opts: RenderOptions): string {
   ];
   if (opts.sourcesDigest) {
     header.push(`# sources-digest: ${opts.sourcesDigest}`);
+  }
+  if (opts.surfaceRoot) {
+    header.push(`# surface-root: ${opts.surfaceRoot}`);
   }
 
   return [...header, ...bodyLines].join('\n') + '\n';

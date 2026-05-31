@@ -7,7 +7,7 @@
  * symbol it already located.
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { copyFileSync } from 'fs';
+import { copyFileSync, mkdirSync, copyFileSync as cp } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
@@ -95,5 +95,28 @@ describe('cdd-kit index query --with-source', () => {
     // With the default 400-line budget the small fixture class is returned whole.
     expect(klass.source).toContain('export class Service {');
     expect(klass.source_truncated).toBeUndefined();
+  });
+
+  it('resolves source from a per-surface map root (paths relative to surface)', () => {
+    // Build a surface map for packages/web; its entry paths are relative to that
+    // surface root, so --with-source must resolve them against it, not cwd.
+    const surfaceDir = join(tmpRepo, 'packages', 'web');
+    mkdirSync(surfaceDir, { recursive: true });
+    cp(join(FIXTURE_ROOT, 'sample.ts'), join(surfaceDir, 'widget.ts'));
+
+    const gen = runCli(['code-map', '--surface', 'packages/web'], { cwd: tmpRepo, home: tmpHome });
+    expect(gen.status, gen.stderr).toBe(0);
+
+    const r = runCli(
+      ['index', 'query', 'Service', '--with-source', '--json', '--map', '.cdd/code-map.packages-web.yml', '--no-refresh'],
+      { cwd: tmpRepo, home: tmpHome },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout);
+    const file = payload.results.find((res: { path: string }) => res.path === 'widget.ts');
+    expect(file, 'expected widget.ts in surface map results').toBeTruthy();
+    const klass = file.matches.find((m: { kind: string }) => m.kind === 'class');
+    // The source must actually be attached — the whole point of the surface fix.
+    expect(klass.source).toContain('export class Service {');
   });
 });

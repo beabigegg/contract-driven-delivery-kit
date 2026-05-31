@@ -28,7 +28,7 @@ Config (.cdd/conformance.json), all keys optional:
   "enabled": true,
   "apiPrefixes": ["/api"],          // only FE calls under these prefixes are checked
   "sourceRoots": ["src", "app"],    // dirs to scan; default: common roots that exist
-  "backendGlobsExt": [".py", ".js", ".ts", ".go", ".java", ".php", ".rb"],
+  "backendGlobsExt": [".py", ".js", ".ts", ".go", ".java", ".php"],
   "frontendGlobsExt": [".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte"],
   "excludeDirs": ["node_modules", "dist", "build", ".git", "tests", "__tests__"],
   "ignorePaths": ["/health", "/metrics"],  // contract+code paths to ignore (supports trailing *)
@@ -55,7 +55,9 @@ DEFAULT_CONFIG = {
     'enabled': False,
     'apiPrefixes': ['/api'],
     'sourceRoots': [],  # auto-detected when empty
-    'backendGlobsExt': ['.py', '.js', '.ts', '.mjs', '.cjs', '.go', '.java', '.php', '.rb'],
+    # No '.rb' by default: Rails routing is a stateful DSL (routes.rb draw block)
+    # that a regex heuristic cannot parse honestly, so it is not claimed here.
+    'backendGlobsExt': ['.py', '.js', '.ts', '.mjs', '.cjs', '.go', '.java', '.php'],
     'frontendGlobsExt': ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.vue', '.svelte'],
     'excludeDirs': ['node_modules', 'dist', 'build', '.git', '.cdd', 'coverage',
                     'vendor', '__pycache__', '.next', '.nuxt'],
@@ -177,12 +179,18 @@ def under_api_prefix(path: str, prefixes: list) -> bool:
 # PHP or JS file (cross-language false matches were polluting results, e.g. the
 # Flask route regex firing on a Laravel `Route::match` line).
 _JS_BACKEND = [
-    # Express / Koa / Fastify / NestJS-ish: app.get('/x'), router.post("/x").
+    # Express / Koa / Fastify: app.get('/x'), router.post("/x").
     # Client idioms (api/http/client/request/...) are intentionally excluded —
     # those are frontend calls, not server routes; counting them as backend
     # would silently satisfy `contractEndpointNotImplemented`.
     (re.compile(r'\b(?:app|router|server|fastify|route|routes)\.(get|post|put|delete|patch|options|head|all)\s*\(\s*[\'"`]([^\'"`]+)[\'"`]', re.I), 'verb_first'),
 ]
+
+# NestJS: @Controller('users') class prefix + @Get(':id') method decorators.
+# Handled by a dedicated two-pass scanner (scan_nestjs) since the route path is
+# the join of the controller prefix and the per-method decorator argument.
+NEST_CONTROLLER_RE = re.compile(r'@Controller\s*\(\s*[\'"`]?([^\'"`)]*)[\'"`]?\s*\)', re.I)
+NEST_METHOD_RE = re.compile(r'@(Get|Post|Put|Delete|Patch|Options|Head|All)\s*\(\s*[\'"`]?([^\'"`)]*)[\'"`]?\s*\)', re.I)
 _PY_BACKEND = [
     # FastAPI / APIRouter decorators: @app.get("/x"), @router.post('/x')
     (re.compile(r'@(?:app|router|\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
@@ -192,9 +200,11 @@ _PY_BACKEND = [
     (re.compile(r'\b(?:path|re_path|url)\s*\(\s*r?[\'"]([^\'"]+)[\'"]', re.I), 'path_only'),
 ]
 _JAVA_BACKEND = [
-    # Spring: @GetMapping("/x") @RequestMapping(value="/x", method=RequestMethod.POST)
+    # Spring: @GetMapping("/x")
     (re.compile(r'@(Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
-    (re.compile(r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?[\'"]([^\'"]+)[\'"]', re.I), 'path_only'),
+    # Spring: @RequestMapping(value="/x", method=RequestMethod.POST) — method (if
+    # present) is parsed from the call tail so method drift is not wildcarded.
+    (re.compile(r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?[\'"]([^\'"]+)[\'"]([^)]*)', re.I), 'spring_request_mapping'),
 ]
 _GO_BACKEND = [
     # chi/gin/echo/mux: r.Get("/x", ...) router.POST("/x", ...) mux.HandleFunc("/x", ...)
@@ -218,6 +228,7 @@ BACKEND_PATTERNS_BY_EXT = {
 }
 
 FLASK_METHODS_RE = re.compile(r'methods\s*=\s*\[([^\]]*)\]', re.I)
+SPRING_METHOD_RE = re.compile(r'method\s*=\s*\{?([^)}]*)', re.I)
 
 # Frontend HTTP calls -> list of (method_or_None, raw_path). Only scanned in
 # files with a frontend extension. The path capture allows ${...} template
@@ -230,14 +241,17 @@ FRONTEND_PATTERNS = [
     (re.compile(r'\b(?:axios|ky|http|\$http|api|client|request|httpClient|fetcher)\.(get|post|put|delete|patch|head|options)\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'verb_first'),
     # fetch('/x', { method: 'POST' })  — method parsed from the options object below
     (re.compile(r'\bfetch\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'fetch'),
-    # axios({ url: '/x', method: 'post' })  / useFetch('/x') / useSWR('/x')
-    (re.compile(r'\burl\s*:\s*[`\'"]' + _FE_PATH, re.I), 'path_only'),
+    # axios({ url: '/x', method: 'post' }) — method parsed from a nearby window so
+    # config-object method drift is caught instead of wildcarded.
+    (re.compile(r'\burl\s*:\s*[`\'"]' + _FE_PATH, re.I), 'config_object'),
+    # useFetch('/x') / useSWR('/x') — no method on the call site; method-agnostic.
     (re.compile(r'\b(?:useFetch|useSWR|useQuery)\s*\(\s*[`\'"]' + _FE_PATH, re.I), 'path_only'),
 ]
 
-# For a fetch() call, look a short window past the path string for the method.
-FETCH_METHOD_RE = re.compile(r'method\s*:\s*[`\'"](\w+)[`\'"]', re.I)
-FETCH_METHOD_WINDOW = 200
+# Look a short window on EITHER side of a config-object `url:` for `method:`
+# (the key order in axios({ method, url }) is not fixed).
+OBJECT_METHOD_RE = re.compile(r'method\s*:\s*[`\'"](\w+)[`\'"]', re.I)
+OBJECT_METHOD_WINDOW = 200
 
 
 def iter_source_files(roots, exts, exclude_dirs):
@@ -265,19 +279,48 @@ def looks_like_test(path: str) -> bool:
             or '/tests/' in path.replace('\\', '/') or '/__tests__/' in path.replace('\\', '/'))
 
 
+def _join_route(prefix: str, suffix: str) -> str:
+    parts = [p.strip('/') for p in (prefix, suffix) if p and p.strip('/')]
+    return normalize_path('/' + '/'.join(parts)) if parts else normalize_path('/')
+
+
+def scan_nestjs(text: str):
+    """Yield (METHOD, normalized_path) for NestJS controllers in one file.
+
+    Each method decorator's path is joined with the nearest preceding
+    @Controller(prefix). This is the documented NestJS shape; it deliberately
+    does not try to resolve dynamic prefixes or RouterModule registrations."""
+    controllers = [(m.start(), m.group(1) or '') for m in NEST_CONTROLLER_RE.finditer(text)]
+    if not controllers:
+        return
+    for mm in NEST_METHOD_RE.finditer(text):
+        prefix = ''
+        for pos, pfx in controllers:
+            if pos < mm.start():
+                prefix = pfx
+            else:
+                break
+        method = mm.group(1).upper()
+        method = 'ANY' if method == 'ALL' else method
+        yield (method, _join_route(prefix, mm.group(2) or ''))
+
+
 def scan_backend(roots, exts, exclude_dirs):
     """Return set of (METHOD, normalized_path). METHOD may be 'ANY'."""
     routes = set()
     for path in iter_source_files(roots, exts, exclude_dirs):
         if looks_like_test(path):
             continue
-        patterns = BACKEND_PATTERNS_BY_EXT.get(os.path.splitext(path)[1].lower())
+        ext = os.path.splitext(path)[1].lower()
+        patterns = BACKEND_PATTERNS_BY_EXT.get(ext)
         if not patterns:
             continue
         try:
             text = Path(path).read_text(encoding='utf-8', errors='ignore')
         except OSError:
             continue
+        if ext in ('.ts', '.tsx', '.js', '.mjs', '.cjs'):
+            routes.update(scan_nestjs(text))
         for pat, kind in patterns:
             for m in pat.finditer(text):
                 if kind == 'verb_first':
@@ -304,6 +347,17 @@ def scan_backend(roots, exts, exclude_dirs):
                              if meth.upper() in VALID_METHODS]
                     for meth in (found or ['ANY']):
                         routes.add((meth, normalize_path(raw)))
+                elif kind == 'spring_request_mapping':
+                    raw = m.group(1)
+                    tail = m.group(2) or ''
+                    mm = SPRING_METHOD_RE.search(tail)
+                    methods = []
+                    if mm:
+                        # method=RequestMethod.POST  or  method={RequestMethod.GET, RequestMethod.POST}
+                        methods = [tok.upper() for tok in re.findall(r'[A-Za-z]+', mm.group(1))
+                                   if tok.upper() in VALID_METHODS]
+                    for meth in (methods or ['ANY']):
+                        routes.add((meth, normalize_path(raw)))
     return routes
 
 
@@ -328,9 +382,17 @@ def scan_frontend(roots, exts, exclude_dirs):
                     # Per the fetch spec the default method is GET; look a short
                     # window past the URL for an explicit `method:` so method
                     # drift (e.g. DELETE on a GET-only endpoint) is caught.
-                    window = text[m.end():m.end() + FETCH_METHOD_WINDOW]
-                    mm = FETCH_METHOD_RE.search(window)
+                    window = text[m.end():m.end() + OBJECT_METHOD_WINDOW]
+                    mm = OBJECT_METHOD_RE.search(window)
                     method = mm.group(1).upper() if mm else 'GET'
+                elif kind == 'config_object':
+                    raw = m.group(1)
+                    # axios({ url, method }) — key order is not fixed, so scan a
+                    # window on both sides of the url: token for method:.
+                    lo = max(0, m.start() - OBJECT_METHOD_WINDOW)
+                    window = text[lo:m.end() + OBJECT_METHOD_WINDOW]
+                    mm = OBJECT_METHOD_RE.search(window)
+                    method = mm.group(1).upper() if mm else 'ANY'
                 else:  # path_only
                     method = 'ANY'
                     raw = m.group(1)
@@ -409,9 +471,13 @@ def main() -> None:
 
     roots = resolve_roots(cfg)
     if not roots:
-        print('API conformance: no source roots found to scan '
-              '(set "sourceRoots" in .cdd/conformance.json).')
-        sys.exit(0)
+        # Enabled but nothing to scan almost always means a mistyped/missing
+        # sourceRoots. Failing (not exit 0) prevents a config mistake from
+        # silently disabling the drift net while the gate stays green.
+        print('API conformance validation failed:')
+        print('  conformance is enabled but no source roots were found to scan; '
+              'set "sourceRoots" in .cdd/conformance.json to existing directories.')
+        sys.exit(1)
 
     exclude = cfg['excludeDirs']
     ignore = cfg['ignorePaths']

@@ -6,7 +6,7 @@ import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader
 import type { FileEntry } from '../code-map/types.js';
 import { graphPathFor, loadCodeGraph } from '../code-graph/reader.js';
 import { graphContext as buildNativeContext, graphImpact as nativeImpact, searchGraph } from '../code-graph/queries.js';
-import { indexQuery, queryEntries, resolveSourceBudget } from './index-query.js';
+import { indexQuery, queryEntries, resolveSourceBudget, surfaceRootFor } from './index-query.js';
 import { indexImpact } from './index-impact.js';
 
 type GraphEngine = 'auto' | 'native' | 'codegraph' | 'codemap';
@@ -243,7 +243,7 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
       const graph = loadCodeGraph(ensured.graphPath);
       const results = searchGraph(graph, term, opts.limit);
       const sources = opts.withSource
-        ? collectNodeSources(results.map(r => r.node), resolveSourceBudget(opts.sourceBudget))
+        ? collectNodeSources(results.map(r => r.node), resolveSourceBudget(opts.sourceBudget), surfaceRootFor(mapPath))
         : new Map<string, { source: string; truncated: boolean }>();
       if (opts.json) {
         const withSrc = opts.withSource
@@ -293,6 +293,7 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
 function collectNodeSources(
   nodes: { id: string; file_path: string; start_line: number; end_line: number }[],
   budget: number,
+  baseDir?: string,
 ): Map<string, { source: string; truncated: boolean }> {
   const out = new Map<string, { source: string; truncated: boolean }>();
   const fileCache = new Map<string, string[] | null>();
@@ -302,7 +303,8 @@ function collectNodeSources(
     if (fileCache.has(path)) return fileCache.get(path) ?? null;
     let lines: string[] | null = null;
     try {
-      lines = existsSync(path) ? readFileSync(path, 'utf8').split(/\r?\n/) : null;
+      const resolved = baseDir && baseDir !== '.' ? `${baseDir.replace(/\/+$/, '')}/${path}` : path;
+      lines = existsSync(resolved) ? readFileSync(resolved, 'utf8').split(/\r?\n/) : null;
     } catch {
       lines = null;
     }

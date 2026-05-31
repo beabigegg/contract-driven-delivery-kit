@@ -206,4 +206,47 @@ describe('validate_api_conformance.py', () => {
     expect(r.status).toBe(1);
     expect(r.out).toContain('/api/orders');
   });
+
+  it('catches axios config-object method drift', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, ENABLED);
+    writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\n");
+    writeSrc(repo, 'web/api.js', "axios({ url: '/api/users', method: 'delete' });\n");
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('DELETE /api/users');
+  });
+
+  it('parses Spring @RequestMapping method instead of wildcarding it', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, { ...ENABLED, strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'server/UserController.java',
+      '@RequestMapping(value="/api/users", method=RequestMethod.POST)\npublic X create() {}\n');
+    const r = run(repo);
+    // POST route + GET-only contract -> backend route not in contract.
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('POST /api/users');
+  });
+
+  it('detects NestJS @Controller + @Get decorator routes', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users/{id} | required | - | User | 404 | yes |']);
+    writeConfig(repo, { ...ENABLED, strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'server/users.controller.ts',
+      "@Controller('api/users')\nexport class UsersController {\n  @Get(':id')\n  findOne() {}\n}\n");
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('fails when enabled but no source roots resolve (config mistake)', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/api'], sourceRoots: ['does-not-exist'] });
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('no source roots were found');
+  });
 });

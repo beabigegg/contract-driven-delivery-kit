@@ -78,7 +78,7 @@ export async function indexQuery(term: string, opts: IndexQueryOptions): Promise
 
   const results = queryEntries(entries, term).slice(0, limit);
   if (opts.withSource) {
-    attachSource(results, resolveSourceBudget(opts.sourceBudget));
+    attachSource(results, resolveSourceBudget(opts.sourceBudget), surfaceRootFor(mapPath));
   }
   const payload: QueryPayload = {
     index: mapPath,
@@ -220,12 +220,31 @@ function firstLine(lines: string | undefined): number {
 }
 
 /**
+ * Read the `# surface-root: <path>` header from a per-surface map, if present.
+ * Map entry paths are relative to that root, so --with-source must resolve them
+ * against it rather than the current working directory.
+ */
+export function surfaceRootFor(mapPath: string): string | undefined {
+  try {
+    if (!existsSync(mapPath)) return undefined;
+    // Header is in the first handful of lines; read a small prefix.
+    const head = readFileSync(mapPath, 'utf8').slice(0, 4096);
+    const m = head.match(/^# surface-root:\s*(.+)$/m);
+    return m ? m[1].trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Populate `match.source` for each match that has a known line range, reading
  * the real file once per path and honoring a global line budget. Ranges are
  * resolved from `lines` ("A-B") or a single `line`. Out-of-budget matches are
  * flagged with `source_truncated` so the caller knows to read them directly.
+ * `baseDir` (the surface root, if any) is prepended to each entry path so
+ * per-surface maps resolve to real files instead of being read from cwd.
  */
-function attachSource(results: QueryResult[], budget: number): void {
+function attachSource(results: QueryResult[], budget: number, baseDir?: string): void {
   const fileCache = new Map<string, string[] | null>();
   let used = 0;
 
@@ -233,7 +252,8 @@ function attachSource(results: QueryResult[], budget: number): void {
     if (fileCache.has(path)) return fileCache.get(path) ?? null;
     let lines: string[] | null = null;
     try {
-      lines = existsSync(path) ? readFileSync(path, 'utf8').split(/\r?\n/) : null;
+      const resolved = baseDir && baseDir !== '.' ? `${baseDir.replace(/\/+$/, '')}/${path}` : path;
+      lines = existsSync(resolved) ? readFileSync(resolved, 'utf8').split(/\r?\n/) : null;
     } catch {
       lines = null;
     }

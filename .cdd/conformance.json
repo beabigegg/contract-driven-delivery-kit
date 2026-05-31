@@ -3,7 +3,7 @@
   "enabled": false,
   "apiPrefixes": ["/api"],
   "sourceRoots": [],
-  "backendGlobsExt": [".py", ".js", ".ts", ".mjs", ".cjs", ".go", ".java", ".php", ".rb"],
+  "backendGlobsExt": [".py", ".js", ".ts", ".mjs", ".cjs", ".go", ".java", ".php"],
   "frontendGlobsExt": [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"],
   "excludeDirs": ["node_modules", "dist", "build", ".git", ".cdd", "coverage", "vendor", "__pycache__", ".next", ".nuxt"],
   "ignorePaths": ["/health", "/metrics"],

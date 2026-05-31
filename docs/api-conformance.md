@@ -27,10 +27,33 @@ compare equal. Methods are compared too; `fetch()` and Django/Spring-style
 declarations that don't expose a verb to the regex are treated as method-agnostic.
 
 It is **heuristic** (regex, stack-agnostic) by design — a generic kit cannot ship
-a parser for every framework. It recognizes Express/Koa/Fastify/NestJS,
-Flask/FastAPI/Django, Spring, Go (chi/gin/echo/mux), and Laravel route shapes,
-plus `fetch`/`axios`/`ky`/`$http`/`api.*`/`useFetch`/`useSWR` call shapes. Treat
-it as a high-signal net, not a proof.
+a parser for every framework. It recognizes:
+
+- **Backend**: Express/Koa/Fastify (`app/router.get('/x')`), NestJS
+  (`@Controller` prefix + `@Get(':id')`), Flask/FastAPI/Django, Spring
+  (`@GetMapping`, and `@RequestMapping(..., method=...)` with the method parsed),
+  Go (chi/gin/echo/mux + `HandleFunc`), and Laravel (`Route::get` and
+  `Route::match([...])`).
+- **Frontend**: `fetch` (method read from the options object; defaults to GET),
+  `axios`/`ky`/`$http`/`client`/`http`/`api.*` verb calls, the
+  `axios({ url, method })` config-object form, and `useFetch`/`useSWR`/`useQuery`.
+
+Backend patterns are **gated by file extension** so a Python/Go/PHP pattern can
+never match a JS/TS file (and vice versa). Treat it as a high-signal net, not a
+proof.
+
+### Known heuristic limits
+
+- **Ruby/Rails is not supported.** Rails routing is a stateful `routes.rb draw`
+  DSL that a regex cannot parse honestly, so `.rb` is not in the default
+  `backendGlobsExt` and Rails routes are not claimed.
+- **Mounted Express routers** (`app.use('/api', router)` + `router.get('/users')`)
+  record only `/users`; the validator does not resolve the mount prefix across
+  files. If you use mounted routers, either declare the unprefixed paths in the
+  contract, add the mount prefix in the route literal, or set
+  `contractEndpointNotImplemented` to `off`.
+- **Dynamic routes** built from variables or registered via framework modules
+  (NestJS `RouterModule`, dynamic prefixes) are not detected.
 
 ## Enabling it
 
