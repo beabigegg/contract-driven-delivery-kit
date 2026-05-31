@@ -11,6 +11,8 @@ coverage/
 test-tmp/
 .npmrc
 .claude/worktrees/
+__pycache__/
+*.pyc
 .cdd/code-map.index.json
 
 # cdd-kit local cache (do not commit)

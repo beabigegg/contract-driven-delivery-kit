@@ -48,6 +48,17 @@ console.log('Built dist/cli/index.js');
 // so a failed compile never leaves an empty assets/ directory.
 const assetsDir = join(__dirname, 'assets');
 if (existsSync(assetsDir)) { rmSync(assetsDir, { recursive: true, force: true }); console.log('Cleaned assets/'); }
+const shouldCopyAsset = (srcPath) => {
+  const normalized = srcPath.replace(/\\/g, '/');
+  return !(
+    normalized.includes('/__pycache__/') ||
+    normalized.endsWith('.pyc') ||
+    normalized.includes('/.pytest_cache/') ||
+    normalized.includes('/.mypy_cache/') ||
+    normalized.includes('/.ruff_cache/')
+  );
+};
+
 const copy = (src, dest) => {
   const srcPath = join(__dirname, src);
   const destPath = join(__dirname, dest);
@@ -56,7 +67,7 @@ const copy = (src, dest) => {
     return;
   }
   mkdirSync(dirname(destPath), { recursive: true });
-  cpSync(srcPath, destPath, { recursive: true });
+  cpSync(srcPath, destPath, { recursive: true, filter: shouldCopyAsset });
   console.log(`Copied ${src} → ${dest}`);
 };
 
