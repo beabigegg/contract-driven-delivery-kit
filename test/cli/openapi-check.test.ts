@@ -82,6 +82,28 @@ describe('cdd-kit openapi export --check', () => {
     expect(check.stdout + check.stderr).toMatch(/requires --out/i);
   });
 
+  it('echoes a non-default --contract in the drift fix command', () => {
+    // contract at a non-default path; the printed fix command must preserve it
+    // so following it regenerates from the contract that actually drifted.
+    const altContract = 'contracts/api/v2.md';
+    mkdirSync(join(repo, 'contracts', 'api'), { recursive: true });
+    writeFileSync(
+      join(repo, altContract),
+      `---\ncontract: api\nsummary: V2\nschema-version: 1.0.0\n---\n\n# API\n\n## Endpoints\n| method | path | auth | request schema | response schema | errors | tests |\n|---|---|---|---|---|---|---|\n| GET | /v2/ping | none | - | Pong | - | yes |\n`,
+      'utf8',
+    );
+    runCli(['openapi', 'export', '--contract', altContract, '--out', ARTIFACT_REL], { cwd: repo, home });
+    // drift the alt contract
+    writeFileSync(
+      join(repo, altContract),
+      `---\ncontract: api\nsummary: V2\nschema-version: 1.0.0\n---\n\n# API\n\n## Endpoints\n| method | path | auth | request schema | response schema | errors | tests |\n|---|---|---|---|---|---|---|\n| GET | /v2/ping | none | - | Pong | - | yes |\n| POST | /v2/ping | admin | Ping | Pong | 400 | yes |\n`,
+      'utf8',
+    );
+    const check = runCli(['openapi', 'export', '--contract', altContract, '--check', '--out', ARTIFACT_REL], { cwd: repo, home });
+    expect(check.status).toBe(1);
+    expect(check.stdout + check.stderr).toContain(`--contract ${altContract}`);
+  });
+
   it('round-trips YAML artifacts under --check', () => {
     writeContract(['| GET | /api/ping | none | - | Pong | - | yes |']);
     const out = 'contracts/api/openapi.yaml';

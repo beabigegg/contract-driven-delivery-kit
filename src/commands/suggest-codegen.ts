@@ -65,9 +65,16 @@ export function suggestCodegenScript(cwd: string): CodegenSuggestion {
     ? (pkg.scripts as Record<string, unknown>)
     : {};
 
-  // Idempotent: if either script already exists, never clobber the user's wiring.
-  if (SCRIPT_GENERATE in scripts || SCRIPT_CHECK in scripts) {
-    return { added: [], skipped: `${SCRIPT_GENERATE} script already present in package.json` };
+  // Idempotent: if EITHER script already exists, leave the wiring entirely to
+  // the user. We deliberately do not backfill the missing counterpart — once a
+  // user owns one half, our hardcoded artifact path (or generator choice) may
+  // not match theirs, so injecting the other half could be wrong. We just report
+  // accurately which half we found.
+  const hasGenerate = SCRIPT_GENERATE in scripts;
+  const hasCheck = SCRIPT_CHECK in scripts;
+  if (hasGenerate || hasCheck) {
+    const present = [hasGenerate ? SCRIPT_GENERATE : '', hasCheck ? SCRIPT_CHECK : ''].filter(Boolean).join(' + ');
+    return { added: [], skipped: `${present} already present in package.json; leaving codegen wiring to you` };
   }
 
   scripts[SCRIPT_GENERATE] = GENERATE_CMD;
