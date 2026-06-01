@@ -48,7 +48,7 @@ const tools: ToolDef[] = [
   },
   {
     name: 'cdd_graph_query',
-    description: 'Search native graph symbols/files and return candidate nodes with line ranges.',
+    description: 'Search native graph symbols/files and return candidate nodes with line ranges. Set withSource:true to also return the source slices inline so no separate file read is needed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -56,6 +56,8 @@ const tools: ToolDef[] = [
         limit: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
         map: { type: 'string', description: 'Code-map YAML path.', default: DEFAULT_MAP },
         engine: { type: 'string', enum: ['auto', 'native', 'codegraph', 'codemap'], default: 'auto' },
+        withSource: { type: 'boolean', description: 'Include matched source slices inline (replaces a follow-up read).', default: false },
+        sourceBudget: { type: 'integer', minimum: 1, maximum: 5000, default: 400, description: 'Max total source lines to return when withSource is true.' },
         refresh: { type: 'boolean', default: true },
       },
       required: ['query'],
@@ -97,13 +99,15 @@ const tools: ToolDef[] = [
   },
   {
     name: 'cdd_index_query',
-    description: 'Fallback code-map query for files, symbols, imports, and line ranges.',
+    description: 'Fallback code-map query for files, symbols, imports, and line ranges. Set withSource:true to also return the source slices inline so no separate file read is needed.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Symbol, file path, import module, enum member, or substring.' },
         limit: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
         map: { type: 'string', description: 'Code-map YAML path.', default: DEFAULT_MAP },
+        withSource: { type: 'boolean', description: 'Include matched source slices inline (replaces a follow-up read).', default: false },
+        sourceBudget: { type: 'integer', minimum: 1, maximum: 5000, default: 400, description: 'Max total source lines to return when withSource is true.' },
         refresh: { type: 'boolean', default: true },
       },
       required: ['query'],
@@ -210,6 +214,7 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         '--map', optionalString(args.map, DEFAULT_MAP),
         '--limit', String(optionalInt(args.limit, 10)),
         '--json',
+        ...sourceArgs(args),
         ...refreshArgs(args),
       ]);
     case 'cdd_graph_context':
@@ -240,6 +245,7 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         '--map', optionalString(args.map, DEFAULT_MAP),
         '--limit', String(optionalInt(args.limit, 10)),
         '--json',
+        ...sourceArgs(args),
         ...refreshArgs(args),
       ]);
     case 'cdd_index_impact':
@@ -286,6 +292,11 @@ function runCddJson(args: string[]): ToolResult {
 
 function refreshArgs(args: Record<string, unknown>): string[] {
   return args.refresh === false ? ['--no-refresh'] : [];
+}
+
+function sourceArgs(args: Record<string, unknown>): string[] {
+  if (args.withSource !== true) return [];
+  return ['--with-source', '--source-budget', String(optionalInt(args.sourceBudget, 400))];
 }
 
 function asObject(value: unknown): Record<string, unknown> {

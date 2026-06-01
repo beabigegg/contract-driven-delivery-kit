@@ -1,5 +1,36 @@
 # Changelog
 
+## [Unreleased]
+
+Two mechanical chokepoints so contract conformance and graph-first exploration
+stop depending on prose the agent can ignore.
+
+### Added
+
+- **API conformance validator** (`validate_api_conformance.py`): parses real
+  backend route declarations and frontend HTTP call sites and diffs them against
+  `contracts/api/api-contract.md`. Catches frontend/backend API drift that the
+  markdown-only validators never could. Chained into `cdd-kit validate
+  --contracts`, so `cdd-kit gate` blocks on drift. Off until enabled in
+  `.cdd/conformance.json` (`"enabled": true`); a disabled config is scaffolded by
+  `cdd-kit init`. See `docs/api-conformance.md`.
+- **`--with-source` / `withSource`** on `cdd-kit index query`, `cdd-kit graph
+  query`, and the `cdd_index_query` / `cdd_graph_query` MCP tools: returns the
+  matched symbol's code inline so the query replaces a follow-up `Read` instead
+  of preceding it. `--source-budget` caps total lines and flags truncated ranges.
+- **`hooks/pre-tool-use-graph-first.sh`** (opt-in PreToolUse hook): steers agents
+  to `cdd-kit index query --with-source` before reading source files. Advisory by
+  default; `CDD_GRAPH_FIRST_STRICT=1` hard-blocks source reads when a code-map
+  exists.
+- `cdd-kit doctor` reports whether API conformance is enabled, disabled, or
+  unconfigured (informational; never fails `--strict`).
+
+### Changed
+
+- `backend-engineer` and `frontend-engineer` prompts now prefer
+  `--with-source` queries and warn that endpoint changes/calls require a contract
+  update when conformance is enabled.
+
 ## [2.1.3] - 2026-05-29
 
 Correct Claude Code MCP registration guidance.

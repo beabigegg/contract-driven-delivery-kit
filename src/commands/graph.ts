@@ -1,4 +1,4 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { spawnSync, type SpawnSyncReturns } from 'child_process';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
@@ -6,7 +6,7 @@ import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader
 import type { FileEntry } from '../code-map/types.js';
 import { graphPathFor, loadCodeGraph } from '../code-graph/reader.js';
 import { graphContext as buildNativeContext, graphImpact as nativeImpact, searchGraph } from '../code-graph/queries.js';
-import { indexQuery, queryEntries } from './index-query.js';
+import { indexQuery, queryEntries, resolveSourceBudget, surfaceRootFor } from './index-query.js';
 import { indexImpact } from './index-impact.js';
 
 type GraphEngine = 'auto' | 'native' | 'codegraph' | 'codemap';
@@ -24,6 +24,8 @@ export interface GraphStatusOptions extends GraphBaseOptions {
 
 export interface GraphQueryOptions extends GraphBaseOptions {
   limit: number;
+  withSource?: boolean;
+  sourceBudget?: number;
 }
 
 export interface GraphImpactOptions extends GraphBaseOptions {
@@ -240,8 +242,14 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
     try {
       const graph = loadCodeGraph(ensured.graphPath);
       const results = searchGraph(graph, term, opts.limit);
+      const sources = opts.withSource
+        ? collectNodeSources(results.map(r => r.node), resolveSourceBudget(opts.sourceBudget), surfaceRootFor(mapPath))
+        : new Map<string, { source: string; truncated: boolean }>();
       if (opts.json) {
-        writeJson({ engine: 'native', graph: ensured.graphPath, query: term, refreshed: ensured.refreshed, results });
+        const withSrc = opts.withSource
+          ? results.map(r => ({ ...r, source: sources.get(r.node.id)?.source, source_truncated: sources.get(r.node.id)?.truncated }))
+          : results;
+        writeJson({ engine: 'native', graph: ensured.graphPath, query: term, refreshed: ensured.refreshed, results: withSrc });
       } else {
         console.log(`graph: ${ensured.graphPath}${ensured.refreshed ? ' (refreshed)' : ''}`);
         console.log(`query: ${term}`);
@@ -250,8 +258,15 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
           const n = result.node;
           console.log(`- ${n.kind}: ${n.qualified_name} lines ${n.start_line}-${n.end_line}`);
           console.log(`  edges: ${result.edges.incoming} incoming, ${result.edges.outgoing} outgoing`);
+          const src = sources.get(n.id);
+          if (src) {
+            for (const srcLine of src.source.split('\n')) console.log(`    | ${srcLine}`);
+            if (src.truncated) console.log('    | … (source budget reached; Read the rest directly)');
+          }
         }
-        console.log('Next: run cdd-kit graph impact <node/file/symbol> before editing.');
+        console.log(opts.withSource
+          ? 'Source included above — no separate Read needed for these ranges.'
+          : 'Next: run cdd-kit graph impact <node/file/symbol> before editing.');
       }
       return results.length === 0 ? 1 : 0;
     } catch (err) {
@@ -264,7 +279,53 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
     limit: opts.limit,
     json: opts.json === true,
     refresh: opts.refresh !== false,
+    withSource: opts.withSource === true,
+    sourceBudget: resolveSourceBudget(opts.sourceBudget),
   });
+}
+
+/**
+ * Read the real source slice for each graph node (file_path + line range),
+ * one file read per path, honoring a shared line budget. Lets `graph query
+ * --with-source` return code directly instead of pointing at a range the
+ * caller must then Read.
+ */
+function collectNodeSources(
+  nodes: { id: string; file_path: string; start_line: number; end_line: number }[],
+  budget: number,
+  baseDir?: string,
+): Map<string, { source: string; truncated: boolean }> {
+  const out = new Map<string, { source: string; truncated: boolean }>();
+  const fileCache = new Map<string, string[] | null>();
+  let used = 0;
+
+  const readLines = (path: string): string[] | null => {
+    if (fileCache.has(path)) return fileCache.get(path) ?? null;
+    let lines: string[] | null = null;
+    try {
+      const resolved = baseDir && baseDir !== '.' ? `${baseDir.replace(/\/+$/, '')}/${path}` : path;
+      lines = existsSync(resolved) ? readFileSync(resolved, 'utf8').split(/\r?\n/) : null;
+    } catch {
+      lines = null;
+    }
+    fileCache.set(path, lines);
+    return lines;
+  };
+
+  for (const node of nodes) {
+    const fileLines = readLines(node.file_path);
+    if (!fileLines || !node.start_line) continue;
+    if (used >= budget) {
+      out.set(node.id, { source: '', truncated: true });
+      continue;
+    }
+    const end = node.end_line && node.end_line >= node.start_line ? node.end_line : node.start_line;
+    const allowedEnd = Math.min(end, node.start_line + (budget - used) - 1);
+    const slice = fileLines.slice(node.start_line - 1, allowedEnd);
+    out.set(node.id, { source: slice.join('\n'), truncated: allowedEnd < end });
+    used += slice.length;
+  }
+  return out;
 }
 
 export async function graphImpact(term: string, opts: GraphImpactOptions): Promise<number> {
