@@ -39,6 +39,13 @@ stop depending on prose the agent can ignore.
   `cdd-kit index query --with-source` before `Read` becomes an installed harness
   chokepoint instead of manual settings wiring. Advisory by default; `strict`
   writes `CDD_GRAPH_FIRST_STRICT=1`. Idempotent and preserves unrelated settings.
+- **`cdd-kit openapi export`**: projects `contracts/api/api-contract.md` into a
+  minimal OpenAPI 3.1 skeleton (`--yaml`, `--out`) for tooling such as
+  `openapi-typescript`. One-way projection — the markdown contract stays the
+  source of truth. Derives paths/params/auth/status codes; marks free-form
+  request/response bodies as `x-cdd-unresolved` rather than fabricating schemas.
+  Per-stack client generation is intentionally left to the consumer repo; see
+  `docs/adr/0001-contract-to-openapi-export.md` and `docs/openapi-export.md`.
 
 ### Changed
 
