@@ -209,16 +209,20 @@ function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; 
 }
 
 /**
- * A schema section that contains a fenced code block tagged as anything other
- * than `json-schema` is almost always a mistake (most authors and agents reach
- * for ```` ```json ````). Return the offending tag so the error can name the
- * fix; `''` means a fence with no language tag; `null` means no foreign fence.
+ * A schema section that contains a fenced code block whose info string is
+ * anything other than exactly `json-schema` is almost always a mistake (most
+ * authors and agents reach for ```` ```json ````; a decorated
+ * ```` ```json-schema title="X" ```` is also rejected because
+ * `parseJsonSchemaBlocks` only parses a bare `json-schema` fence, so a decorated
+ * one would otherwise be silently dropped). The whole info string is captured —
+ * not just the leading word — so the two stay in lock-step. Returns the
+ * offending info string (`''` = a fence with no tag); `null` = no foreign fence.
  */
 function findForeignFenceTag(section: SchemaSection): string | null {
-  const fenceRe = /```([A-Za-z0-9_-]*)[^\n]*(?:\n|$)[\s\S]*?```/g;
+  const fenceRe = /```([^\n]*)(?:\n|$)[\s\S]*?```/g;
   for (const match of section.content.matchAll(fenceRe)) {
-    const tag = (match[1] ?? '').trim();
-    if (tag !== 'json-schema') return tag;
+    const info = (match[1] ?? '').trim();
+    if (info !== 'json-schema') return info;
   }
   return null;
 }

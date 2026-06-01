@@ -635,6 +635,33 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
   });
 
+  it('15f: gate still catches an unfilled placeholder even when the same file also has an XML example', () => {
+    // Adversarial: a partially-filled scaffold that also documents <id>123</id>
+    // must not slip through. Element-stripping is per-occurrence, so the bare
+    // frontmatter `change-id: <id>` is still flagged.
+    runCli(['new', 'feat-015f'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015f');
+    writeValidChangeArtifacts(changeDir);
+
+    const filler = 'Meaningful description of the XML payload mapping work for this change. '.repeat(4);
+    writeFileSync(join(changeDir, 'implementation-plan.md'), [
+      '---',
+      'change-id: <id>',          // <- still unfilled
+      'last-changed: 2026-06-01',
+      '---',
+      '',
+      '# Implementation Plan: feat-015f',
+      '',
+      '## Objective',
+      filler,
+      'The SOAP response includes <id>123</id> which we map to the report model.',  // <- legit XML
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-015f'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/implementation-plan\.md.*placeholder.*<id>/i);
+  });
+
   it('12: gate with --strict: only archive task IDs are exempt from pending check', () => {
     runCli(['new', 'feat-011'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-011');

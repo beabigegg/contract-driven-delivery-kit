@@ -89,18 +89,22 @@ function stripHtmlComments(text: string): string {
  */
 const PLACEHOLDER_LITERALS = ['<id>', '<date>', '<change-id>'];
 
+const RE_META = /[.*+?^${}()|[\]\\]/g;
+
 /** Unfilled template placeholder tokens still present in an artifact body. */
 function findPlaceholders(text: string): string[] {
   const clean = stripHtmlComments(text);
   return PLACEHOLDER_LITERALS.filter(token => {
-    if (!clean.includes(token)) return false;
-    // `<id>` / `<date>` are also valid XML/HTML element names, so a documented
-    // markup example like `<id>123</id>` or `<date>2026-06-01</date>` would
-    // otherwise be mistaken for an unfilled scaffold token. A real element has a
-    // matching closing tag; a template fill-in never does — only flag the token
-    // when no closing tag for it exists in the artifact.
-    const closing = `</${token.slice(1)}`; // '<id>' -> '</id>'
-    return !clean.includes(closing);
+    // A template fill-in is always a colon-led, line-final value — frontmatter
+    // (`change-id: <id>`, `last-changed: <date>`) or a heading title
+    // (`# Implementation Plan: <change-id>`). Anchoring on `: <token>` at end of
+    // line distinguishes it from an inline XML/markup element such as
+    // `<id>123</id>` or `<date>2026-06-01</date>`, which is never the colon-led
+    // line-final value. So a single artifact may carry BOTH an unfilled
+    // `change-id: <id>` and a legitimate `<id>123</id>` example, and only the
+    // real placeholder is flagged (and a partial scaffold cannot slip through).
+    const re = new RegExp(`:[ \\t]*${token.replace(RE_META, '\\$&')}[ \\t]*\\r?$`, 'm');
+    return re.test(clean);
   }).sort();
 }
 

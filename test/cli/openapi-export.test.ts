@@ -334,6 +334,38 @@ describe('cdd-kit openapi export', () => {
     expect(op['x-cdd-response-contract']).toBe('Note');
   });
 
+  it('fails fast on a decorated json-schema fence (info string after json-schema)', () => {
+    // ```json-schema title="X" is NOT parsed by parseJsonSchemaBlocks (it wants a
+    // bare json-schema fence), so it must be rejected rather than silently dropped.
+    writeContract(
+      ['| POST | /api/users | none | CreateUser | CreateUser | 400 | yes |'],
+      undefined,
+      [
+        '## Schemas',
+        '',
+        '### CreateUser',
+        '```json-schema title="CreateUser"',
+        '{ "type": "object" }',
+        '```',
+      ].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/CreateUser/);
+  });
+
+  it('still accepts a bare json-schema fence with trailing whitespace', () => {
+    writeContract(
+      ['| POST | /api/events | none | Event | Event | 400 | yes |'],
+      undefined,
+      ['## Schemas', '', '### Event', '```json-schema  ', '{ "type": "object" }', '```'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const doc = JSON.parse(r.stdout);
+    expect(doc.components.schemas.Event).toMatchObject({ type: 'object' });
+  });
+
   it('fails fast when a schema section pairs a field table with a stray ```json fence', () => {
     // A table makes fields.found true, but a mis-tagged ```json block alongside
     // it would otherwise be silently ignored, weakening the schema. The foreign
