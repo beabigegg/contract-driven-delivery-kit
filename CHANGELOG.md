@@ -77,9 +77,12 @@ stop depending on prose the agent can ignore.
   instructional prose (900+ chars) cleared the threshold while every field was
   still an `<id>` / `<date>` / `<change-id>` placeholder — so a change could pass
   `--strict` with raw templates and zero real content. Gate now fails and names
-  the remaining placeholder tokens per artifact. `context-manifest.md` is exempt
-  (its `<...>` sub-sections are documented as illustrative; it is enforced via
-  Allowed Paths, not template fill-ins).
+  the remaining placeholder tokens per artifact. The check is a closed allowlist
+  (`<id>` / `<date>` / `<change-id>`) and skips tokens that have a matching
+  closing tag, so legitimate XML/markup examples (`<id>123</id>`) and hyphenated
+  custom elements (`<my-element>`) are not false-flagged. `context-manifest.md`
+  is exempt (its `<...>` sub-sections are documented as illustrative; it is
+  enforced via Allowed Paths, not template fill-ins).
 - **`cdd-kit validate` / `gate` no longer crash with `UnicodeDecodeError` on
   non-UTF-8 Windows locales (e.g. cp950/zh-TW).** `validate_contract_versions.py`
   read `git show` output and the validators wrote stdout using the locale codec,

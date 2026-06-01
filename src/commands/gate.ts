@@ -92,7 +92,16 @@ const PLACEHOLDER_LITERALS = ['<id>', '<date>', '<change-id>'];
 /** Unfilled template placeholder tokens still present in an artifact body. */
 function findPlaceholders(text: string): string[] {
   const clean = stripHtmlComments(text);
-  return PLACEHOLDER_LITERALS.filter(token => clean.includes(token)).sort();
+  return PLACEHOLDER_LITERALS.filter(token => {
+    if (!clean.includes(token)) return false;
+    // `<id>` / `<date>` are also valid XML/HTML element names, so a documented
+    // markup example like `<id>123</id>` or `<date>2026-06-01</date>` would
+    // otherwise be mistaken for an unfilled scaffold token. A real element has a
+    // matching closing tag; a template fill-in never does — only flag the token
+    // when no closing tag for it exists in the artifact.
+    const closing = `</${token.slice(1)}`; // '<id>' -> '</id>'
+    return !clean.includes(closing);
+  }).sort();
 }
 
 function countPendingExpansions(sectionBody: string): number {

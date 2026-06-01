@@ -618,6 +618,23 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
   });
 
+  it.skipIf(!hasPython())('15e: gate does NOT flag XML element examples (<id>123</id>) as placeholders', () => {
+    // <id>/<date> are valid XML element names. A change documenting an XML
+    // payload must not be mistaken for an unfilled scaffold: a real element has
+    // a closing tag, a template fill-in does not.
+    runCli(['new', 'feat-015e'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015e');
+    writeValidChangeArtifacts(changeDir);
+    writeValidContracts(tmpRepo);
+
+    const filler = 'This is a meaningful description of the legacy XML payload integration work. '.repeat(4);
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nThe SOAP endpoint returns <id>123</id> and <date>2026-06-01</date>; tests assert the parser maps both correctly. Unit and integration coverage included.\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-015e'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
+  });
+
   it('12: gate with --strict: only archive task IDs are exempt from pending check', () => {
     runCli(['new', 'feat-011'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-011');
