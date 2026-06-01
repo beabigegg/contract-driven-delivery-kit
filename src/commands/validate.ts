@@ -58,6 +58,12 @@ export async function validate(opts: ValidateOptions): Promise<void> {
   const scriptsDir = join(ASSET.skill, 'scripts');
   const runAll = !opts.contracts && !opts.env && !opts.ci && !opts.spec && !opts.versions;
 
+  // Force the Python validators into UTF-8 mode. On Windows non-UTF-8 locales
+  // (e.g. cp950/zh-TW) Python otherwise decodes file reads, subprocess stdout
+  // (git show of a contract), and its own stdout with the locale codec, which
+  // crashes with UnicodeDecodeError or mojibakes em-dashes in contracts.
+  const pyEnv = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
+
   log.blank();
   let failed = false;
 
@@ -72,7 +78,7 @@ export async function validate(opts: ValidateOptions): Promise<void> {
     }
 
     log.info(`Validating ${v.label}…`);
-    const r = spawnSync(py, [scriptPath, ...(v.args ?? [])], { stdio: 'inherit', cwd: process.cwd() });
+    const r = spawnSync(py, [scriptPath, ...(v.args ?? [])], { stdio: 'inherit', cwd: process.cwd(), env: pyEnv });
     if (r.status !== 0) {
       log.error(`${v.label} validation failed.`);
       failed = true;
@@ -91,7 +97,7 @@ export async function validate(opts: ValidateOptions): Promise<void> {
           continue;
         }
         log.info(`Validating ${chained.label}…`);
-        const cr = spawnSync(py, [chainedPath], { stdio: 'inherit', cwd: process.cwd() });
+        const cr = spawnSync(py, [chainedPath], { stdio: 'inherit', cwd: process.cwd(), env: pyEnv });
         if (cr.status !== 0) {
           log.error(`${chained.label} validation failed.`);
           failed = true;

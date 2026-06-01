@@ -74,6 +74,40 @@ function stripHtmlComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '');
 }
 
+/**
+ * The exact angle-bracket fill-in tokens the scaffold templates ship with (see
+ * assets/skills/contract-driven-delivery/templates/*). A change that still
+ * contains them was never actually filled in. The MIN_CHARS stub check cannot
+ * catch this because a template's own instructional prose (900+ chars) clears
+ * the threshold while every field is still a placeholder.
+ *
+ * This is a closed allowlist rather than a generic `<...-...>` pattern: a broad
+ * pattern would also flag legitimate hyphenated HTML/custom elements (e.g.
+ * `<my-element>`, `<date-picker>`) that a real frontend-facing artifact may
+ * mention in prose. Templates only use these three, so an allowlist is both
+ * sufficient and false-positive-free.
+ */
+const PLACEHOLDER_LITERALS = ['<id>', '<date>', '<change-id>'];
+
+const RE_META = /[.*+?^${}()|[\]\\]/g;
+
+/** Unfilled template placeholder tokens still present in an artifact body. */
+function findPlaceholders(text: string): string[] {
+  const clean = stripHtmlComments(text);
+  return PLACEHOLDER_LITERALS.filter(token => {
+    // A template fill-in is always a colon-led, line-final value — frontmatter
+    // (`change-id: <id>`, `last-changed: <date>`) or a heading title
+    // (`# Implementation Plan: <change-id>`). Anchoring on `: <token>` at end of
+    // line distinguishes it from an inline XML/markup element such as
+    // `<id>123</id>` or `<date>2026-06-01</date>`, which is never the colon-led
+    // line-final value. So a single artifact may carry BOTH an unfilled
+    // `change-id: <id>` and a legitimate `<id>123</id>` example, and only the
+    // real placeholder is flagged (and a partial scaffold cannot slip through).
+    const re = new RegExp(`:[ \\t]*${token.replace(RE_META, '\\$&')}[ \\t]*\\r?$`, 'm');
+    return re.test(clean);
+  }).sort();
+}
+
 function countPendingExpansions(sectionBody: string): number {
   if (!sectionBody.trim()) return 0;
   let count = 0;
@@ -371,6 +405,20 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       const minChars = MIN_CHARS[f] ?? 100;
       if (meaningfulChars(content) < minChars) {
         errors.push(`${f}: appears to be a stub (< ${minChars} meaningful chars)`);
+        continue;
+      }
+      // context-manifest.md is exempt: its template ships illustrative agent
+      // sub-sections (`### <implementation-agent>`, `<change-id>` path stubs)
+      // that are explicitly "documentation only — gate enforces Allowed Paths,
+      // not individual packets". Its real enforcement lives elsewhere, so a
+      // placeholder there is not an unfilled-substance signal.
+      if (f !== 'context-manifest.md') {
+        const placeholders = findPlaceholders(content);
+        if (placeholders.length > 0) {
+          errors.push(
+            `${f}: still contains unfilled template placeholder(s) ${placeholders.join(', ')} — replace them with the change's real values before the gate can pass`,
+          );
+        }
       }
     }
 

@@ -570,6 +570,98 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/test-plan\.md.*stub|stub.*test-plan\.md/i);
   });
 
+  it('15c: gate fails when an artifact still carries unfilled <id>/<date>/<change-id> template placeholders', () => {
+    runCli(['new', 'feat-015c'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015c');
+
+    // Everything else valid and well past MIN_CHARS...
+    writeValidChangeArtifacts(changeDir);
+
+    // ...but implementation-plan.md is left as an unfilled scaffold: long
+    // enough to clear the 200-char stub floor (the template's own prose does
+    // that) while every fill-in is still a placeholder token. This is the exact
+    // "fake-passthrough" hole — the stub check alone lets it through.
+    const filler = 'Implementation agents receive a bounded execution packet with scope, non-goals, file-level actions, contract updates, tests, and constraints. '.repeat(3);
+    writeFileSync(join(changeDir, 'implementation-plan.md'), [
+      '---',
+      'change-id: <id>',
+      'schema-version: 0.1.0',
+      'last-changed: <date>',
+      '---',
+      '',
+      '# Implementation Plan: <change-id>',
+      '',
+      '## Objective',
+      filler,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-015c'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/implementation-plan\.md.*placeholder/i);
+    expect(r.stdout + r.stderr).toMatch(/<id>|<date>|<change-id>/);
+  });
+
+  it.skipIf(!hasPython())('15d: gate does NOT flag a legitimate hyphenated custom element as a placeholder', () => {
+    // Guards against a false positive: a frontend-facing artifact may mention a
+    // custom element like <date-picker> / <my-element> in prose. The placeholder
+    // check is a closed allowlist (<id>/<date>/<change-id>), so these must pass.
+    runCli(['new', 'feat-015d'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015d');
+    writeValidChangeArtifacts(changeDir);
+    writeValidContracts(tmpRepo);
+
+    const filler = 'This is a meaningful description of the change to the date picker component. '.repeat(4);
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nE2E tests exercise the <date-picker> and <my-element> custom elements rendered by the shell. Unit tests cover the new logic.\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-015d'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
+  });
+
+  it.skipIf(!hasPython())('15e: gate does NOT flag XML element examples (<id>123</id>) as placeholders', () => {
+    // <id>/<date> are valid XML element names. A change documenting an XML
+    // payload must not be mistaken for an unfilled scaffold: a real element has
+    // a closing tag, a template fill-in does not.
+    runCli(['new', 'feat-015e'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015e');
+    writeValidChangeArtifacts(changeDir);
+    writeValidContracts(tmpRepo);
+
+    const filler = 'This is a meaningful description of the legacy XML payload integration work. '.repeat(4);
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nThe SOAP endpoint returns <id>123</id> and <date>2026-06-01</date>; tests assert the parser maps both correctly. Unit and integration coverage included.\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-015e'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
+  });
+
+  it('15f: gate still catches an unfilled placeholder even when the same file also has an XML example', () => {
+    // Adversarial: a partially-filled scaffold that also documents <id>123</id>
+    // must not slip through. Element-stripping is per-occurrence, so the bare
+    // frontmatter `change-id: <id>` is still flagged.
+    runCli(['new', 'feat-015f'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015f');
+    writeValidChangeArtifacts(changeDir);
+
+    const filler = 'Meaningful description of the XML payload mapping work for this change. '.repeat(4);
+    writeFileSync(join(changeDir, 'implementation-plan.md'), [
+      '---',
+      'change-id: <id>',          // <- still unfilled
+      'last-changed: 2026-06-01',
+      '---',
+      '',
+      '# Implementation Plan: feat-015f',
+      '',
+      '## Objective',
+      filler,
+      'The SOAP response includes <id>123</id> which we map to the report model.',  // <- legit XML
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-015f'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/implementation-plan\.md.*placeholder.*<id>/i);
+  });
+
   it('12: gate with --strict: only archive task IDs are exempt from pending check', () => {
     runCli(['new', 'feat-011'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-011');

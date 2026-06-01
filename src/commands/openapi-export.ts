@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, resolve } from 'path';
 import { log } from '../utils/logger.js';
 
 /**
@@ -208,6 +208,25 @@ function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; 
   return { blocks, errors };
 }
 
+/**
+ * A schema section that contains a fenced code block whose info string is
+ * anything other than exactly `json-schema` is almost always a mistake (most
+ * authors and agents reach for ```` ```json ````; a decorated
+ * ```` ```json-schema title="X" ```` is also rejected because
+ * `parseJsonSchemaBlocks` only parses a bare `json-schema` fence, so a decorated
+ * one would otherwise be silently dropped). The whole info string is captured —
+ * not just the leading word — so the two stay in lock-step. Returns the
+ * offending info string (`''` = a fence with no tag); `null` = no foreign fence.
+ */
+function findForeignFenceTag(section: SchemaSection): string | null {
+  const fenceRe = /```([^\n]*)(?:\n|$)[\s\S]*?```/g;
+  for (const match of section.content.matchAll(fenceRe)) {
+    const info = (match[1] ?? '').trim();
+    if (info !== 'json-schema') return info;
+  }
+  return null;
+}
+
 interface FieldRow {
   field: string;
   type: string;
@@ -315,6 +334,24 @@ function parseContractSchemas(body: string): SchemaParseResult {
     const fields = parseFieldTable(section);
     if (raw.blocks.length > 0 && fields.found) {
       errors.push(`Schema ${section.name}: choose either a field table or a json-schema block, not both`);
+    }
+    // Fail fast on a non-`json-schema` fenced block (```json, ```yaml, …) — the
+    // common mis-tagged-Tier-B mistake. This fires regardless of whether a field
+    // table is also present: a table plus a stray ```json would otherwise compile
+    // the table and SILENTLY ignore the fenced JSON.
+    //
+    // A section with NEITHER a table nor any fence is a valid Tier C prose
+    // contract (ADR 0002: "a field table (Tier A), a single json-schema block
+    // (Tier B), or neither (Tier C)"). It must NOT fail — it stays unresolved and
+    // the endpoint cell keeps its existing x-cdd markers (the no-migration
+    // guarantee), exactly as if no section had been written.
+    const foreign = findForeignFenceTag(section);
+    if (foreign !== null) {
+      const desc = foreign ? `a \`\`\`${foreign} code block` : 'an untagged code block';
+      errors.push(
+        `Schema ${section.name}: found ${desc}, but a machine-typed schema body must use a \`\`\`json-schema fence. ` +
+          `Change the fence to \`\`\`json-schema, use a "| field | type | required | ... |" table, or remove the fence to keep it a free-form (Tier C) prose contract.`,
+      );
     }
     if (raw.blocks.length === 1 || fields.found) resolvableNames.add(section.name);
     metadata.set(section.name, {
@@ -619,9 +656,14 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
   }
 
   if (opts.out) {
-    mkdirSync(dirname(join(process.cwd(), opts.out)), { recursive: true });
-    writeFileSync(opts.out, serialized, 'utf8');
-    log.ok(`OpenAPI ${format.toUpperCase()} written to ${opts.out} (${endpoints.length} endpoint(s))`);
+    // `resolve` correctly preserves absolute paths (Windows `C:\…` or POSIX
+    // `/tmp/…`) and resolves relative ones against cwd. `join(cwd, out)` would
+    // concatenate an absolute `out` onto cwd (e.g. `D:\proj\C:\Users\…`) and
+    // then ENOENT on mkdir.
+    const outPath = resolve(opts.out);
+    mkdirSync(dirname(outPath), { recursive: true });
+    writeFileSync(outPath, serialized, 'utf8');
+    log.ok(`OpenAPI ${format.toUpperCase()} written to ${outPath} (${endpoints.length} endpoint(s))`);
     const unresolved = countUnresolved(doc);
     if (unresolved > 0) {
       log.info(`${unresolved} request body schema(s) left unresolved (free-form prose in the contract). Fill them in the consumer generator or enrich the contract.`);

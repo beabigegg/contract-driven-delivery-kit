@@ -295,6 +295,130 @@ describe('cdd-kit openapi export', () => {
     expect(r.stdout + r.stderr).toMatch(/either a field table or a json-schema block/i);
   });
 
+  it('fails fast when a schema section uses ```json instead of ```json-schema', () => {
+    // The common agent/author mistake: reach for ```json. The old behaviour
+    // silently dropped the block, left the reference unresolved, and still
+    // reported success. The fence tag must be named in the fix.
+    writeContract(
+      ['| POST | /api/raw | none | RawThing | RawThing | 500 | yes |'],
+      undefined,
+      [
+        '## Schemas',
+        '',
+        '### RawThing',
+        '```json',
+        '{ "type": "object", "properties": { "blob": { "type": "string" } } }',
+        '```',
+      ].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/```json-schema/);
+    expect(r.stdout + r.stderr).toMatch(/RawThing/);
+  });
+
+  it('treats a prose-only schema section as a valid Tier C contract (keeps markers, does not fail)', () => {
+    // ADR 0002: a `### Name` section may be a field table (A), a json-schema
+    // block (B), or NEITHER (C = free-form prose). A prose-only section must NOT
+    // fail the export — it stays unresolved and the endpoint cell keeps its
+    // existing markers, preserving the no-migration guarantee.
+    writeContract(
+      ['| POST | /api/notes | none | Note | Note | 400 | yes |'],
+      undefined,
+      ['## Schemas', '', '### Note', 'A note with a title and a body. Stays free-form prose by design.'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const op = JSON.parse(r.stdout).paths['/api/notes'].post;
+    expect(op.requestBody['x-cdd-unresolved']).toBe(true);
+    expect(op['x-cdd-response-contract']).toBe('Note');
+  });
+
+  it('fails fast on a decorated json-schema fence (info string after json-schema)', () => {
+    // ```json-schema title="X" is NOT parsed by parseJsonSchemaBlocks (it wants a
+    // bare json-schema fence), so it must be rejected rather than silently dropped.
+    writeContract(
+      ['| POST | /api/users | none | CreateUser | CreateUser | 400 | yes |'],
+      undefined,
+      [
+        '## Schemas',
+        '',
+        '### CreateUser',
+        '```json-schema title="CreateUser"',
+        '{ "type": "object" }',
+        '```',
+      ].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/CreateUser/);
+  });
+
+  it('still accepts a bare json-schema fence with trailing whitespace', () => {
+    writeContract(
+      ['| POST | /api/events | none | Event | Event | 400 | yes |'],
+      undefined,
+      ['## Schemas', '', '### Event', '```json-schema  ', '{ "type": "object" }', '```'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const doc = JSON.parse(r.stdout);
+    expect(doc.components.schemas.Event).toMatchObject({ type: 'object' });
+  });
+
+  it('fails fast when a schema section pairs a field table with a stray ```json fence', () => {
+    // A table makes fields.found true, but a mis-tagged ```json block alongside
+    // it would otherwise be silently ignored, weakening the schema. The foreign
+    // fence must still be rejected.
+    writeContract(
+      ['| POST | /api/users | none | CreateUser | User | 400 | yes |'],
+      undefined,
+      [
+        '## Schemas',
+        '',
+        '### CreateUser',
+        '| field | type | required | notes |',
+        '|---|---|---|---|',
+        '| email | string | yes | |',
+        '',
+        '```json',
+        '{ "type": "object", "required": ["email", "tenant"] }',
+        '```',
+      ].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/```json-schema/);
+    expect(r.stdout + r.stderr).toMatch(/CreateUser/);
+  });
+
+  it('still leaves prose schema references unresolved when no section exists (no-migration escape hatch)', () => {
+    // The companion to the fail-fast: a name referenced by an endpoint but NOT
+    // declared under ## Schemas is deliberately free-form prose and must NOT
+    // fail — it keeps its markers. This guards against the fix over-reaching.
+    writeContract(
+      ['| POST | /api/orders | required | CreateOrder | Order | 400 | yes |'],
+      undefined,
+      ['## Schemas', '', '### Other', '| field | type | required | notes |', '|---|---|---|---|', '| id | string | yes | |'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    const op = JSON.parse(r.stdout).paths['/api/orders'].post;
+    expect(op.requestBody['x-cdd-unresolved']).toBe(true);
+    expect(op['x-cdd-response-contract']).toBe('Order');
+  });
+
+  it('writes to an absolute --out path without mangling it', () => {
+    // Regression: `join(cwd, out)` concatenated an absolute out onto cwd
+    // (e.g. D:\proj\C:\Users\…) and ENOENT'd on mkdir. `resolve` fixes it.
+    writeContract(['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    const abs = join(repo, 'nested', 'deep', 'openapi.json');
+    const r = runCli(['openapi', 'export', '--out', abs], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    const doc = JSON.parse(readFileSync(abs, 'utf8'));
+    expect(doc.paths['/api/users']).toBeTruthy();
+  });
+
   it('emits a bearer security scheme for authed routes and none for public ones', () => {
     writeContract([
       '| GET | /api/me | required | - | User | 401 | yes |',

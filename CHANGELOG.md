@@ -70,6 +70,43 @@ stop depending on prose the agent can ignore.
   `--with-source` queries and warn that endpoint changes/calls require a contract
   update when conformance is enabled.
 
+### Fixed
+
+- **`cdd-kit gate` no longer passes changes whose artifacts are still unfilled
+  scaffolds.** The stub check counted "meaningful chars", but a template's own
+  instructional prose (900+ chars) cleared the threshold while every field was
+  still an `<id>` / `<date>` / `<change-id>` placeholder — so a change could pass
+  `--strict` with raw templates and zero real content. Gate now fails and names
+  the remaining placeholder tokens per artifact. The check is a closed allowlist
+  (`<id>` / `<date>` / `<change-id>`) anchored to the colon-led, line-final value
+  position the templates use (`change-id: <id>`, `# …: <change-id>`), so inline
+  XML/markup examples (`<id>123</id>`) and hyphenated custom elements
+  (`<my-element>`) are not false-flagged — and a file may carry both a real
+  placeholder and an XML example without the placeholder slipping through.
+  `context-manifest.md` is exempt (its `<...>` sub-sections are documented as
+  illustrative; it is enforced via Allowed Paths, not template fill-ins).
+- **`cdd-kit validate` / `gate` no longer crash with `UnicodeDecodeError` on
+  non-UTF-8 Windows locales (e.g. cp950/zh-TW).** `validate_contract_versions.py`
+  read `git show` output and the validators wrote stdout using the locale codec,
+  spamming tracebacks and mojibaking em-dashes in contracts. The Python
+  validators are now spawned with `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`, and
+  the git subprocesses decode as UTF-8 explicitly.
+- **`cdd-kit openapi export` fails fast on a mis-tagged schema fence** instead of
+  silently dropping it: a `### Name` section under `## Schemas` that uses ` ```json `
+  (or any non-`json-schema` fence) now errors with the fix — including when a field
+  table is also present (the stray fence was previously ignored). A prose-only
+  section with no fence stays a valid Tier C contract and is left unresolved.
+- **`cdd-kit openapi export --out <absolute-path>`** no longer ENOENTs on an
+  absolute path (it was concatenated onto cwd, e.g. `D:\repo\C:\Users\…`); paths
+  are resolved with `path.resolve`.
+
+### Added
+
+- **`cdd-kit openapi export` typed schemas (ADR 0002)**: `## Schemas` sections
+  compile field tables (Tier A) and `json-schema` fenced blocks (Tier B) into
+  `components.schemas` with `$ref` resolution; the contract stub documents both
+  tiers.
+
 ## [2.1.3] - 2026-05-29
 
 Correct Claude Code MCP registration guidance.
