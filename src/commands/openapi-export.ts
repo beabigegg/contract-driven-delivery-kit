@@ -17,6 +17,12 @@ export interface OpenApiExportOptions {
   contract?: string;
   out?: string;
   format?: 'json' | 'yaml';
+  /**
+   * Sync gate: instead of writing, verify the committed artifact at `out` still
+   * matches what the contract currently produces. Exits non-zero on drift so CI
+   * fails when someone edits the contract but forgets to regenerate the export.
+   */
+  check?: boolean;
 }
 
 const DEFAULT_CONTRACT = 'contracts/api/api-contract.md';
@@ -325,6 +331,36 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
   const doc = buildDoc(endpoints, frontmatter, styleBlock);
 
   const serialized = format === 'yaml' ? `${toYaml(doc)}\n` : `${JSON.stringify(doc, null, 2)}\n`;
+
+  if (opts.check) {
+    // Sync gate. Compare the committed artifact against the freshly-generated
+    // projection. This is the kit-owned half of the preventive chain: it does
+    // not run the consumer's codegen, it only guarantees the OpenAPI artifact
+    // the consumer generates from is never silently stale against the contract.
+    //
+    if (!opts.out) {
+      log.error('openapi export --check requires --out <path> (the committed artifact to verify against the contract)');
+      return 1;
+    }
+    // Echo the active --contract back in the fix command so a non-default
+    // contract path produces a runnable instruction (not one that reads the
+    // default contract instead).
+    const contractFlag = contractPath === DEFAULT_CONTRACT ? '' : ` --contract ${contractPath}`;
+    const yamlFlag = format === 'yaml' ? ' --yaml' : '';
+    const regen = `cdd-kit openapi export${contractFlag} --out ${opts.out}${yamlFlag}`;
+    if (!existsSync(opts.out)) {
+      log.error(`openapi export --check: ${opts.out} does not exist. Run \`${regen}\` and commit it.`);
+      return 1;
+    }
+    const committed = readFileSync(opts.out, 'utf8');
+    if (committed === serialized) {
+      log.ok(`OpenAPI artifact ${opts.out} is in sync with ${contractPath} (${endpoints.length} endpoint(s))`);
+      return 0;
+    }
+    log.error(`OpenAPI artifact ${opts.out} is OUT OF SYNC with ${contractPath}. The contract changed but the export was not regenerated.`);
+    log.error(`Fix: \`${regen}\` and commit the result.`);
+    return 1;
+  }
 
   if (opts.out) {
     mkdirSync(dirname(join(process.cwd(), opts.out)), { recursive: true });

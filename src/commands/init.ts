@@ -4,6 +4,7 @@ import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
+import { suggestCodegenScript } from './suggest-codegen.js';
 import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
 
 export interface InitOptions {
@@ -114,6 +115,10 @@ export async function init(opts: InitOptions): Promise<void> {
 
   const cwd = process.cwd();
   const createdPaths: string[] = [];
+  // In-place edits to pre-existing files (e.g. package.json) can't be undone by
+  // deleting a path, so they register a restore closure instead. rollback runs
+  // these after removing created paths to keep init atomic.
+  const restoreActions: Array<() => void> = [];
   const installClaude = opts.provider === 'claude' || opts.provider === 'both';
   const installCodex = opts.provider === 'codex' || opts.provider === 'both';
 
@@ -130,6 +135,13 @@ export async function init(opts: InitOptions): Promise<void> {
         log.dim(`rolled back: ${p}`);
       } catch {
         log.warn(`could not remove: ${p}`);
+      }
+    }
+    for (const restore of [...restoreActions].reverse()) {
+      try {
+        restore();
+      } catch {
+        log.warn('could not restore an in-place file edit');
       }
     }
   }
@@ -273,6 +285,25 @@ export async function init(opts: InitOptions): Promise<void> {
             log.ok(`CI fast-gate patched for stack: ${detection.primary}`);
           }
         }
+      }
+
+      // ── Contract→client codegen wiring (consumer half of the OpenAPI seam) ──
+      // When there is a JS/TS side, materialize the contract:client scripts so
+      // the codegen chokepoint is wired, not just documented. Idempotent and
+      // never overwrites existing scripts. See suggest-codegen.ts.
+      // This is an in-place edit to a pre-existing user file, so snapshot it
+      // first and register a restore so a later init failure rolls it back too.
+      const pkgJsonPath = join(cwd, 'package.json');
+      const pkgJsonBefore = existsSync(pkgJsonPath) ? readFileSync(pkgJsonPath, 'utf8') : null;
+      const codegen = suggestCodegenScript(cwd);
+      if (codegen.added.length > 0) {
+        if (pkgJsonBefore !== null) {
+          restoreActions.push(() => writeFileSync(pkgJsonPath, pkgJsonBefore, 'utf8'));
+        }
+        log.ok(`package.json: added ${codegen.added.join(' + ')} script(s) for contract→client codegen`);
+        if (codegen.note) log.info(codegen.note);
+      } else if (codegen.skipped && existsSync(pkgJsonPath)) {
+        log.info(`contract→client codegen: ${codegen.skipped}`);
       }
 
       // CLAUDE.md — never overwrite

@@ -6,6 +6,7 @@ import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
+import { detectChokepoints } from './chokepoints.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -332,6 +333,20 @@ function checkMcpRegistration(cwd: string, provider: string): Finding[] {
   }];
 }
 
+function checkChokepoints(cwd: string): Finding[] {
+  // Enforcement-liveness dashboard. Informational (level 'ok') so it never trips
+  // `--strict`: dormant is a nudge, not a failure — not every project arms every
+  // chokepoint. The value is observability: a repo can carry all the machinery
+  // yet enforce none of it, and that was previously invisible.
+  if (!existsSync(join(cwd, '.cdd'))) return [];
+  return detectChokepoints(cwd).map(c => ({
+    level: 'ok' as const,
+    message: c.live
+      ? `chokepoint ${c.name}: live — ${c.detail}`
+      : `chokepoint ${c.name}: ${c.detail}`,
+  }));
+}
+
 async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<DoctorReport> {
   const requestedProvider = opts.provider ?? 'auto';
   if (!validateProviderOption(requestedProvider)) {
@@ -365,6 +380,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkCodeMap(cwd));
   findings.push(...checkApiConformance(cwd));
   findings.push(...checkMcpRegistration(cwd, provider));
+  findings.push(...checkChokepoints(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
   const warnings = findings.filter(finding => finding.level === 'warning').length;

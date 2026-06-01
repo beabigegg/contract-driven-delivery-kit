@@ -46,6 +46,23 @@ stop depending on prose the agent can ignore.
   request/response bodies as `x-cdd-unresolved` rather than fabricating schemas.
   Per-stack client generation is intentionally left to the consumer repo; see
   `docs/adr/0001-contract-to-openapi-export.md` and `docs/openapi-export.md`.
+- **`cdd-kit openapi export --check`**: the OpenAPI sync gate. Instead of
+  writing, it verifies the committed artifact at `--out` still equals what the
+  contract produces and exits non-zero on drift — so CI fails when the contract
+  changes but the export was not regenerated. This is the kit-owned half of the
+  preventive chain (the consumer's typed-client codegen runs from an artifact
+  that can never be silently stale).
+- **`cdd-kit init` now wires the consumer codegen seam**: when a `package.json`
+  is present it adds editable `contract:client` and `contract:client:check` npm
+  scripts (the latter is the `openapi export --check` gate), turning the
+  consumer half of the OpenAPI seam from a doc into a chokepoint. Additive,
+  idempotent, never clobbers existing scripts; `openapi-typescript` is an
+  editable default, not a hard dependency.
+- **`cdd-kit doctor` chokepoint dashboard**: reports each enforcement chokepoint
+  (graph-first hook, pre-commit gate, OpenAPI sync gate) as `live` or `dormant`
+  with the one command to arm it. The kit's mechanisms are opt-in and dormant
+  until armed, so a repo could carry all the machinery yet enforce none of it —
+  this makes that observable. Advisory only (never fails `--strict`).
 
 ### Changed
 
