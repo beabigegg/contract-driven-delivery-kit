@@ -24,6 +24,15 @@ stop depending on prose the agent can ignore.
   exists.
 - `cdd-kit doctor` reports whether API conformance is enabled, disabled, or
   unconfigured (informational; never fails `--strict`).
+- `cdd-kit doctor` reports whether the **cdd-kit MCP server is registered** with
+  Claude Code (runs `claude mcp list`). If it is not registered, agents never see
+  the graph/index tools and silently fall back to `Read`, so doctor surfaces the
+  `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it.
+  Informational only (never fails `--strict`), best-effort with a 3s timeout
+  (never blocks on a slow/missing `claude` CLI), skipped for non-Claude and
+  non-cdd-kit projects. `CDD_CLAUDE_BIN` overrides the CLI path. Closes the gap
+  left by `--with-source`: the incentive to use the kit tools only helps if the
+  agent can see them.
 
 ### Changed
 

@@ -366,6 +366,8 @@ cdd-kit doctor --provider codex
 
 Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors. `--json` emits a machine-readable report for CI or wrapper scripts. `--fix` currently auto-runs `context-scan` for stale or missing indexes and backfills empty `.cdd/model-policy.json` role bindings, but deliberately does not run invasive repo upgrades for you.
 
+For Claude projects, `doctor` also reports whether the **cdd-kit MCP server is registered** with Claude Code (it runs `claude mcp list`). If it is not registered, agents never see the graph/index tools and silently fall back to `Read`, so doctor surfaces the exact `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it. This check is **informational only** — it never fails `--strict`, never blocks on a slow or missing `claude` CLI (3s timeout, best-effort), and is skipped for non-Claude projects. Point `CDD_CLAUDE_BIN` at an alternate Claude CLI if needed.
+
 ---
 
 ### `cdd-kit upgrade`
