@@ -10,6 +10,7 @@ import { validate }  from '../commands/validate.js';
 import { gate } from '../commands/gate.js';
 import { installHooks } from '../commands/install-hooks.js';
 import { installAgentHooks } from '../commands/install-agent-hooks.js';
+import { openapiExport } from '../commands/openapi-export.js';
 import { detectStack } from '../utils/stack-detect.js';
 import type { ProviderOption } from '../utils/provider.js';
 
@@ -437,6 +438,26 @@ program
   .option('--graph-first <mode>', "Install the graph-first PreToolUse hook: 'advisory' (default) or 'strict'", 'advisory')
   .action(async (opts: { graphFirst?: string }) => {
     await installAgentHooks({ graphFirst: opts.graphFirst as 'advisory' | 'strict' | undefined });
+  });
+
+// ── cdd openapi export ────────────────────────────────────────────────────────
+const openapi = program
+  .command('openapi')
+  .description('Project the API contract into tooling artifacts (see docs/adr/0001-contract-to-openapi-export.md)');
+
+openapi
+  .command('export')
+  .description('Export contracts/api/api-contract.md as a minimal OpenAPI 3.1 skeleton')
+  .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
+  .option('--out <path>', 'Write to a file instead of stdout')
+  .option('--yaml', 'Emit YAML instead of JSON', false)
+  .action(async (opts: { contract?: string; out?: string; yaml?: boolean }) => {
+    const exit = await openapiExport({
+      contract: opts.contract,
+      out: opts.out,
+      format: opts.yaml ? 'yaml' : 'json',
+    });
+    process.exit(exit);
   });
 
 // ── cdd detect-stack ──────────────────────────────────────────────────────────

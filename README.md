@@ -627,6 +627,19 @@ by hand.
 
 ---
 
+### `cdd-kit openapi export`
+
+Projects `contracts/api/api-contract.md` into a minimal **OpenAPI 3.1** skeleton for tooling (e.g. feeding `openapi-typescript` to generate a typed frontend client). The markdown contract stays the source of truth; the OpenAPI document is a one-way, regenerable projection.
+
+```bash
+cdd-kit openapi export                          # JSON to stdout
+cdd-kit openapi export --yaml --out openapi.yaml # YAML to a file
+```
+
+It derives paths (normalizing `:id`/`{id}`), path parameters, auth → bearer security, and success/error status codes. Free-form request/response schemas in the contract are marked `x-cdd-unresolved` rather than fabricated. Generating an actual client is left to your stack's generator in your own CI — this is the **preventive** complement to the **detective** conformance check above. See [docs/openapi-export.md](docs/openapi-export.md) and [docs/adr/0001-contract-to-openapi-export.md](docs/adr/0001-contract-to-openapi-export.md).
+
+---
+
 ### `cdd-kit new <name>`
 
 Scaffolds an empty change directory. Normally you use `/cdd-new` (the Claude Code skill) instead, which runs this and then orchestrates all agents. Use `cdd-kit new` only if you want an empty scaffold without agent orchestration.
