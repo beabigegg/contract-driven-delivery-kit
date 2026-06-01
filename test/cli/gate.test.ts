@@ -570,6 +570,37 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/test-plan\.md.*stub|stub.*test-plan\.md/i);
   });
 
+  it('15c: gate fails when an artifact still carries unfilled <id>/<date>/<change-id> template placeholders', () => {
+    runCli(['new', 'feat-015c'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015c');
+
+    // Everything else valid and well past MIN_CHARS...
+    writeValidChangeArtifacts(changeDir);
+
+    // ...but implementation-plan.md is left as an unfilled scaffold: long
+    // enough to clear the 200-char stub floor (the template's own prose does
+    // that) while every fill-in is still a placeholder token. This is the exact
+    // "fake-passthrough" hole — the stub check alone lets it through.
+    const filler = 'Implementation agents receive a bounded execution packet with scope, non-goals, file-level actions, contract updates, tests, and constraints. '.repeat(3);
+    writeFileSync(join(changeDir, 'implementation-plan.md'), [
+      '---',
+      'change-id: <id>',
+      'schema-version: 0.1.0',
+      'last-changed: <date>',
+      '---',
+      '',
+      '# Implementation Plan: <change-id>',
+      '',
+      '## Objective',
+      filler,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-015c'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/implementation-plan\.md.*placeholder/i);
+    expect(r.stdout + r.stderr).toMatch(/<id>|<date>|<change-id>/);
+  });
+
   it('12: gate with --strict: only archive task IDs are exempt from pending check', () => {
     runCli(['new', 'feat-011'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-011');

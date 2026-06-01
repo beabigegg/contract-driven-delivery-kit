@@ -132,6 +132,8 @@ def git_available(root: Path) -> bool:
             ['git', 'rev-parse', '--git-dir'],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             cwd=str(root),
         )
         return r.returncode == 0
@@ -150,6 +152,8 @@ def git_show_head(root: Path, rel_path: str) -> str | None:
             ['git', 'show', f'HEAD:{rel_path}'],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             cwd=str(root),
         )
         if r.returncode == 0:

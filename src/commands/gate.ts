@@ -74,6 +74,30 @@ function stripHtmlComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '');
 }
 
+/**
+ * Literal angle-bracket fill-in tokens the scaffold templates ship with (see
+ * assets/skills/contract-driven-delivery/templates/*). A change that still
+ * contains them was never actually filled in. The MIN_CHARS stub check cannot
+ * catch this because a template's own instructional prose (900+ chars) clears
+ * the threshold while every field is still a placeholder.
+ */
+const PLACEHOLDER_LITERALS = ['<id>', '<date>'];
+// Hyphenated angle-bracket tokens like <change-id> / <one-line-summary>.
+// Requiring a hyphen avoids matching real HTML tags (<div>, <br>, <code>),
+// which have none, so legitimate prose/snippets are not flagged.
+const PLACEHOLDER_HYPHENATED = /<[a-z][a-z0-9]*(?:-[a-z0-9]+)+>/g;
+
+/** Unfilled template placeholder tokens still present in an artifact body. */
+function findPlaceholders(text: string): string[] {
+  const clean = stripHtmlComments(text);
+  const found = new Set<string>();
+  for (const token of PLACEHOLDER_LITERALS) {
+    if (clean.includes(token)) found.add(token);
+  }
+  for (const m of clean.matchAll(PLACEHOLDER_HYPHENATED)) found.add(m[0]);
+  return [...found].sort();
+}
+
 function countPendingExpansions(sectionBody: string): number {
   if (!sectionBody.trim()) return 0;
   let count = 0;
@@ -371,6 +395,20 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       const minChars = MIN_CHARS[f] ?? 100;
       if (meaningfulChars(content) < minChars) {
         errors.push(`${f}: appears to be a stub (< ${minChars} meaningful chars)`);
+        continue;
+      }
+      // context-manifest.md is exempt: its template ships illustrative agent
+      // sub-sections (`### <implementation-agent>`, `<change-id>` path stubs)
+      // that are explicitly "documentation only — gate enforces Allowed Paths,
+      // not individual packets". Its real enforcement lives elsewhere, so a
+      // placeholder there is not an unfilled-substance signal.
+      if (f !== 'context-manifest.md') {
+        const placeholders = findPlaceholders(content);
+        if (placeholders.length > 0) {
+          errors.push(
+            `${f}: still contains unfilled template placeholder(s) ${placeholders.join(', ')} — replace them with the change's real values before the gate can pass`,
+          );
+        }
       }
     }
 
