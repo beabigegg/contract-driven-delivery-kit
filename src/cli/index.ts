@@ -9,6 +9,7 @@ import { newChange } from '../commands/new-change.js';
 import { validate }  from '../commands/validate.js';
 import { gate } from '../commands/gate.js';
 import { installHooks } from '../commands/install-hooks.js';
+import { installAgentHooks } from '../commands/install-agent-hooks.js';
 import { detectStack } from '../utils/stack-detect.js';
 import type { ProviderOption } from '../utils/provider.js';
 
@@ -428,6 +429,15 @@ program
   .command('install-hooks')
   .description('Install pre-commit hook that runs cdd-kit gate on staged changes')
   .action(async () => { await installHooks(); });
+
+// ── cdd install-agent-hooks ───────────────────────────────────────────────────
+program
+  .command('install-agent-hooks')
+  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration)')
+  .option('--graph-first <mode>', "Install the graph-first PreToolUse hook: 'advisory' (default) or 'strict'", 'advisory')
+  .action(async (opts: { graphFirst?: string }) => {
+    await installAgentHooks({ graphFirst: opts.graphFirst as 'advisory' | 'strict' | undefined });
+  });
 
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program

@@ -662,6 +662,22 @@ Idempotent. Preserves existing hook content. Bypass with `--no-verify` is possib
 
 ---
 
+### `cdd-kit install-agent-hooks`
+
+Installs Claude Code **agent hooks** into the project's `.claude/settings.json`. Currently installs the graph-first `PreToolUse` hook, which steers agents to `cdd-kit index query --with-source` before reading source files — turning the hook from a documented file you wire by hand into an enforced harness chokepoint.
+
+```bash
+cdd-kit install-agent-hooks                      # advisory (default)
+cdd-kit install-agent-hooks --graph-first strict # hard-block source Reads when a code-map exists
+```
+
+- **advisory** (default): reminds the agent to use the graph/index query first; does not block the `Read`.
+- **strict**: writes `CDD_GRAPH_FIRST_STRICT=1` into the hook command so the hook blocks source-file `Read` when `.cdd/code-map.yml` exists.
+
+Writes the hook script to `.claude/hooks/pre-tool-use-graph-first.sh` and a `PreToolUse` entry to `.claude/settings.json` (project-scoped, so it travels with the repo). Idempotent: re-running replaces the cdd-kit entry and switches mode cleanly, preserving every other setting and hook.
+
+---
+
 ### `cdd-kit detect-stack`
 
 Detects the project tech stack from lockfiles and config files.

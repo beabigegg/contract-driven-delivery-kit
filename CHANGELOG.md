@@ -33,6 +33,12 @@ stop depending on prose the agent can ignore.
   non-cdd-kit projects. `CDD_CLAUDE_BIN` overrides the CLI path. Closes the gap
   left by `--with-source`: the incentive to use the kit tools only helps if the
   agent can see them.
+- **`cdd-kit install-agent-hooks --graph-first advisory|strict`**: installs the
+  graph-first `PreToolUse` hook into `.claude/settings.json` (project-scoped) and
+  copies the script to `.claude/hooks/`, so steering agents to
+  `cdd-kit index query --with-source` before `Read` becomes an installed harness
+  chokepoint instead of manual settings wiring. Advisory by default; `strict`
+  writes `CDD_GRAPH_FIRST_STRICT=1`. Idempotent and preserves unrelated settings.
 
 ### Changed
 
