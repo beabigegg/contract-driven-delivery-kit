@@ -215,7 +215,7 @@ function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; 
  * fix; `''` means a fence with no language tag; `null` means no foreign fence.
  */
 function findForeignFenceTag(section: SchemaSection): string | null {
-  const fenceRe = /```([A-Za-z0-9_-]*)[^\n]*\n[\s\S]*?```/g;
+  const fenceRe = /```([A-Za-z0-9_-]*)[^\n]*(?:\n|$)[\s\S]*?```/g;
   for (const match of section.content.matchAll(fenceRe)) {
     const tag = (match[1] ?? '').trim();
     if (tag !== 'json-schema') return tag;
@@ -663,7 +663,7 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
     const outPath = resolve(opts.out);
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, serialized, 'utf8');
-    log.ok(`OpenAPI ${format.toUpperCase()} written to ${opts.out} (${endpoints.length} endpoint(s))`);
+    log.ok(`OpenAPI ${format.toUpperCase()} written to ${outPath} (${endpoints.length} endpoint(s))`);
     const unresolved = countUnresolved(doc);
     if (unresolved > 0) {
       log.info(`${unresolved} request body schema(s) left unresolved (free-form prose in the contract). Fill them in the consumer generator or enrich the contract.`);

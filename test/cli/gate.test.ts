@@ -601,6 +601,23 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).toMatch(/<id>|<date>|<change-id>/);
   });
 
+  it.skipIf(!hasPython())('15d: gate does NOT flag a legitimate hyphenated custom element as a placeholder', () => {
+    // Guards against a false positive: a frontend-facing artifact may mention a
+    // custom element like <date-picker> / <my-element> in prose. The placeholder
+    // check is a closed allowlist (<id>/<date>/<change-id>), so these must pass.
+    runCli(['new', 'feat-015d'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015d');
+    writeValidChangeArtifacts(changeDir);
+    writeValidContracts(tmpRepo);
+
+    const filler = 'This is a meaningful description of the change to the date picker component. '.repeat(4);
+    writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nE2E tests exercise the <date-picker> and <my-element> custom elements rendered by the shell. Unit tests cover the new logic.\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-015d'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
+  });
+
   it('12: gate with --strict: only archive task IDs are exempt from pending check', () => {
     runCli(['new', 'feat-011'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-011');

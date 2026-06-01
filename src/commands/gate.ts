@@ -75,27 +75,24 @@ function stripHtmlComments(text: string): string {
 }
 
 /**
- * Literal angle-bracket fill-in tokens the scaffold templates ship with (see
+ * The exact angle-bracket fill-in tokens the scaffold templates ship with (see
  * assets/skills/contract-driven-delivery/templates/*). A change that still
  * contains them was never actually filled in. The MIN_CHARS stub check cannot
  * catch this because a template's own instructional prose (900+ chars) clears
  * the threshold while every field is still a placeholder.
+ *
+ * This is a closed allowlist rather than a generic `<...-...>` pattern: a broad
+ * pattern would also flag legitimate hyphenated HTML/custom elements (e.g.
+ * `<my-element>`, `<date-picker>`) that a real frontend-facing artifact may
+ * mention in prose. Templates only use these three, so an allowlist is both
+ * sufficient and false-positive-free.
  */
-const PLACEHOLDER_LITERALS = ['<id>', '<date>'];
-// Hyphenated angle-bracket tokens like <change-id> / <one-line-summary>.
-// Requiring a hyphen avoids matching real HTML tags (<div>, <br>, <code>),
-// which have none, so legitimate prose/snippets are not flagged.
-const PLACEHOLDER_HYPHENATED = /<[a-z][a-z0-9]*(?:-[a-z0-9]+)+>/g;
+const PLACEHOLDER_LITERALS = ['<id>', '<date>', '<change-id>'];
 
 /** Unfilled template placeholder tokens still present in an artifact body. */
 function findPlaceholders(text: string): string[] {
   const clean = stripHtmlComments(text);
-  const found = new Set<string>();
-  for (const token of PLACEHOLDER_LITERALS) {
-    if (clean.includes(token)) found.add(token);
-  }
-  for (const m of clean.matchAll(PLACEHOLDER_HYPHENATED)) found.add(m[0]);
-  return [...found].sort();
+  return PLACEHOLDER_LITERALS.filter(token => clean.includes(token)).sort();
 }
 
 function countPendingExpansions(sectionBody: string): number {

@@ -75,7 +75,7 @@ stop depending on prose the agent can ignore.
 - **`cdd-kit gate` no longer passes changes whose artifacts are still unfilled
   scaffolds.** The stub check counted "meaningful chars", but a template's own
   instructional prose (900+ chars) cleared the threshold while every field was
-  still a `<id>` / `<date>` / `<change-id>` placeholder — so a change could pass
+  still an `<id>` / `<date>` / `<change-id>` placeholder — so a change could pass
   `--strict` with raw templates and zero real content. Gate now fails and names
   the remaining placeholder tokens per artifact. `context-manifest.md` is exempt
   (its `<...>` sub-sections are documented as illustrative; it is enforced via
