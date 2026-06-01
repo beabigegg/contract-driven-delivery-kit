@@ -75,17 +75,31 @@ stays the source of truth.
   `components.schemas` key charset). A `### Name` heading that does not match is
   **not** treated as a schema (it is ordinary prose), so unrelated `###`
   headings in the file are never misread as types.
-- Resolution is **exact and case-sensitive**: a cell value resolves only to a
-  `### Name` whose text matches byte-for-byte after trimming. `user` does not
-  resolve to `### User`. This avoids a class of silent mis-binding; a near-miss
-  simply degrades to Tier C (unresolved) and is visible in the export warning.
+- A cell value is **first stripped of a single trailing `[]`** (the existing
+  list shorthand: `User[]`), then the inner name is matched. `User[]` resolves to
+  `### User` and emits an array wrapper (`{ type: array, items: { $ref } }`), per
+  §4. The `[]` lives only in the *cell* grammar; a `### User[]` heading is invalid
+  under the name grammar above and is never a schema. (Only one level of `[]` is
+  recognized; `User[][]` is over the ceiling → Tier B.)
+- After `[]`-stripping, resolution is **exact and case-sensitive**: the inner
+  name resolves only to a `### Name` whose text matches byte-for-byte after
+  trimming. `user` does not resolve to `### User`. This avoids a class of silent
+  mis-binding.
 - **Duplicate `### Name` sections are a hard error** (the export fails, it does
   not pick one), because a duplicate is an ambiguous source of truth — the same
   stance the kit takes elsewhere.
 - A rename is just an edit: rename the `### Name` *and* the cells that reference
-  it. A dangling cell (references a name with no section) degrades to Tier C and
-  warns; `--check` then fails on the regenerated artifact, surfacing the dangling
-  reference at the CI gate rather than silently.
+  it. **A cell that names a non-existent schema is, by construction,
+  indistinguishable from ordinary prose** — every existing contract's cells are
+  exactly that (prose with no `## Schemas` section) — so it **stays Tier C and is
+  not an error**. `openapi export --check` will **not** flag it: `--check` is
+  byte-equality of the committed artifact against a fresh export, so once the
+  Tier C artifact is committed it stays in sync. There is deliberately **no
+  automatic "did-you-mean" net** for a dangling ref, because adding one would
+  either break the no-migration guarantee (it would fail on every legitimately
+  prose cell) or require guessing intent. Surfacing *suspected* typo-refs is a
+  possible **opt-in strict mode**, called out as a follow-up below — not a
+  promise made by `--check`.
 
 ### 2. Three fidelity tiers, with graceful degradation
 
@@ -168,10 +182,14 @@ line without guessing):
 | **Numeric / non-string enums** | `enum(...)` is **string-only** (the 90% case: status strings). A numeric or mixed-type enum → **Tier B**. The grammar stays closed rather than inventing a per-member type syntax in a table cell. |
 | **Date / time** | `string` with a `format` note (e.g. `date-time`, `date`) — emitted as JSON Schema `format`. Whether it is *enforced* depends on the consumer's generator (see the `format` note above): format-aware tooling will validate/narrow, format-blind tooling treats it as a hint. Author it only when you mean that constraint; if you need shape beyond a single `format`, → **Tier B**. |
 
-The rule behind all three: Tier A covers objects of scalars, refs, arrays, and
-string enums; the moment a field needs `null`-union, non-string enums, or
-binding formats, that single schema moves to Tier B. The field table never
-grows new columns to chase these — that is the ceiling, by design.
+The rule behind all three: Tier A covers objects of scalars, refs, arrays,
+string enums, and a **single `format` per field** (the optional `format`
+column). The moment a field needs a `null`-union, a non-string enum, or a shape
+**beyond a single `format`** (e.g. `format` *plus* a union, or multiple
+constraints the grammar has no column for), that one schema moves to Tier B. A
+lone `date-time`/`email`/`uuid` `format` stays in Tier A — it is exactly what the
+`format` column is for. The field table never grows new columns past this — that
+is the ceiling, by design.
 
 Anything past this grammar (`oneOf`, discriminated unions, deep nesting beyond
 named refs, tuple types) is **out of scope for Tier A by design** — that is what
@@ -226,6 +244,12 @@ artifact's shape is a **superset** — no existing field is removed or renamed.
   breaking) is enabled by this format but **not** built here; it is a follow-up
   that would consume two exported artifacts and apply the contract's existing
   `breaking-change-policy`.
+- **Suspected-dangling-ref strict mode** is a possible follow-up, not part of
+  this ADR: an opt-in check that flags cells which *look* like an intended schema
+  ref (e.g. capitalized single-token, near-miss of an existing `### Name`) but
+  resolve to no section. It must stay opt-in precisely because, in the general
+  case, such a cell is indistinguishable from legitimate prose; making it a
+  default would break the no-migration guarantee.
 
 ## Scope of the proposed implementation
 
@@ -239,8 +263,10 @@ If accepted, the implementing PR ships:
    requests, `x-cdd-response-contract` for responses); a duplicate `### Name`,
    a section mixing Tier A + Tier B, or an unknown field type **fails the
    export** (non-zero, no partial artifact).
-4. Template + docs: a `## Schemas` stub in `assets/contracts/api/api-contract.md`
-   and a worked example in `docs/openapi-export.md`.
+4. Template + docs: a `## Schemas` stub in the **source** template
+   `contracts/api/api-contract.md` (NOT `assets/contracts/...`, which `build.js`
+   generates from `contracts/` via `copy('contracts', 'assets/contracts')`) and a
+   worked example in `docs/openapi-export.md`.
 5. Tests: resolved object, `[]` array, `enum`, nested `$ref`, Tier B passthrough;
    the **no-migration** cases (undefined name leaves request vs response markers
    exactly as today) proving existing contracts export unchanged; and the
