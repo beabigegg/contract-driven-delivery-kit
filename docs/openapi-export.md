@@ -15,7 +15,28 @@ cdd-kit openapi export --yaml                    # YAML to stdout
 cdd-kit openapi export --out build/openapi.json  # write to a file
 cdd-kit openapi export --yaml --out openapi.yaml
 cdd-kit openapi export --contract path/to/api-contract.md
+cdd-kit openapi export --check --out build/openapi.json  # sync gate (see below)
 ```
+
+## The sync gate: `--check`
+
+A regenerable artifact is only safe if it is actually regenerated. `--check`
+makes that mechanical instead of a habit:
+
+```bash
+cdd-kit openapi export --check --out build/openapi.json
+```
+
+It does **not** write. It compares the committed artifact at `--out` against what
+the contract produces right now and exits:
+
+- `0` — in sync.
+- `1` — the artifact is missing, or the contract changed but the export was not
+  regenerated (it prints the exact `openapi export --out …` command to fix it).
+
+Wire it into CI (or a pre-commit hook) so a contract edit that forgets to
+regenerate the export — and therefore the typed client downstream — fails the
+build. `--check` honors `--yaml`, so check the same format you committed.
 
 ## What it derives (and what it doesn't)
 
@@ -38,10 +59,28 @@ records the contract's wording and flags it unresolved rather than inventing
 source. Fill bodies in either the consumer generator config or a future
 schema-carrying contract format.
 
-## Wiring a typed client in a consumer repo (recipe, not shipped)
+## Wiring a typed client in a consumer repo
 
 The kit produces the OpenAPI seam; you generate the client with an existing,
-well-maintained generator in your own CI. Example for a TypeScript frontend:
+well-maintained generator in your own CI. When a `package.json` is present,
+`cdd-kit init` scaffolds this for you as two editable npm scripts:
+
+```jsonc
+"scripts": {
+  // regenerate the OpenAPI artifact + the typed client
+  "contract:client": "cdd-kit openapi export --out contracts/api/openapi.json && npx --yes openapi-typescript contracts/api/openapi.json -o src/api/types.ts",
+  // the sync gate — fails if the artifact drifted from the contract
+  "contract:client:check": "cdd-kit openapi export --check --out contracts/api/openapi.json"
+}
+```
+
+These are a starting point, not a hard dependency: the generator
+(`openapi-typescript`) and the output path are yours to change. The kit owns the
+generic contract→OpenAPI half (`openapi export` / `--check`); the stack-specific
+codegen stays in your repo, which is why init writes an *editable* script rather
+than hard-coding a tool. Run `npm run contract:client:check` in CI as the gate.
+
+Doing it by hand instead, for a TypeScript frontend:
 
 ```bash
 # 1. Export the contract to OpenAPI (committed or generated in CI)

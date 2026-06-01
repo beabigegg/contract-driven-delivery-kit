@@ -4,6 +4,7 @@ import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
+import { suggestCodegenScript } from './suggest-codegen.js';
 import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
 
 export interface InitOptions {
@@ -273,6 +274,18 @@ export async function init(opts: InitOptions): Promise<void> {
             log.ok(`CI fast-gate patched for stack: ${detection.primary}`);
           }
         }
+      }
+
+      // ── Contract→client codegen wiring (consumer half of the OpenAPI seam) ──
+      // When there is a JS/TS side, materialize the contract:client scripts so
+      // the codegen chokepoint is wired, not just documented. Idempotent and
+      // never overwrites existing scripts. See suggest-codegen.ts.
+      const codegen = suggestCodegenScript(cwd);
+      if (codegen.added.length > 0) {
+        log.ok(`package.json: added ${codegen.added.join(' + ')} script(s) for contract→client codegen`);
+        if (codegen.note) log.info(codegen.note);
+      } else if (codegen.skipped && existsSync(join(cwd, 'package.json'))) {
+        log.info(`contract→client codegen: ${codegen.skipped}`);
       }
 
       // CLAUDE.md — never overwrite

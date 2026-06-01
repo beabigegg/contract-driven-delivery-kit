@@ -368,6 +368,8 @@ Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS
 
 For Claude projects, `doctor` also reports whether the **cdd-kit MCP server is registered** with Claude Code (it runs `claude mcp list`). If it is not registered, agents never see the graph/index tools and silently fall back to `Read`, so doctor surfaces the exact `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it. This check is **informational only** — it never fails `--strict`, never blocks on a slow or missing `claude` CLI (3s timeout, best-effort), and is skipped for non-Claude projects. Point `CDD_CLAUDE_BIN` at an alternate Claude CLI if needed.
 
+`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. Like the MCP and conformance lines, it is **advisory only** and never fails `--strict`.
+
 ---
 
 ### `cdd-kit upgrade`
@@ -634,9 +636,12 @@ Projects `contracts/api/api-contract.md` into a minimal **OpenAPI 3.1** skeleton
 ```bash
 cdd-kit openapi export                          # JSON to stdout
 cdd-kit openapi export --yaml --out openapi.yaml # YAML to a file
+cdd-kit openapi export --check --out openapi.json # sync gate: fail on drift
 ```
 
 It derives paths (normalizing `:id`/`{id}`), path parameters, auth → bearer security, and success/error status codes. Free-form request/response schemas in the contract are marked `x-cdd-unresolved` rather than fabricated. Generating an actual client is left to your stack's generator in your own CI — this is the **preventive** complement to the **detective** conformance check above. See [docs/openapi-export.md](docs/openapi-export.md) and [docs/adr/0001-contract-to-openapi-export.md](docs/adr/0001-contract-to-openapi-export.md).
+
+`--check` is the **sync gate**: it does not write, it verifies the committed artifact at `--out` still matches the contract and exits non-zero on drift, so CI fails when a contract edit forgets to regenerate the export (and the typed client downstream). To wire the consumer half, `cdd-kit init` scaffolds editable `contract:client` and `contract:client:check` npm scripts when a `package.json` is present — the generic contract→OpenAPI step is the kit's, the stack-specific codegen stays an editable script in your repo.
 
 ---
 

@@ -108,8 +108,8 @@ explicitly out of scope here.
 - Two artifacts now describe the API (markdown SoT + derived OpenAPI). We accept
   this because the direction is fixed (markdown → OpenAPI, never reverse-edited),
   so they cannot become competing sources of truth. `cdd-kit openapi export
-  --check` (future) can assert the committed OpenAPI is in sync, the same way
-  `code-map --check` does.
+  --check` asserts the committed OpenAPI is in sync, the same way `code-map
+  --check` does (shipped — see the follow-up note below).
 
 ## Scope of the accompanying PoC
 
@@ -122,5 +122,21 @@ This PR ships **only** the generic export half:
 - unresolved request/response schemas emitted as clearly-marked placeholders;
 - tests; docs recipe for wiring `openapi-typescript` in a consumer repo.
 
-It does **not** ship any client generation, schema authoring format, or
-`--check` sync gate. Those are follow-ups, each its own decision.
+It does **not** ship any client generation or schema authoring format. Those
+remain follow-ups, each its own decision.
+
+## Follow-up shipped since the PoC
+
+- **`--check` sync gate** (`cdd-kit openapi export --check --out <path>`):
+  verifies the committed artifact still matches the contract, exiting non-zero on
+  drift. This closes the "two artifacts" risk noted above — the derived OpenAPI
+  can no longer silently fall out of step with the markdown source of truth.
+- **Consumer codegen wiring**: `cdd-kit init` now scaffolds editable
+  `contract:client` / `contract:client:check` npm scripts when a `package.json`
+  is present, materializing the consumer half of the seam as a chokepoint rather
+  than a doc — while keeping the actual generator choice in the consumer repo, as
+  this ADR decided.
+
+Still deferred: a schema-carrying contract format (so request/response **bodies**
+become preventive too, not just paths/methods), and feeding the exported OpenAPI
+back into `validate_api_conformance.py`.

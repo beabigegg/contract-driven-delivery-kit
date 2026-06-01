@@ -451,11 +451,13 @@ openapi
   .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
   .option('--out <path>', 'Write to a file instead of stdout')
   .option('--yaml', 'Emit YAML instead of JSON', false)
-  .action(async (opts: { contract?: string; out?: string; yaml?: boolean }) => {
+  .option('--check', 'Verify the artifact at --out is in sync with the contract (exits 1 on drift); does not write', false)
+  .action(async (opts: { contract?: string; out?: string; yaml?: boolean; check?: boolean }) => {
     const exit = await openapiExport({
       contract: opts.contract,
       out: opts.out,
       format: opts.yaml ? 'yaml' : 'json',
+      check: opts.check,
     });
     process.exit(exit);
   });
