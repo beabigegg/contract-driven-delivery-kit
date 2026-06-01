@@ -295,6 +295,67 @@ describe('cdd-kit openapi export', () => {
     expect(r.stdout + r.stderr).toMatch(/either a field table or a json-schema block/i);
   });
 
+  it('fails fast when a schema section uses ```json instead of ```json-schema', () => {
+    // The common agent/author mistake: reach for ```json. The old behaviour
+    // silently dropped the block, left the reference unresolved, and still
+    // reported success. The fence tag must be named in the fix.
+    writeContract(
+      ['| POST | /api/raw | none | RawThing | RawThing | 500 | yes |'],
+      undefined,
+      [
+        '## Schemas',
+        '',
+        '### RawThing',
+        '```json',
+        '{ "type": "object", "properties": { "blob": { "type": "string" } } }',
+        '```',
+      ].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/```json-schema/);
+    expect(r.stdout + r.stderr).toMatch(/RawThing/);
+  });
+
+  it('fails fast when a schema section has neither a field table nor a json-schema block', () => {
+    writeContract(
+      ['| POST | /api/notes | none | Note | Note | 400 | yes |'],
+      undefined,
+      ['## Schemas', '', '### Note', 'A note with a title and a body.'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/no field table or .*json-schema block/i);
+    expect(r.stdout + r.stderr).toMatch(/Note/);
+  });
+
+  it('still leaves prose schema references unresolved when no section exists (no-migration escape hatch)', () => {
+    // The companion to the fail-fast: a name referenced by an endpoint but NOT
+    // declared under ## Schemas is deliberately free-form prose and must NOT
+    // fail — it keeps its markers. This guards against the fix over-reaching.
+    writeContract(
+      ['| POST | /api/orders | required | CreateOrder | Order | 400 | yes |'],
+      undefined,
+      ['## Schemas', '', '### Other', '| field | type | required | notes |', '|---|---|---|---|', '| id | string | yes | |'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    const op = JSON.parse(r.stdout).paths['/api/orders'].post;
+    expect(op.requestBody['x-cdd-unresolved']).toBe(true);
+    expect(op['x-cdd-response-contract']).toBe('Order');
+  });
+
+  it('writes to an absolute --out path without mangling it', () => {
+    // Regression: `join(cwd, out)` concatenated an absolute out onto cwd
+    // (e.g. D:\proj\C:\Users\…) and ENOENT'd on mkdir. `resolve` fixes it.
+    writeContract(['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    const abs = join(repo, 'nested', 'deep', 'openapi.json');
+    const r = runCli(['openapi', 'export', '--out', abs], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    const doc = JSON.parse(readFileSync(abs, 'utf8'));
+    expect(doc.paths['/api/users']).toBeTruthy();
+  });
+
   it('emits a bearer security scheme for authed routes and none for public ones', () => {
     writeContract([
       '| GET | /api/me | required | - | User | 401 | yes |',

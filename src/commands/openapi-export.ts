@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, resolve } from 'path';
 import { log } from '../utils/logger.js';
 
 /**
@@ -208,6 +208,21 @@ function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; 
   return { blocks, errors };
 }
 
+/**
+ * A schema section that contains a fenced code block tagged as anything other
+ * than `json-schema` is almost always a mistake (most authors and agents reach
+ * for ```` ```json ````). Return the offending tag so the error can name the
+ * fix; `''` means a fence with no language tag; `null` means no foreign fence.
+ */
+function findForeignFenceTag(section: SchemaSection): string | null {
+  const fenceRe = /```([A-Za-z0-9_-]*)[^\n]*\n[\s\S]*?```/g;
+  for (const match of section.content.matchAll(fenceRe)) {
+    const tag = (match[1] ?? '').trim();
+    if (tag !== 'json-schema') return tag;
+  }
+  return null;
+}
+
 interface FieldRow {
   field: string;
   type: string;
@@ -315,6 +330,28 @@ function parseContractSchemas(body: string): SchemaParseResult {
     const fields = parseFieldTable(section);
     if (raw.blocks.length > 0 && fields.found) {
       errors.push(`Schema ${section.name}: choose either a field table or a json-schema block, not both`);
+    }
+    // A `### Name` heading under `## Schemas` is an explicit declaration: the
+    // author meant to define a schema. If it yields neither a field table nor a
+    // json-schema block, that is a malformed schema (wrong fence tag, broken
+    // table) — fail fast with the fix instead of silently dropping it to a
+    // free-form marker and reporting success. (Schema names referenced by an
+    // endpoint but with NO section here are the deliberate prose escape hatch
+    // and stay unresolved; this only fires on a section that exists.)
+    if (raw.blocks.length === 0 && !fields.found) {
+      const foreign = findForeignFenceTag(section);
+      if (foreign !== null) {
+        const desc = foreign ? `a \`\`\`${foreign} code block` : 'an untagged code block';
+        errors.push(
+          `Schema ${section.name}: found ${desc}, but a json-schema body must use a \`\`\`json-schema fence. ` +
+            `Change the fence to \`\`\`json-schema, or describe the schema with a "| field | type | required | ... |" table.`,
+        );
+      } else {
+        errors.push(
+          `Schema ${section.name}: no field table or \`\`\`json-schema block found. ` +
+            `Add a "| field | type | required | ... |" table or a \`\`\`json-schema block (or remove the heading if the schema is intentionally free-form prose).`,
+        );
+      }
     }
     if (raw.blocks.length === 1 || fields.found) resolvableNames.add(section.name);
     metadata.set(section.name, {
@@ -619,8 +656,13 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
   }
 
   if (opts.out) {
-    mkdirSync(dirname(join(process.cwd(), opts.out)), { recursive: true });
-    writeFileSync(opts.out, serialized, 'utf8');
+    // `resolve` correctly preserves absolute paths (Windows `C:\…` or POSIX
+    // `/tmp/…`) and resolves relative ones against cwd. `join(cwd, out)` would
+    // concatenate an absolute `out` onto cwd (e.g. `D:\proj\C:\Users\…`) and
+    // then ENOENT on mkdir.
+    const outPath = resolve(opts.out);
+    mkdirSync(dirname(outPath), { recursive: true });
+    writeFileSync(outPath, serialized, 'utf8');
     log.ok(`OpenAPI ${format.toUpperCase()} written to ${opts.out} (${endpoints.length} endpoint(s))`);
     const unresolved = countUnresolved(doc);
     if (unresolved > 0) {

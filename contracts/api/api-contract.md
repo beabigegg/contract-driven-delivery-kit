@@ -25,13 +25,26 @@ breaking-change-policy: deprecate-2-minors
 
 <!--
 Optional. Add named schemas here when request/response bodies should become
-machine-typed in `cdd-kit openapi export`.
+machine-typed in `cdd-kit openapi export`. Reference a schema by name in the
+endpoint table's "request schema" / "response schema" cell (use `Name[]` for an
+array). A schema is defined ONE of two ways — never both:
+
+Tier A — a field table (preferred; readable, diffable):
 
 ### ExampleRequest
 | field | type | required | format | notes |
 |---|---|---|---|---|
 | email | string | yes | email | login identity |
 | status | enum(active, disabled) | no | | lifecycle state |
+| owner | ExampleUser | no | | reference another schema by name |
+
+Tier B — a raw JSON Schema, for shapes Tier A can't express (oneOf, etc.).
+The fence MUST be tagged `json-schema` (NOT `json`) or export fails fast:
+
+### ExampleEvent
+```json-schema
+{ "type": "object", "oneOf": [ { "required": ["createdAt"] }, { "required": ["deletedAt"] } ] }
+```
 -->
 
 ## Error Format
