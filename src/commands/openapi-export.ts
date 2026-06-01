@@ -331,27 +331,23 @@ function parseContractSchemas(body: string): SchemaParseResult {
     if (raw.blocks.length > 0 && fields.found) {
       errors.push(`Schema ${section.name}: choose either a field table or a json-schema block, not both`);
     }
-    // A `### Name` heading under `## Schemas` is an explicit declaration: the
-    // author meant to define a schema. If it yields neither a field table nor a
-    // json-schema block, that is a malformed schema (wrong fence tag, broken
-    // table) — fail fast with the fix instead of silently dropping it to a
-    // free-form marker and reporting success. (Schema names referenced by an
-    // endpoint but with NO section here are the deliberate prose escape hatch
-    // and stay unresolved; this only fires on a section that exists.)
-    if (raw.blocks.length === 0 && !fields.found) {
-      const foreign = findForeignFenceTag(section);
-      if (foreign !== null) {
-        const desc = foreign ? `a \`\`\`${foreign} code block` : 'an untagged code block';
-        errors.push(
-          `Schema ${section.name}: found ${desc}, but a json-schema body must use a \`\`\`json-schema fence. ` +
-            `Change the fence to \`\`\`json-schema, or describe the schema with a "| field | type | required | ... |" table.`,
-        );
-      } else {
-        errors.push(
-          `Schema ${section.name}: no field table or \`\`\`json-schema block found. ` +
-            `Add a "| field | type | required | ... |" table or a \`\`\`json-schema block (or remove the heading if the schema is intentionally free-form prose).`,
-        );
-      }
+    // Fail fast on a non-`json-schema` fenced block (```json, ```yaml, …) — the
+    // common mis-tagged-Tier-B mistake. This fires regardless of whether a field
+    // table is also present: a table plus a stray ```json would otherwise compile
+    // the table and SILENTLY ignore the fenced JSON.
+    //
+    // A section with NEITHER a table nor any fence is a valid Tier C prose
+    // contract (ADR 0002: "a field table (Tier A), a single json-schema block
+    // (Tier B), or neither (Tier C)"). It must NOT fail — it stays unresolved and
+    // the endpoint cell keeps its existing x-cdd markers (the no-migration
+    // guarantee), exactly as if no section had been written.
+    const foreign = findForeignFenceTag(section);
+    if (foreign !== null) {
+      const desc = foreign ? `a \`\`\`${foreign} code block` : 'an untagged code block';
+      errors.push(
+        `Schema ${section.name}: found ${desc}, but a machine-typed schema body must use a \`\`\`json-schema fence. ` +
+          `Change the fence to \`\`\`json-schema, use a "| field | type | required | ... |" table, or remove the fence to keep it a free-form (Tier C) prose contract.`,
+      );
     }
     if (raw.blocks.length === 1 || fields.found) resolvableNames.add(section.name);
     metadata.set(section.name, {

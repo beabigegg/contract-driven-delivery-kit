@@ -317,16 +317,47 @@ describe('cdd-kit openapi export', () => {
     expect(r.stdout + r.stderr).toMatch(/RawThing/);
   });
 
-  it('fails fast when a schema section has neither a field table nor a json-schema block', () => {
+  it('treats a prose-only schema section as a valid Tier C contract (keeps markers, does not fail)', () => {
+    // ADR 0002: a `### Name` section may be a field table (A), a json-schema
+    // block (B), or NEITHER (C = free-form prose). A prose-only section must NOT
+    // fail the export — it stays unresolved and the endpoint cell keeps its
+    // existing markers, preserving the no-migration guarantee.
     writeContract(
       ['| POST | /api/notes | none | Note | Note | 400 | yes |'],
       undefined,
-      ['## Schemas', '', '### Note', 'A note with a title and a body.'].join('\n'),
+      ['## Schemas', '', '### Note', 'A note with a title and a body. Stays free-form prose by design.'].join('\n'),
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const op = JSON.parse(r.stdout).paths['/api/notes'].post;
+    expect(op.requestBody['x-cdd-unresolved']).toBe(true);
+    expect(op['x-cdd-response-contract']).toBe('Note');
+  });
+
+  it('fails fast when a schema section pairs a field table with a stray ```json fence', () => {
+    // A table makes fields.found true, but a mis-tagged ```json block alongside
+    // it would otherwise be silently ignored, weakening the schema. The foreign
+    // fence must still be rejected.
+    writeContract(
+      ['| POST | /api/users | none | CreateUser | User | 400 | yes |'],
+      undefined,
+      [
+        '## Schemas',
+        '',
+        '### CreateUser',
+        '| field | type | required | notes |',
+        '|---|---|---|---|',
+        '| email | string | yes | |',
+        '',
+        '```json',
+        '{ "type": "object", "required": ["email", "tenant"] }',
+        '```',
+      ].join('\n'),
     );
     const r = runCli(['openapi', 'export'], { cwd: repo, home });
     expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/no field table or .*json-schema block/i);
-    expect(r.stdout + r.stderr).toMatch(/Note/);
+    expect(r.stdout + r.stderr).toMatch(/```json-schema/);
+    expect(r.stdout + r.stderr).toMatch(/CreateUser/);
   });
 
   it('still leaves prose schema references unresolved when no section exists (no-migration escape hatch)', () => {

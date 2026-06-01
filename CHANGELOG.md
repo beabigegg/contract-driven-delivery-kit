@@ -86,10 +86,11 @@ stop depending on prose the agent can ignore.
   spamming tracebacks and mojibaking em-dashes in contracts. The Python
   validators are now spawned with `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`, and
   the git subprocesses decode as UTF-8 explicitly.
-- **`cdd-kit openapi export` fails fast on a malformed schema section** instead of
-  silently dropping it: a `### Name` block under `## Schemas` that uses ` ```json `
-  (or any non-`json-schema` fence) or has no field table now errors with the fix,
-  rather than reporting success while leaving the reference unresolved.
+- **`cdd-kit openapi export` fails fast on a mis-tagged schema fence** instead of
+  silently dropping it: a `### Name` section under `## Schemas` that uses ` ```json `
+  (or any non-`json-schema` fence) now errors with the fix — including when a field
+  table is also present (the stray fence was previously ignored). A prose-only
+  section with no fence stays a valid Tier C contract and is left unresolved.
 - **`cdd-kit openapi export --out <absolute-path>`** no longer ENOENTs on an
   absolute path (it was concatenated onto cwd, e.g. `D:\repo\C:\Users\…`); paths
   are resolved with `path.resolve`.
