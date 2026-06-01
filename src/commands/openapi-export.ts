@@ -46,23 +46,44 @@ interface OpenApiParameter {
 
 interface OpenApiOperation {
   summary: string;
-  responses: Record<string, { description: string }>;
+  responses: Record<string, OpenApiResponse>;
   parameters?: OpenApiParameter[];
   security?: Array<Record<string, string[]>>;
-  requestBody?: { description: string; content: Record<string, unknown>; 'x-cdd-unresolved': true };
+  requestBody?: {
+    description: string;
+    content: Record<string, unknown>;
+    'x-cdd-unresolved'?: true;
+  };
   'x-cdd-response-contract'?: string;
   'x-cdd-errors'?: string;
 }
 
 type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
 
+interface OpenApiResponse {
+  description: string;
+  content?: Record<string, unknown>;
+}
+
 interface OpenApiDoc {
   openapi: '3.1.0';
   info: { title: string; version: string; description?: string };
   paths: OpenApiPaths;
-  components?: { securitySchemes: Record<string, unknown> };
+  components?: { securitySchemes?: Record<string, unknown>; schemas?: Record<string, JsonSchema> };
   'x-cdd-generated-from': string;
   'x-cdd-note': string;
+}
+
+type JsonSchema = Record<string, unknown>;
+
+interface SchemaSection {
+  name: string;
+  content: string;
+}
+
+interface SchemaParseResult {
+  schemas: Record<string, JsonSchema>;
+  errors: string[];
 }
 
 function stripFrontmatter(text: string): { body: string; frontmatter: Record<string, string> } {
@@ -124,6 +145,213 @@ function parseEndpoints(body: string): EndpointRow[] {
   return rows;
 }
 
+const SCHEMA_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+const PRIMITIVE_TYPES = new Set(['string', 'integer', 'number', 'boolean']);
+
+function extractSchemasSection(body: string): string {
+  const lines = body.split('\n');
+  const start = lines.findIndex(line => /^##\s+Schemas\s*$/i.test(line.trim()));
+  if (start === -1) return '';
+  const out: string[] = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s+/.test(lines[i].trim())) break;
+    out.push(lines[i]);
+  }
+  return out.join('\n');
+}
+
+function parseSchemaSections(body: string): { sections: SchemaSection[]; errors: string[] } {
+  const schemasBlock = extractSchemasSection(body).replace(/<!--[\s\S]*?-->/g, '');
+  if (!schemasBlock.trim()) return { sections: [], errors: [] };
+
+  const sections: SchemaSection[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  const headingRe = /^###\s+(.+?)\s*$/gm;
+  const headings = Array.from(schemasBlock.matchAll(headingRe));
+
+  for (let i = 0; i < headings.length; i += 1) {
+    const heading = headings[i];
+    const name = (heading[1] ?? '').trim();
+    const contentStart = (heading.index ?? 0) + heading[0].length;
+    const contentEnd = i + 1 < headings.length ? (headings[i + 1].index ?? schemasBlock.length) : schemasBlock.length;
+
+    if (!SCHEMA_NAME_RE.test(name)) continue;
+    if (seen.has(name)) {
+      errors.push(`Duplicate schema section: ${name}`);
+      continue;
+    }
+    seen.add(name);
+    sections.push({ name, content: schemasBlock.slice(contentStart, contentEnd) });
+  }
+
+  return { sections, errors };
+}
+
+function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; errors: string[] } {
+  const blocks: JsonSchema[] = [];
+  const errors: string[] = [];
+  const blockRe = /```json-schema\s*\n([\s\S]*?)```/g;
+  for (const match of section.content.matchAll(blockRe)) {
+    try {
+      const parsed = JSON.parse(match[1] ?? '') as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        errors.push(`Schema ${section.name}: json-schema block must be a JSON object`);
+      } else {
+        blocks.push(parsed as JsonSchema);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      errors.push(`Schema ${section.name}: invalid json-schema block (${detail})`);
+    }
+  }
+  return { blocks, errors };
+}
+
+interface FieldRow {
+  field: string;
+  type: string;
+  required: string;
+  notes: string;
+  format: string;
+}
+
+function parseFieldTable(section: SchemaSection): { rows: FieldRow[]; found: boolean } {
+  const lines = section.content.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line.startsWith('|')) continue;
+    const header = parseRow(line).map(c => c.toLowerCase());
+    const fieldIdx = header.indexOf('field');
+    const typeIdx = header.indexOf('type');
+    const requiredIdx = header.indexOf('required');
+    if (fieldIdx === -1 || typeIdx === -1 || requiredIdx === -1) continue;
+
+    const separator = lines[i + 1]?.trim();
+    if (!separator?.startsWith('|') || !isSeparator(parseRow(separator))) continue;
+
+    const notesIdx = header.indexOf('notes');
+    const formatIdx = header.indexOf('format');
+    const rows: FieldRow[] = [];
+    for (let j = i + 2; j < lines.length; j += 1) {
+      const rowLine = lines[j].trim();
+      if (!rowLine || !rowLine.startsWith('|')) break;
+      const cells = parseRow(rowLine);
+      if (isSeparator(cells) || cells.length < 2 || !cells.some(Boolean)) continue;
+      rows.push({
+        field: cells[fieldIdx] ?? '',
+        type: cells[typeIdx] ?? '',
+        required: cells[requiredIdx] ?? '',
+        notes: notesIdx === -1 ? '' : (cells[notesIdx] ?? ''),
+        format: formatIdx === -1 ? '' : (cells[formatIdx] ?? ''),
+      });
+    }
+    return { rows, found: true };
+  }
+  return { rows: [], found: false };
+}
+
+function compileType(typeValue: string, schemaNames: Set<string>, resolvableNames: Set<string>, context: string): JsonSchema {
+  const type = typeValue.trim();
+  if (!type) throw new Error(`${context}: empty type`);
+
+  if (type.endsWith('[]')) {
+    const inner = type.slice(0, -2).trim();
+    if (!inner || inner.endsWith('[]')) throw new Error(`${context}: unsupported array type "${type}"`);
+    return { type: 'array', items: compileType(inner, schemaNames, resolvableNames, context) };
+  }
+
+  if (PRIMITIVE_TYPES.has(type)) return { type };
+
+  const enumMatch = type.match(/^enum\((.*)\)$/);
+  if (enumMatch) {
+    const values = (enumMatch[1] ?? '').split(',').map(v => v.trim()).filter(Boolean);
+    if (values.length === 0) throw new Error(`${context}: enum must list at least one value`);
+    return { type: 'string', enum: values };
+  }
+
+  if (SCHEMA_NAME_RE.test(type) && schemaNames.has(type)) {
+    if (!resolvableNames.has(type)) {
+      throw new Error(`${context}: referenced schema "${type}" has no field table or json-schema block`);
+    }
+    return { $ref: `#/components/schemas/${type}` };
+  }
+
+  throw new Error(`${context}: unknown type "${type}"`);
+}
+
+function compileFieldTable(section: SchemaSection, rows: FieldRow[], schemaNames: Set<string>, resolvableNames: Set<string>): JsonSchema {
+  const properties: Record<string, JsonSchema> = {};
+  const required: string[] = [];
+
+  for (const row of rows) {
+    const field = row.field.trim();
+    if (!field) throw new Error(`Schema ${section.name}: field name is required`);
+    const schema = compileType(row.type, schemaNames, resolvableNames, `Schema ${section.name}, field ${field}`);
+    if (row.notes.trim()) schema.description = row.notes.trim();
+    if (row.format.trim()) schema.format = row.format.trim();
+    properties[field] = schema;
+    if (row.required.trim().toLowerCase() === 'yes') required.push(field);
+  }
+
+  const compiled: JsonSchema = { type: 'object', properties };
+  if (required.length > 0) compiled.required = required;
+  return compiled;
+}
+
+function parseContractSchemas(body: string): SchemaParseResult {
+  const { sections, errors } = parseSchemaSections(body);
+  if (sections.length === 0) return { schemas: {}, errors };
+
+  const schemaNames = new Set(sections.map(s => s.name));
+  const metadata = new Map<string, { section: SchemaSection; rawBlocks: JsonSchema[]; fieldRows: FieldRow[]; hasFieldTable: boolean }>();
+  const resolvableNames = new Set<string>();
+
+  for (const section of sections) {
+    const raw = parseJsonSchemaBlocks(section);
+    errors.push(...raw.errors);
+    if (raw.blocks.length > 1) errors.push(`Schema ${section.name}: expected at most one json-schema block`);
+
+    const fields = parseFieldTable(section);
+    if (raw.blocks.length > 0 && fields.found) {
+      errors.push(`Schema ${section.name}: choose either a field table or a json-schema block, not both`);
+    }
+    if (raw.blocks.length === 1 || fields.found) resolvableNames.add(section.name);
+    metadata.set(section.name, {
+      section,
+      rawBlocks: raw.blocks,
+      fieldRows: fields.rows,
+      hasFieldTable: fields.found,
+    });
+  }
+
+  const schemas: Record<string, JsonSchema> = {};
+  for (const [name, item] of metadata) {
+    if (item.rawBlocks.length === 1 && !item.hasFieldTable) {
+      schemas[name] = item.rawBlocks[0];
+      continue;
+    }
+    if (!item.hasFieldTable) continue;
+    try {
+      schemas[name] = compileFieldTable(item.section, item.fieldRows, schemaNames, resolvableNames);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return { schemas, errors };
+}
+
+function resolveSchemaCell(cell: string, schemas: Record<string, JsonSchema>): JsonSchema | undefined {
+  const raw = cell.trim();
+  if (!raw || raw === '-') return undefined;
+  const isArray = raw.endsWith('[]');
+  const name = isArray ? raw.slice(0, -2).trim() : raw;
+  if (!SCHEMA_NAME_RE.test(name) || !schemas[name]) return undefined;
+  const ref = { $ref: `#/components/schemas/${name}` };
+  return isArray ? { type: 'array', items: ref } : ref;
+}
+
 /** `/users/:id` and `/users/{id}` -> OpenAPI `/users/{id}` plus its parameters. */
 function toOpenApiPath(path: string): { path: string; params: OpenApiParameter[] } {
   const params: OpenApiParameter[] = [];
@@ -172,16 +400,27 @@ function statusFromErrors(errors: string): string[] {
   return codes;
 }
 
-function buildDoc(endpoints: EndpointRow[], frontmatter: Record<string, string>, styleBlock: string): OpenApiDoc {
+function buildDoc(
+  endpoints: EndpointRow[],
+  frontmatter: Record<string, string>,
+  styleBlock: string,
+  schemas: Record<string, JsonSchema>,
+): OpenApiDoc {
   const paths: OpenApiPaths = {};
   let anySecurity = false;
 
   for (const ep of endpoints) {
     const { path, params } = toOpenApiPath(ep.path);
     const successCode = ep.method === 'post' ? '201' : '200';
-    const responses: Record<string, { description: string }> = {
+    const responseSchema = resolveSchemaCell(ep.response, schemas);
+    const responses: Record<string, OpenApiResponse> = {
       [successCode]: { description: ep.response ? `Contract response: ${ep.response}` : 'Success' },
     };
+    if (responseSchema) {
+      responses[successCode].content = {
+        'application/json': { schema: responseSchema },
+      };
+    }
     for (const code of statusFromErrors(ep.errors)) {
       if (!responses[code]) responses[code] = { description: 'Error response (see contract error format)' };
     }
@@ -198,16 +437,24 @@ function buildDoc(endpoints: EndpointRow[], frontmatter: Record<string, string>,
       if (scheme) anySecurity = true;
     }
 
-    // Request/response schemas in the contract are free-form prose, not JSON
-    // Schema. Emit them as unresolved markers rather than fabricating fields.
     if (ep.request && ep.request !== '-' && ep.method !== 'get') {
-      op.requestBody = {
-        description: `Contract request: ${ep.request} (schema not machine-resolved; see contract)`,
-        content: {},
-        'x-cdd-unresolved': true,
-      };
+      const requestSchema = resolveSchemaCell(ep.request, schemas);
+      if (requestSchema) {
+        op.requestBody = {
+          description: `Contract request: ${ep.request}`,
+          content: {
+            'application/json': { schema: requestSchema },
+          },
+        };
+      } else {
+        op.requestBody = {
+          description: `Contract request: ${ep.request} (schema not machine-resolved; see contract)`,
+          content: {},
+          'x-cdd-unresolved': true,
+        };
+      }
     }
-    if (ep.response) op['x-cdd-response-contract'] = ep.response;
+    if (ep.response && !responseSchema) op['x-cdd-response-contract'] = ep.response;
     if (ep.errors) op['x-cdd-errors'] = ep.errors;
 
     paths[path] = paths[path] ?? {};
@@ -232,11 +479,15 @@ function buildDoc(endpoints: EndpointRow[], frontmatter: Record<string, string>,
   if (styleText) doc.info.description = styleText;
 
   if (anySecurity) {
-    doc.components = {
-      securitySchemes: {
-        bearerAuth: { type: 'http', scheme: 'bearer' },
-      },
+    doc.components = doc.components ?? {};
+    doc.components.securitySchemes = {
+      bearerAuth: { type: 'http', scheme: 'bearer' },
     };
+  }
+
+  if (Object.keys(schemas).length > 0) {
+    doc.components = doc.components ?? {};
+    doc.components.schemas = schemas;
   }
 
   return doc;
@@ -321,6 +572,11 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
   const raw = readFileSync(contractPath, 'utf8');
   const { body, frontmatter } = stripFrontmatter(raw);
   const endpoints = parseEndpoints(body);
+  const contractSchemas = parseContractSchemas(body);
+  if (contractSchemas.errors.length > 0) {
+    for (const err of contractSchemas.errors) log.error(err);
+    return 1;
+  }
 
   if (endpoints.length === 0) {
     log.error(`No endpoint table rows found in ${contractPath}. Add rows to the "| method | path | ... |" table first.`);
@@ -328,7 +584,7 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
   }
 
   const styleBlock = extractStyleBlock(body);
-  const doc = buildDoc(endpoints, frontmatter, styleBlock);
+  const doc = buildDoc(endpoints, frontmatter, styleBlock, contractSchemas.schemas);
 
   const serialized = format === 'yaml' ? `${toYaml(doc)}\n` : `${JSON.stringify(doc, null, 2)}\n`;
 

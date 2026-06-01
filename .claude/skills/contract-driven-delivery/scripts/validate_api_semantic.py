@@ -45,6 +45,8 @@ def find_endpoint_table(lines: list[str]) -> list[tuple[int, str]]:
     Find all data rows across ALL '| method |' tables in the document.
     Blank lines and prose between rows do not end collection, making this
     robust to files where content is appended after the original table block.
+    A new markdown heading does end the active table so ADR 0002 schema field
+    tables under `## Schemas` are not misread as endpoint rows.
     """
     in_table = False
     sep_seen = False
@@ -52,6 +54,11 @@ def find_endpoint_table(lines: list[str]) -> list[tuple[int, str]]:
 
     for i, line in enumerate(lines):
         stripped = line.strip()
+
+        if re.match(r'^#{2,}\s+', stripped):
+            in_table = False
+            sep_seen = False
+            continue
 
         if not stripped:
             continue  # blank lines never end table mode
@@ -66,7 +73,7 @@ def find_endpoint_table(lines: list[str]) -> list[tuple[int, str]]:
             continue
 
         # A header row for an endpoint table
-        if cells[0].lower() == 'method':
+        if cells[0].lower() == 'method' and len(cells) > 1 and cells[1].lower() == 'path':
             in_table = True
             sep_seen = False
             continue  # skip header row

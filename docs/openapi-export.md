@@ -4,8 +4,8 @@
 truth) into a minimal **OpenAPI 3.1** skeleton for tooling. The markdown contract
 stays authoritative; the OpenAPI document is a one-way, regenerable projection.
 
-See `docs/adr/0001-contract-to-openapi-export.md` for the design rationale and
-why per-stack client generation is intentionally left to the consumer repo.
+See `docs/adr/0001-contract-to-openapi-export.md` and
+`docs/adr/0002-schema-carrying-contract-format.md` for the design rationale.
 
 ## Usage
 
@@ -15,7 +15,7 @@ cdd-kit openapi export --yaml                    # YAML to stdout
 cdd-kit openapi export --out build/openapi.json  # write to a file
 cdd-kit openapi export --yaml --out openapi.yaml
 cdd-kit openapi export --contract path/to/api-contract.md
-cdd-kit openapi export --check --out build/openapi.json  # sync gate (see below)
+cdd-kit openapi export --check --out build/openapi.json  # sync gate
 ```
 
 ## The sync gate: `--check`
@@ -30,15 +30,16 @@ cdd-kit openapi export --check --out build/openapi.json
 It does **not** write. It compares the committed artifact at `--out` against what
 the contract produces right now and exits:
 
-- `0` — in sync.
-- `1` — the artifact is missing, or the contract changed but the export was not
-  regenerated (it prints the exact `openapi export --out …` command to fix it).
+- `0` - in sync.
+- `1` - the artifact is missing, or the contract changed but the export was not
+  regenerated. The command prints the exact `openapi export --out ...` command
+  to fix it.
 
-Wire it into CI (or a pre-commit hook) so a contract edit that forgets to
-regenerate the export — and therefore the typed client downstream — fails the
+Wire it into CI or a pre-commit hook so a contract edit that forgets to
+regenerate the export, and therefore the typed client downstream, fails the
 build. `--check` honors `--yaml`, so check the same format you committed.
 
-## What it derives (and what it doesn't)
+## What it derives
 
 From the endpoint table (`| method | path | auth | request schema | response schema | errors | tests |`):
 
@@ -49,15 +50,73 @@ From the endpoint table (`| method | path | auth | request schema | response sch
 | `auth` | `security` (`bearerAuth`) for `required`/`admin`, optional+anonymous for `optional`, none for `none`/`public` |
 | `method` | success status: `201` for `POST`, else `200` |
 | `errors` | extra response entries for any explicit `4xx`/`5xx` codes listed |
-| `response schema` | recorded as `x-cdd-response-contract` (prose, not a JSON Schema) |
-| `request schema` | `requestBody` marked `x-cdd-unresolved: true` |
+| `response schema` | if it names a schema in `## Schemas`, emitted as response JSON Schema; otherwise recorded as `x-cdd-response-contract` prose |
+| `request schema` | if it names a schema in `## Schemas`, emitted as request JSON Schema; otherwise `requestBody` is marked `x-cdd-unresolved: true` |
 
-**It does not fabricate field-level schemas.** Request/response bodies are
-free-form prose in the contract today (e.g. `User`, `CreateOrder`), so the export
-records the contract's wording and flags it unresolved rather than inventing
-`properties`. This is deliberate — emitting a fake schema would be a new drift
-source. Fill bodies in either the consumer generator config or a future
-schema-carrying contract format.
+The exporter does not fabricate field-level schemas. Request/response cells that
+do not resolve to a named schema remain prose. The unresolved markers are
+deliberate: emitting a fake schema would be a new drift source. Add a
+`## Schemas` section when a body shape should become machine-typed.
+
+## Schema-carrying contracts
+
+Add optional `### Name` subsections under `## Schemas`. Existing endpoint table
+cells like `CreateUser`, `User`, or `User[]` become references when a matching
+schema exists.
+
+```markdown
+## Endpoint Requirements
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| POST | /api/users | admin | CreateUser | User | 400 | yes |
+
+## Schemas
+
+### CreateUser
+| field | type | required | format | notes |
+|---|---|---|---|---|
+| email | string | yes | email | login identity |
+| name | string | yes | | display name |
+| role | enum(admin, member) | no | | |
+
+### User
+| field | type | required | notes |
+|---|---|---|---|
+| id | string | yes | |
+| email | string | yes | |
+```
+
+Field-table types are intentionally small and closed:
+
+| Type cell | Output |
+|---|---|
+| `string`, `integer`, `number`, `boolean` | primitive JSON Schema |
+| `OtherSchema` | `$ref` to another named schema |
+| `OtherSchema[]` or `string[]` | array wrapper |
+| `enum(active, disabled)` | string enum |
+
+`required: yes` adds the field to JSON Schema `required`. `notes` becomes
+`description`. An optional `format` column is emitted as JSON Schema `format`
+and may be enforced by downstream tooling.
+
+For complex bodies, use a raw Tier B escape hatch:
+
+````markdown
+### Event
+```json-schema
+{
+  "type": "object",
+  "oneOf": [
+    { "required": ["createdAt"] },
+    { "required": ["deletedAt"] }
+  ]
+}
+```
+````
+
+The exporter fails instead of weakening types when a schema is ambiguous:
+duplicate schema names, a section that mixes a field table and `json-schema`
+block, invalid JSON, or an unknown field type all exit non-zero.
 
 ## Wiring a typed client in a consumer repo
 
@@ -69,16 +128,17 @@ well-maintained generator in your own CI. When a `package.json` is present,
 "scripts": {
   // regenerate the OpenAPI artifact + the typed client
   "contract:client": "cdd-kit openapi export --out contracts/api/openapi.json && npx --yes openapi-typescript contracts/api/openapi.json -o src/api/types.ts",
-  // the sync gate — fails if the artifact drifted from the contract
+  // the sync gate - fails if the artifact drifted from the contract
   "contract:client:check": "cdd-kit openapi export --check --out contracts/api/openapi.json"
 }
 ```
 
 These are a starting point, not a hard dependency: the generator
 (`openapi-typescript`) and the output path are yours to change. The kit owns the
-generic contract→OpenAPI half (`openapi export` / `--check`); the stack-specific
-codegen stays in your repo, which is why init writes an *editable* script rather
-than hard-coding a tool. Run `npm run contract:client:check` in CI as the gate.
+generic contract-to-OpenAPI half (`openapi export` / `--check`); the
+stack-specific codegen stays in your repo, which is why init writes an editable
+script rather than hard-coding a tool. Run `npm run contract:client:check` in CI
+as the gate.
 
 Doing it by hand instead, for a TypeScript frontend:
 
@@ -90,11 +150,8 @@ cdd-kit openapi export --yaml --out openapi.yaml
 npx openapi-typescript openapi.yaml -o src/api/schema.d.ts
 ```
 
-Now frontend calls typed against `schema.d.ts` make a divergent path or method a
-**compile error** — the preventive complement to the detective
-`validate_api_conformance.py` check. Run both: conformance as the universal floor
-for code that can't be regenerated, generated types where the stack allows it.
-
-Because request/response bodies are unresolved, the generated types cover paths,
-params, and status codes but not body shapes until the contract carries schemas.
-That is the honest current boundary.
+Now frontend calls typed against `schema.d.ts` make a divergent path, method, or
+schema-resolved body shape a compile error. Run both generated clients and
+`validate_api_conformance.py`: conformance stays the universal floor for code
+that cannot be regenerated, generated types are the stronger path where the
+stack allows it.

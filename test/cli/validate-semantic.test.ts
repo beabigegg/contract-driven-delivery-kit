@@ -234,6 +234,31 @@ describe.skipIf(!hasPython())('validate-semantic — API contract', () => {
     expect(r.stdout).toMatch(/Env semantic validation passed/i);
   });
 
+  it('ignores ADR 0002 schema field tables when validating endpoint rows', () => {
+    writeOtherContractsValid(tmpRepo);
+    const content = buildApiContract([
+      '| POST | /api/v1/users | required | CreateUserReq | User | 400,409 | users.spec.ts |',
+    ]) + `
+## Schemas
+
+### CreateUserReq
+| field | type | required | notes |
+|---|---|---|---|
+| email | string | yes | login identity |
+| status | enum(active, disabled) | no | lifecycle |
+
+### User
+| field | type | required | notes |
+|---|---|---|---|
+| id | string | yes | |
+| email | string | yes | |
+`;
+    writeApiContract(tmpRepo, content);
+    const r = runCli(['validate', '--contracts'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/API semantic validation passed \(1 endpoint/i);
+  });
+
   it('API endpoint with invalid method FETCH fails and mentions FETCH', () => {
     const content = buildApiContract([
       '| GET | /api/v1/users | required | - | UserList | 401 | users.spec.ts |',

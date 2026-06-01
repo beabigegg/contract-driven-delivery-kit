@@ -21,6 +21,19 @@ breaking-change-policy: deprecate-2-minors
 | method | path | auth | request schema | response schema | errors | tests |
 |---|---|---|---|---|---|---|
 
+## Schemas
+
+<!--
+Optional. Add named schemas here when request/response bodies should become
+machine-typed in `cdd-kit openapi export`.
+
+### ExampleRequest
+| field | type | required | format | notes |
+|---|---|---|---|---|
+| email | string | yes | email | login identity |
+| status | enum(active, disabled) | no | | lifecycle state |
+-->
+
 ## Error Format
 
 ## Compatibility Policy
