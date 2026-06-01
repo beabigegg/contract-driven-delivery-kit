@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { createHash } from 'crypto';
+import { spawnSync } from 'child_process';
 import { join, relative } from 'path';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
@@ -281,6 +282,56 @@ function checkApiConformance(cwd: string): Finding[] {
   }
 }
 
+function checkMcpRegistration(cwd: string, provider: string): Finding[] {
+  // Informational only (level 'ok') so it never trips `doctor --strict` — not
+  // every environment uses Claude Code, and a missing `claude` CLI is not an
+  // error. The point is observability: if the cdd-kit MCP server is not
+  // registered, agents never see the graph/index tools and silently fall back
+  // to `Read`, defeating the `--with-source` exploration path.
+  if (provider !== 'claude' && provider !== 'both') return [];
+
+  // Only nudge actual cdd-kit projects (inferProvider defaults to 'claude' even
+  // for unrelated repos). `.cdd/` is the definitive marker that init created.
+  if (!existsSync(join(cwd, '.cdd'))) return [];
+
+  const bin = process.env.CDD_CLAUDE_BIN || 'claude';
+  let result;
+  try {
+    // Mirror the CDD_CODEGRAPH_BIN convention: a `.js` override is run via node
+    // so tests can stub the Claude CLI portably.
+    // Short timeout: doctor must stay fast and must never hang on an external
+    // CLI. If `claude mcp list` is slow, we report "could not verify" rather
+    // than block.
+    result = bin.toLowerCase().endsWith('.js')
+      ? spawnSync(process.execPath, [bin, 'mcp', 'list'], { encoding: 'utf8', timeout: 3000 })
+      : spawnSync(bin, ['mcp', 'list'], { encoding: 'utf8', timeout: 3000 });
+  } catch {
+    result = { error: new Error('spawn failed') } as ReturnType<typeof spawnSync>;
+  }
+
+  if (result.error || typeof result.status !== 'number') {
+    return [{
+      level: 'ok',
+      message: 'MCP: could not run `claude mcp list` (Claude Code CLI not found); skip if you do not use Claude Code',
+    }];
+  }
+  if (result.status !== 0) {
+    return [{
+      level: 'ok',
+      message: `MCP: \`claude mcp list\` exited ${result.status}; cannot verify cdd-kit registration`,
+    }];
+  }
+
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (/\bcdd-kit\b/.test(output)) {
+    return [{ level: 'ok', message: 'MCP: cdd-kit server is registered with Claude Code' }];
+  }
+  return [{
+    level: 'ok',
+    message: 'MCP: cdd-kit not registered — agents will fall back to Read instead of graph/index tools; run `claude mcp add --scope user cdd-kit -- cdd-kit mcp`',
+  }];
+}
+
 async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<DoctorReport> {
   const requestedProvider = opts.provider ?? 'auto';
   if (!validateProviderOption(requestedProvider)) {
@@ -313,6 +364,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkAgentLint(cwd));
   findings.push(...checkCodeMap(cwd));
   findings.push(...checkApiConformance(cwd));
+  findings.push(...checkMcpRegistration(cwd, provider));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
   const warnings = findings.filter(finding => finding.level === 'warning').length;
