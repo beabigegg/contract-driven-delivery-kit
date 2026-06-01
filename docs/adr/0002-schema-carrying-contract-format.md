@@ -1,6 +1,6 @@
 # ADR 0002: Schema-carrying contract format (preventive request/response bodies)
 
-- Status: Proposed
+- Status: Accepted (design); implementation to follow in a separate PR
 - Date: 2026-06-01
 - Deciders: maintainer + AI delivery agent
 - Supersedes: nothing; extends ADR 0001 (Contract → OpenAPI export)
