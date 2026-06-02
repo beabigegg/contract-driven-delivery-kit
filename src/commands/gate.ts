@@ -7,7 +7,7 @@ import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
-import { getTouchedPaths } from '../utils/git-paths.js';
+import { getStagedPaths } from '../utils/git-paths.js';
 
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
@@ -297,12 +297,14 @@ function enforceTierFloor(changeDir: string, errors: string[], warnings: string[
   // Intent is scanned from the user's own words (change-request.md), not the
   // classification we are checking against — scanning the classification would
   // let "this is NOT an auth change" trip the net, and would make the floor
-  // circular. The request is the ground truth of what was asked for. Touched
+  // circular. The request is the ground truth of what was asked for. Staged
   // paths add a path-only signal so a generic request ("refactor middleware")
-  // whose staged work lives under auth/ or payments/ still trips the floor.
+  // whose staged work lives under auth/ or payments/ still trips the floor. We
+  // scan only the STAGED change (not the whole worktree) so an unrelated
+  // unstaged auth/ edit can't trip the floor and reject a low-risk commit.
   const requestPath = join(changeDir, 'change-request.md');
   const requestText = existsSync(requestPath) ? readFileSync(requestPath, 'utf8') : '';
-  const touched = getTouchedPaths(cwd);
+  const touched = getStagedPaths(cwd);
 
   const floor = computeTierFloor(requestText, policy, { paths: touched });
   if (floor.floorTier === null) return;

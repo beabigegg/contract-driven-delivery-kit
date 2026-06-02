@@ -53,7 +53,23 @@ describe('computeTierFloor', () => {
     const r = computeTierFloor('Add OAuth login and refund handling');
     expect(r.matched).toContain('oauth');
     expect(r.matched).toContain('login');
-    expect(r.matched).toContain('refund');
+    // The label is the (regex-stripped) pattern; the noun patterns are pluralized.
+    expect(r.matched).toContain('refunds');
+  });
+
+  it('floors plural critical-surface directories from touched paths', () => {
+    // The alphanumeric lookahead means singular patterns would miss the
+    // trailing "s"; the pluralized patterns must still catch these dirs.
+    expect(computeTierFloor('generic cleanup', DEFAULT_TIER_POLICY, {
+      paths: ['src/payments/checkout.ts'],
+    }).floorTier).toBe(0);
+    expect(computeTierFloor('generic cleanup', DEFAULT_TIER_POLICY, {
+      paths: ['db/migrations/001_init.sql'],
+    }).floorTier).toBe(0);
+    // Singular directory forms still match too.
+    expect(computeTierFloor('generic cleanup', DEFAULT_TIER_POLICY, {
+      paths: ['src/payment/charge.ts'],
+    }).floorTier).toBe(0);
   });
 
   it('respects a disabled policy', () => {

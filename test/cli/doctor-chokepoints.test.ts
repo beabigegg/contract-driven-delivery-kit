@@ -8,6 +8,7 @@
  * `--strict` failure, since not every project wants every chokepoint.
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { spawnSync } from 'child_process';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
@@ -63,6 +64,21 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     );
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout).toMatch(/chokepoint OpenAPI sync gate: live/);
+  });
+
+  it('detects the pre-commit gate as live under a custom core.hooksPath', () => {
+    // install-hooks arms the gate in git's RESOLVED hooks dir (honoring
+    // core.hooksPath); doctor must resolve the same path or it would wrongly
+    // report a live gate as dormant and send the user to reinstall.
+    setupRepo();
+    spawnSync('git', ['init'], { cwd, stdio: 'ignore' });
+    spawnSync('git', ['config', 'core.hooksPath', '.githooks'], { cwd, stdio: 'ignore' });
+
+    const install = runCli(['install-hooks'], { cwd, home });
+    expect(install.status, install.stderr).toBe(0);
+
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint pre-commit gate hook: live/);
   });
 
   it('does not fail --strict on dormant chokepoints (advisory only)', () => {

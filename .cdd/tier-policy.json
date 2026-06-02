@@ -1,5 +1,5 @@
 {
-  "_README": "Mechanical risk-tier floor. A classifier (or any agent) proposes a tier in change-classification.md / tasks.yml; this policy is the safety net that prevents a high-risk surface from being silently under-classified. `cdd-kit gate` and `cdd-kit classify-check` scan change-request.md against ALL rules, and the change's git-touched paths against the critical (maxTier 0) rules only (file paths are noisier than prose), then require the declared tier to be at least as strict as the matched floor. Lower tier number = stricter. Set enabled:false to disable, or record `tier-floor-override: \"<reason>\"` in a change's tasks.yml frontmatter to bypass for one change with an audit trail.",
+  "_README": "Mechanical risk-tier floor. A classifier (or any agent) proposes a tier in change-classification.md / tasks.yml; this policy is the safety net that prevents a high-risk surface from being silently under-classified. `cdd-kit gate` and `cdd-kit classify-check` scan change-request.md against ALL rules, and the change's git paths against the critical (maxTier 0) rules only (file paths are noisier than prose) — gate scans the STAGED change (what is about to be committed), classify-check scans the whole worktree (the in-progress change is not yet committed) — then require the declared tier to be at least as strict as the matched floor. Lower tier number = stricter. Set enabled:false to disable, or record `tier-floor-override: \"<reason>\"` in a change's tasks.yml frontmatter to bypass for one change with an audit trail.",
   "enabled": true,
   "schema-version": "0.1.0",
   "rules": [
@@ -11,13 +11,13 @@
         "authentication", "authorization", "authenticate", "authorize",
         "authenticated", "authorized",
         "login", "logout", "sign-?in", "sign-?up",
-        "password", "passwd", "credential", "secret", "api[- ]?key", "token",
-        "jwt", "oauth", "oidc", "saml", "session", "cookie",
-        "payment", "billing", "invoice", "charge", "refund", "checkout", "stripe", "paypal",
-        "migration", "migrate", "alter table", "drop table", "drop column", "schema change",
+        "passwords?", "passwd", "credentials?", "secrets?", "api[- ]?keys?", "tokens?",
+        "jwt", "oauth", "oidc", "saml", "sessions?", "cookies?",
+        "payments?", "billing", "invoices?", "charges?", "refunds?", "checkout", "stripe", "paypal",
+        "migrations?", "migrate", "alter table", "drop table", "drop column", "schema change",
         "concurrency", "race condition", "mutex", "deadlock", "transaction isolation",
-        "encrypt", "decrypt", "crypto", "hashing", "rbac", "permission", "access control",
-        "privilege", "pii", "gdpr", "hipaa", "rate limit", "csrf", "xss", "sql injection"
+        "encrypt", "decrypt", "crypto", "hashing", "rbac", "permissions?", "access control",
+        "privileges?", "pii", "gdpr", "hipaa", "rate limit", "csrf", "xss", "sql injection"
       ]
     },
     {

@@ -23,8 +23,21 @@ const SETTINGS_REL_PATH = '.claude/settings.json';
 // Identifies our PreToolUse entry for idempotent replace.
 const HOOK_MARKER = 'pre-tool-use-graph-first';
 
+/** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
+interface HookHandler {
+  type?: string;
+  command?: string;
+  [k: string]: unknown;
+}
+
 interface HookEntry {
   matcher?: string;
+  /**
+   * Claude Code's schema nests handlers under `hooks`; the matcher group is a
+   * container, not a handler. (`command` is kept on the type only to detect and
+   * clean up entries written by older cdd-kit versions that wrote it here.)
+   */
+  hooks?: HookHandler[];
   command?: string;
   [k: string]: unknown;
 }
@@ -95,17 +108,25 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   const preTool: HookEntry[] = Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
 
   // Drop any prior cdd-kit graph-first entry so re-running is idempotent and a
-  // mode switch (advisory <-> strict) cleanly replaces the old command.
-  const preserved = preTool.filter(
-    e => !(typeof e?.command === 'string' && e.command.includes(HOOK_MARKER)),
-  );
+  // mode switch (advisory <-> strict) cleanly replaces the old command. Match
+  // both the correct nested shape and the legacy top-level `command` shape
+  // older cdd-kit versions wrote, so an upgrade rewrites the broken entry.
+  const isOurEntry = (e: HookEntry): boolean => {
+    if (typeof e?.command === 'string' && e.command.includes(HOOK_MARKER)) return true;
+    return Array.isArray(e?.hooks) &&
+      e.hooks.some(h => typeof h?.command === 'string' && h.command.includes(HOOK_MARKER));
+  };
+  const preserved = preTool.filter(e => !isOurEntry(e));
 
   // Use a POSIX-style relative command so it resolves from the project root
   // regardless of OS path separators; prefix the strict env inline.
   const invoke = `./${HOOK_REL_PATH}`;
   const command = mode === 'strict' ? `CDD_GRAPH_FIRST_STRICT=1 ${invoke}` : invoke;
 
-  preserved.push({ matcher: 'Read', command });
+  // Nest the command under `hooks` as a `{ type: 'command' }` handler — the
+  // shape Claude Code actually executes. Writing `command` on the matcher group
+  // directly leaves the chokepoint silently dormant.
+  preserved.push({ matcher: 'Read', hooks: [{ type: 'command', command }] });
   settings.hooks.PreToolUse = preserved;
 
   mkdirSync(join(cwd, '.claude'), { recursive: true });

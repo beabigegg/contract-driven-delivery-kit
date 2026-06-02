@@ -1071,7 +1071,8 @@ describe('cdd-kit gate — tier floor', () => {
   });
 
   it('catches a path-only sensitive change even when the request reads generic', () => {
-    // getTouchedPaths needs a git repo; the scaffolded files are untracked.
+    // The gate scans the STAGED change (getStagedPaths), so the sensitive file
+    // must be in the index — mirroring a real pre-commit where the work is staged.
     spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
     runCli(['new', 'path-only'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'path-only');
@@ -1084,14 +1085,38 @@ describe('cdd-kit gate — tier floor', () => {
       `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and the touched file paths of the change.\n`, 'utf8');
     writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'path-only', tier: 2 }), 'utf8');
 
-    // The actual work lands under a critical path.
+    // The actual work lands under a critical path — and is staged for commit.
     mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
     writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+    spawnSync('git', ['add', 'src/auth/middleware.ts'], { cwd: tmpRepo, stdio: 'ignore' });
 
     const r = runCli(['gate', 'path-only'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stderr + r.stdout).toMatch(/tier floor violation/i);
     expect(r.stderr + r.stdout).toMatch(/tier 0/i);
+  });
+
+  it('does NOT floor on an unrelated UNSTAGED sensitive edit (staged-scope only)', () => {
+    // The gate scans the staged change only. An unrelated auth edit left in the
+    // worktree but not staged must not trip the tier-0 floor and reject an
+    // otherwise low-risk staged commit.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    runCli(['new', 'staged-scope'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'staged-scope');
+    writeValidChangeArtifacts(changeDir);
+
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\nRefactor the middleware layer for clarity and testability. No behavior change is intended; this is a purely structural cleanup of the request pipeline so the modules are smaller and easier to maintain over time.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and the staged file paths of the change.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'staged-scope', tier: 2 }), 'utf8');
+
+    // Sensitive edit sits in the worktree UNSTAGED — it is not part of this commit.
+    mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+
+    const r = runCli(['gate', 'staged-scope'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
   });
 
   it.skipIf(!hasPython())('passes end-to-end when correctly tiered with valid contracts', () => {

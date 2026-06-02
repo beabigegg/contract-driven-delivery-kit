@@ -1,7 +1,9 @@
 import { watch, type FSWatcher } from 'fs';
 import { resolve } from 'path';
+import picomatch from 'picomatch';
 import { log } from '../utils/logger.js';
 import { codeMap, slugifySurface, type CodeMapOptions } from './code-map.js';
+import { loadCodeMapConfig } from '../code-map/config.js';
 import { sidecarPathFor } from '../code-map/index-reader.js';
 import { graphPathFor } from '../code-graph/reader.js';
 
@@ -102,6 +104,25 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   // user's own `.cdd/code-map-config.yml`, `.cdd/tier-policy.json`, etc.
   const generatedAbs = generatedArtifactSet(outRel);
 
+  // Resolve the same exclude scope codeMap()/walkRepo() use, so events under
+  // ignored trees (node_modules, dist, .git, .next, coverage, …) never trigger
+  // a rebuild: the map can't change from a write there, yet a dev server or git
+  // operation churning those dirs would otherwise rescan the whole repo. Built
+  // off filename paths relative to `root`, exactly as walkRepo matches them.
+  let isExcluded: (rel: string) => boolean = () => false;
+  try {
+    const cfg = loadCodeMapConfig(root);
+    const excludes = [...cfg.exclude, ...(opts.exclude ?? [])];
+    if (excludes.length > 0) {
+      const match = picomatch(excludes, { dot: true });
+      // Match the file itself and the directory-glob form (`dir/**`), mirroring
+      // walkRepo's dir fast-path so a directory event is skipped too.
+      isExcluded = (rel: string) => match(rel) || match(`${rel}/**`);
+    }
+  } catch {
+    // Config error surfaces on the actual rebuild; keep the watcher permissive.
+  }
+
   const rebuild = async (): Promise<number> => {
     const exit = await codeMap({ ...opts, check: false, silent: true });
     if (exit === 0) {
@@ -163,7 +184,10 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
       // tell a self-write from a real change, so fall back to a drift check
       // rather than an unconditional rebuild (which would loop on our own write).
       if (filename) {
-        if (isSelfWrite(filename.toString())) return;
+        const rel = filename.toString();
+        if (isSelfWrite(rel)) return;
+        // Normalize Windows separators before glob-matching the exclude scope.
+        if (isExcluded(rel.replace(/\\/g, '/'))) return;
         trigger();
       } else {
         triggerIfDrift();

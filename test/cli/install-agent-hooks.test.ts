@@ -18,9 +18,21 @@ function settings(): Record<string, unknown> {
   return JSON.parse(readFileSync(join(repo, '.claude', 'settings.json'), 'utf8'));
 }
 
-function preTool(): Array<{ matcher?: string; command?: string }> {
-  const s = settings() as { hooks?: { PreToolUse?: Array<{ matcher?: string; command?: string }> } };
+interface HookHandler { type?: string; command?: string }
+interface HookEntry { matcher?: string; command?: string; hooks?: HookHandler[] }
+
+function preTool(): HookEntry[] {
+  const s = settings() as { hooks?: { PreToolUse?: HookEntry[] } };
   return s.hooks?.PreToolUse ?? [];
+}
+
+/**
+ * Command an entry actually runs: Claude Code nests it under `hooks` as a
+ * `{ type: 'command' }` handler, so read there first (tolerating a legacy
+ * top-level `command` so the helper also works on pre-existing fixtures).
+ */
+function cmdOf(e: HookEntry): string | undefined {
+  return e.hooks?.[0]?.command ?? e.command;
 }
 
 beforeEach(() => {
@@ -42,9 +54,13 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     const entries = preTool();
     expect(entries).toHaveLength(1);
     expect(entries[0].matcher).toBe('Read');
-    expect(entries[0].command).toBe('./.claude/hooks/pre-tool-use-graph-first.sh');
+    // Command must be nested under `hooks` as a command handler — the shape
+    // Claude Code executes; a top-level `command` would never fire.
+    expect(entries[0].command).toBeUndefined();
+    expect(entries[0].hooks?.[0]).toMatchObject({ type: 'command' });
+    expect(cmdOf(entries[0])).toBe('./.claude/hooks/pre-tool-use-graph-first.sh');
     // Advisory must NOT carry the strict env flag.
-    expect(entries[0].command).not.toContain('CDD_GRAPH_FIRST_STRICT');
+    expect(cmdOf(entries[0])).not.toContain('CDD_GRAPH_FIRST_STRICT');
   });
 
   it('installs the strict hook with the CDD_GRAPH_FIRST_STRICT flag', () => {
@@ -52,7 +68,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     expect(r.status, r.stderr).toBe(0);
     const entries = preTool();
     expect(entries).toHaveLength(1);
-    expect(entries[0].command).toBe('CDD_GRAPH_FIRST_STRICT=1 ./.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmdOf(entries[0])).toBe('CDD_GRAPH_FIRST_STRICT=1 ./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('is idempotent and switches mode without duplicating entries', () => {
@@ -62,7 +78,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
 
     const entries = preTool();
     expect(entries).toHaveLength(1); // replaced each time, never appended
-    expect(entries[0].command).toBe('./.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmdOf(entries[0])).toBe('./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('preserves unrelated settings and other PreToolUse hooks', () => {
@@ -85,19 +101,44 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     const s = settings() as {
       model?: string;
       hooks?: {
-        PreToolUse?: Array<{ matcher?: string; command?: string }>;
-        PostToolUse?: Array<{ matcher?: string; command?: string }>;
+        PreToolUse?: HookEntry[];
+        PostToolUse?: HookEntry[];
       };
     };
     // Unrelated top-level key preserved.
     expect(s.model).toBe('opus');
     // Unrelated PostToolUse preserved.
     expect(s.hooks?.PostToolUse?.[0].command).toBe('echo post');
-    // The pre-existing Bash PreToolUse hook is kept; ours is added alongside.
-    const cmds = (s.hooks?.PreToolUse ?? []).map(e => e.command);
+    // The pre-existing Bash PreToolUse hook is kept verbatim; ours is added
+    // alongside in the nested-handler shape.
+    const cmds = (s.hooks?.PreToolUse ?? []).map(cmdOf);
     expect(cmds).toContain('echo other');
     expect(cmds).toContain('./.claude/hooks/pre-tool-use-graph-first.sh');
     expect(s.hooks?.PreToolUse).toHaveLength(2);
+  });
+
+  it('upgrades a legacy top-level command entry to the nested handler shape', () => {
+    // A prior cdd-kit version wrote the command directly on the matcher group,
+    // which Claude Code never executes. Re-running must replace that broken
+    // entry (matched by marker) with the correct nested shape — not append.
+    mkdirSync(join(repo, '.claude'), { recursive: true });
+    writeFileSync(
+      join(repo, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [{ matcher: 'Read', command: './.claude/hooks/pre-tool-use-graph-first.sh' }],
+        },
+      }, null, 2),
+      'utf8',
+    );
+
+    const r = runCli(['install-agent-hooks'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const entries = preTool();
+    expect(entries).toHaveLength(1); // legacy entry replaced, not duplicated
+    expect(entries[0].command).toBeUndefined();
+    expect(cmdOf(entries[0])).toBe('./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('rejects an invalid mode', () => {
