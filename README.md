@@ -367,7 +367,7 @@ cdd-kit install-agent-hooks --graph-first advisory   # arm the graph-first hook 
 cdd-kit doctor                             # confirm both chokepoints report "live"
 ```
 
-The tier floor needs **no file to work** — built-in defaults apply when
+The tier floor needs **no policy file** — built-in defaults apply when
 `.cdd/tier-policy.json` is absent, so existing repos are protected without a
 re-init. To customize or disable it, scaffold the policy with `cdd-kit upgrade
 --yes` (writes an editable `.cdd/tier-policy.json`) and set rules or

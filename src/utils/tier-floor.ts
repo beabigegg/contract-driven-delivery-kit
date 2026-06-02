@@ -119,7 +119,12 @@ export function loadTierPolicy(cwd: string): TierPolicy {
   }
 }
 
-/** Escape a user-supplied pattern that is meant to be matched as a phrase. */
+/**
+ * Escape a user-supplied pattern that is meant to be matched as a phrase.
+ * Returns a NON-global, case-insensitive regex — callers rely on this being
+ * stateless, using a single `.test()` / `.exec()` per pattern (no `g` flag, so
+ * there is no `lastIndex` to carry between calls).
+ */
 function patternToRegExp(pattern: string): RegExp | null {
   try {
     // Patterns may contain intentional regex fragments (e.g. `sign-?in`,
@@ -169,7 +174,9 @@ export function computeTierFloor(
           // Report the ACTUAL matched text (e.g. "session token", "auth",
           // "api key"), not the raw regex pattern. Qualified alternations like
           // `(access|api|…)[- ]?tokens?` would otherwise print as unreadable
-          // noise in the gate / classify-check "matched:" line.
+          // noise in the gate / classify-check "matched:" line. One
+          // representative match per pattern is intentional — `matched` is the
+          // set of sensitive concepts hit, not every occurrence of each.
           matched.add(hit[0].toLowerCase().replace(/\s+/g, ' ').trim());
         }
       }

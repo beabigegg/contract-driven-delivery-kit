@@ -49,12 +49,15 @@ describe('computeTierFloor', () => {
     expect(computeTierFloor('credit the author in the footer').floorTier).toBeNull();
   });
 
-  it('reports the actual matched TEXT (clean), not the raw regex pattern', () => {
-    const r = computeTierFloor('Add OAuth login and refund handling');
+  it('reports the actual matched TEXT (clean + lower-cased), not the raw pattern', () => {
+    // Mixed-case input proves the documented lower-casing contract.
+    const r = computeTierFloor('Add OAuth LOGIN and Refund handling');
     expect(r.matched).toContain('oauth');
     expect(r.matched).toContain('login');
     // The actual word in the text is "refund" (pattern is `refunds?`).
     expect(r.matched).toContain('refund');
+    // Every reported fragment is lower-cased.
+    expect(r.matched.every(m => m === m.toLowerCase())).toBe(true);
   });
 
   it('renders a clean label for the qualified token alternation', () => {
