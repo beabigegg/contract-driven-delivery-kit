@@ -2,10 +2,47 @@
 
 ## [Unreleased]
 
-Two mechanical chokepoints so contract conformance and graph-first exploration
-stop depending on prose the agent can ignore.
+Make enforcement live by default, add a mechanical risk-tier safety net under the
+AI classifier, and give code indexing an opt-in background mode — the three gaps
+that matter most for a fully automated, no-human-reviewer workflow.
 
 ### Added
+
+- **Arm enforcement chokepoints by default in `cdd-kit init`.** A fresh `init`
+  now wires the graph-first PreToolUse hook (Claude provider, advisory) and the
+  pre-commit gate hook, instead of shipping them dormant. In an automated
+  workflow with no human reviewer, dormant enforcement means the contracts and
+  docs only *look* like they prevent drift. Best-effort: a missing `.git` or
+  unusual `settings.json` downgrades to a warning, never a failed init. Opt out
+  with `cdd-kit init --no-arm`. `installHooks`/`installAgentHooks` gained a
+  `fromInit` mode so arming is non-fatal.
+- **Mechanical risk-tier floor (`src/utils/tier-floor.ts`).** A deterministic
+  backstop under the (AI) classifier: `cdd-kit gate` scans `change-request.md`
+  for sensitive surfaces (auth, payments, migrations, concurrency, secrets, …)
+  and **fails** when the declared tier is weaker than the matched floor, so a
+  single mis-classification can no longer silently drop the required agents and
+  tests. Bypass per-change with `tier-floor-override: "<reason>"` in `tasks.yml`
+  frontmatter (downgrades to an audit warning). Policy lives in
+  `.cdd/tier-policy.json` (scaffolded, fully editable, `enabled:false` to
+  disable); built-in defaults apply when the file is absent so existing repos are
+  protected without a re-init.
+- **`cdd-kit classify-check [change-id] | --text "<intent>"`** — advisory probe
+  that prints the mechanical tier floor *before* classification, so the
+  classifier can be steered up front rather than only caught by the gate.
+  Supports `--json`.
+- **`cdd-kit code-map --watch`** — opt-in background auto-indexing. A debounced
+  (default 500 ms, `--debounce`) recursive watcher keeps the map fresh during
+  long-lived co-editing sessions, with a freshness-polling fallback where
+  recursive `fs.watch` is unavailable. Trigger-based indexing stays the default
+  for ephemeral CI/agent runs.
+- **ADR 0003** (`docs/adr/0003-code-intelligence-indexing-strategy.md`):
+  evaluates LSP (Serena) vs tree-sitter incremental (CocoIndex) vs the kit's
+  native AST scanners, and the trigger-vs-background refresh question. Decision:
+  keep native AST (LSP does not translate to headless agents), keep trigger-based
+  as default, add the opt-in `--watch` above, and sequence per-file incremental
+  rebuild as the next step.
+
+### Added (mechanical chokepoints — prior unreleased work)
 
 - **API conformance validator** (`validate_api_conformance.py`): parses real
   backend route declarations and frontend HTTP call sites and diffs them against

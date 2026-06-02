@@ -8,6 +8,7 @@
  * `--strict` failure, since not every project wants every chokepoint.
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { spawnSync } from 'child_process';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
@@ -16,7 +17,9 @@ let cwd: string;
 let home: string;
 
 function setupRepo(): void {
-  const r = runCli(['init', '--local-only'], { cwd, home });
+  // --no-arm gives the dormant baseline these tests assert against; arming is
+  // the default now and is covered explicitly below.
+  const r = runCli(['init', '--local-only', '--no-arm'], { cwd, home });
   if (r.status !== 0) throw new Error(`init failed: ${r.stderr}`);
 }
 
@@ -37,6 +40,13 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     expect(r.stdout).toMatch(/chokepoint graph-first exploration hook:.*install-agent-hooks/);
   });
 
+  it('arms the graph-first hook live by default (no --no-arm)', () => {
+    const r0 = runCli(['init', '--local-only'], { cwd, home });
+    expect(r0.status, r0.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint graph-first exploration hook: live/);
+  });
+
   it('flips the graph-first hook to live once it is installed', () => {
     setupRepo();
     const install = runCli(['install-agent-hooks', '--graph-first', 'advisory'], { cwd, home });
@@ -54,6 +64,21 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     );
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout).toMatch(/chokepoint OpenAPI sync gate: live/);
+  });
+
+  it('detects the pre-commit gate as live under a custom core.hooksPath', () => {
+    // install-hooks arms the gate in git's RESOLVED hooks dir (honoring
+    // core.hooksPath); doctor must resolve the same path or it would wrongly
+    // report a live gate as dormant and send the user to reinstall.
+    setupRepo();
+    spawnSync('git', ['init'], { cwd, stdio: 'ignore' });
+    spawnSync('git', ['config', 'core.hooksPath', '.githooks'], { cwd, stdio: 'ignore' });
+
+    const install = runCli(['install-hooks'], { cwd, home });
+    expect(install.status, install.stderr).toBe(0);
+
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint pre-commit gate hook: live/);
   });
 
   it('does not fail --strict on dormant chokepoints (advisory only)', () => {

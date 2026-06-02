@@ -23,6 +23,7 @@ export const tasksSchema = {
       items: { type: "string", pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$" },
       default: []
     },
+    "tier-floor-override": { type: "string", minLength: 1 },
     "token-budget": { type: ["string", "number"] },
     created: { type: "string" },
     completed: { type: "string" },

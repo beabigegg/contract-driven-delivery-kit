@@ -34,7 +34,8 @@ program
   .option('--local-only',  'Only scaffold project files, skip ~/.claude',    false)
   .option('--force',       'Overwrite existing project files',               false)
   .option('--provider <provider>', 'Provider adapter to scaffold: claude, codex, or both', 'claude')
-  .option('--hooks', 'Install a pre-commit hook that auto-regenerates .cdd/code-map.yml', false)
+  .option('--hooks', 'Also install the pre-commit hook that auto-regenerates .cdd/code-map.yml', false)
+  .option('--no-arm', 'Skip arming enforcement chokepoints (graph-first hook + pre-commit gate)')
   .action((opts) =>
     init({
       globalOnly: opts.globalOnly,
@@ -42,6 +43,7 @@ program
       force:      opts.force,
       provider:   opts.provider,
       hooks:      opts.hooks,
+      arm:        opts.arm !== false,
     }),
   );
 
@@ -196,8 +198,31 @@ program
   .option('--include <glob>', 'Additional include glob (repeatable)', collectRepeatable, [])
   .option('--exclude <glob>', 'Additional exclude glob (repeatable)', collectRepeatable, [])
   .option('--check', 'Exit 1 if regenerating would change the file (no write)', false)
+  .option('--watch', 'Keep the map fresh in the background, rebuilding on file changes (debounced)', false)
+  .option('--debounce <ms>', 'With --watch: coalesce change bursts within this window (default 500)', '500')
   .option('--max-lines <n>', 'Warn for files exceeding this line count (default 100000)', '100000')
-  .action(async (path: string | undefined, opts: CodeMapCliOpts) => {
+  .action(async (path: string | undefined, opts: CodeMapCliOpts & { watch?: boolean; debounce?: string }) => {
+    if (opts.watch) {
+      const { codeMapWatch } = await import('../commands/code-map-watch.js');
+      // Own process-signal wiring here, at the top level, and hand the watcher a
+      // plain AbortSignal — so the library function stays composable.
+      const controller = new AbortController();
+      const onSignal = (): void => controller.abort();
+      process.once('SIGINT', onSignal);
+      process.once('SIGTERM', onSignal);
+      const exit = await codeMapWatch({
+        path: path ?? '.',
+        out: opts.out,
+        surface: opts.surface,
+        workers: resolveWorkers(opts.workers),
+        include: opts.include,
+        exclude: opts.exclude,
+        maxLines: parseInt(opts.maxLines, 10),
+        debounceMs: parseInt(opts.debounce ?? '500', 10),
+        signal: controller.signal,
+      });
+      process.exit(exit);
+    }
     const { codeMap } = await import('../commands/code-map.js');
     const exit = await codeMap({
       path: path ?? '.',
@@ -359,6 +384,18 @@ graph
       json: opts.json === true,
       refresh: opts.refresh !== false,
     });
+    process.exit(exit);
+  });
+
+// ── cdd classify-check [change-id] ────────────────────────────────────────────
+program
+  .command('classify-check [change-id]')
+  .description('Show the mechanical risk-tier floor for a change before classification (advisory; gate enforces it)')
+  .option('--text <text>', 'Scan this inline intent text instead of a change directory')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string | undefined, opts: { text?: string; json?: boolean }) => {
+    const { classifyCheck } = await import('../commands/classify-check.js');
+    const exit = await classifyCheck(changeId, { text: opts.text, json: opts.json });
     process.exit(exit);
   });
 

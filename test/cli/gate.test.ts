@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
+import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
 
@@ -998,5 +999,191 @@ describe('cdd-kit gate', () => {
 
     const r = runCli(['gate', 'feat-after-api'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/dependency dep-api/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mechanical tier-floor safety net
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cdd-kit gate — tier floor', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-gate-floor-repo-');
+    tmpHome = makeTempDir('cdd-gate-floor-home-');
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    if (r.status !== 0) throw new Error(`Setup init failed: ${r.stderr}`);
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  /** A change whose request describes a critical surface, tiered at `tier`. */
+  function scaffoldSensitiveChange(changeId: string, tier: number, extra?: Record<string, unknown>): string {
+    runCli(['new', changeId], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', changeId);
+    writeValidChangeArtifacts(changeDir);
+    // Critical intent in the user's own words.
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\nAdd JWT authentication and OAuth login to the payments checkout API. ` +
+      `This touches password handling and session tokens, so it is security-sensitive.\n`, 'utf8');
+    // Structured tier so resolveTier reads it from frontmatter.
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- ${tier}\n\n` +
+      `This is a meaningful classification body describing the affected surface, the risk profile, the blast radius, and the rollback story in enough detail to clear the stub threshold so the gate proceeds far enough to evaluate the mechanical tier floor against the change request. ` +
+      `The change is scoped to the authentication and checkout surfaces and is reversible by feature flag.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId, tier, extra }), 'utf8');
+    return changeDir;
+  }
+
+  it('fails when a critical request is under-classified as tier 2', () => {
+    scaffoldSensitiveChange('under-tiered', 2);
+    const r = runCli(['gate', 'under-tiered'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/tier floor violation/i);
+    expect(r.stderr + r.stdout).toMatch(/tier 0/i);
+  });
+
+  it('does not raise a floor violation when the request is correctly tier 0', () => {
+    scaffoldSensitiveChange('correctly-tiered', 0);
+    const r = runCli(['gate', 'correctly-tiered'], { cwd: tmpRepo, home: tmpHome });
+    // May still fail later on contract validators (no valid contracts here),
+    // but the floor must be satisfied.
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
+  it('downgrades to a warning when tier-floor-override is recorded', () => {
+    scaffoldSensitiveChange('overridden', 2, { 'tier-floor-override': 'auth handled by audited Auth0 SDK; no in-house crypto' });
+    const r = runCli(['gate', 'overridden'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).toMatch(/tier floor override/i);
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
+  it('respects .cdd/tier-policy.json enabled:false', () => {
+    scaffoldSensitiveChange('disabled-policy', 2);
+    writeFileSync(join(tmpRepo, '.cdd', 'tier-policy.json'), JSON.stringify({ enabled: false }), 'utf8');
+    const r = runCli(['gate', 'disabled-policy'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor/i);
+  });
+
+  it('catches a path-only sensitive change even when the request reads generic', () => {
+    // The gate scans the STAGED change (getStagedPaths), so the sensitive file
+    // must be in the index — mirroring a real pre-commit where the work is staged.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    runCli(['new', 'path-only'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'path-only');
+    writeValidChangeArtifacts(changeDir);
+
+    // Deliberately generic request — no sensitive words at all.
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\nRefactor the middleware layer for clarity and testability. No behavior change is intended; this is a purely structural cleanup of the request pipeline so the modules are smaller and easier to maintain over time.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and the touched file paths of the change.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'path-only', tier: 2 }), 'utf8');
+
+    // The actual work lands under a critical path — and is staged for commit.
+    mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+    spawnSync('git', ['add', 'src/auth/middleware.ts'], { cwd: tmpRepo, stdio: 'ignore' });
+
+    const r = runCli(['gate', 'path-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/tier floor violation/i);
+    expect(r.stderr + r.stdout).toMatch(/tier 0/i);
+  });
+
+  it('does NOT floor on an unrelated UNSTAGED sensitive edit (staged-scope only)', () => {
+    // The gate scans the staged change only. An unrelated auth edit left in the
+    // worktree but not staged must not trip the tier-0 floor and reject an
+    // otherwise low-risk staged commit.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    runCli(['new', 'staged-scope'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'staged-scope');
+    writeValidChangeArtifacts(changeDir);
+
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\nRefactor the middleware layer for clarity and testability. No behavior change is intended; this is a purely structural cleanup of the request pipeline so the modules are smaller and easier to maintain over time.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and the staged file paths of the change.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'staged-scope', tier: 2 }), 'utf8');
+
+    // Sensitive edit sits in the worktree UNSTAGED — it is not part of this commit.
+    mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+
+    const r = runCli(['gate', 'staged-scope'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
+  it('does NOT cross-contaminate the floor when a second change is staged in the same commit', () => {
+    // The pre-commit hook gates each staged change separately, but the staged
+    // path list is global. A critical path staged for change B must not raise
+    // unrelated low-risk change A's floor: when >1 change dir is staged, the
+    // path signal is dropped and only A's (generic) request text is scanned.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+
+    runCli(['new', 'low-risk-a'], { cwd: tmpRepo, home: tmpHome });
+    const aDir = join(tmpRepo, 'specs', 'changes', 'low-risk-a');
+    writeValidChangeArtifacts(aDir);
+    writeFileSync(join(aDir, 'change-request.md'),
+      `# Change Request\n\nRefactor the middleware layer for clarity and testability. No behavior change is intended; this is a purely structural cleanup of the request pipeline so the modules are smaller and easier to maintain over time.\n`, 'utf8');
+    writeFileSync(join(aDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and staged paths.\n`, 'utf8');
+    writeFileSync(join(aDir, 'tasks.yml'), buildTasksYaml({ changeId: 'low-risk-a', tier: 2 }), 'utf8');
+
+    // A second, unrelated change B is staged in the SAME commit, and its
+    // sensitive work lands under a critical path.
+    runCli(['new', 'other-b'], { cwd: tmpRepo, home: tmpHome });
+    mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+    spawnSync('git', ['add', 'specs/changes/low-risk-a', 'specs/changes/other-b', 'src/auth/middleware.ts'],
+      { cwd: tmpRepo, stdio: 'ignore' });
+
+    const r = runCli(['gate', 'low-risk-a'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
+  it.skipIf(!hasPython())('passes end-to-end when correctly tiered with valid contracts', () => {
+    scaffoldSensitiveChange('floor-pass', 0);
+    writeValidContracts(tmpRepo);
+    const r = runCli(['gate', 'floor-pass'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/gate passed/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// classify-check advisory
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cdd-kit classify-check', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-classcheck-repo-');
+    tmpHome = makeTempDir('cdd-classcheck-home-');
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  it('reports a tier-0 floor for a sensitive --text intent', () => {
+    const r = runCli(['classify-check', '--text', 'add stripe payment checkout', '--json'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).toBe(0);
+    const out = JSON.parse(r.stdout);
+    expect(out.floorTier).toBe(0);
+  });
+
+  it('reports no floor for a benign intent', () => {
+    const r = runCli(['classify-check', '--text', 'fix a typo in the footer', '--json'], { cwd: tmpRepo, home: tmpHome });
+    const out = JSON.parse(r.stdout);
+    expect(out.floorTier).toBeNull();
   });
 });

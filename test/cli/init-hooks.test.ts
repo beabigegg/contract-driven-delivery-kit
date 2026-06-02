@@ -45,9 +45,23 @@ describe('cdd-kit init --hooks', () => {
     expect(matches.length).toBe(1);
   });
 
-  it('3: init without --hooks does NOT create the hook', () => {
-    runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+  it('3: init --no-arm and without --hooks does NOT create any pre-commit hook', () => {
+    runCli(['init', '--local-only', '--no-arm'], { cwd: tmpRepo, home: tmpHome });
     expect(existsSync(join(tmpRepo, '.git', 'hooks', 'pre-commit'))).toBe(false);
+  });
+
+  it('3b: init arms the gate hook by default, but not the code-map hook', () => {
+    runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    const hookPath = join(tmpRepo, '.git', 'hooks', 'pre-commit');
+    expect(existsSync(hookPath)).toBe(true);
+    const hook = readFileSync(hookPath, 'utf8');
+    expect(hook).toMatch(/cdd-kit-managed-block-start/);      // gate block (armed)
+    expect(hook).not.toMatch(/cdd-kit-code-map-block-start/); // code-map hook still needs --hooks
+  });
+
+  it('3c: init --no-arm leaves the graph-first chokepoint dormant', () => {
+    runCli(['init', '--local-only', '--no-arm'], { cwd: tmpRepo, home: tmpHome });
+    expect(existsSync(join(tmpRepo, '.claude', 'settings.json'))).toBe(false);
   });
 
   it('4: install-hooks (gate hook) and init --hooks (code-map hook) coexist', () => {

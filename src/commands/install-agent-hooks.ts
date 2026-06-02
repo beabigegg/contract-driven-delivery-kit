@@ -7,6 +7,12 @@ export type GraphFirstMode = 'advisory' | 'strict';
 
 export interface InstallAgentHooksOptions {
   graphFirst?: GraphFirstMode;
+  /**
+   * When invoked from `cdd-kit init`, recoverable problems (missing asset,
+   * malformed settings.json) warn and return instead of hard-exiting — arming
+   * is best-effort during init.
+   */
+  fromInit?: boolean;
 }
 
 const HOOK_FILENAME = 'pre-tool-use-graph-first.sh';
@@ -17,8 +23,21 @@ const SETTINGS_REL_PATH = '.claude/settings.json';
 // Identifies our PreToolUse entry for idempotent replace.
 const HOOK_MARKER = 'pre-tool-use-graph-first';
 
+/** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
+interface HookHandler {
+  type?: string;
+  command?: string;
+  [k: string]: unknown;
+}
+
 interface HookEntry {
   matcher?: string;
+  /**
+   * Claude Code's schema nests handlers under `hooks`; the matcher group is a
+   * container, not a handler. (`command` is kept on the type only to detect and
+   * clean up entries written by older cdd-kit versions that wrote it here.)
+   */
+  hooks?: HookHandler[];
   command?: string;
   [k: string]: unknown;
 }
@@ -47,6 +66,10 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   // 1. Copy the hook script into the project at a stable path.
   const srcHook = join(ASSET.hooks, HOOK_FILENAME);
   if (!existsSync(srcHook)) {
+    if (opts.fromInit) {
+      log.warn(`graph-first hook not armed: bundled hook missing (${srcHook}). Reinstall the package, then run \`cdd-kit install-agent-hooks\`.`);
+      return;
+    }
     log.error(`bundled hook not found: ${srcHook}. Reinstall the cdd-kit package.`);
     process.exit(1);
   }
@@ -64,10 +87,18 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
     try {
       settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as SettingsShape;
     } catch (err) {
+      if (opts.fromInit) {
+        log.warn(`graph-first hook not armed: ${SETTINGS_REL_PATH} is not valid JSON (${(err as Error).message}). Fix it, then run \`cdd-kit install-agent-hooks\`.`);
+        return;
+      }
       log.error(`${SETTINGS_REL_PATH} is not valid JSON: ${(err as Error).message}. Fix or remove it, then re-run.`);
       process.exit(1);
     }
     if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) {
+      if (opts.fromInit) {
+        log.warn(`graph-first hook not armed: ${SETTINGS_REL_PATH} must be a JSON object. Fix it, then run \`cdd-kit install-agent-hooks\`.`);
+        return;
+      }
       log.error(`${SETTINGS_REL_PATH} must be a JSON object.`);
       process.exit(1);
     }
@@ -76,18 +107,39 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   settings.hooks = settings.hooks ?? {};
   const preTool: HookEntry[] = Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
 
-  // Drop any prior cdd-kit graph-first entry so re-running is idempotent and a
-  // mode switch (advisory <-> strict) cleanly replaces the old command.
-  const preserved = preTool.filter(
-    e => !(typeof e?.command === 'string' && e.command.includes(HOOK_MARKER)),
-  );
+  // Strip any prior cdd-kit graph-first handler so re-running is idempotent and
+  // a mode switch (advisory <-> strict) cleanly replaces it. Remove only OUR
+  // handler — matched by marker, in both the correct nested shape and the
+  // legacy top-level `command` shape older versions wrote — so an unrelated
+  // hook sharing the same matcher group is preserved rather than dropped.
+  const isOurHandler = (h: HookHandler): boolean =>
+    typeof h?.command === 'string' && h.command.includes(HOOK_MARKER);
+  const preserved: HookEntry[] = [];
+  for (const e of preTool) {
+    // Legacy top-level cdd entry (no nested handlers) — drop it entirely.
+    if (typeof e?.command === 'string' && e.command.includes(HOOK_MARKER) && !Array.isArray(e?.hooks)) {
+      continue;
+    }
+    if (Array.isArray(e?.hooks) && e.hooks.some(isOurHandler)) {
+      const others = e.hooks.filter(h => !isOurHandler(h));
+      // The group held nothing but our handler(s) — drop the whole group.
+      if (others.length === 0) continue;
+      // Mixed group — keep it minus our handler, preserving the rest.
+      preserved.push({ ...e, hooks: others });
+      continue;
+    }
+    preserved.push(e);
+  }
 
   // Use a POSIX-style relative command so it resolves from the project root
   // regardless of OS path separators; prefix the strict env inline.
   const invoke = `./${HOOK_REL_PATH}`;
   const command = mode === 'strict' ? `CDD_GRAPH_FIRST_STRICT=1 ${invoke}` : invoke;
 
-  preserved.push({ matcher: 'Read', command });
+  // Nest the command under `hooks` as a `{ type: 'command' }` handler — the
+  // shape Claude Code actually executes. Writing `command` on the matcher group
+  // directly leaves the chokepoint silently dormant.
+  preserved.push({ matcher: 'Read', hooks: [{ type: 'command', command }] });
   settings.hooks.PreToolUse = preserved;
 
   mkdirSync(join(cwd, '.claude'), { recursive: true });

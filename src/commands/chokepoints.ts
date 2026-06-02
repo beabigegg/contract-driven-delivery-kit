@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { spawnSync } from 'child_process';
 
 /**
  * Chokepoint liveness probe for `cdd-kit doctor`.
@@ -47,11 +48,18 @@ function probeGraphFirst(cwd: string): ChokepointStatus {
   if (existsSync(settingsPath)) {
     try {
       const settings = JSON.parse(safeRead(settingsPath)) as {
-        hooks?: { PreToolUse?: Array<{ command?: unknown }> };
+        hooks?: { PreToolUse?: Array<{ command?: unknown; hooks?: Array<{ command?: unknown }> }> };
       };
       const entries = settings.hooks?.PreToolUse;
       if (Array.isArray(entries)) {
-        live = entries.some(e => typeof e?.command === 'string' && e.command.includes(GRAPH_FIRST_MARKER));
+        // The chokepoint only fires when the command sits in the nested `hooks`
+        // handler array (the shape Claude Code executes). A legacy top-level
+        // `command` does NOT fire, so it must read as dormant — that nudges the
+        // user to re-run install-agent-hooks, which rewrites it correctly.
+        live = entries.some(e =>
+          Array.isArray(e?.hooks) &&
+          e.hooks.some(h => typeof h?.command === 'string' && h.command.includes(GRAPH_FIRST_MARKER)),
+        );
       }
     } catch {
       // Malformed settings.json — treat as dormant; install-agent-hooks reports
@@ -68,9 +76,25 @@ function probeGraphFirst(cwd: string): ChokepointStatus {
   };
 }
 
+/**
+ * Resolve the directory git uses for hooks, honoring `core.hooksPath`,
+ * worktrees, and submodules — mirroring how `cdd-kit install-hooks` arms the
+ * gate. Read-only: falls back to `.git/hooks` when git is unavailable rather
+ * than exiting, so probing a custom-hooksPath repo doesn't report a live gate
+ * as dormant. */
+function resolveHooksDir(cwd: string): string {
+  try {
+    const res = spawnSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd, encoding: 'utf8' });
+    if (res.status === 0 && res.stdout.trim()) return resolve(cwd, res.stdout.trim());
+  } catch {
+    // git unavailable — fall back to the plain-directory default below.
+  }
+  return join(cwd, '.git', 'hooks');
+}
+
 /** cdd-kit gate armed as a git pre-commit hook? */
 function probePreCommitGate(cwd: string): ChokepointStatus {
-  const hookPath = join(cwd, '.git', 'hooks', 'pre-commit');
+  const hookPath = join(resolveHooksDir(cwd), 'pre-commit');
   const live = existsSync(hookPath) && safeRead(hookPath).includes(PRECOMMIT_MARKER);
   return {
     id: 'pre-commit-gate',
