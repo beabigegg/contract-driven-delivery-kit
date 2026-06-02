@@ -1119,6 +1119,34 @@ describe('cdd-kit gate — tier floor', () => {
     expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
   });
 
+  it('does NOT cross-contaminate the floor when a second change is staged in the same commit', () => {
+    // The pre-commit hook gates each staged change separately, but the staged
+    // path list is global. A critical path staged for change B must not raise
+    // unrelated low-risk change A's floor: when >1 change dir is staged, the
+    // path signal is dropped and only A's (generic) request text is scanned.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+
+    runCli(['new', 'low-risk-a'], { cwd: tmpRepo, home: tmpHome });
+    const aDir = join(tmpRepo, 'specs', 'changes', 'low-risk-a');
+    writeValidChangeArtifacts(aDir);
+    writeFileSync(join(aDir, 'change-request.md'),
+      `# Change Request\n\nRefactor the middleware layer for clarity and testability. No behavior change is intended; this is a purely structural cleanup of the request pipeline so the modules are smaller and easier to maintain over time.\n`, 'utf8');
+    writeFileSync(join(aDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and staged paths.\n`, 'utf8');
+    writeFileSync(join(aDir, 'tasks.yml'), buildTasksYaml({ changeId: 'low-risk-a', tier: 2 }), 'utf8');
+
+    // A second, unrelated change B is staged in the SAME commit, and its
+    // sensitive work lands under a critical path.
+    runCli(['new', 'other-b'], { cwd: tmpRepo, home: tmpHome });
+    mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+    spawnSync('git', ['add', 'specs/changes/low-risk-a', 'specs/changes/other-b', 'src/auth/middleware.ts'],
+      { cwd: tmpRepo, stdio: 'ignore' });
+
+    const r = runCli(['gate', 'low-risk-a'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
   it.skipIf(!hasPython())('passes end-to-end when correctly tiered with valid contracts', () => {
     scaffoldSensitiveChange('floor-pass', 0);
     writeValidContracts(tmpRepo);

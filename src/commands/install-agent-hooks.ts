@@ -107,16 +107,29 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   settings.hooks = settings.hooks ?? {};
   const preTool: HookEntry[] = Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
 
-  // Drop any prior cdd-kit graph-first entry so re-running is idempotent and a
-  // mode switch (advisory <-> strict) cleanly replaces the old command. Match
-  // both the correct nested shape and the legacy top-level `command` shape
-  // older cdd-kit versions wrote, so an upgrade rewrites the broken entry.
-  const isOurEntry = (e: HookEntry): boolean => {
-    if (typeof e?.command === 'string' && e.command.includes(HOOK_MARKER)) return true;
-    return Array.isArray(e?.hooks) &&
-      e.hooks.some(h => typeof h?.command === 'string' && h.command.includes(HOOK_MARKER));
-  };
-  const preserved = preTool.filter(e => !isOurEntry(e));
+  // Strip any prior cdd-kit graph-first handler so re-running is idempotent and
+  // a mode switch (advisory <-> strict) cleanly replaces it. Remove only OUR
+  // handler — matched by marker, in both the correct nested shape and the
+  // legacy top-level `command` shape older versions wrote — so an unrelated
+  // hook sharing the same matcher group is preserved rather than dropped.
+  const isOurHandler = (h: HookHandler): boolean =>
+    typeof h?.command === 'string' && h.command.includes(HOOK_MARKER);
+  const preserved: HookEntry[] = [];
+  for (const e of preTool) {
+    // Legacy top-level cdd entry (no nested handlers) — drop it entirely.
+    if (typeof e?.command === 'string' && e.command.includes(HOOK_MARKER) && !Array.isArray(e?.hooks)) {
+      continue;
+    }
+    if (Array.isArray(e?.hooks) && e.hooks.some(isOurHandler)) {
+      const others = e.hooks.filter(h => !isOurHandler(h));
+      // The group held nothing but our handler(s) — drop the whole group.
+      if (others.length === 0) continue;
+      // Mixed group — keep it minus our handler, preserving the rest.
+      preserved.push({ ...e, hooks: others });
+      continue;
+    }
+    preserved.push(e);
+  }
 
   // Use a POSIX-style relative command so it resolves from the project root
   // regardless of OS path separators; prefix the strict env inline.

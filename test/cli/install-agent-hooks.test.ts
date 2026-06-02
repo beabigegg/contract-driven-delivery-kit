@@ -141,6 +141,38 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     expect(cmdOf(entries[0])).toBe('./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
+  it('preserves an unrelated handler sharing the cdd matcher group on reinstall', () => {
+    // A user merged another project hook into the same Read matcher group as
+    // ours. Re-running must strip only OUR handler, not drop the whole group.
+    mkdirSync(join(repo, '.claude'), { recursive: true });
+    writeFileSync(
+      join(repo, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [{
+            matcher: 'Read',
+            hooks: [
+              { type: 'command', command: './.claude/hooks/pre-tool-use-graph-first.sh' },
+              { type: 'command', command: 'echo sibling' },
+            ],
+          }],
+        },
+      }, null, 2),
+      'utf8',
+    );
+
+    const r = runCli(['install-agent-hooks', '--graph-first', 'strict'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const allCmds = preTool().flatMap(e => (e.hooks ?? []).map(h => h.command));
+    // Unrelated handler survives.
+    expect(allCmds).toContain('echo sibling');
+    // Ours is present exactly once and refreshed to strict mode.
+    const ours = allCmds.filter(c => c?.includes('pre-tool-use-graph-first'));
+    expect(ours).toHaveLength(1);
+    expect(ours[0]).toBe('CDD_GRAPH_FIRST_STRICT=1 ./.claude/hooks/pre-tool-use-graph-first.sh');
+  });
+
   it('rejects an invalid mode', () => {
     const r = runCli(['install-agent-hooks', '--graph-first', 'bogus'], { cwd: repo, home });
     expect(r.status).not.toBe(0);

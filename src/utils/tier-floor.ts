@@ -54,7 +54,9 @@ export const DEFAULT_TIER_POLICY: TierPolicy = {
         'authentication', 'authorization', 'authenticate', 'authorize',
         'authenticated', 'authorized',
         'login', 'logout', 'sign-?in', 'sign-?up',
-        'passwords?', 'passwd', 'credentials?', 'secrets?', 'api[- ]?keys?', 'tokens?',
+        'passwords?', 'passwd', 'credentials?', 'secrets?', 'api[- ]?keys?',
+        // Qualified so security tokens trip the floor but design/CSS "tokens" do not.
+        '(access|api|auth|session|bearer|refresh|csrf|id|reset)[- ]?tokens?',
         'jwt', 'oauth', 'oidc', 'saml', 'sessions?', 'cookies?',
         'payments?', 'billing', 'invoices?', 'charges?', 'refunds?', 'checkout', 'stripe', 'paypal',
         'migrations?', 'migrate', 'alter table', 'drop table', 'drop column', 'schema change',

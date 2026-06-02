@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import picomatch from 'picomatch';
 import { log } from '../utils/logger.js';
 import { codeMap, slugifySurface, type CodeMapOptions } from './code-map.js';
-import { loadCodeMapConfig } from '../code-map/config.js';
+import { loadCodeMapConfig, CONFIG_REL_PATH } from '../code-map/config.js';
 import { sidecarPathFor } from '../code-map/index-reader.js';
 import { graphPathFor } from '../code-graph/reader.js';
 
@@ -87,6 +87,23 @@ export function generatedArtifactSet(outRel: string, cwd: string = process.cwd()
   ]);
 }
 
+/**
+ * Predicate that decides whether a watch event's path is irrelevant to the map
+ * and can be skipped before triggering a rebuild. Mirrors walkRepo's exclude
+ * semantics (file path + `dir/**` form, dot:true) so churn under node_modules /
+ * dist / .git / .next / coverage never forces a full rescan — but the code-map
+ * config file is ALWAYS allowed through, since codeMap() reloads it each build
+ * even though it lives under the excluded `.cdd/**`. Exported for testing.
+ */
+export function makeWatchExcludeFilter(
+  excludes: string[],
+  configRel: string = CONFIG_REL_PATH,
+): (rel: string) => boolean {
+  if (excludes.length === 0) return () => false;
+  const match = picomatch(excludes, { dot: true });
+  return (rel: string) => rel !== configRel && (match(rel) || match(`${rel}/**`));
+}
+
 export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   const debounceMs = opts.debounceMs ?? 500;
   const pollMs = opts.pollMs ?? 2000;
@@ -112,13 +129,7 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   let isExcluded: (rel: string) => boolean = () => false;
   try {
     const cfg = loadCodeMapConfig(root);
-    const excludes = [...cfg.exclude, ...(opts.exclude ?? [])];
-    if (excludes.length > 0) {
-      const match = picomatch(excludes, { dot: true });
-      // Match the file itself and the directory-glob form (`dir/**`), mirroring
-      // walkRepo's dir fast-path so a directory event is skipped too.
-      isExcluded = (rel: string) => match(rel) || match(`${rel}/**`);
-    }
+    isExcluded = makeWatchExcludeFilter([...cfg.exclude, ...(opts.exclude ?? [])]);
   } catch {
     // Config error surfaces on the actual rebuild; keep the watcher permissive.
   }

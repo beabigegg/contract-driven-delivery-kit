@@ -304,7 +304,20 @@ function enforceTierFloor(changeDir: string, errors: string[], warnings: string[
   // unstaged auth/ edit can't trip the floor and reject a low-risk commit.
   const requestPath = join(changeDir, 'change-request.md');
   const requestText = existsSync(requestPath) ? readFileSync(requestPath, 'utf8') : '';
-  const touched = getStagedPaths(cwd);
+  const staged = getStagedPaths(cwd);
+
+  // The pre-commit hook gates each staged change separately, but the staged
+  // path list is global to the commit. When a single commit stages more than
+  // one change directory, a source path can't be attributed to a specific
+  // change — including another change's staged auth/ path would wrongly raise
+  // THIS change's floor. In that case drop the path signal and fall back to the
+  // request text alone; single-change commits keep the full staged-path floor.
+  const stagedChangeIds = new Set(
+    staged
+      .map(p => /^specs\/changes\/([^/]+)\//.exec(p)?.[1])
+      .filter((id): id is string => id !== undefined),
+  );
+  const touched = stagedChangeIds.size > 1 ? [] : staged;
 
   const floor = computeTierFloor(requestText, policy, { paths: touched });
   if (floor.floorTier === null) return;

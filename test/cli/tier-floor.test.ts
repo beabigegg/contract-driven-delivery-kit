@@ -72,6 +72,20 @@ describe('computeTierFloor', () => {
     }).floorTier).toBe(0);
   });
 
+  it('treats SECURITY tokens as tier 0 but not design/CSS tokens', () => {
+    // Qualified token contexts trip the floor…
+    expect(computeTierFloor('rotate the access token nightly').floorTier).toBe(0);
+    expect(computeTierFloor('refresh the bearer token on 401').floorTier).toBe(0);
+    expect(computeTierFloor('cleanup', DEFAULT_TIER_POLICY, {
+      paths: ['src/services/access-token.ts'],
+    }).floorTier).toBe(0);
+    // …but plain design-system "tokens" must NOT, in prose or paths.
+    expect(computeTierFloor('update the design tokens for the new theme').floorTier).toBeNull();
+    expect(computeTierFloor('restyle the button', DEFAULT_TIER_POLICY, {
+      paths: ['src/theme/tokens.ts'],
+    }).floorTier).toBeNull();
+  });
+
   it('respects a disabled policy', () => {
     const r = computeTierFloor('Add JWT auth', { enabled: false, rules: [] });
     expect(r.floorTier).toBeNull();

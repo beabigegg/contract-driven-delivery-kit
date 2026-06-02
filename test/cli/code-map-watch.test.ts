@@ -3,7 +3,8 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { makeTempDir, cleanupDir } from '../helpers.js';
 import { resolve } from 'path';
-import { codeMapWatch, generatedArtifactSet } from '../../src/commands/code-map-watch.js';
+import { codeMapWatch, generatedArtifactSet, makeWatchExcludeFilter } from '../../src/commands/code-map-watch.js';
+import { DEFAULT_EXCLUDE } from '../../src/code-map/include-exclude.js';
 
 describe('generatedArtifactSet (watch self-write filter)', () => {
   const cwd = '/repo';
@@ -26,6 +27,37 @@ describe('generatedArtifactSet (watch self-write filter)', () => {
     const set = generatedArtifactSet('.cdd/code-map.yml', cwd);
     expect(set.has(resolve(cwd, '.cdd/code-map-config.yml'))).toBe(false);
     expect(set.has(resolve(cwd, '.cdd/tier-policy.json'))).toBe(false);
+  });
+});
+
+describe('makeWatchExcludeFilter (skip rebuilds for irrelevant events)', () => {
+  const isExcluded = makeWatchExcludeFilter([...DEFAULT_EXCLUDE]);
+
+  it('skips churn under ignored trees (no needless rescan)', () => {
+    expect(isExcluded('node_modules/react/index.js')).toBe(true);
+    expect(isExcluded('dist/bundle.js')).toBe(true);
+    expect(isExcluded('.git/objects/ab/cd')).toBe(true);
+    expect(isExcluded('.next/cache/x')).toBe(true);
+    expect(isExcluded('coverage/lcov.info')).toBe(true);
+    expect(isExcluded('node_modules')).toBe(true); // directory event form
+  });
+
+  it('does NOT skip real source edits', () => {
+    expect(isExcluded('src/index.ts')).toBe(false);
+    expect(isExcluded('src/auth/middleware.ts')).toBe(false);
+  });
+
+  it('ALWAYS lets the code-map config through (codeMap reloads it each build)', () => {
+    // It lives under the excluded `.cdd/**`, but editing include/exclude rules
+    // must still trigger a rebuild or the map goes stale.
+    expect(isExcluded('.cdd/code-map-config.yml')).toBe(false);
+    // Other .cdd files (not reloaded by the scan) stay suppressed.
+    expect(isExcluded('.cdd/tier-policy.json')).toBe(true);
+  });
+
+  it('returns an always-false filter when there are no excludes', () => {
+    const none = makeWatchExcludeFilter([]);
+    expect(none('node_modules/x.js')).toBe(false);
   });
 });
 
