@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+## [2.2.0] - 2026-06-02
+
 Make enforcement live by default, add a mechanical risk-tier safety net under the
 AI classifier, and give code indexing an opt-in background mode — the three gaps
 that matter most for a fully automated, no-human-reviewer workflow.
@@ -109,6 +113,33 @@ that matter most for a fully automated, no-human-reviewer workflow.
 
 ### Fixed
 
+- **graph-first hook now installs in the shape Claude Code executes.**
+  `install-agent-hooks` wrote the command directly on the `PreToolUse` matcher
+  group; Claude Code requires it nested under an inner `hooks: [{ type:
+  "command", … }]` array, so the chokepoint was silently dormant even though
+  install/init reported it armed. Re-running upgrades a legacy entry in place and
+  preserves unrelated handlers that share the matcher group.
+- **tier floor scans the right path scope.** `cdd-kit gate` now scans the
+  **staged** change (rename-aware, both sides) instead of the whole worktree, so
+  an unrelated unstaged `auth/` edit can no longer trip the floor and reject a
+  low-risk commit; when a single commit stages more than one change directory the
+  path signal is dropped (source paths can't be attributed to one change) and
+  only the request text sets the floor. `cdd-kit classify-check` keeps
+  whole-worktree scope (its in-progress change is not yet committed).
+- **tier-floor pattern accuracy.** Critical-surface patterns now match plural
+  directories (`payments/`, `migrations/`); the `token` pattern is qualified to
+  security contexts (`access`/`api`/`auth`/`session`/`bearer`/`refresh`/`csrf`/
+  `id`/`reset`) so frontend "design tokens" / `theme/tokens.ts` no longer trip
+  the secrets floor. The gate / `classify-check` `matched:` line now reports the
+  actual matched text (e.g. `session token`) instead of the raw regex pattern.
+- **`cdd-kit doctor` detects a gate armed under a custom `core.hooksPath`** (or a
+  worktree/submodule), resolving the hooks dir via git instead of probing only
+  `.git/hooks/pre-commit` — no more reporting a live gate as dormant.
+- **`cdd-kit code-map --watch` skips churn under ignored trees** (`node_modules`,
+  `dist`, `.git`, `.next`, coverage) before rebuilding, and adds an `error`
+  listener so fs-watch runtime errors (ENOSPC, permissions) degrade to polling
+  instead of crashing the watch. Edits to `.cdd/code-map-config.yml` still
+  trigger a rebuild even though it lives under the ignored `.cdd/` tree.
 - **`cdd-kit gate` no longer passes changes whose artifacts are still unfilled
   scaffolds.** The stub check counted "meaningful chars", but a template's own
   instructional prose (900+ chars) cleared the threshold while every field was

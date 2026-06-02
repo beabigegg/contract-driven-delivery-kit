@@ -35,7 +35,7 @@ export interface TierFloorMatch {
   floorTier: number | null;
   /** Human-readable label of the rule that set the floor. */
   label: string | null;
-  /** Distinct pattern fragments that matched, for the gate message. */
+  /** Distinct matched text fragments (lower-cased), for the gate message. */
   matched: string[];
 }
 
@@ -163,9 +163,14 @@ export function computeTierFloor(
       let ruleHit = false;
       for (const pattern of rule.patterns) {
         const re = patternToRegExp(pattern);
-        if (re && re.test(haystack)) {
+        const hit = re ? re.exec(haystack) : null;
+        if (hit) {
           ruleHit = true;
-          matched.add(pattern.replace(/[\\?\[\]()]/g, '').replace(/\s+/g, ' ').trim());
+          // Report the ACTUAL matched text (e.g. "session token", "auth",
+          // "api key"), not the raw regex pattern. Qualified alternations like
+          // `(access|api|…)[- ]?tokens?` would otherwise print as unreadable
+          // noise in the gate / classify-check "matched:" line.
+          matched.add(hit[0].toLowerCase().replace(/\s+/g, ' ').trim());
         }
       }
       if (ruleHit && (floorTier === null || rule.maxTier < floorTier)) {
