@@ -49,12 +49,23 @@ describe('computeTierFloor', () => {
     expect(computeTierFloor('credit the author in the footer').floorTier).toBeNull();
   });
 
-  it('reports the matched fragments for the gate message', () => {
-    const r = computeTierFloor('Add OAuth login and refund handling');
+  it('reports the actual matched TEXT (clean + lower-cased), not the raw pattern', () => {
+    // Mixed-case input proves the documented lower-casing contract.
+    const r = computeTierFloor('Add OAuth LOGIN and Refund handling');
     expect(r.matched).toContain('oauth');
     expect(r.matched).toContain('login');
-    // The label is the (regex-stripped) pattern; the noun patterns are pluralized.
-    expect(r.matched).toContain('refunds');
+    // The actual word in the text is "refund" (pattern is `refunds?`).
+    expect(r.matched).toContain('refund');
+    // Every reported fragment is lower-cased.
+    expect(r.matched.every(m => m === m.toLowerCase())).toBe(true);
+  });
+
+  it('renders a clean label for the qualified token alternation', () => {
+    // Regression: the qualified `(access|api|…)[- ]?tokens?` pattern must NOT
+    // leak its alternation into the user-facing matched list.
+    const r = computeTierFloor('rotate the session token on each refresh');
+    expect(r.matched).toContain('session token');
+    expect(r.matched.some(m => m.includes('|'))).toBe(false);
   });
 
   it('floors plural critical-surface directories from touched paths', () => {

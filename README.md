@@ -351,6 +351,29 @@ place. Then run `cdd-kit migrate --all` so existing active change directories
 receive `implementation-plan.md`; fill required `design.md` with
 `spec-architect` before resuming the planner or implementation agents.
 
+#### Upgrading to 2.2.0
+
+2.2.0 **arms enforcement chokepoints by default on a fresh `cdd-kit init`**, adds
+the mechanical **tier floor**, `cdd-kit classify-check`, and `cdd-kit code-map
+--watch`. A repo first set up with an older version keeps its chokepoints
+*dormant* after a plain `npm`/`refresh` update — `cdd-kit doctor` will show them
+as such. To bring an existing repo up to the 2.2.0 enforcement posture:
+
+```bash
+npm install -g contract-driven-delivery   # get 2.2.0
+cdd-kit refresh --yes                      # sync agents/skills/templates/hooks/code-map
+cdd-kit install-hooks                      # arm the pre-commit gate
+cdd-kit install-agent-hooks --graph-first advisory   # arm the graph-first hook (or: strict)
+cdd-kit doctor                             # confirm both chokepoints report "live"
+```
+
+The tier floor needs **no policy file** — built-in defaults apply when
+`.cdd/tier-policy.json` is absent, so existing repos are protected without a
+re-init. To customize or disable it, scaffold the policy with `cdd-kit upgrade
+--yes` (writes an editable `.cdd/tier-policy.json`) and set rules or
+`"enabled": false`. Bypass a single change with `tier-floor-override:
+"<reason>"` in its `tasks.yml` frontmatter (recorded as an audit warning).
+
 If you do not want template overwrites, run the narrower path:
 
 ```bash
@@ -451,7 +474,7 @@ Checks:
 - All required artifacts exist (`change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content and is not a stub.
 - `change-classification.md` contains a tier or risk marker.
-- **Mechanical risk-tier floor.** `change-request.md` is scanned for sensitive surfaces (auth, payments, migrations, concurrency, secrets, …) — and the change's git-touched paths are scanned against the critical (tier-0) rules only, so a generic request whose staged work lives under `auth/` or `payments/` is still caught. The gate fails when the declared tier is weaker than the matched floor — the deterministic safety net under the AI classifier. Bypass one change with `tier-floor-override: "<reason>"` in `tasks.yml` frontmatter (becomes an audit warning); tune or disable in `.cdd/tier-policy.json`.
+- **Mechanical risk-tier floor.** `change-request.md` is scanned for sensitive surfaces (auth, payments, migrations, concurrency, secrets, …) — and the change's git paths are scanned against the critical (tier-0) rules only, so a generic request whose work lives under `auth/` or `payments/` is still caught. The gate scans the **staged** change (so an unrelated unstaged edit can't trip it; rename-aware on both sides; the path signal is dropped when a commit stages multiple change dirs), while `classify-check` scans the whole worktree. The gate fails when the declared tier is weaker than the matched floor — the deterministic safety net under the AI classifier. Bypass one change with `tier-floor-override: "<reason>"` in `tasks.yml` frontmatter (becomes an audit warning); tune or disable in `.cdd/tier-policy.json`.
 - Atomic `depends-on` upstream changes are completed or archived before dependent work gates.
 - All contract validators pass.
 
