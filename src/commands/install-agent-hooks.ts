@@ -7,6 +7,12 @@ export type GraphFirstMode = 'advisory' | 'strict';
 
 export interface InstallAgentHooksOptions {
   graphFirst?: GraphFirstMode;
+  /**
+   * When invoked from `cdd-kit init`, recoverable problems (missing asset,
+   * malformed settings.json) warn and return instead of hard-exiting — arming
+   * is best-effort during init.
+   */
+  fromInit?: boolean;
 }
 
 const HOOK_FILENAME = 'pre-tool-use-graph-first.sh';
@@ -47,6 +53,10 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   // 1. Copy the hook script into the project at a stable path.
   const srcHook = join(ASSET.hooks, HOOK_FILENAME);
   if (!existsSync(srcHook)) {
+    if (opts.fromInit) {
+      log.warn(`graph-first hook not armed: bundled hook missing (${srcHook}). Reinstall the package, then run \`cdd-kit install-agent-hooks\`.`);
+      return;
+    }
     log.error(`bundled hook not found: ${srcHook}. Reinstall the cdd-kit package.`);
     process.exit(1);
   }
@@ -64,10 +74,18 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
     try {
       settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as SettingsShape;
     } catch (err) {
+      if (opts.fromInit) {
+        log.warn(`graph-first hook not armed: ${SETTINGS_REL_PATH} is not valid JSON (${(err as Error).message}). Fix it, then run \`cdd-kit install-agent-hooks\`.`);
+        return;
+      }
       log.error(`${SETTINGS_REL_PATH} is not valid JSON: ${(err as Error).message}. Fix or remove it, then re-run.`);
       process.exit(1);
     }
     if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) {
+      if (opts.fromInit) {
+        log.warn(`graph-first hook not armed: ${SETTINGS_REL_PATH} must be a JSON object. Fix it, then run \`cdd-kit install-agent-hooks\`.`);
+        return;
+      }
       log.error(`${SETTINGS_REL_PATH} must be a JSON object.`);
       process.exit(1);
     }

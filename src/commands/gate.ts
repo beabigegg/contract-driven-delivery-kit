@@ -6,6 +6,7 @@ import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
+import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
@@ -53,6 +54,7 @@ interface TasksFile {
   'context-governance'?: 'v1';
   'archive-tasks'?: string[];
   'depends-on'?: string[];
+  'tier-floor-override'?: string;
   tasks: TaskItem[];
 }
 
@@ -276,6 +278,63 @@ function enforceTierConsistency(changeDir: string, errors: string[], warnings: s
   }
 }
 
+/**
+ * Mechanical risk-tier floor — the deterministic safety net under the AI
+ * classifier. Scans the change's stated intent (change-request.md, plus the
+ * classification body for extra signal) for sensitive surfaces and fails the
+ * gate when the declared tier is weaker (numerically higher) than the matched
+ * floor. A change may bypass with `tier-floor-override: "<reason>"` in
+ * tasks.yml frontmatter, which downgrades the error to an audit warning.
+ */
+function enforceTierFloor(changeDir: string, errors: string[], warnings: string[]): void {
+  const cwd = process.cwd();
+  const policy = loadTierPolicy(cwd);
+  if (!policy.enabled) return;
+
+  // Intent is scanned from the user's own words (change-request.md), not the
+  // classification we are checking against — scanning the classification would
+  // let "this is NOT an auth change" trip the net, and would make the floor
+  // circular. The request is the ground truth of what was asked for.
+  const requestPath = join(changeDir, 'change-request.md');
+  if (!existsSync(requestPath)) return;
+
+  const floor = computeTierFloor(readFileSync(requestPath, 'utf8'), policy);
+  if (floor.floorTier === null) return;
+
+  const declared = resolveTier(changeDir).tier;
+  // A missing tier is already reported elsewhere; don't double-report. But do
+  // leave a breadcrumb so the operator knows the floor that will apply.
+  if (declared === null) {
+    warnings.push(
+      `tier floor: ${floor.label} detected (matched: ${floor.matched.join(', ')}); classification must declare tier ${floor.floorTier} or stricter.`,
+    );
+    return;
+  }
+
+  if (declared <= floor.floorTier) return; // declared is at least as strict — OK
+
+  // Declared tier is weaker than the floor requires.
+  const overrideRaw = (() => {
+    const { data } = loadYamlFile<TasksFile>(join(changeDir, 'tasks.yml'));
+    const o = data?.['tier-floor-override'];
+    return typeof o === 'string' ? o.trim() : '';
+  })();
+
+  const detail =
+    `${floor.label} detected (matched: ${floor.matched.join(', ')}) requires tier ${floor.floorTier} or stricter, ` +
+    `but classification declared tier ${declared}.`;
+
+  if (overrideRaw) {
+    warnings.push(`tier floor override: ${detail} Bypassed by tier-floor-override: "${overrideRaw}".`);
+  } else {
+    errors.push(
+      `tier floor violation: ${detail} Re-classify to tier ${floor.floorTier} (or stricter), ` +
+      `or record \`tier-floor-override: "<reason>"\` in tasks.yml frontmatter to bypass with an audit trail. ` +
+      `Disable entirely in .cdd/tier-policy.json.`,
+    );
+  }
+}
+
 function isArchivedChange(cwd: string, changeId: string): boolean {
   const archiveRoot = join(cwd, 'specs', 'archive');
   if (!existsSync(archiveRoot)) return false;
@@ -450,6 +509,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   }
 
   enforceTierConsistency(changeDir, errors, warnings);
+  enforceTierFloor(changeDir, errors, warnings);
 
   for (const w of warnings) {
     log.warn(`  ${w}`);

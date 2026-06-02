@@ -1,0 +1,31 @@
+{
+  "_README": "Mechanical risk-tier floor. A classifier (or any agent) proposes a tier in change-classification.md / tasks.yml; this policy is the safety net that prevents a high-risk surface from being silently under-classified. `cdd-kit gate` and `cdd-kit classify-check` scan change-request.md (and, when available, the change's touched paths) for these patterns and require the declared tier to be at least as strict as the matched floor. Lower tier number = stricter. Set enabled:false to disable, or record `tier-floor-override: \"<reason>\"` in a change's tasks.yml frontmatter to bypass for one change with an audit trail.",
+  "enabled": true,
+  "schema-version": "0.1.0",
+  "rules": [
+    {
+      "maxTier": 0,
+      "label": "critical surface (auth / payments / data migration / concurrency / secrets)",
+      "patterns": [
+        "auth", "authn", "authz", "login", "logout", "sign-?in", "sign-?up",
+        "password", "passwd", "credential", "secret", "api[- ]?key", "token",
+        "jwt", "oauth", "oidc", "saml", "session", "cookie",
+        "payment", "billing", "invoice", "charge", "refund", "checkout", "stripe", "paypal",
+        "migration", "migrate", "alter table", "drop table", "drop column", "schema change",
+        "concurrency", "race condition", "mutex", "deadlock", "transaction isolation",
+        "encrypt", "decrypt", "crypto", "hashing", "rbac", "permission", "access control",
+        "privilege", "pii", "gdpr", "hipaa", "rate limit", "csrf", "xss", "sql injection"
+      ]
+    },
+    {
+      "maxTier": 2,
+      "label": "behavioral surface (api / data shape / queue / cache / external integration)",
+      "patterns": [
+        "endpoint", "route", "api contract", "request schema", "response schema",
+        "pagination", "queue", "worker", "cron", "scheduler", "webhook",
+        "cache", "redis", "database", "query", "index", "external service",
+        "third[- ]?party", "integration", "data shape", "nullable", "breaking change"
+      ]
+    }
+  ]
+}

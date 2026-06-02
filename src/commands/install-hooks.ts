@@ -6,11 +6,23 @@ import { log } from '../utils/logger.js';
 const START_MARKER = '# cdd-kit-managed-block-start';
 const END_MARKER   = '# cdd-kit-managed-block-end';
 
-export async function installHooks(): Promise<void> {
+export interface InstallHooksOptions {
+  /**
+   * When invoked from `cdd-kit init`, a missing .git/ is a soft skip (warn and
+   * return) instead of a hard exit — arming is best-effort during init.
+   */
+  fromInit?: boolean;
+}
+
+export async function installHooks(opts: InstallHooksOptions = {}): Promise<void> {
   const cwd = process.cwd();
   const gitDir = join(cwd, '.git');
 
   if (!existsSync(gitDir)) {
+    if (opts.fromInit) {
+      log.warn('pre-commit gate not armed: not a git repository yet. Run `cdd-kit install-hooks` after `git init`.');
+      return;
+    }
     log.error('not a git repository (no .git/ found in cwd)');
     process.exit(1);
   }

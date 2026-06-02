@@ -13,6 +13,13 @@ export interface InitOptions {
   force: boolean;
   provider: 'claude' | 'codex' | 'both';
   hooks?: boolean;
+  /**
+   * Arm enforcement chokepoints during local scaffold (default true). When on,
+   * init wires the graph-first PreToolUse hook (Claude provider) and the
+   * pre-commit gate so a fresh repo enforces the workflow instead of shipping
+   * the machinery dormant. `--no-arm` opts out.
+   */
+  arm?: boolean;
 }
 
 /**
@@ -340,6 +347,23 @@ export async function init(opts: InitOptions): Promise<void> {
       if (!opts.globalOnly && opts.hooks) {
         const { installCodeMapHook } = await import('./code-map-hook.js');
         await installCodeMapHook(cwd);
+      }
+
+      // ── Arm enforcement chokepoints (default on) ──────────────────────────
+      // The kit accretes opt-in enforcement that ships dormant; in a fully
+      // automated workflow with no human reviewer, dormant enforcement means
+      // the contracts/docs only *look* like they prevent drift. Arming here
+      // makes the mechanisms live out of the box. Best-effort: a missing .git
+      // or unusual settings.json downgrades to a warning, never a failed init.
+      if (!opts.globalOnly && opts.arm !== false) {
+        log.info('Arming enforcement chokepoints…');
+        if (installClaude) {
+          const { installAgentHooks } = await import('./install-agent-hooks.js');
+          await installAgentHooks({ graphFirst: 'advisory', fromInit: true });
+        }
+        const { installHooks } = await import('./install-hooks.js');
+        await installHooks({ fromInit: true });
+        log.info('Chokepoints armed. Run `cdd-kit doctor` to see live/dormant status; use `--no-arm` next time to skip.');
       }
 
       log.blank();

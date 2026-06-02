@@ -269,7 +269,17 @@ cdd-kit init --local-only     # only scaffold project files
 cdd-kit init --provider codex # scaffold Codex-oriented project guidance
 cdd-kit init --provider both  # scaffold Claude Code + Codex guidance
 cdd-kit init --force          # overwrite existing project files
+cdd-kit init --no-arm         # scaffold without arming enforcement chokepoints
 ```
+
+By default `init` **arms** the enforcement chokepoints so a fresh repo enforces
+the workflow instead of carrying it dormant: the graph-first PreToolUse hook
+(Claude provider, advisory) and the pre-commit gate hook are wired in place. This
+matters most in a fully automated, no-human-reviewer workflow — dormant
+enforcement means the contracts only *look* like they prevent drift. Arming is
+best-effort (a missing `.git` becomes a warning, never a failed init); pass
+`--no-arm` to skip it, and `cdd-kit doctor` reports the live/dormant status of
+each chokepoint.
 
 Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`, `AGENTS.md`, and/or `CODEX.md`), `hooks/`
 
@@ -441,6 +451,7 @@ Checks:
 - All required artifacts exist (`change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content and is not a stub.
 - `change-classification.md` contains a tier or risk marker.
+- **Mechanical risk-tier floor.** `change-request.md` is scanned for sensitive surfaces (auth, payments, migrations, concurrency, secrets, …) and the gate fails when the declared tier is weaker than the matched floor — the deterministic safety net under the AI classifier. Bypass one change with `tier-floor-override: "<reason>"` in `tasks.yml` frontmatter (becomes an audit warning); tune or disable in `.cdd/tier-policy.json`.
 - Atomic `depends-on` upstream changes are completed or archived before dependent work gates.
 - All contract validators pass.
 
@@ -457,6 +468,25 @@ Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks
 ??   change-classification.md: appears to be a stub (< 200 meaningful chars)
 ??   1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
 ```
+
+---
+
+### `cdd-kit classify-check`
+
+Advisory probe that prints the **mechanical risk-tier floor** for a change
+*before* classification, so the classifier can be steered up front instead of
+only being caught later by `cdd-kit gate`. The blocking enforcement lives in the
+gate; this command never fails (exit 0).
+
+```bash
+cdd-kit classify-check add-jwt-auth                 # scan the change's change-request.md
+cdd-kit classify-check --text "add stripe checkout" # scan inline intent
+cdd-kit classify-check add-jwt-auth --json          # machine-readable
+```
+
+It reads the same ground-truth source the gate enforces against
+(`change-request.md`), reports the strictest matched tier and the matched
+patterns, and points at `.cdd/tier-policy.json` for tuning.
 
 ---
 
@@ -757,7 +787,20 @@ cdd-kit code-map                          # whole repo -> .cdd/code-map.yml
 cdd-kit code-map --check                  # exit 1 if regenerating would change the map
 cdd-kit code-map --surface packages/web   # monorepo: scope + auto-name the map
 cdd-kit code-map --workers                # parallelize JS/TS/Vue scanning (default off)
+cdd-kit code-map --watch                  # background: keep the map fresh as files change
+cdd-kit code-map --watch --debounce 800   # coalesce change bursts within 800ms
 ```
+
+Indexing is **trigger-based by default** — the map regenerates when a command
+needs it (gate, `index query --refresh`, `doctor --fix`, the pre-commit code-map
+hook). That is the right default for ephemeral CI containers and one-shot agent
+runs. `--watch` is the opt-in **background** mode for long-lived co-editing
+sessions: a debounced recursive watcher keeps the map fresh so queries stay cheap
+and current, with a freshness-polling fallback where recursive `fs.watch` is
+unavailable. See
+[docs/adr/0003-code-intelligence-indexing-strategy.md](docs/adr/0003-code-intelligence-indexing-strategy.md)
+for why the kit keeps native AST scanners instead of an LSP daemon, and the
+incremental-rebuild roadmap.
 
 `--workers [n]` (default off; `n` defaults to CPU count − 1, capped at 16)
 parallelizes the synchronous JS/TS/Vue parsing across child processes for large

@@ -1000,3 +1000,112 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/dependency dep-api/i);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mechanical tier-floor safety net
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cdd-kit gate — tier floor', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-gate-floor-repo-');
+    tmpHome = makeTempDir('cdd-gate-floor-home-');
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    if (r.status !== 0) throw new Error(`Setup init failed: ${r.stderr}`);
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  /** A change whose request describes a critical surface, tiered at `tier`. */
+  function scaffoldSensitiveChange(changeId: string, tier: number, extra?: Record<string, unknown>): string {
+    runCli(['new', changeId], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', changeId);
+    writeValidChangeArtifacts(changeDir);
+    // Critical intent in the user's own words.
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\nAdd JWT authentication and OAuth login to the payments checkout API. ` +
+      `This touches password handling and session tokens, so it is security-sensitive.\n`, 'utf8');
+    // Structured tier so resolveTier reads it from frontmatter.
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- ${tier}\n\n` +
+      `This is a meaningful classification body describing the affected surface, the risk profile, the blast radius, and the rollback story in enough detail to clear the stub threshold so the gate proceeds far enough to evaluate the mechanical tier floor against the change request. ` +
+      `The change is scoped to the authentication and checkout surfaces and is reversible by feature flag.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId, tier, extra }), 'utf8');
+    return changeDir;
+  }
+
+  it('fails when a critical request is under-classified as tier 2', () => {
+    scaffoldSensitiveChange('under-tiered', 2);
+    const r = runCli(['gate', 'under-tiered'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/tier floor violation/i);
+    expect(r.stderr + r.stdout).toMatch(/tier 0/i);
+  });
+
+  it('does not raise a floor violation when the request is correctly tier 0', () => {
+    scaffoldSensitiveChange('correctly-tiered', 0);
+    const r = runCli(['gate', 'correctly-tiered'], { cwd: tmpRepo, home: tmpHome });
+    // May still fail later on contract validators (no valid contracts here),
+    // but the floor must be satisfied.
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
+  it('downgrades to a warning when tier-floor-override is recorded', () => {
+    scaffoldSensitiveChange('overridden', 2, { 'tier-floor-override': 'auth handled by audited Auth0 SDK; no in-house crypto' });
+    const r = runCli(['gate', 'overridden'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).toMatch(/tier floor override/i);
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
+  });
+
+  it('respects .cdd/tier-policy.json enabled:false', () => {
+    scaffoldSensitiveChange('disabled-policy', 2);
+    writeFileSync(join(tmpRepo, '.cdd', 'tier-policy.json'), JSON.stringify({ enabled: false }), 'utf8');
+    const r = runCli(['gate', 'disabled-policy'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/tier floor/i);
+  });
+
+  it.skipIf(!hasPython())('passes end-to-end when correctly tiered with valid contracts', () => {
+    scaffoldSensitiveChange('floor-pass', 0);
+    writeValidContracts(tmpRepo);
+    const r = runCli(['gate', 'floor-pass'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/gate passed/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// classify-check advisory
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cdd-kit classify-check', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-classcheck-repo-');
+    tmpHome = makeTempDir('cdd-classcheck-home-');
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  it('reports a tier-0 floor for a sensitive --text intent', () => {
+    const r = runCli(['classify-check', '--text', 'add stripe payment checkout', '--json'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).toBe(0);
+    const out = JSON.parse(r.stdout);
+    expect(out.floorTier).toBe(0);
+  });
+
+  it('reports no floor for a benign intent', () => {
+    const r = runCli(['classify-check', '--text', 'fix a typo in the footer', '--json'], { cwd: tmpRepo, home: tmpHome });
+    const out = JSON.parse(r.stdout);
+    expect(out.floorTier).toBeNull();
+  });
+});

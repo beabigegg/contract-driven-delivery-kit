@@ -16,7 +16,9 @@ let cwd: string;
 let home: string;
 
 function setupRepo(): void {
-  const r = runCli(['init', '--local-only'], { cwd, home });
+  // --no-arm gives the dormant baseline these tests assert against; arming is
+  // the default now and is covered explicitly below.
+  const r = runCli(['init', '--local-only', '--no-arm'], { cwd, home });
   if (r.status !== 0) throw new Error(`init failed: ${r.stderr}`);
 }
 
@@ -35,6 +37,13 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     setupRepo();
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout).toMatch(/chokepoint graph-first exploration hook:.*install-agent-hooks/);
+  });
+
+  it('arms the graph-first hook live by default (no --no-arm)', () => {
+    const r0 = runCli(['init', '--local-only'], { cwd, home });
+    expect(r0.status, r0.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint graph-first exploration hook: live/);
   });
 
   it('flips the graph-first hook to live once it is installed', () => {
