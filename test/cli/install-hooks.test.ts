@@ -87,4 +87,18 @@ describe('cdd-kit install-hooks', () => {
       cleanupDir(wt);
     }
   });
+
+  it('6: install-hooks honors core.hooksPath when set on a normal repo', () => {
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    spawnSync('git', ['config', 'core.hooksPath', 'myhooks'], { cwd: tmpRepo, stdio: 'ignore' });
+
+    const r = runCli(['install-hooks'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    // The hook must land in the git-resolved path, not the default .git/hooks.
+    const customHook = join(tmpRepo, 'myhooks', 'pre-commit');
+    expect(existsSync(customHook)).toBe(true);
+    expect(readFileSync(customHook, 'utf8')).toMatch(/cdd-kit-managed-block-start/);
+    expect(existsSync(join(tmpRepo, '.git', 'hooks', 'pre-commit'))).toBe(false);
+  });
 });

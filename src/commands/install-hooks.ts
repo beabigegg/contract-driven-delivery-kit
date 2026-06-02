@@ -8,21 +8,24 @@ const START_MARKER = '# cdd-kit-managed-block-start';
 const END_MARKER   = '# cdd-kit-managed-block-end';
 
 /**
- * Resolve the directory git uses for hooks. For a normal repo this is
- * `.git/hooks`; for worktrees/submodules (where `.git` is a file) or a custom
- * `core.hooksPath`, it asks git. Returns null only when it soft-skipped during
- * init; otherwise returns a path or exits (direct CLI).
+ * Resolve the directory git uses for hooks. Asks git first (`git rev-parse
+ * --git-path hooks`) so it honors `core.hooksPath`, worktrees, and submodules
+ * even when `.git` is a normal directory; falls back to `.git/hooks` only when
+ * git is unavailable and `.git` is a plain directory. Returns null only when it
+ * soft-skipped during init; otherwise returns a path or exits (direct CLI).
  */
 function resolveHooksDir(cwd: string, gitPath: string, fromInit: boolean): string | null {
-  let gitIsDir = false;
-  try { gitIsDir = statSync(gitPath).isDirectory(); } catch { /* treat as non-dir */ }
-  if (gitIsDir) return join(gitPath, 'hooks');
-
   const res = spawnSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd, encoding: 'utf8' });
   if (res.status === 0 && res.stdout.trim()) {
     return resolve(cwd, res.stdout.trim());
   }
 
+  // git unavailable or failed — fall back for the common plain-directory case.
+  let gitIsDir = false;
+  try { gitIsDir = statSync(gitPath).isDirectory(); } catch { /* treat as non-dir */ }
+  if (gitIsDir) return join(gitPath, 'hooks');
+
+  // `.git` is a worktree/submodule pointer and git could not resolve the path.
   const why = '`.git` is a worktree/submodule pointer and git could not resolve the hooks path';
   if (fromInit) {
     log.warn(`pre-commit gate not armed: ${why}. Run \`cdd-kit install-hooks\` in the main checkout.`);

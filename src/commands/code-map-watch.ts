@@ -107,20 +107,23 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   let watcher: FSWatcher | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Rebuild only if a --check confirms the map would actually change. Reuses
+  // codeMap's own out-path + scope derivation (correct for --surface / custom
+  // --out) and is the safe response when we cannot attribute an event to a
+  // specific file. A running guard prevents pile-up.
+  let driftChecking = false;
+  const triggerIfDrift = (): void => {
+    if (driftChecking) return;
+    driftChecking = true;
+    void codeMap({ ...opts, check: true, silent: true })
+      .then(drift => { if (drift !== 0) trigger(); })
+      .finally(() => { driftChecking = false; });
+  };
+
   const startPolling = (reason?: string): void => {
     if (pollTimer) return;
     if (reason) log.warn(reason);
-    let polling = false;
-    pollTimer = setInterval(() => {
-      if (polling) return;
-      polling = true;
-      // Reuse codeMap's own out-path + scope derivation by asking whether a
-      // rebuild would change anything (--check), rather than re-deriving paths
-      // here — this stays correct for --surface and custom --out.
-      void codeMap({ ...opts, check: true, silent: true })
-        .then(drift => { if (drift !== 0) trigger(); })
-        .finally(() => { polling = false; });
-    }, pollMs);
+    pollTimer = setInterval(triggerIfDrift, pollMs);
     log.ok(`polling ${scanPath} every ${pollMs}ms. Ctrl-C to stop.`);
   };
 
@@ -136,8 +139,16 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
     // Recursive fs.watch is supported on macOS/Windows always and on Linux from
     // Node 20+. If it throws (older Linux), fall back to freshness polling.
     watcher = watch(root, { recursive: true }, (_event, filename) => {
-      if (filename && isSelfWrite(filename.toString())) return;
-      trigger();
+      // Node does not guarantee a filename on every event. With one, filter the
+      // map's own writes and rebuild on any other change. Without one, we cannot
+      // tell a self-write from a real change, so fall back to a drift check
+      // rather than an unconditional rebuild (which would loop on our own write).
+      if (filename) {
+        if (isSelfWrite(filename.toString())) return;
+        trigger();
+      } else {
+        triggerIfDrift();
+      }
     });
     // Runtime errors (ENOSPC, permission, watch-limit) surface via the 'error'
     // event, not the synchronous throw above. Without this listener they become
