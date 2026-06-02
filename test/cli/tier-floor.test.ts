@@ -41,6 +41,14 @@ describe('computeTierFloor', () => {
     expect(r.floorTier).toBeNull();
   });
 
+  it('matches the canonical full auth words, not just the "auth" abbreviation', () => {
+    expect(computeTierFloor('add authentication middleware').floorTier).toBe(0);
+    expect(computeTierFloor('update the authorization rules').floorTier).toBe(0);
+    expect(computeTierFloor('authenticate the request before routing').floorTier).toBe(0);
+    // still no false positive on "author"
+    expect(computeTierFloor('credit the author in the footer').floorTier).toBeNull();
+  });
+
   it('reports the matched fragments for the gate message', () => {
     const r = computeTierFloor('Add OAuth login and refund handling');
     expect(r.matched).toContain('oauth');

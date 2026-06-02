@@ -2,7 +2,32 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { makeTempDir, cleanupDir } from '../helpers.js';
-import { codeMapWatch } from '../../src/commands/code-map-watch.js';
+import { resolve } from 'path';
+import { codeMapWatch, generatedArtifactSet } from '../../src/commands/code-map-watch.js';
+
+describe('generatedArtifactSet (watch self-write filter)', () => {
+  const cwd = '/repo';
+
+  it('covers the map, its JSON sidecar, and the code-graph index for the default out', () => {
+    const set = generatedArtifactSet('.cdd/code-map.yml', cwd);
+    expect(set.has(resolve(cwd, '.cdd/code-map.yml'))).toBe(true);
+    expect(set.has(resolve(cwd, '.cdd/code-map.index.json'))).toBe(true);
+    expect(set.has(resolve(cwd, '.cdd/code-graph.index.json'))).toBe(true);
+  });
+
+  it('covers cache siblings of a custom --out outside .cdd/', () => {
+    const set = generatedArtifactSet('code-map.yml', cwd);
+    expect(set.has(resolve(cwd, 'code-map.yml'))).toBe(true);
+    expect(set.has(resolve(cwd, 'code-map.index.json'))).toBe(true);   // sidecar
+    expect(set.has(resolve(cwd, 'code-graph.index.json'))).toBe(true); // graph
+  });
+
+  it('does NOT suppress user config edits under .cdd/', () => {
+    const set = generatedArtifactSet('.cdd/code-map.yml', cwd);
+    expect(set.has(resolve(cwd, '.cdd/code-map-config.yml'))).toBe(false);
+    expect(set.has(resolve(cwd, '.cdd/tier-policy.json'))).toBe(false);
+  });
+});
 
 describe('codeMapWatch', () => {
   it('stops cleanly and resolves 0 when the AbortSignal fires', async () => {

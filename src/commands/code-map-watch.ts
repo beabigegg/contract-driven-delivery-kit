@@ -2,6 +2,8 @@ import { watch, type FSWatcher } from 'fs';
 import { resolve } from 'path';
 import { log } from '../utils/logger.js';
 import { codeMap, slugifySurface, type CodeMapOptions } from './code-map.js';
+import { sidecarPathFor } from '../code-map/index-reader.js';
+import { graphPathFor } from '../code-graph/reader.js';
 
 /**
  * Background auto-indexing for `cdd-kit code-map --watch`.
@@ -69,6 +71,20 @@ export function createDebouncedRunner(run: () => Promise<void>, debounceMs: numb
   return { trigger, dispose };
 }
 
+/**
+ * Absolute paths of the three artifacts a single rebuild writes for `outRel`:
+ * the map YAML, its JSON sidecar, and the code-graph index. The watcher ignores
+ * exactly these (and nothing else under .cdd/) so its own writes never retrigger
+ * it, while user config edits still do. Exported for testing.
+ */
+export function generatedArtifactSet(outRel: string, cwd: string = process.cwd()): Set<string> {
+  return new Set<string>([
+    resolve(cwd, outRel),
+    resolve(cwd, sidecarPathFor(outRel)),
+    resolve(cwd, graphPathFor(outRel)),
+  ]);
+}
+
 export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   const debounceMs = opts.debounceMs ?? 500;
   const pollMs = opts.pollMs ?? 2000;
@@ -80,7 +96,11 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   // polling fallback checks the right file/scope.
   const outRel = opts.out
     ?? (opts.surface ? `.cdd/code-map.${slugifySurface(opts.surface)}.yml` : '.cdd/code-map.yml');
-  const outAbs = resolve(process.cwd(), outRel);
+  // A rebuild writes exactly three generated artifacts (map YAML, JSON sidecar,
+  // code-graph index). Ignore only THESE — by absolute path — so the watcher
+  // does not retrigger on its own writes, while still rebuilding on edits to the
+  // user's own `.cdd/code-map-config.yml`, `.cdd/tier-policy.json`, etc.
+  const generatedAbs = generatedArtifactSet(outRel);
 
   const rebuild = async (): Promise<number> => {
     const exit = await codeMap({ ...opts, check: false, silent: true });
@@ -128,11 +148,10 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   };
 
   const isSelfWrite = (filename: string): boolean => {
-    // Ignore the index output dir and the resolved map file itself, so the
-    // rebuild's own write cannot retrigger the watcher into a loop — including
-    // a custom --out that lives outside .cdd/.
-    if (/(^|[\\/])\.cdd([\\/]|$)/.test(filename)) return true;
-    return resolve(root, filename) === outAbs;
+    // True only for the rebuild's own generated artifacts (map + sidecar + graph
+    // index), so a custom --out and its cache siblings are covered, but user
+    // config edits under .cdd/ are NOT suppressed.
+    return generatedAbs.has(resolve(root, filename));
   };
 
   try {

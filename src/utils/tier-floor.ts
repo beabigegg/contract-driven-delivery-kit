@@ -50,7 +50,10 @@ export const DEFAULT_TIER_POLICY: TierPolicy = {
       maxTier: 0,
       label: 'critical surface (auth / payments / data migration / concurrency / secrets)',
       patterns: [
-        'auth', 'authn', 'authz', 'login', 'logout', 'sign-?in', 'sign-?up',
+        'auth', 'authn', 'authz',
+        'authentication', 'authorization', 'authenticate', 'authorize',
+        'authenticated', 'authorized',
+        'login', 'logout', 'sign-?in', 'sign-?up',
         'password', 'passwd', 'credential', 'secret', 'api[- ]?key', 'token',
         'jwt', 'oauth', 'oidc', 'saml', 'session', 'cookie',
         'payment', 'billing', 'invoice', 'charge', 'refund', 'checkout', 'stripe', 'paypal',
