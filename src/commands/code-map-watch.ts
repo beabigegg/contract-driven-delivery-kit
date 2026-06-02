@@ -1,8 +1,7 @@
 import { watch, type FSWatcher } from 'fs';
 import { resolve } from 'path';
 import { log } from '../utils/logger.js';
-import { codeMap, type CodeMapOptions } from './code-map.js';
-import { checkCodeMapFreshness } from '../code-map/freshness.js';
+import { codeMap, slugifySurface, type CodeMapOptions } from './code-map.js';
 
 /**
  * Background auto-indexing for `cdd-kit code-map --watch`.
@@ -28,6 +27,13 @@ export interface CodeMapWatchOptions extends Omit<CodeMapOptions, 'check'> {
   debounceMs?: number;
   /** Polling-fallback interval when recursive fs.watch is unavailable. */
   pollMs?: number;
+  /**
+   * Abort to stop watching and resolve cleanly. The top-level CLI owns
+   * process-signal wiring (SIGINT/SIGTERM) and passes the controller's signal
+   * here, so this library function never installs process handlers of its own —
+   * keeping it composable with other watchers and signal handling.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -69,40 +75,83 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
   const scanPath = opts.surface ?? opts.path;
   const root = resolve(process.cwd(), scanPath);
 
-  const rebuild = async (): Promise<void> => {
+  // Resolve the map output path exactly as codeMap() derives it, so the watcher
+  // can ignore the rebuild's own write (any --out, not just under .cdd/) and the
+  // polling fallback checks the right file/scope.
+  const outRel = opts.out
+    ?? (opts.surface ? `.cdd/code-map.${slugifySurface(opts.surface)}.yml` : '.cdd/code-map.yml');
+  const outAbs = resolve(process.cwd(), outRel);
+
+  const rebuild = async (): Promise<number> => {
     const exit = await codeMap({ ...opts, check: false, silent: true });
     if (exit === 0) {
       log.ok(`code-map refreshed (${new Date().toLocaleTimeString()})`);
     } else {
       log.warn('code-map refresh reported a problem; map left unchanged where possible.');
     }
+    return exit;
   };
 
-  // Initial build so the watcher starts from a known-fresh map.
+  // Initial build so the watcher starts from a known-fresh map. If it fails
+  // (bad --surface, config error), exit nonzero like plain `code-map` instead of
+  // watching a path whose map was never built.
   log.info(`code-map --watch: building initial map for ${scanPath}…`);
-  await rebuild();
+  const initialExit = await rebuild();
+  if (initialExit !== 0) {
+    log.error('code-map --watch: initial build failed; not starting the watcher.');
+    return initialExit;
+  }
 
-  const { trigger, dispose } = createDebouncedRunner(rebuild, debounceMs);
+  const { trigger, dispose } = createDebouncedRunner(() => rebuild().then(() => undefined), debounceMs);
 
   let watcher: FSWatcher | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  const startPolling = (reason?: string): void => {
+    if (pollTimer) return;
+    if (reason) log.warn(reason);
+    let polling = false;
+    pollTimer = setInterval(() => {
+      if (polling) return;
+      polling = true;
+      // Reuse codeMap's own out-path + scope derivation by asking whether a
+      // rebuild would change anything (--check), rather than re-deriving paths
+      // here — this stays correct for --surface and custom --out.
+      void codeMap({ ...opts, check: true, silent: true })
+        .then(drift => { if (drift !== 0) trigger(); })
+        .finally(() => { polling = false; });
+    }, pollMs);
+    log.ok(`polling ${scanPath} every ${pollMs}ms. Ctrl-C to stop.`);
+  };
+
+  const isSelfWrite = (filename: string): boolean => {
+    // Ignore the index output dir and the resolved map file itself, so the
+    // rebuild's own write cannot retrigger the watcher into a loop — including
+    // a custom --out that lives outside .cdd/.
+    if (/(^|[\\/])\.cdd([\\/]|$)/.test(filename)) return true;
+    return resolve(root, filename) === outAbs;
+  };
 
   try {
     // Recursive fs.watch is supported on macOS/Windows always and on Linux from
     // Node 20+. If it throws (older Linux), fall back to freshness polling.
     watcher = watch(root, { recursive: true }, (_event, filename) => {
-      // Ignore churn inside the index output dir to avoid self-triggering.
-      if (filename && /(^|[\\/])\.cdd([\\/]|$)/.test(filename)) return;
+      if (filename && isSelfWrite(filename.toString())) return;
       trigger();
+    });
+    // Runtime errors (ENOSPC, permission, watch-limit) surface via the 'error'
+    // event, not the synchronous throw above. Without this listener they become
+    // uncaught exceptions that kill the process; instead, close the watcher and
+    // degrade to polling so --watch keeps working.
+    watcher.on('error', (err: Error) => {
+      log.warn(`watch error (${err.message}); closing watcher and falling back to polling.`);
+      try { watcher?.close(); } catch { /* already closed */ }
+      watcher = null;
+      startPolling();
     });
     log.ok(`watching ${scanPath} (recursive, debounce ${debounceMs}ms). Ctrl-C to stop.`);
   } catch {
-    log.warn('recursive fs.watch unavailable on this platform; falling back to freshness polling.');
-    pollTimer = setInterval(() => {
-      const fresh = checkCodeMapFreshness(process.cwd(), opts.out ?? '.cdd/code-map.yml');
-      if (fresh.status === 'stale' || fresh.status === 'missing-with-sources') trigger();
-    }, pollMs);
-    log.ok(`polling ${scanPath} every ${pollMs}ms. Ctrl-C to stop.`);
+    startPolling('recursive fs.watch unavailable on this platform; falling back to freshness polling.');
   }
 
   return await new Promise<number>((resolvePromise) => {
@@ -113,7 +162,13 @@ export async function codeMapWatch(opts: CodeMapWatchOptions): Promise<number> {
       log.info('code-map --watch stopped.');
       resolvePromise(0);
     };
-    process.once('SIGINT', stop);
-    process.once('SIGTERM', stop);
+    const signal = opts.signal;
+    if (signal) {
+      if (signal.aborted) { stop(); return; }
+      signal.addEventListener('abort', stop, { once: true });
+    }
+    // No process.once here — the CLI owns process-signal wiring and aborts the
+    // signal above. A caller that passes no signal keeps the watcher running
+    // until the process is killed, which is the intended foreground behaviour.
   });
 }

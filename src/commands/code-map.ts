@@ -65,7 +65,7 @@ export interface CodeMapOptions {
 }
 
 /** `packages/web` -> `packages-web`; used for the per-surface map filename. */
-function slugifySurface(surface: string): string {
+export function slugifySurface(surface: string): string {
   return surface.replace(/^[./]+/, '').replace(/\/+$/, '').replace(/[\\/]+/g, '-') || 'root';
 }
 

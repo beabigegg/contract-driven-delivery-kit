@@ -60,4 +60,31 @@ describe('cdd-kit install-hooks', () => {
     expect(final).toMatch(/cdd-kit-managed-block-start/);
     expect(final).toMatch(/echo "user hook content"/);
   });
+
+  it('5: install-hooks resolves the hooks dir in a git worktree (.git is a file)', () => {
+    // Main repo with one commit so a worktree can be added.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    spawnSync('git', ['config', 'user.email', 't@t.com'], { cwd: tmpRepo, stdio: 'ignore' });
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: tmpRepo, stdio: 'ignore' });
+    writeFileSync(join(tmpRepo, 'README.md'), '# x\n', 'utf8');
+    spawnSync('git', ['add', '-A'], { cwd: tmpRepo, stdio: 'ignore' });
+    const commit = spawnSync('git', ['commit', '-m', 'init'], { cwd: tmpRepo, stdio: 'ignore' });
+    // If commit signing is unavailable in this environment, skip rather than fail.
+    if (commit.status !== 0) return;
+
+    const wt = makeTempDir('cdd-hooks-wt-');
+    try {
+      const add = spawnSync('git', ['worktree', 'add', wt], { cwd: tmpRepo, encoding: 'utf8' });
+      expect(add.status, add.stderr).toBe(0);
+
+      // In a worktree, .git is a FILE, not a directory.
+      expect(existsSync(join(wt, '.git'))).toBe(true);
+
+      const r = runCli(['install-hooks'], { cwd: wt, home: tmpHome });
+      expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+      expect(r.stdout + r.stderr).not.toMatch(/ENOTDIR/);
+    } finally {
+      cleanupDir(wt);
+    }
+  });
 });

@@ -1,10 +1,36 @@
-import { existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync, statSync } from 'fs';
+import { join, resolve } from 'path';
+import { spawnSync } from 'child_process';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 
 const START_MARKER = '# cdd-kit-managed-block-start';
 const END_MARKER   = '# cdd-kit-managed-block-end';
+
+/**
+ * Resolve the directory git uses for hooks. For a normal repo this is
+ * `.git/hooks`; for worktrees/submodules (where `.git` is a file) or a custom
+ * `core.hooksPath`, it asks git. Returns null only when it soft-skipped during
+ * init; otherwise returns a path or exits (direct CLI).
+ */
+function resolveHooksDir(cwd: string, gitPath: string, fromInit: boolean): string | null {
+  let gitIsDir = false;
+  try { gitIsDir = statSync(gitPath).isDirectory(); } catch { /* treat as non-dir */ }
+  if (gitIsDir) return join(gitPath, 'hooks');
+
+  const res = spawnSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd, encoding: 'utf8' });
+  if (res.status === 0 && res.stdout.trim()) {
+    return resolve(cwd, res.stdout.trim());
+  }
+
+  const why = '`.git` is a worktree/submodule pointer and git could not resolve the hooks path';
+  if (fromInit) {
+    log.warn(`pre-commit gate not armed: ${why}. Run \`cdd-kit install-hooks\` in the main checkout.`);
+    return null;
+  }
+  log.error(`cannot resolve hooks dir: ${why}. Run this in the main checkout.`);
+  process.exit(1);
+}
 
 export interface InstallHooksOptions {
   /**
@@ -16,9 +42,9 @@ export interface InstallHooksOptions {
 
 export async function installHooks(opts: InstallHooksOptions = {}): Promise<void> {
   const cwd = process.cwd();
-  const gitDir = join(cwd, '.git');
+  const gitPath = join(cwd, '.git');
 
-  if (!existsSync(gitDir)) {
+  if (!existsSync(gitPath)) {
     if (opts.fromInit) {
       log.warn('pre-commit gate not armed: not a git repository yet. Run `cdd-kit install-hooks` after `git init`.');
       return;
@@ -27,7 +53,13 @@ export async function installHooks(opts: InstallHooksOptions = {}): Promise<void
     process.exit(1);
   }
 
-  const hooksDir = join(gitDir, 'hooks');
+  // In git worktrees and submodules `.git` is a FILE pointing at the real git
+  // dir, not a directory, so `join('.git','hooks')` + mkdir throws ENOTDIR.
+  // When `.git` is not a plain directory, ask git for the canonical hooks path
+  // (this also honors core.hooksPath). Fall back to soft-skip/error if git is
+  // unavailable so init's best-effort arming never crashes.
+  const hooksDir = resolveHooksDir(cwd, gitPath, opts.fromInit ?? false);
+  if (hooksDir === null) return; // soft-skipped (fromInit); message already logged
   mkdirSync(hooksDir, { recursive: true });
 
   const dest = join(hooksDir, 'pre-commit');

@@ -204,6 +204,12 @@ program
   .action(async (path: string | undefined, opts: CodeMapCliOpts & { watch?: boolean; debounce?: string }) => {
     if (opts.watch) {
       const { codeMapWatch } = await import('../commands/code-map-watch.js');
+      // Own process-signal wiring here, at the top level, and hand the watcher a
+      // plain AbortSignal — so the library function stays composable.
+      const controller = new AbortController();
+      const onSignal = (): void => controller.abort();
+      process.once('SIGINT', onSignal);
+      process.once('SIGTERM', onSignal);
       const exit = await codeMapWatch({
         path: path ?? '.',
         out: opts.out,
@@ -213,6 +219,7 @@ program
         exclude: opts.exclude,
         maxLines: parseInt(opts.maxLines, 10),
         debounceMs: parseInt(opts.debounce ?? '500', 10),
+        signal: controller.signal,
       });
       process.exit(exit);
     }

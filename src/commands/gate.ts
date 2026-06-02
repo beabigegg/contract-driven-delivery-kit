@@ -280,11 +280,12 @@ function enforceTierConsistency(changeDir: string, errors: string[], warnings: s
 
 /**
  * Mechanical risk-tier floor — the deterministic safety net under the AI
- * classifier. Scans the change's stated intent (change-request.md, plus the
- * classification body for extra signal) for sensitive surfaces and fails the
- * gate when the declared tier is weaker (numerically higher) than the matched
- * floor. A change may bypass with `tier-floor-override: "<reason>"` in
- * tasks.yml frontmatter, which downgrades the error to an audit warning.
+ * classifier. Scans the change's stated intent in `change-request.md` (the
+ * user's own words, not the classification it is checking against) for sensitive
+ * surfaces and fails the gate when the declared tier is weaker (numerically
+ * higher) than the matched floor. A change may bypass with
+ * `tier-floor-override: "<reason>"` in tasks.yml frontmatter, which downgrades
+ * the error to an audit warning.
  */
 function enforceTierFloor(changeDir: string, errors: string[], warnings: string[]): void {
   const cwd = process.cwd();
