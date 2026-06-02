@@ -7,6 +7,7 @@ import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
+import { getTouchedPaths } from '../utils/git-paths.js';
 
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
@@ -281,9 +282,10 @@ function enforceTierConsistency(changeDir: string, errors: string[], warnings: s
 /**
  * Mechanical risk-tier floor — the deterministic safety net under the AI
  * classifier. Scans the change's stated intent in `change-request.md` (the
- * user's own words, not the classification it is checking against) for sensitive
- * surfaces and fails the gate when the declared tier is weaker (numerically
- * higher) than the matched floor. A change may bypass with
+ * user's own words, not the classification it is checking against) and the
+ * change's touched file paths (against the critical tier-0 rules only) for
+ * sensitive surfaces, and fails the gate when the declared tier is weaker
+ * (numerically higher) than the matched floor. A change may bypass with
  * `tier-floor-override: "<reason>"` in tasks.yml frontmatter, which downgrades
  * the error to an audit warning.
  */
@@ -295,11 +297,14 @@ function enforceTierFloor(changeDir: string, errors: string[], warnings: string[
   // Intent is scanned from the user's own words (change-request.md), not the
   // classification we are checking against — scanning the classification would
   // let "this is NOT an auth change" trip the net, and would make the floor
-  // circular. The request is the ground truth of what was asked for.
+  // circular. The request is the ground truth of what was asked for. Touched
+  // paths add a path-only signal so a generic request ("refactor middleware")
+  // whose staged work lives under auth/ or payments/ still trips the floor.
   const requestPath = join(changeDir, 'change-request.md');
-  if (!existsSync(requestPath)) return;
+  const requestText = existsSync(requestPath) ? readFileSync(requestPath, 'utf8') : '';
+  const touched = getTouchedPaths(cwd);
 
-  const floor = computeTierFloor(readFileSync(requestPath, 'utf8'), policy);
+  const floor = computeTierFloor(requestText, policy, { paths: touched });
   if (floor.floorTier === null) return;
 
   const declared = resolveTier(changeDir).tier;

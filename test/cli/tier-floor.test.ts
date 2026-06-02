@@ -60,6 +60,20 @@ describe('computeTierFloor', () => {
     const r = computeTierFloor('Add JWT auth', { enabled: false, rules: [] });
     expect(r.floorTier).toBeNull();
   });
+
+  it('floors at tier 0 from a touched path even when the request is generic', () => {
+    const r = computeTierFloor('refactor the middleware layer', DEFAULT_TIER_POLICY, {
+      paths: ['src/auth/middleware.ts', 'README.md'],
+    });
+    expect(r.floorTier).toBe(0);
+  });
+
+  it('does NOT apply noisy tier-2 rules to paths (no filename false positives)', () => {
+    const r = computeTierFloor('update the docs', DEFAULT_TIER_POLICY, {
+      paths: ['src/components/index.ts', 'src/router/routes.ts', 'src/api/query.ts'],
+    });
+    expect(r.floorTier).toBeNull();
+  });
 });
 
 describe('loadTierPolicy', () => {

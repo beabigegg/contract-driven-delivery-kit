@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
+import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
 
@@ -1067,6 +1068,30 @@ describe('cdd-kit gate — tier floor', () => {
     writeFileSync(join(tmpRepo, '.cdd', 'tier-policy.json'), JSON.stringify({ enabled: false }), 'utf8');
     const r = runCli(['gate', 'disabled-policy'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stderr + r.stdout).not.toMatch(/tier floor/i);
+  });
+
+  it('catches a path-only sensitive change even when the request reads generic', () => {
+    // getTouchedPaths needs a git repo; the scaffolded files are untracked.
+    spawnSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    runCli(['new', 'path-only'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'path-only');
+    writeValidChangeArtifacts(changeDir);
+
+    // Deliberately generic request — no sensitive words at all.
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\nRefactor the middleware layer for clarity and testability. No behavior change is intended; this is a purely structural cleanup of the request pipeline so the modules are smaller and easier to maintain over time.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n## Tier\n- 2\n\nClassified medium because the author framed it as a non-behavioral refactor. This body is long enough to clear the stub threshold so the gate proceeds to evaluate the mechanical tier floor against the request text and the touched file paths of the change.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'path-only', tier: 2 }), 'utf8');
+
+    // The actual work lands under a critical path.
+    mkdirSync(join(tmpRepo, 'src', 'auth'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'src', 'auth', 'middleware.ts'), 'export const mw = () => true;\n', 'utf8');
+
+    const r = runCli(['gate', 'path-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/tier floor violation/i);
+    expect(r.stderr + r.stdout).toMatch(/tier 0/i);
   });
 
   it.skipIf(!hasPython())('passes end-to-end when correctly tiered with valid contracts', () => {

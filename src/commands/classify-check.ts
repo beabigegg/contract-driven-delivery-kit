@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
+import { getTouchedPaths } from '../utils/git-paths.js';
 
 export interface ClassifyCheckOptions {
   /** Inline intent text to scan instead of reading a change directory. */
@@ -27,16 +28,21 @@ export async function classifyCheck(changeId: string | undefined, opts: Classify
 
   let intent = opts.text ?? '';
   let source = 'inline --text';
+  // Inline --text is a hypothetical probe (often run before any code exists), so
+  // it scans text only. A change-id also folds in the touched file paths, the
+  // same signals the gate enforces against.
+  let paths: string[] = [];
 
   if (!intent && changeId) {
     // Scan the user's own words (change-request.md) — the same ground-truth
     // source the gate enforces against — so the advisory matches the gate.
     const requestPath = join(cwd, 'specs', 'changes', changeId, 'change-request.md');
     if (existsSync(requestPath)) intent = readFileSync(requestPath, 'utf8');
-    source = `specs/changes/${changeId}/change-request.md`;
+    paths = getTouchedPaths(cwd);
+    source = `specs/changes/${changeId}/change-request.md + touched paths`;
   }
 
-  const floor = computeTierFloor(intent, policy);
+  const floor = computeTierFloor(intent, policy, { paths });
 
   if (opts.json) {
     console.log(JSON.stringify({
@@ -54,8 +60,8 @@ export async function classifyCheck(changeId: string | undefined, opts: Classify
     return 0;
   }
 
-  if (!intent) {
-    log.warn('no intent text found to scan (pass --text "<description>" or a change-id with change-request.md).');
+  if (!intent && paths.length === 0) {
+    log.warn('no intent text or touched paths found to scan (pass --text "<description>" or a change-id with change-request.md).');
     return 0;
   }
 

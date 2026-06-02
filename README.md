@@ -451,7 +451,7 @@ Checks:
 - All required artifacts exist (`change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`; new context-governed changes also require `context-manifest.md`)
 - Each artifact has sufficient content and is not a stub.
 - `change-classification.md` contains a tier or risk marker.
-- **Mechanical risk-tier floor.** `change-request.md` is scanned for sensitive surfaces (auth, payments, migrations, concurrency, secrets, …) and the gate fails when the declared tier is weaker than the matched floor — the deterministic safety net under the AI classifier. Bypass one change with `tier-floor-override: "<reason>"` in `tasks.yml` frontmatter (becomes an audit warning); tune or disable in `.cdd/tier-policy.json`.
+- **Mechanical risk-tier floor.** `change-request.md` is scanned for sensitive surfaces (auth, payments, migrations, concurrency, secrets, …) — and the change's git-touched paths are scanned against the critical (tier-0) rules only, so a generic request whose staged work lives under `auth/` or `payments/` is still caught. The gate fails when the declared tier is weaker than the matched floor — the deterministic safety net under the AI classifier. Bypass one change with `tier-floor-override: "<reason>"` in `tasks.yml` frontmatter (becomes an audit warning); tune or disable in `.cdd/tier-policy.json`.
 - Atomic `depends-on` upstream changes are completed or archived before dependent work gates.
 - All contract validators pass.
 

@@ -135,9 +135,19 @@ function patternToRegExp(pattern: string): RegExp | null {
  * Compute the tier floor for a block of intent text (typically the body of
  * change-request.md, optionally concatenated with touched file paths).
  * Returns the strictest (lowest) maxTier whose rule matched.
+ *
+ * `opts.paths` (the change's touched file paths) are scanned too, but only
+ * against the strictest (tier-0) rules: a path hit on a critical word
+ * (`auth/`, `payments/`, `migrations/`) is almost always a genuine critical
+ * surface, whereas applying tier-2 words like `index`/`route`/`query` to paths
+ * would false-positive on common filenames (`index.ts`, `routes.ts`).
  */
-export function computeTierFloor(text: string, policy: TierPolicy = DEFAULT_TIER_POLICY): TierFloorMatch {
-  if (!policy.enabled || !text) {
+export function computeTierFloor(
+  text: string,
+  policy: TierPolicy = DEFAULT_TIER_POLICY,
+  opts: { paths?: string[] } = {},
+): TierFloorMatch {
+  if (!policy.enabled) {
     return { floorTier: null, label: null, matched: [] };
   }
 
@@ -145,19 +155,31 @@ export function computeTierFloor(text: string, policy: TierPolicy = DEFAULT_TIER
   let label: string | null = null;
   const matched = new Set<string>();
 
-  for (const rule of policy.rules) {
-    let ruleHit = false;
-    for (const pattern of rule.patterns) {
-      const re = patternToRegExp(pattern);
-      if (re && re.test(text)) {
-        ruleHit = true;
-        matched.add(pattern.replace(/[\\?\[\]()]/g, '').replace(/\s+/g, ' ').trim());
+  const scan = (rules: TierRule[], haystack: string): void => {
+    if (!haystack) return;
+    for (const rule of rules) {
+      let ruleHit = false;
+      for (const pattern of rule.patterns) {
+        const re = patternToRegExp(pattern);
+        if (re && re.test(haystack)) {
+          ruleHit = true;
+          matched.add(pattern.replace(/[\\?\[\]()]/g, '').replace(/\s+/g, ' ').trim());
+        }
+      }
+      if (ruleHit && (floorTier === null || rule.maxTier < floorTier)) {
+        floorTier = rule.maxTier;
+        label = rule.label;
       }
     }
-    if (ruleHit && (floorTier === null || rule.maxTier < floorTier)) {
-      floorTier = rule.maxTier;
-      label = rule.label;
-    }
+  };
+
+  // Prose intent (change-request.md): all rules.
+  scan(policy.rules, text);
+
+  // Touched file paths: only the strictest (tier-0) rules — see the note above.
+  const paths = opts.paths ?? [];
+  if (paths.length > 0) {
+    scan(policy.rules.filter(r => r.maxTier === 0), paths.join('\n'));
   }
 
   return { floorTier, label, matched: [...matched].sort() };
