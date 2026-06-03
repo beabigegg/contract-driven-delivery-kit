@@ -68,14 +68,22 @@ proof.
   alias (`from x import router as r`), or a name registered under conflicting
   prefixes across files — the latter is detected and dropped (so the per-file
   constructor prefix decides) rather than guessed.
-- **Module-qualified registrations** such as `include_router(users.router,
-  prefix="/api")` (where the router is referenced through an imported module
-  rather than a bare local name) are not resolved — that needs import tracking
-  the regex heuristic deliberately does not attempt. The same applies when two
-  modules each expose a bare `router = APIRouter()` (no constructor prefix) and
-  the app registers them under different prefixes by the reused name: the
-  ambiguous registration is dropped, so those routes are left unresolved (a
-  warning) rather than mis-attributed to the wrong module's prefix.
+- **Registrations resolved by a shared bare receiver name can cross modules.**
+  Because a registration is keyed by the variable name (`router`, `bp`), not the
+  module it was imported from, the following are not resolved — they all need
+  import tracking the regex heuristic deliberately does not attempt:
+  - **Module-qualified registration**: `include_router(users.router,
+    prefix="/api")` (router referenced through an imported module) is not matched.
+  - **Same name, conflicting prefixes**: two modules each `include_router(router,
+    prefix=...)` under different prefixes — the ambiguous registration is dropped,
+    so those routes are left unresolved (a warning) rather than mis-attributed.
+  - **One registration leaking onto a same-named local router**: if `users.py`
+    exports `router` mounted under `/api`, while `admin.py` has its own file-local
+    `router = APIRouter(prefix="/admin")` mounted without a prefix, the `/api`
+    registration is applied to `admin.py`'s routes too (scanned as `/api/admin/…`
+    though FastAPI serves `/admin/…`). To avoid this, give routers distinct names
+    or set `backendRouteNotInContract`/`contractEndpointNotImplemented` to
+    `warning` (the default) so it does not fail CI.
 - **Dynamic routes** built from variables or registered via framework modules
   (NestJS `RouterModule`, dynamic prefixes) are not detected.
 
