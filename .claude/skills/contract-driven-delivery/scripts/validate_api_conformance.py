@@ -255,15 +255,20 @@ SPRING_METHOD_RE = re.compile(r'method\s*=\s*\{?([^)}]*)', re.I)
 # The argument capture `(?:[^()]|\([^()]*\))*` tolerates one level of nested
 # parens so a kwarg like `dependencies=[Depends(auth)]` before `prefix=` does not
 # truncate the capture. `(?:\w+\.)*` accepts qualified calls (flask.Blueprint,
-# fastapi.APIRouter). Constructor prefixes are resolved per file (see
-# scan_backend) so a bare `router` name reused across modules cannot collide.
+# fastapi.APIRouter). `(?::[^=\n]+)?` tolerates an annotated assignment
+# (`router: APIRouter = APIRouter(...)`) so the prefix is keyed to the receiver
+# (`router`) rather than the type name. Constructor prefixes are resolved per
+# file (see scan_backend) so a bare `router` reused across modules cannot collide.
 # Constructor:  admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
-#               router   = APIRouter(prefix="/admin")
+#               router: APIRouter = APIRouter(prefix="/admin")
 _CALL_ARGS = r'((?:[^()]|\([^()]*\))*)'
-BLUEPRINT_CTOR_RE = re.compile(r'(\w+)\s*=\s*(?:\w+\.)*(?:Blueprint|APIRouter)\s*\(' + _CALL_ARGS + r'\)', re.S)
-# Registration (cross-file):  app.register_blueprint(admin_bp, url_prefix="/admin")
-#                             app.include_router(router, prefix="/admin")
-BLUEPRINT_REG_RE = re.compile(r'\b(?:register_blueprint|include_router)\s*\(\s*(\w+)\s*' + _CALL_ARGS + r'\)', re.S)
+BLUEPRINT_CTOR_RE = re.compile(r'(\w+)\s*(?::[^=\n]+)?=\s*(?:\w+\.)*(?:Blueprint|APIRouter)\s*\(' + _CALL_ARGS + r'\)', re.S)
+# Registration (cross-file): group 1 is the verb (register_blueprint = Flask,
+# url_prefix OVERRIDES the Blueprint's own; include_router = FastAPI, prefix is
+# ADDITIVE with the APIRouter prefix), group 2 the receiver, group 3 the args.
+#   app.register_blueprint(admin_bp, url_prefix="/admin")
+#   app.include_router(router, prefix="/admin")
+BLUEPRINT_REG_RE = re.compile(r'\b(register_blueprint|include_router)\s*\(\s*(\w+)\s*' + _CALL_ARGS + r'\)', re.S)
 # url_prefix="/x" or prefix='/x' kwarg, read out of either call's argument list.
 PREFIX_KWARG_RE = re.compile(r'(?:url_prefix|prefix)\s*=\s*[\'"]([^\'"]*)[\'"]')
 
@@ -334,14 +339,27 @@ def _prefix_kwargs(text: str, pattern: re.Pattern) -> dict:
 def _apply_prefix(reg_prefixes: dict, local_ctor: dict, receiver: str, raw: str) -> str:
     """Fold a resolved Blueprint/APIRouter prefix into a route path.
 
-    A registration-site prefix (register_blueprint/include_router, resolved
-    across files) wins over the router's own constructor kwarg — matching Flask's
-    override semantics. The constructor map is *file-local* so a bare `router`
-    name reused in another module cannot fold these routes under the wrong
-    prefix. Receivers with no known prefix (e.g. the Flask `app` itself, or a
-    router whose prefix the heuristic could not resolve) pass through
-    unchanged — that residual gap is why backendRouteNotInContract is a warning."""
-    prefix = reg_prefixes.get(receiver) or local_ctor.get(receiver)
+    Combines a *file-local* constructor prefix (so a bare `router` reused in
+    another module cannot fold these routes under the wrong prefix) with a
+    cross-file registration prefix, respecting each framework's semantics:
+      - Flask `register_blueprint(bp, url_prefix=...)` OVERRIDES the Blueprint's
+        own `url_prefix`.
+      - FastAPI `include_router(router, prefix=...)` is ADDITIVE — the served
+        path is `<include prefix>/<APIRouter prefix>/<route>`.
+    `reg_prefixes` maps receiver -> (verb, prefix); ambiguous receivers (the same
+    name registered with conflicting prefixes across files) are dropped upstream
+    so the per-file constructor prefix wins instead of a guessed one. Receivers
+    with no resolved prefix (the Flask `app` itself, or a shape the heuristic
+    cannot follow) pass through unchanged — that residual gap is why
+    backendRouteNotInContract defaults to a warning."""
+    ctor = local_ctor.get(receiver)
+    reg = reg_prefixes.get(receiver)
+    if reg:
+        verb, rprefix = reg
+        # FastAPI: include_router prefix + APIRouter prefix. Flask: override.
+        prefix = _join_route(rprefix, ctor) if (verb == 'include_router' and ctor) else rprefix
+    else:
+        prefix = ctor
     return _join_route(prefix, raw) if prefix else normalize_path(raw)
 
 
@@ -375,7 +393,7 @@ def scan_backend(roots, exts, exclude_dirs):
     # include_router). Constructor prefixes are resolved per file in the main
     # loop so a bare `router` name reused across modules cannot collide.
     py_text = {}
-    reg_prefixes = {}
+    reg_seen = {}  # receiver -> {(verb, prefix), ...}  (collision detection)
     for path in iter_source_files(roots, {'.py'}, exclude_dirs):
         if looks_like_test(path):
             continue
@@ -384,7 +402,16 @@ def scan_backend(roots, exts, exclude_dirs):
         except OSError:
             continue
         py_text[path] = text
-        reg_prefixes.update(_prefix_kwargs(text, BLUEPRINT_REG_RE))
+        for m in BLUEPRINT_REG_RE.finditer(text):
+            km = PREFIX_KWARG_RE.search(m.group(3))
+            if km and km.group(1):
+                reg_seen.setdefault(m.group(2), set()).add((m.group(1).lower(), km.group(1)))
+    # Keep only receivers registered with a single, unambiguous prefix. A name
+    # registered under conflicting prefixes across files (e.g. two modules each
+    # `include_router(router, prefix=...)`) is dropped so the per-file
+    # constructor prefix decides rather than whichever was scanned last.
+    reg_prefixes = {var: next(iter(entries)) for var, entries in reg_seen.items()
+                    if len({prefix for _, prefix in entries}) == 1}
 
     for path in iter_source_files(roots, exts, exclude_dirs):
         if looks_like_test(path):

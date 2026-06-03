@@ -59,12 +59,15 @@ proof.
   above — but the Express `app.use` mount form is not.) If you use mounted
   routers, either declare the unprefixed paths in the contract, add the mount
   prefix in the route literal, or set `contractEndpointNotImplemented` to `off`.
-- **Prefix resolution keys on the local variable name.** A Blueprint/APIRouter
-  imported under an alias, registered under two different prefixes, or with a
-  FastAPI `include_router` prefix *added on top of* an `APIRouter(prefix=...)`
-  (the two concatenate) is not fully resolved. Constructor prefixes are scoped
-  per file (so a `router` reused across modules does not collide); registration
-  prefixes are matched across files.
+- **Prefix resolution keys on the local variable name.** Constructor prefixes
+  (`Blueprint(url_prefix=...)`, `APIRouter(prefix=...)`) are scoped per file, so a
+  `router` reused across modules does not collide; registration prefixes
+  (`register_blueprint`/`include_router`) are matched across files, with Flask's
+  override and FastAPI's additive (`include_router` prefix + `APIRouter` prefix)
+  semantics each respected. What is **not** resolved: a router imported under an
+  alias (`from x import router as r`), or a name registered under conflicting
+  prefixes across files — the latter is detected and dropped (so the per-file
+  constructor prefix decides) rather than guessed.
 - **Module-qualified registrations** such as `include_router(users.router,
   prefix="/api")` (where the router is referenced through an imported module
   rather than a bare local name) are not resolved — that needs import tracking

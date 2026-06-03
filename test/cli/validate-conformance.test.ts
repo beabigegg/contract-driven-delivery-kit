@@ -364,6 +364,53 @@ describe('validate_api_conformance.py', () => {
     expect(r.out).toContain('API conformance validation passed.');
   });
 
+  it('composes a FastAPI include_router prefix additively with the APIRouter prefix', () => {
+    if (!hasPython()) return;
+    // FastAPI serves @router.get("/list") at <include prefix>/<APIRouter prefix>/list,
+    // i.e. /api/items/list — the registration prefix must NOT replace the
+    // constructor prefix (that is Flask's semantics, not FastAPI's).
+    writeApiContract(repo, ['| GET | /api/items/list | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/api'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'items.py', 'router = APIRouter(prefix="/items")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'app.py', 'from items import router\napp.include_router(router, prefix="/api")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('does not misroute when the same router name is registered with conflicting prefixes', () => {
+    if (!hasPython()) return;
+    // app.py registers a reused `router` name under two different prefixes; that
+    // ambiguous registration must be dropped so each module's per-file APIRouter
+    // prefix decides, rather than the last-scanned registration clobbering both.
+    writeApiContract(repo, [
+      '| GET | /users/list | required | - | User[] | 401 | yes |',
+      '| GET | /orders/list | required | - | Order[] | 401 | yes |',
+    ]);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/users', '/orders'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'users.py', 'router = APIRouter(prefix="/users")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'orders.py', 'router = APIRouter(prefix="/orders")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from users import router\napp.include_router(router, prefix="/users")\n'
+      + 'from orders import router\napp.include_router(router, prefix="/orders")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('keys the prefix to the receiver on a type-annotated router assignment', () => {
+    if (!hasPython()) return;
+    // `router: APIRouter = APIRouter(prefix="/admin")` — the prefix must attach to
+    // `router`, not the `APIRouter` annotation, so @router.get resolves prefixed.
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes.py',
+      'router: APIRouter = APIRouter(prefix="/admin")\n@router.get("/items")\ndef i(): ...\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
   it('fails when enabled but no source roots resolve (config mistake)', () => {
     if (!hasPython()) return;
     writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
