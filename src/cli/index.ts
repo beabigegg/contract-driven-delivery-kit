@@ -534,6 +534,55 @@ contract
     process.exit(exit);
   });
 
+contract
+  .command('endpoint')
+  .description('Mutate endpoint rows by key')
+  .command('set')
+  .description('Upsert an endpoint row by (method, path) — valid by construction, touches only that row')
+  .requiredOption('--method <method>', 'HTTP method, e.g. POST')
+  .requiredOption('--path <path>', 'Endpoint path, e.g. /api/orders')
+  .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
+  .option('--auth <value>', 'auth cell value')
+  .option('--request <schema>', 'request schema cell (a defined schema name, Name[], or -)')
+  .option('--response <schema>', 'response schema cell (a defined schema name, Name[], or -)')
+  .option('--errors <value>', 'errors cell, e.g. "400, 409"')
+  .option('--tests <value>', 'tests cell, e.g. yes')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: { contract: string; method: string; path: string; auth?: string; request?: string; response?: string; errors?: string; tests?: string; json?: boolean }) => {
+    const { contractEndpointSet } = await import('../commands/contract-set.js');
+    const exit = await contractEndpointSet({
+      contract: opts.contract,
+      method: opts.method,
+      path: opts.path,
+      auth: opts.auth,
+      request: opts.request,
+      response: opts.response,
+      errors: opts.errors,
+      tests: opts.tests,
+      json: opts.json === true,
+    });
+    process.exit(exit);
+  });
+
+contract
+  .command('schema')
+  .description('Mutate schema sections by name')
+  .command('set <name>')
+  .description('Upsert a `### Name` schema section from --field specs')
+  .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
+  .option('--field <spec>', 'repeatable field "name:type:required[:format[:notes]]"', (value: string, acc: string[]) => { acc.push(value); return acc; }, [] as string[])
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (name: string, opts: { contract: string; field: string[]; json?: boolean }) => {
+    const { contractSchemaSet } = await import('../commands/contract-set.js');
+    const exit = await contractSchemaSet({
+      contract: opts.contract,
+      name,
+      fields: opts.field ?? [],
+      json: opts.json === true,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program
   .command('detect-stack')

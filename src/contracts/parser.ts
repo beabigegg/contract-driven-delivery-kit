@@ -102,7 +102,7 @@ const ENDPOINT_FIELD_ALIASES: Record<Exclude<keyof EndpointRow, 'method' | 'path
  * recognised, while a non-endpoint table (e.g. a `| field | type | … |` schema
  * field table) is never mistaken for one.
  */
-function isEndpointHeaderRow(cells: string[]): boolean {
+export function isEndpointHeaderRow(cells: string[]): boolean {
   const labels = new Set(cells.map(c => c.trim().toLowerCase()));
   return labels.has('method') && labels.has('path');
 }
