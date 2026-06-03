@@ -4,6 +4,50 @@
 
 _No unreleased changes yet._
 
+## [2.2.1] - 2026-06-03
+
+Fix a class of false positives in the 2.2.0 API conformance validator that broke
+CI on correct contracts (issue #15), and stop a heuristic blind spot from being
+fatal by default.
+
+### Fixed
+
+- **Resolve Flask Blueprint `url_prefix` / FastAPI APIRouter `prefix` across
+  files (`validate_api_conformance.py`).** A route declared as
+  `@admin_bp.route("/api/logs")` on a `Blueprint(..., url_prefix="/admin")` (or a
+  `register_blueprint(bp, url_prefix=...)` in another file) was recorded as
+  `/api/logs`, so every prefixed route was flagged `backendRouteNotInContract`
+  while the matching contract endpoint was flagged
+  `contractEndpointNotImplemented` — two false errors per route against a contract
+  that was actually correct. The validator now resolves constructor prefixes per
+  file and registration prefixes across files (registration winning) and folds
+  them into the route path. Constructor scoping is **per file**, so a bare
+  `router` name reused across modules cannot collide; registration prefixes are
+  matched across files with each framework's semantics — Flask
+  `register_blueprint(url_prefix=...)` **overrides** the Blueprint's own prefix
+  while FastAPI `include_router(prefix=...)` is **additive** with the
+  `APIRouter(prefix=...)` (served as `<include>/<router>/<route>`). A name
+  registered under conflicting prefixes across files is detected and dropped (the
+  per-file constructor prefix decides) rather than guessed. The constructor regex
+  tolerates a nested-paren kwarg (`APIRouter(dependencies=[Depends(x)],
+  prefix=...)`), a module-qualified call (`flask.Blueprint(...)`,
+  `fastapi.APIRouter(...)`), and a type-annotated assignment (`router: APIRouter =
+  APIRouter(...)`); Flask 2.0 `@bp.get(...)` shorthand is covered too. An explicit
+  empty registration prefix (`register_blueprint(bp, url_prefix="")`, a deliberate
+  root mount) is preserved and overrides the constructor prefix rather than being
+  discarded as falsy. (Issue #15; hardened over three rounds of Codex/Sourcery PR
+  review.)
+
+### Changed
+
+- **`backendRouteNotInContract` now defaults to `warning`, not `error`.** Regex
+  scanning cannot resolve every cross-file route prefix (aliased routers, the
+  Express `app.use` mount form, module-qualified `include_router(pkg.router, …)`),
+  so a scanner blind spot must not break CI on a contract that is correct. Raise it to
+  `error` (or set `"strict": true`) to enforce once a project's routing shape is
+  known to resolve cleanly. Updated in `DEFAULT_CONFIG`, the scaffolded
+  `.cdd/conformance.json`, and `docs/api-conformance.md`.
+
 ## [2.2.0] - 2026-06-02
 
 Make enforcement live by default, add a mechanical risk-tier safety net under the

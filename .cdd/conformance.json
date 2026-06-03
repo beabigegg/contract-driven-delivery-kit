@@ -8,7 +8,7 @@
   "excludeDirs": ["node_modules", "dist", "build", ".git", ".cdd", "coverage", "vendor", "__pycache__", ".next", ".nuxt"],
   "ignorePaths": ["/health", "/metrics"],
   "checks": {
-    "backendRouteNotInContract": "error",
+    "backendRouteNotInContract": "warning",
     "contractEndpointNotImplemented": "warning",
     "frontendCallNotInContract": "error"
   },

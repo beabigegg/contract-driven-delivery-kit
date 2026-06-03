@@ -105,13 +105,27 @@ describe('validate_api_conformance.py', () => {
     expect(r.out).toContain('/api/orders');
   });
 
-  it('fails when a backend route is missing from the contract', () => {
+  it('fails when a backend route is missing from the contract (check set to error)', () => {
+    if (!hasPython()) return;
+    // backendRouteNotInContract defaults to "warning" (a regex scan cannot
+    // resolve every cross-file route prefix, so a blind spot must not break CI).
+    // Projects that want it enforced raise it to "error" — exercised here.
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, { ...ENABLED, checks: { backendRouteNotInContract: 'error' } });
+    writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\napp.delete('/api/secret', h);\n");
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('backend route DELETE /api/secret');
+  });
+
+  it('reports a missing backend route as a warning (not a CI failure) by default', () => {
     if (!hasPython()) return;
     writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
     writeConfig(repo, ENABLED);
     writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\napp.delete('/api/secret', h);\n");
     const r = run(repo);
-    expect(r.status).toBe(1);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance warnings:');
     expect(r.out).toContain('backend route DELETE /api/secret');
   });
 
@@ -236,6 +250,179 @@ describe('validate_api_conformance.py', () => {
     writeConfig(repo, { ...ENABLED, strict: true, frontendGlobsExt: [] });
     writeSrc(repo, 'server/users.controller.ts',
       "@Controller('api/users')\nexport class UsersController {\n  @Get(':id')\n  findOne() {}\n}\n");
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('resolves a Flask Blueprint url_prefix declared in a separate file (issue #15)', () => {
+    if (!hasPython()) return;
+    // Contract documents the prefixed paths; the routes carry only the suffix,
+    // and the /admin prefix is added by register_blueprint in another file.
+    // strict mode escalates backendRouteNotInContract to error, so a regression
+    // (prefix not resolved) would fail this test loudly.
+    writeApiContract(repo, [
+      '| GET | /admin/api/logs | required | - | Log[] | 401 | yes |',
+      '| GET | /admin/api/drawers | required | - | Drawer[] | 401 | yes |',
+    ]);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true });
+    writeSrc(repo, 'routes/admin_routes.py',
+      'admin_bp = Blueprint("admin", __name__, url_prefix="/admin")\n'
+      + '@admin_bp.route("/api/logs", methods=["GET"])\ndef logs(): ...\n'
+      + '@admin_bp.route("/api/drawers", methods=["GET"])\ndef drawers(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from routes.admin_routes import admin_bp\napp.register_blueprint(admin_bp)\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('resolves a FastAPI APIRouter prefix and still flags genuinely missing routes', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    // /admin/items is documented; /admin/secret is not -> the prefix must fold
+    // into the route path for BOTH the match and the error message.
+    writeSrc(repo, 'routes.py',
+      'router = APIRouter(prefix="/admin")\n'
+      + '@router.get("/items")\ndef items(): ...\n'
+      + '@router.get("/secret")\ndef secret(): ...\n');
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('GET /admin/secret');
+    expect(r.out).not.toContain('/admin/items is not in');
+  });
+
+  it('applies a Blueprint prefix supplied only at register_blueprint', () => {
+    if (!hasPython()) return;
+    // No url_prefix on the constructor; the /admin prefix is added solely at the
+    // registration call (in another file) — the cross-file registration map must
+    // still resolve it.
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes/admin.py',
+      'admin_bp = Blueprint("admin", __name__)\n@admin_bp.route("/items")\ndef items(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from routes.admin import admin_bp\napp.register_blueprint(admin_bp, url_prefix="/admin")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('lets a register_blueprint prefix override the constructor url_prefix', () => {
+    if (!hasPython()) return;
+    // Constructor says /old, registration says /admin — registration wins, so the
+    // route resolves to /admin/items (documented) and NOT /old/items.
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin', '/old'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes/admin.py',
+      'admin_bp = Blueprint("admin", __name__, url_prefix="/old")\n@admin_bp.route("/items")\ndef items(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from routes.admin import admin_bp\napp.register_blueprint(admin_bp, url_prefix="/admin")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('scopes a reused `router` prefix per file (FastAPI APIRouter, no cross-module collision)', () => {
+    if (!hasPython()) return;
+    // Both modules name the router `router` with different prefixes — a global
+    // var->prefix map would fold every route under whichever was scanned last.
+    writeApiContract(repo, [
+      '| GET | /users/list | required | - | User[] | 401 | yes |',
+      '| GET | /orders/list | required | - | Order[] | 401 | yes |',
+    ]);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/users', '/orders'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'users.py', 'router = APIRouter(prefix="/users")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'orders.py', 'router = APIRouter(prefix="/orders")\n@router.get("/list")\ndef l(): ...\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('reads the prefix kwarg past a nested-paren kwarg in the constructor', () => {
+    if (!hasPython()) return;
+    // `dependencies=[Depends(auth)]` before `prefix=` must not truncate the
+    // constructor-args capture (a plain [^)]* would stop at the Depends paren).
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes.py',
+      'router = APIRouter(dependencies=[Depends(auth)], prefix="/admin")\n@router.get("/items")\ndef i(): ...\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('resolves a module-qualified constructor name (flask.Blueprint / fastapi.APIRouter)', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes.py',
+      'bp = flask.Blueprint("a", __name__, url_prefix="/admin")\n@bp.get("/items")\ndef i(): ...\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('composes a FastAPI include_router prefix additively with the APIRouter prefix', () => {
+    if (!hasPython()) return;
+    // FastAPI serves @router.get("/list") at <include prefix>/<APIRouter prefix>/list,
+    // i.e. /api/items/list — the registration prefix must NOT replace the
+    // constructor prefix (that is Flask's semantics, not FastAPI's).
+    writeApiContract(repo, ['| GET | /api/items/list | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/api'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'items.py', 'router = APIRouter(prefix="/items")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'app.py', 'from items import router\napp.include_router(router, prefix="/api")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('does not misroute when the same router name is registered with conflicting prefixes', () => {
+    if (!hasPython()) return;
+    // app.py registers a reused `router` name under two different prefixes; that
+    // ambiguous registration must be dropped so each module's per-file APIRouter
+    // prefix decides, rather than the last-scanned registration clobbering both.
+    writeApiContract(repo, [
+      '| GET | /users/list | required | - | User[] | 401 | yes |',
+      '| GET | /orders/list | required | - | Order[] | 401 | yes |',
+    ]);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/users', '/orders'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'users.py', 'router = APIRouter(prefix="/users")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'orders.py', 'router = APIRouter(prefix="/orders")\n@router.get("/list")\ndef l(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from users import router\napp.include_router(router, prefix="/users")\n'
+      + 'from orders import router\napp.include_router(router, prefix="/orders")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('keys the prefix to the receiver on a type-annotated router assignment', () => {
+    if (!hasPython()) return;
+    // `router: APIRouter = APIRouter(prefix="/admin")` — the prefix must attach to
+    // `router`, not the `APIRouter` annotation, so @router.get resolves prefixed.
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes.py',
+      'router: APIRouter = APIRouter(prefix="/admin")\n@router.get("/items")\ndef i(): ...\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('honors an explicit empty register_blueprint url_prefix as a root-mount override', () => {
+    if (!hasPython()) return;
+    // Blueprint('/old') is deliberately mounted at root via url_prefix="" — Flask
+    // serves /items, so the empty registration prefix must override the
+    // constructor's /old, not be discarded as falsy (which would invent /old/items
+    // and report the real /items as unimplemented).
+    writeApiContract(repo, ['| GET | /items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: [], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes/admin.py',
+      'admin_bp = Blueprint("a", __name__, url_prefix="/old")\n@admin_bp.route("/items")\ndef i(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from routes.admin import admin_bp\napp.register_blueprint(admin_bp, url_prefix="")\n');
     const r = run(repo);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toContain('API conformance validation passed.');

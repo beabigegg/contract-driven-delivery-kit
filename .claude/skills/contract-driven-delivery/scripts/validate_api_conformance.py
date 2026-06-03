@@ -33,12 +33,25 @@ Config (.cdd/conformance.json), all keys optional:
   "excludeDirs": ["node_modules", "dist", "build", ".git", "tests", "__tests__"],
   "ignorePaths": ["/health", "/metrics"],  // contract+code paths to ignore (supports trailing *)
   "checks": {
-    "backendRouteNotInContract": "error",
+    "backendRouteNotInContract": "warning",
     "contractEndpointNotImplemented": "warning",
     "frontendCallNotInContract": "error"
   },
   "strict": false                   // escalate all warnings to errors
 }
+
+Cross-file prefix resolution: Flask Blueprint `url_prefix` and FastAPI
+APIRouter `prefix` are declared on the router object and the routes hang off
+that object. Constructor prefixes (`Blueprint(url_prefix=...)`,
+`APIRouter(prefix=...)`) are resolved per file — scoped to the file so a bare
+`router` name reused across modules cannot collide — while registration
+prefixes (`register_blueprint(bp, url_prefix=...)`, `include_router(router,
+prefix=...)`) are resolved across files, registration winning. The route path
+then has the resolved prefix folded in. This keys on the local variable name,
+so a router imported under an alias, a module-qualified registration
+(`include_router(users.router, ...)`), or a dynamically assembled prefix is
+not resolved; that residual heuristic gap is why `backendRouteNotInContract`
+defaults to "warning" rather than "error".
 """
 import json
 import os
@@ -63,7 +76,12 @@ DEFAULT_CONFIG = {
                     'vendor', '__pycache__', '.next', '.nuxt'],
     'ignorePaths': [],
     'checks': {
-        'backendRouteNotInContract': 'error',
+        # Heuristic regex scanning cannot resolve every cross-file route prefix
+        # (aliased routers, dynamic mounts). Defaulting this to "warning" keeps a
+        # scanner blind spot from breaking CI on a contract that is actually
+        # correct; set it to "error" (or "strict": true) to enforce once the
+        # project's routing shape is known to be fully resolvable.
+        'backendRouteNotInContract': 'warning',
         'contractEndpointNotImplemented': 'warning',
         'frontendCallNotInContract': 'error',
     },
@@ -192,10 +210,13 @@ _JS_BACKEND = [
 NEST_CONTROLLER_RE = re.compile(r'@Controller\s*\(\s*[\'"`]?([^\'"`)]*)[\'"`]?\s*\)', re.I)
 NEST_METHOD_RE = re.compile(r'@(Get|Post|Put|Delete|Patch|Options|Head|All)\s*\(\s*[\'"`]?([^\'"`)]*)[\'"`]?\s*\)', re.I)
 _PY_BACKEND = [
-    # FastAPI / APIRouter decorators: @app.get("/x"), @router.post('/x')
-    (re.compile(r'@(?:app|router|\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'verb_first'),
-    # Flask: @app.route("/x", methods=["POST"])  (methods captured separately below)
-    (re.compile(r'@(?:app|bp|blueprint|\w+)\.route\s*\(\s*[\'"]([^\'"]+)[\'"]([^)]*)', re.I), 'flask_route'),
+    # FastAPI/APIRouter and Flask 2.0 shorthand: @app.get("/x"), @router.post('/x'),
+    # @bp.get('/x'). The receiver (group 1) is captured so a Blueprint/APIRouter
+    # url_prefix/prefix can be folded in by _apply_prefix.
+    (re.compile(r'@(\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\'"]([^\'"]+)[\'"]', re.I), 'py_verb_first'),
+    # Flask: @app.route("/x", methods=["POST"])  (methods captured separately below).
+    # Group 1 is the receiver (app/bp/...), group 2 the path, group 3 the call tail.
+    (re.compile(r'@(\w+)\.route\s*\(\s*[\'"]([^\'"]+)[\'"]([^)]*)', re.I), 'flask_route'),
     # Django urls: path("x/", ...)  re_path(r"^x/$", ...)
     (re.compile(r'\b(?:path|re_path|url)\s*\(\s*r?[\'"]([^\'"]+)[\'"]', re.I), 'path_only'),
 ]
@@ -229,6 +250,27 @@ BACKEND_PATTERNS_BY_EXT = {
 
 FLASK_METHODS_RE = re.compile(r'methods\s*=\s*\[([^\]]*)\]', re.I)
 SPRING_METHOD_RE = re.compile(r'method\s*=\s*\{?([^)}]*)', re.I)
+
+# Cross-file route-prefix resolution for Flask Blueprint / FastAPI APIRouter.
+# The argument capture `(?:[^()]|\([^()]*\))*` tolerates one level of nested
+# parens so a kwarg like `dependencies=[Depends(auth)]` before `prefix=` does not
+# truncate the capture. `(?:\w+\.)*` accepts qualified calls (flask.Blueprint,
+# fastapi.APIRouter). `(?::[^=\n]+)?` tolerates an annotated assignment
+# (`router: APIRouter = APIRouter(...)`) so the prefix is keyed to the receiver
+# (`router`) rather than the type name. Constructor prefixes are resolved per
+# file (see scan_backend) so a bare `router` reused across modules cannot collide.
+# Constructor:  admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+#               router: APIRouter = APIRouter(prefix="/admin")
+_CALL_ARGS = r'((?:[^()]|\([^()]*\))*)'
+BLUEPRINT_CTOR_RE = re.compile(r'(\w+)\s*(?::[^=\n]+)?=\s*(?:\w+\.)*(?:Blueprint|APIRouter)\s*\(' + _CALL_ARGS + r'\)', re.S)
+# Registration (cross-file): group 1 is the verb (register_blueprint = Flask,
+# url_prefix OVERRIDES the Blueprint's own; include_router = FastAPI, prefix is
+# ADDITIVE with the APIRouter prefix), group 2 the receiver, group 3 the args.
+#   app.register_blueprint(admin_bp, url_prefix="/admin")
+#   app.include_router(router, prefix="/admin")
+BLUEPRINT_REG_RE = re.compile(r'\b(register_blueprint|include_router)\s*\(\s*(\w+)\s*' + _CALL_ARGS + r'\)', re.S)
+# url_prefix="/x" or prefix='/x' kwarg, read out of either call's argument list.
+PREFIX_KWARG_RE = re.compile(r'(?:url_prefix|prefix)\s*=\s*[\'"]([^\'"]*)[\'"]')
 
 # Frontend HTTP calls -> list of (method_or_None, raw_path). Only scanned in
 # files with a frontend extension. The path capture allows ${...} template
@@ -284,6 +326,50 @@ def _join_route(prefix: str, suffix: str) -> str:
     return normalize_path('/' + '/'.join(parts)) if parts else normalize_path('/')
 
 
+def _prefix_kwargs(text: str, pattern: re.Pattern) -> dict:
+    """Collect {var: prefix} from constructor calls in `text`.
+
+    Presence-checks the kwarg rather than truthiness so an explicit empty prefix
+    (`url_prefix=""` / `prefix=""`, a deliberate root mount) is preserved and can
+    override a value elsewhere, instead of being silently discarded."""
+    out = {}
+    for m in pattern.finditer(text):
+        km = PREFIX_KWARG_RE.search(m.group(2))
+        if km is not None:
+            out[m.group(1)] = km.group(1)
+    return out
+
+
+def _apply_prefix(reg_prefixes: dict, local_ctor: dict, receiver: str, raw: str) -> str:
+    """Fold a resolved Blueprint/APIRouter prefix into a route path.
+
+    Combines a *file-local* constructor prefix (so a bare `router` reused in
+    another module cannot fold these routes under the wrong prefix) with a
+    cross-file registration prefix, respecting each framework's semantics:
+      - Flask `register_blueprint(bp, url_prefix=...)` OVERRIDES the Blueprint's
+        own `url_prefix`.
+      - FastAPI `include_router(router, prefix=...)` is ADDITIVE — the served
+        path is `<include prefix>/<APIRouter prefix>/<route>`.
+    `reg_prefixes` maps receiver -> (verb, prefix); ambiguous receivers (the same
+    name registered with conflicting prefixes across files) are dropped upstream
+    so the per-file constructor prefix wins instead of a guessed one. An explicit
+    empty registration prefix (`register_blueprint(bp, url_prefix="")`) is a
+    deliberate root mount and still shadows the constructor prefix — the route
+    resolves to root, not the constructor's value. Receivers with no resolved
+    prefix (the Flask `app` itself, or a shape the heuristic cannot follow) pass
+    through unchanged — that residual gap is why backendRouteNotInContract
+    defaults to a warning."""
+    ctor = local_ctor.get(receiver)
+    reg = reg_prefixes.get(receiver)
+    if reg is not None:
+        verb, rprefix = reg
+        # FastAPI: include_router prefix + APIRouter prefix. Flask: override.
+        prefix = _join_route(rprefix, ctor) if (verb == 'include_router' and ctor) else rprefix
+    else:
+        prefix = ctor
+    return _join_route(prefix, raw) if prefix else normalize_path(raw)
+
+
 def scan_nestjs(text: str):
     """Yield (METHOD, normalized_path) for NestJS controllers in one file.
 
@@ -308,6 +394,36 @@ def scan_nestjs(text: str):
 def scan_backend(roots, exts, exclude_dirs):
     """Return set of (METHOD, normalized_path). METHOD may be 'ANY'."""
     routes = set()
+    # Pre-pass: read every Python file once (caching the text so the main loop
+    # below does not re-read it — these two passes used to double the .py IO) and
+    # resolve cross-file *registration* prefixes (register_blueprint /
+    # include_router). Constructor prefixes are resolved per file in the main
+    # loop so a bare `router` name reused across modules cannot collide.
+    py_text = {}
+    reg_seen = {}  # receiver -> {(verb, prefix), ...}  (collision detection)
+    for path in iter_source_files(roots, {'.py'}, exclude_dirs):
+        if looks_like_test(path):
+            continue
+        try:
+            text = Path(path).read_text(encoding='utf-8', errors='ignore')
+        except OSError:
+            continue
+        py_text[path] = text
+        for m in BLUEPRINT_REG_RE.finditer(text):
+            km = PREFIX_KWARG_RE.search(m.group(3))
+            if km is not None:  # presence, not truthiness: keep an explicit ""
+                reg_seen.setdefault(m.group(2), set()).add((m.group(1).lower(), km.group(1)))
+    # Keep only receivers registered with a single, unambiguous prefix. A name
+    # registered under conflicting prefixes across files (e.g. two modules each
+    # `include_router(router, prefix=...)`) is dropped so the per-file
+    # constructor prefix decides rather than whichever was scanned last. When the
+    # routers carry no constructor prefix either, that receiver is left
+    # unresolved (a warning under the default) rather than mis-attributed —
+    # resolving it would need import tracking (which module each bare `router`
+    # came from), which this regex heuristic deliberately does not attempt.
+    reg_prefixes = {var: next(iter(entries)) for var, entries in reg_seen.items()
+                    if len({prefix for _, prefix in entries}) == 1}
+
     for path in iter_source_files(roots, exts, exclude_dirs):
         if looks_like_test(path):
             continue
@@ -315,10 +431,14 @@ def scan_backend(roots, exts, exclude_dirs):
         patterns = BACKEND_PATTERNS_BY_EXT.get(ext)
         if not patterns:
             continue
-        try:
-            text = Path(path).read_text(encoding='utf-8', errors='ignore')
-        except OSError:
-            continue
+        text = py_text.get(path)
+        if text is None:
+            try:
+                text = Path(path).read_text(encoding='utf-8', errors='ignore')
+            except OSError:
+                continue
+        # Constructor prefixes are scoped to this file (see _apply_prefix).
+        local_ctor = _prefix_kwargs(text, BLUEPRINT_CTOR_RE) if ext == '.py' else {}
         if ext in ('.ts', '.tsx', '.js', '.mjs', '.cjs'):
             routes.update(scan_nestjs(text))
         for pat, kind in patterns:
@@ -328,16 +448,24 @@ def scan_backend(roots, exts, exclude_dirs):
                     raw = m.group(2)
                     method = 'ANY' if method == 'ALL' else method
                     routes.add((method, normalize_path(raw)))
+                elif kind == 'py_verb_first':
+                    receiver = m.group(1)
+                    method = m.group(2).upper()
+                    raw = m.group(3)
+                    method = 'ANY' if method == 'ALL' else method
+                    routes.add((method, _apply_prefix(reg_prefixes, local_ctor, receiver, raw)))
                 elif kind == 'flask_route':
-                    raw = m.group(1)
-                    tail = m.group(2) or ''
+                    receiver = m.group(1)
+                    raw = m.group(2)
+                    tail = m.group(3) or ''
+                    full = _apply_prefix(reg_prefixes, local_ctor, receiver, raw)
                     mm = FLASK_METHODS_RE.search(tail)
                     if mm:
                         for meth in re.findall(r'[A-Za-z]+', mm.group(1)):
                             if meth.upper() in VALID_METHODS:
-                                routes.add((meth.upper(), normalize_path(raw)))
+                                routes.add((meth.upper(), full))
                     else:
-                        routes.add(('GET', normalize_path(raw)))
+                        routes.add(('GET', full))
                 elif kind == 'path_only':
                     routes.add(('ANY', normalize_path(m.group(1))))
                 elif kind == 'laravel_match':

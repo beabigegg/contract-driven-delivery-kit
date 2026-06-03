@@ -18,7 +18,7 @@ backend routes and frontend call sites and diffs them against the contract.
 
 | Check | Meaning | Default severity |
 |---|---|---|
-| `backendRouteNotInContract` | a route is declared in backend code but not in the contract | error |
+| `backendRouteNotInContract` | a route is declared in backend code but not in the contract | warning |
 | `contractEndpointNotImplemented` | a contract endpoint has no backend route in scanned source | warning |
 | `frontendCallNotInContract` | the frontend calls a path/method that is not in the contract | error |
 
@@ -34,6 +34,12 @@ a parser for every framework. It recognizes:
   (`@GetMapping`, and `@RequestMapping(..., method=...)` with the method parsed),
   Go (chi/gin/echo/mux + `HandleFunc`), and Laravel (`Route::get` and
   `Route::match([...])`).
+- **Flask Blueprint / FastAPI APIRouter prefixes** are resolved across files: a
+  pre-pass maps each router variable to its prefix — from the constructor kwarg
+  (`Blueprint(..., url_prefix="/admin")`, `APIRouter(prefix="/admin")`) and/or the
+  registration call (`register_blueprint(bp, url_prefix=...)`,
+  `include_router(router, prefix=...)`) — and folds it into every route on that
+  router. The registration-site prefix wins over the constructor's.
 - **Frontend**: `fetch` (method read from the options object; defaults to GET),
   `axios`/`ky`/`$http`/`client`/`http`/`api.*` verb calls, the
   `axios({ url, method })` config-object form, and `useFetch`/`useSWR`/`useQuery`.
@@ -49,11 +55,42 @@ proof.
   `backendGlobsExt` and Rails routes are not claimed.
 - **Mounted Express routers** (`app.use('/api', router)` + `router.get('/users')`)
   record only `/users`; the validator does not resolve the mount prefix across
-  files. If you use mounted routers, either declare the unprefixed paths in the
-  contract, add the mount prefix in the route literal, or set
-  `contractEndpointNotImplemented` to `off`.
+  files. (Flask Blueprint and FastAPI APIRouter prefixes *are* resolved — see
+  above — but the Express `app.use` mount form is not.) If you use mounted
+  routers, either declare the unprefixed paths in the contract, add the mount
+  prefix in the route literal, or set `contractEndpointNotImplemented` to `off`.
+- **Prefix resolution keys on the local variable name.** Constructor prefixes
+  (`Blueprint(url_prefix=...)`, `APIRouter(prefix=...)`) are scoped per file, so a
+  `router` reused across modules does not collide; registration prefixes
+  (`register_blueprint`/`include_router`) are matched across files, with Flask's
+  override and FastAPI's additive (`include_router` prefix + `APIRouter` prefix)
+  semantics each respected. What is **not** resolved: a router imported under an
+  alias (`from x import router as r`), or a name registered under conflicting
+  prefixes across files — the latter is detected and dropped (so the per-file
+  constructor prefix decides) rather than guessed.
+- **Registrations resolved by a shared bare receiver name can cross modules.**
+  Because a registration is keyed by the variable name (`router`, `bp`), not the
+  module it was imported from, the following are not resolved — they all need
+  import tracking the regex heuristic deliberately does not attempt:
+  - **Module-qualified registration**: `include_router(users.router,
+    prefix="/api")` (router referenced through an imported module) is not matched.
+  - **Same name, conflicting prefixes**: two modules each `include_router(router,
+    prefix=...)` under different prefixes — the ambiguous registration is dropped,
+    so those routes are left unresolved (a warning) rather than mis-attributed.
+  - **One registration leaking onto a same-named local router**: if `users.py`
+    exports `router` mounted under `/api`, while `admin.py` has its own file-local
+    `router = APIRouter(prefix="/admin")` mounted without a prefix, the `/api`
+    registration is applied to `admin.py`'s routes too (scanned as `/api/admin/…`
+    though FastAPI serves `/admin/…`). To avoid this, give routers distinct names
+    or set `backendRouteNotInContract`/`contractEndpointNotImplemented` to
+    `warning` (the default) so it does not fail CI.
 - **Dynamic routes** built from variables or registered via framework modules
   (NestJS `RouterModule`, dynamic prefixes) are not detected.
+
+Because of these residual blind spots, `backendRouteNotInContract` **defaults to
+`warning`**: a route the scanner mislocates must not break CI on a contract that
+is actually correct. Raise it to `error` (or set `"strict": true`) once your
+project's routing shape is known to resolve cleanly.
 
 ## Enabling it
 
@@ -68,7 +105,7 @@ flip it on:
   "sourceRoots": ["src", "app"],
   "ignorePaths": ["/health", "/metrics"],
   "checks": {
-    "backendRouteNotInContract": "error",
+    "backendRouteNotInContract": "warning",
     "contractEndpointNotImplemented": "warning",
     "frontendCallNotInContract": "error"
   },
