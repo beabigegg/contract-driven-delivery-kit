@@ -249,10 +249,10 @@ function columnEquals(row: EndpointTableRow, column: string, value: string): boo
   return (row.cells[column] ?? '').trim().toLowerCase() === value.trim().toLowerCase();
 }
 
-/** `/api/*` → glob (`*` only); otherwise prefix match. */
+/** `/api/*` → glob (`*` matches within a single path segment); otherwise a prefix match. */
 function matchPath(path: string, pattern: string): boolean {
   if (!pattern.includes('*')) return path.startsWith(pattern);
-  const re = new RegExp(`^${pattern.split('*').map(escapeRegExp).join('.*')}$`);
+  const re = new RegExp(`^${pattern.split('*').map(escapeRegExp).join('[^/]*')}$`);
   return re.test(path);
 }
 

@@ -136,7 +136,7 @@ const tools: ToolDef[] = [
       type: 'object',
       properties: {
         endpoint: { type: 'string', description: 'Exact endpoint "METHOD /path", e.g. "POST /api/orders" — returns the row plus the schemas it references and the shared prose sections.' },
-        path: { type: 'string', description: 'Path prefix, or a * glob; lists matching endpoints across the contract and inventory.' },
+        path: { type: 'string', description: 'Path prefix, or a glob where * matches within one path segment; lists matching endpoints across the contract and inventory.' },
         schema: { type: 'string', description: 'Schema name; returns its definition plus the endpoints that reference it.' },
         auth: { type: 'string', description: 'Filter endpoints by the auth column.' },
         category: { type: 'string', description: 'Filter inventory endpoints by category.' },

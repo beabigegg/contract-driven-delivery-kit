@@ -510,7 +510,7 @@ contract
   .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
   .option('--inventory <path>', 'API inventory markdown path', 'contracts/api/api-inventory.md')
   .option('--endpoint <method-and-path>', 'Exact endpoint, e.g. "POST /api/orders" — returns the row plus the schemas it references and shared prose')
-  .option('--path <prefix-or-glob>', 'Every endpoint under a path prefix (or a * glob), across the contract and inventory')
+  .option('--path <prefix-or-glob>', 'Endpoints under a path prefix, or a glob where * matches within one segment, across the contract and inventory')
   .option('--schema <name>', 'A schema definition plus the endpoints that reference it')
   .option('--auth <value>', 'Filter endpoints by the auth column')
   .option('--category <value>', 'Filter inventory endpoints by category')

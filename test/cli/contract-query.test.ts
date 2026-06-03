@@ -7,7 +7,7 @@
  * the bounded shared prose sections for an endpoint answer.
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
@@ -163,6 +163,11 @@ describe('cdd-kit contract query', () => {
     expect(payload.endpoints.map((e: any) => e.path)).toEqual(['/api/orders/export']);
   });
 
+  it('a * glob matches within a single path segment, not across /', () => {
+    const { payload } = query(['--path', '/api/*']);
+    expect(payload.endpoints.map((e: any) => e.path).sort()).toEqual(['/api/health', '/api/orders', '/api/users']);
+  });
+
   it('--auth filters by the auth column', () => {
     const { payload } = query(['--auth', 'admin']);
     expect(payload.endpoints).toHaveLength(1);
@@ -198,7 +203,7 @@ describe('cdd-kit contract query', () => {
   });
 
   it('still answers from the contract when the inventory file is absent', () => {
-    cleanupDir(join(repo, 'contracts', 'api', 'api-inventory.md'));
+    rmSync(join(repo, 'contracts', 'api', 'api-inventory.md'), { force: true });
     const { status, payload } = query(['--endpoint', 'GET /api/users']);
     expect(status).toBe(0);
     expect(payload.inventory).toBeNull();
