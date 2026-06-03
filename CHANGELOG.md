@@ -6,9 +6,9 @@ _No unreleased changes yet._
 
 ## [2.2.1] - 2026-06-03
 
-Fix a false-positive class in the 2.2.0 API conformance validator that broke CI on
-correct contracts (issue #15), and stop a heuristic blind spot from being fatal by
-default.
+Fix a class of false positives in the 2.2.0 API conformance validator that broke
+CI on correct contracts (issue #15), and stop a heuristic blind spot from being
+fatal by default.
 
 ### Fixed
 
@@ -19,10 +19,14 @@ default.
   `/api/logs`, so every prefixed route was flagged `backendRouteNotInContract`
   while the matching contract endpoint was flagged
   `contractEndpointNotImplemented` — two false errors per route against a contract
-  that was actually correct. The validator now does a cross-file pre-pass mapping
-  each Blueprint/APIRouter variable to its prefix (constructor kwarg and/or
-  registration call, registration winning) and folds it into the route path.
-  Flask 2.0 `@bp.get(...)` shorthand is covered too. (Issue #15.)
+  that was actually correct. The validator now resolves constructor prefixes per
+  file and registration prefixes across files (registration winning) and folds
+  them into the route path. Constructor scoping is **per file**, so a bare
+  `router` name reused across modules cannot collide; the constructor regex
+  tolerates a nested-paren kwarg (`APIRouter(dependencies=[Depends(x)],
+  prefix=...)`) and a module-qualified call (`flask.Blueprint(...)`,
+  `fastapi.APIRouter(...)`); Flask 2.0 `@bp.get(...)` shorthand is covered too.
+  (Issue #15; hardened per Codex/Sourcery PR review.)
 
 ### Changed
 

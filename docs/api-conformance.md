@@ -62,7 +62,13 @@ proof.
 - **Prefix resolution keys on the local variable name.** A Blueprint/APIRouter
   imported under an alias, registered under two different prefixes, or with a
   FastAPI `include_router` prefix *added on top of* an `APIRouter(prefix=...)`
-  (the two concatenate) is not fully resolved.
+  (the two concatenate) is not fully resolved. Constructor prefixes are scoped
+  per file (so a `router` reused across modules does not collide); registration
+  prefixes are matched across files.
+- **Module-qualified registrations** such as `include_router(users.router,
+  prefix="/api")` (where the router is referenced through an imported module
+  rather than a bare local name) are not resolved — that needs import tracking
+  the regex heuristic deliberately does not attempt.
 - **Dynamic routes** built from variables or registered via framework modules
   (NestJS `RouterModule`, dynamic prefixes) are not detected.
 
