@@ -129,6 +129,26 @@ const tools: ToolDef[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'cdd_contract_query',
+    description: 'Query the API contract by key (endpoint, schema, path prefix/glob, or column filter) and get back only the matching slice — the contract analog of cdd_index_query (ask, don\'t read the whole contract). Parse-on-demand and read-only. Provide one selector: endpoint, schema, path, a column filter (auth/category/owner), or a free-text term.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        endpoint: { type: 'string', description: 'Exact endpoint "METHOD /path", e.g. "POST /api/orders" — returns the row plus the schemas it references and the shared prose sections.' },
+        path: { type: 'string', description: 'Path prefix, or a * glob; lists matching endpoints across the contract and inventory.' },
+        schema: { type: 'string', description: 'Schema name; returns its definition plus the endpoints that reference it.' },
+        auth: { type: 'string', description: 'Filter endpoints by the auth column.' },
+        category: { type: 'string', description: 'Filter inventory endpoints by category.' },
+        owner: { type: 'string', description: 'Filter inventory endpoints by owner.' },
+        term: { type: 'string', description: 'Free-text fuzzy match across endpoint rows and schema names.' },
+        contract: { type: 'string', description: 'API contract markdown path.', default: 'contracts/api/api-contract.md' },
+        inventory: { type: 'string', description: 'API inventory markdown path.', default: 'contracts/api/api-inventory.md' },
+        limit: { type: 'integer', minimum: 1, maximum: 200, default: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 export async function runMcpServer(opts: RunMcpServerOptions): Promise<void> {
@@ -257,6 +277,27 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         '--json',
         ...refreshArgs(args),
       ]);
+    case 'cdd_contract_query': {
+      const cmd = ['contract', 'query'];
+      const term = optionalString(args.term, '');
+      if (term) cmd.push(term);
+      const flags: Array<[string, string]> = [
+        ['--endpoint', 'endpoint'],
+        ['--path', 'path'],
+        ['--schema', 'schema'],
+        ['--auth', 'auth'],
+        ['--category', 'category'],
+        ['--owner', 'owner'],
+        ['--contract', 'contract'],
+        ['--inventory', 'inventory'],
+      ];
+      for (const [flag, key] of flags) {
+        const value = args[key];
+        if (typeof value === 'string' && value.trim()) cmd.push(flag, value);
+      }
+      cmd.push('--limit', String(optionalInt(args.limit, 20)), '--json');
+      return runCddJson(cmd);
+    }
     default:
       return {
         isError: true,

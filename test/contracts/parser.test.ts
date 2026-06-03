@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseEndpoints,
+  parseEndpointTableRows,
   parseContractSchemas,
   stripFrontmatter,
+  extractSection,
   parseRow,
   isSeparator,
 } from '../../src/contracts/parser.js';
@@ -169,6 +171,35 @@ describe('parseEndpoints', () => {
     expect(row.auth).toBe('');
     expect(row.request).toBe('');
     expect(row.tests).toBe(''); // "contract test" is intentionally NOT aliased to tests
+  });
+});
+
+describe('parseEndpointTableRows', () => {
+  it('captures every column keyed by header label (incl. inventory columns)', () => {
+    const body = [
+      '| method | path | category | owner | contract test | notes |',
+      '|---|---|---|---|---|---|',
+      '| GET | /health | health-exception | platform | yes | liveness |',
+    ].join('\n');
+    const [row] = parseEndpointTableRows(body);
+    expect(row.method).toBe('get');
+    expect(row.path).toBe('/health');
+    expect(row.cells.category).toBe('health-exception');
+    expect(row.cells.owner).toBe('platform');
+    expect(row.cells['contract test']).toBe('yes');
+  });
+});
+
+describe('extractSection', () => {
+  it('returns the trimmed body of a level-2 section up to the next heading', () => {
+    const body = ['## Error Format', '', 'A JSON envelope.', '', '## Next', 'other'].join('\n');
+    expect(extractSection(body, 'Error Format')).toBe('A JSON envelope.');
+  });
+
+  it('is case-insensitive on the heading and returns empty for a missing one', () => {
+    const body = ['## Compatibility Policy', 'Additive only.'].join('\n');
+    expect(extractSection(body, 'compatibility policy')).toBe('Additive only.');
+    expect(extractSection(body, 'Missing')).toBe('');
   });
 });
 

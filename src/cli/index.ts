@@ -499,6 +499,41 @@ openapi
     process.exit(exit);
   });
 
+// ── cdd contract query ────────────────────────────────────────────────────────
+const contract = program
+  .command('contract')
+  .description('Query the API contract by key instead of reading the whole file (see docs/adr/0004-queryable-and-writable-contracts.md)');
+
+contract
+  .command('query [term]')
+  .description('Return only the matching slice of the API contract (endpoint, schema, path, or column filter)')
+  .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
+  .option('--inventory <path>', 'API inventory markdown path', 'contracts/api/api-inventory.md')
+  .option('--endpoint <method-and-path>', 'Exact endpoint, e.g. "POST /api/orders" — returns the row plus the schemas it references and shared prose')
+  .option('--path <prefix-or-glob>', 'Every endpoint under a path prefix (or a * glob), across the contract and inventory')
+  .option('--schema <name>', 'A schema definition plus the endpoints that reference it')
+  .option('--auth <value>', 'Filter endpoints by the auth column')
+  .option('--category <value>', 'Filter inventory endpoints by category')
+  .option('--owner <value>', 'Filter inventory endpoints by owner')
+  .option('--limit <n>', 'Maximum endpoints/schemas to print', '20')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (term: string | undefined, opts: { contract: string; inventory: string; endpoint?: string; path?: string; schema?: string; auth?: string; category?: string; owner?: string; limit: string; json?: boolean }) => {
+    const { contractQuery } = await import('../commands/contract-query.js');
+    const exit = await contractQuery(term, {
+      contract: opts.contract,
+      inventory: opts.inventory,
+      endpoint: opts.endpoint,
+      path: opts.path,
+      schema: opts.schema,
+      auth: opts.auth,
+      category: opts.category,
+      owner: opts.owner,
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program
   .command('detect-stack')
