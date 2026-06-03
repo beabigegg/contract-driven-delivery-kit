@@ -18,7 +18,7 @@ backend routes and frontend call sites and diffs them against the contract.
 
 | Check | Meaning | Default severity |
 |---|---|---|
-| `backendRouteNotInContract` | a route is declared in backend code but not in the contract | error |
+| `backendRouteNotInContract` | a route is declared in backend code but not in the contract | warning |
 | `contractEndpointNotImplemented` | a contract endpoint has no backend route in scanned source | warning |
 | `frontendCallNotInContract` | the frontend calls a path/method that is not in the contract | error |
 
@@ -34,6 +34,12 @@ a parser for every framework. It recognizes:
   (`@GetMapping`, and `@RequestMapping(..., method=...)` with the method parsed),
   Go (chi/gin/echo/mux + `HandleFunc`), and Laravel (`Route::get` and
   `Route::match([...])`).
+- **Flask Blueprint / FastAPI APIRouter prefixes** are resolved across files: a
+  pre-pass maps each router variable to its prefix — from the constructor kwarg
+  (`Blueprint(..., url_prefix="/admin")`, `APIRouter(prefix="/admin")`) and/or the
+  registration call (`register_blueprint(bp, url_prefix=...)`,
+  `include_router(router, prefix=...)`) — and folds it into every route on that
+  router. The registration-site prefix wins over the constructor's.
 - **Frontend**: `fetch` (method read from the options object; defaults to GET),
   `axios`/`ky`/`$http`/`client`/`http`/`api.*` verb calls, the
   `axios({ url, method })` config-object form, and `useFetch`/`useSWR`/`useQuery`.
@@ -49,11 +55,21 @@ proof.
   `backendGlobsExt` and Rails routes are not claimed.
 - **Mounted Express routers** (`app.use('/api', router)` + `router.get('/users')`)
   record only `/users`; the validator does not resolve the mount prefix across
-  files. If you use mounted routers, either declare the unprefixed paths in the
-  contract, add the mount prefix in the route literal, or set
-  `contractEndpointNotImplemented` to `off`.
+  files. (Flask Blueprint and FastAPI APIRouter prefixes *are* resolved — see
+  above — but the Express `app.use` mount form is not.) If you use mounted
+  routers, either declare the unprefixed paths in the contract, add the mount
+  prefix in the route literal, or set `contractEndpointNotImplemented` to `off`.
+- **Prefix resolution keys on the local variable name.** A Blueprint/APIRouter
+  imported under an alias, registered under two different prefixes, or with a
+  FastAPI `include_router` prefix *added on top of* an `APIRouter(prefix=...)`
+  (the two concatenate) is not fully resolved.
 - **Dynamic routes** built from variables or registered via framework modules
   (NestJS `RouterModule`, dynamic prefixes) are not detected.
+
+Because of these residual blind spots, `backendRouteNotInContract` **defaults to
+`warning`**: a route the scanner mislocates must not break CI on a contract that
+is actually correct. Raise it to `error` (or set `"strict": true`) once your
+project's routing shape is known to resolve cleanly.
 
 ## Enabling it
 
@@ -68,7 +84,7 @@ flip it on:
   "sourceRoots": ["src", "app"],
   "ignorePaths": ["/health", "/metrics"],
   "checks": {
-    "backendRouteNotInContract": "error",
+    "backendRouteNotInContract": "warning",
     "contractEndpointNotImplemented": "warning",
     "frontendCallNotInContract": "error"
   },

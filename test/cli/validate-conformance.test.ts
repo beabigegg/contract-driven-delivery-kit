@@ -105,13 +105,27 @@ describe('validate_api_conformance.py', () => {
     expect(r.out).toContain('/api/orders');
   });
 
-  it('fails when a backend route is missing from the contract', () => {
+  it('fails when a backend route is missing from the contract (check set to error)', () => {
+    if (!hasPython()) return;
+    // backendRouteNotInContract defaults to "warning" (a regex scan cannot
+    // resolve every cross-file route prefix, so a blind spot must not break CI).
+    // Projects that want it enforced raise it to "error" — exercised here.
+    writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
+    writeConfig(repo, { ...ENABLED, checks: { backendRouteNotInContract: 'error' } });
+    writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\napp.delete('/api/secret', h);\n");
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('backend route DELETE /api/secret');
+  });
+
+  it('reports a missing backend route as a warning (not a CI failure) by default', () => {
     if (!hasPython()) return;
     writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);
     writeConfig(repo, ENABLED);
     writeSrc(repo, 'server/routes.js', "app.get('/api/users', h);\napp.delete('/api/secret', h);\n");
     const r = run(repo);
-    expect(r.status).toBe(1);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance warnings:');
     expect(r.out).toContain('backend route DELETE /api/secret');
   });
 
@@ -239,6 +253,44 @@ describe('validate_api_conformance.py', () => {
     const r = run(repo);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('resolves a Flask Blueprint url_prefix declared in a separate file (issue #15)', () => {
+    if (!hasPython()) return;
+    // Contract documents the prefixed paths; the routes carry only the suffix,
+    // and the /admin prefix is added by register_blueprint in another file.
+    // strict mode escalates backendRouteNotInContract to error, so a regression
+    // (prefix not resolved) would fail this test loudly.
+    writeApiContract(repo, [
+      '| GET | /admin/api/logs | required | - | Log[] | 401 | yes |',
+      '| GET | /admin/api/drawers | required | - | Drawer[] | 401 | yes |',
+    ]);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true });
+    writeSrc(repo, 'routes/admin_routes.py',
+      'admin_bp = Blueprint("admin", __name__, url_prefix="/admin")\n'
+      + '@admin_bp.route("/api/logs", methods=["GET"])\ndef logs(): ...\n'
+      + '@admin_bp.route("/api/drawers", methods=["GET"])\ndef drawers(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from routes.admin_routes import admin_bp\napp.register_blueprint(admin_bp)\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
+  it('resolves a FastAPI APIRouter prefix and still flags genuinely missing routes', () => {
+    if (!hasPython()) return;
+    writeApiContract(repo, ['| GET | /admin/items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: ['/admin'], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    // /admin/items is documented; /admin/secret is not -> the prefix must fold
+    // into the route path for BOTH the match and the error message.
+    writeSrc(repo, 'routes.py',
+      'router = APIRouter(prefix="/admin")\n'
+      + '@router.get("/items")\ndef items(): ...\n'
+      + '@router.get("/secret")\ndef secret(): ...\n');
+    const r = run(repo);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('GET /admin/secret');
+    expect(r.out).not.toContain('/admin/items is not in');
   });
 
   it('fails when enabled but no source roots resolve (config mistake)', () => {

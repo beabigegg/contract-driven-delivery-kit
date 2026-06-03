@@ -4,6 +4,36 @@
 
 _No unreleased changes yet._
 
+## [2.2.1] - 2026-06-03
+
+Fix a false-positive class in the 2.2.0 API conformance validator that broke CI on
+correct contracts (issue #15), and stop a heuristic blind spot from being fatal by
+default.
+
+### Fixed
+
+- **Resolve Flask Blueprint `url_prefix` / FastAPI APIRouter `prefix` across
+  files (`validate_api_conformance.py`).** A route declared as
+  `@admin_bp.route("/api/logs")` on a `Blueprint(..., url_prefix="/admin")` (or a
+  `register_blueprint(bp, url_prefix=...)` in another file) was recorded as
+  `/api/logs`, so every prefixed route was flagged `backendRouteNotInContract`
+  while the matching contract endpoint was flagged
+  `contractEndpointNotImplemented` — two false errors per route against a contract
+  that was actually correct. The validator now does a cross-file pre-pass mapping
+  each Blueprint/APIRouter variable to its prefix (constructor kwarg and/or
+  registration call, registration winning) and folds it into the route path.
+  Flask 2.0 `@bp.get(...)` shorthand is covered too. (Issue #15.)
+
+### Changed
+
+- **`backendRouteNotInContract` now defaults to `warning`, not `error`.** Regex
+  scanning cannot resolve every cross-file route prefix (aliased routers, the
+  Express `app.use` mount form, additive FastAPI `include_router` prefixes), so a
+  scanner blind spot must not break CI on a contract that is correct. Raise it to
+  `error` (or set `"strict": true`) to enforce once a project's routing shape is
+  known to resolve cleanly. Updated in `DEFAULT_CONFIG`, the scaffolded
+  `.cdd/conformance.json`, and `docs/api-conformance.md`.
+
 ## [2.2.0] - 2026-06-02
 
 Make enforcement live by default, add a mechanical risk-tier safety net under the
