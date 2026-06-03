@@ -191,6 +191,106 @@ describe('cdd-kit contract schema set', () => {
   });
 });
 
+describe('cdd-kit contract set — review hardening (ADR 0004 Phase 3)', () => {
+  // Codex P2: a cell value carrying a markdown table delimiter would silently
+  // shift/truncate later reads. Reject `|` / newlines up front, on both paths.
+  it('rejects an endpoint cell value that contains a table-breaking pipe', () => {
+    const before = read();
+    const r = runCli(
+      ['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/x', '--errors', '400 | 500'],
+      { cwd: repo, home },
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/corrupt the markdown table/i);
+    expect(read()).toBe(before);
+  });
+
+  it('rejects a schema field whose notes or enum body contains a pipe', () => {
+    const before = read();
+    expect(runCli(['contract', 'schema', 'set', 'Bad', '--field', 'note:string:no::a | b'], { cwd: repo, home }).status).toBe(1);
+    // enum(a|b) is a single (valid-shaped) member, but the pipe still breaks the cell.
+    const r = runCli(['contract', 'schema', 'set', 'Bad', '--field', 'kind:enum(a|b):yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/corrupt the markdown table/i);
+    expect(read()).toBe(before);
+  });
+
+  // Codex P2: a duplicate `### Name` must be refused, not silently half-replaced.
+  it('refuses to replace a schema whose key is duplicated in ## Schemas', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### User\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| email | string | yes |  |  |\n\n## Error Format',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'schema', 'set', 'User', '--field', 'name:string:yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/defined 2 times/i);
+    expect(read()).toBe(before);
+  });
+
+  // Codex P2: enum(...) must have at least one non-empty value (the compiler does).
+  it('rejects an enum field with no values, and accepts a populated one', () => {
+    const before = read();
+    expect(runCli(['contract', 'schema', 'set', 'S', '--field', 'status:enum( ):yes'], { cwd: repo, home }).status).toBe(1);
+    const empty = runCli(['contract', 'schema', 'set', 'S', '--field', 'status:enum(,):yes'], { cwd: repo, home });
+    expect(empty.status).toBe(1);
+    expect(empty.stderr).toMatch(/enum.*at least one value/i);
+    expect(read()).toBe(before); // neither malformed write touched the file
+    expect(runCli(['contract', 'schema', 'set', 'S', '--field', 'status:enum(open,closed):yes'], { cwd: repo, home }).status).toBe(0);
+  });
+
+  // Codex P2: an empty `required` cell is a typo, not a silent "no".
+  it('rejects a field whose required cell is empty', () => {
+    const before = read();
+    const r = runCli(['contract', 'schema', 'set', 'S', '--field', 'email:string:'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/required must be "yes" or "no"/i);
+    expect(read()).toBe(before);
+  });
+
+  // Codex P2: a pre-existing duplicate for ANY key (not just the target) is refused.
+  it('refuses to set any endpoint when the table already holds a duplicate key elsewhere', () => {
+    write(CONTRACT.replace(
+      '| GET | /api/users | required | - | User[] | 401 | yes |',
+      '| GET | /api/old | required | - | - | 401 | yes |\n| GET | /api/old | none | - | - | 404 | no |',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/new', '--tests', 'yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/duplicate key/i);
+    expect(read()).toBe(before);
+  });
+
+  // Codex P2: a `### Name` that only exists inside an HTML comment is not a real
+  // section — set must INSERT a usable one, not "replace" inside the comment.
+  it('inserts a real schema rather than editing one that only exists inside an HTML comment', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '<!--\n### ExampleRequest\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| sample | string | no |  |  |\n-->\n\n## Error Format',
+    ));
+    const r = runCli(['contract', 'schema', 'set', 'ExampleRequest', '--field', 'id:string:yes', '--json'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout).action).toBe('inserted');
+    const content = read();
+    expect(content).toContain('<!--'); // the instructional comment is preserved
+    // A real ### ExampleRequest now exists outside the comment, carrying the new field.
+    const afterComment = content.slice(content.indexOf('-->') + 3);
+    expect(afterComment).toContain('### ExampleRequest');
+    expect(afterComment).toContain('| id | string | yes |  |  |');
+  });
+
+  // Sourcery: with --json, errors are structured on stdout too (mirrors contract query).
+  it('emits a structured JSON error on stdout when --json is set and a write is rejected', () => {
+    const before = read();
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'FETCH', '--path', '/api/x', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    const payload = JSON.parse(r.stdout);
+    expect(payload).toMatchObject({ ok: false });
+    expect(payload.error).toMatch(/invalid method/i);
+    expect(read()).toBe(before);
+  });
+});
+
 describe('contract set round-trip', () => {
   it('produces a contract that openapi export accepts, with the new schema and endpoint', () => {
     expect(runCli(['contract', 'schema', 'set', 'Order', '--field', 'id:string:yes', '--field', 'total:number:yes'], { cwd: repo, home }).status).toBe(0);

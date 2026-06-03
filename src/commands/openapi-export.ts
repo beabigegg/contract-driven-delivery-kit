@@ -6,6 +6,7 @@ import {
   parseEndpoints,
   parseContractSchemas,
   SCHEMA_NAME_RE,
+  DEFAULT_CONTRACT_PATH,
   type EndpointRow,
   type JsonSchema,
 } from '../contracts/parser.js';
@@ -37,7 +38,7 @@ export interface OpenApiExportOptions {
   check?: boolean;
 }
 
-const DEFAULT_CONTRACT = 'contracts/api/api-contract.md';
+const DEFAULT_CONTRACT = DEFAULT_CONTRACT_PATH;
 
 interface OpenApiParameter {
   name: string;

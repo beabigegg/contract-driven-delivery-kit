@@ -5,6 +5,8 @@ import {
   parseSchemaSections,
   extractSection,
   SCHEMA_NAME_RE,
+  DEFAULT_CONTRACT_PATH,
+  DEFAULT_INVENTORY_PATH,
   type EndpointTableRow,
 } from '../contracts/parser.js';
 
@@ -19,8 +21,8 @@ import {
  * cached `.cdd/contract-index` artifact to fall out of sync (ADR 0004 §1).
  */
 
-const DEFAULT_CONTRACT = 'contracts/api/api-contract.md';
-const DEFAULT_INVENTORY = 'contracts/api/api-inventory.md';
+const DEFAULT_CONTRACT = DEFAULT_CONTRACT_PATH;
+const DEFAULT_INVENTORY = DEFAULT_INVENTORY_PATH;
 
 /** Bounded shared prose sections an endpoint answer surfaces alongside the row. */
 const ENDPOINT_PROSE_SECTIONS = ['Error Format', 'Compatibility Policy', 'Breaking Change Policy'];

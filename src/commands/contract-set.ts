@@ -8,6 +8,7 @@ import {
   parseSchemaSections,
   VALID_METHODS,
   SCHEMA_NAME_RE,
+  DEFAULT_CONTRACT_PATH,
 } from '../contracts/parser.js';
 
 /**
@@ -22,8 +23,43 @@ import {
  * byte-identical.
  */
 
-const DEFAULT_CONTRACT = 'contracts/api/api-contract.md';
+const DEFAULT_CONTRACT = DEFAULT_CONTRACT_PATH;
 const PRIMITIVE_TYPES = ['string', 'integer', 'number', 'boolean'];
+
+/**
+ * A cell value that would corrupt the markdown table if written verbatim: a pipe
+ * (the column delimiter the shared `parseRow` splits on) or a line break (which
+ * would split one row into several). `contract set` re-serializes by joining
+ * cells with `|`, so such a value must be rejected up front — otherwise the
+ * command reports success while later query/export read shifted or truncated
+ * cells (there is no escaping convention the parser understands). ADR 0004 §3.
+ */
+const TABLE_BREAKING_CELL = /[|\r\n]/;
+
+/** First table-breaking cell among the given (value, what) pairs, as an error string; null if all clean. */
+function tableBreakingCellError(cells: Array<{ value: string; what: string }>): string | null {
+  for (const { value, what } of cells) {
+    if (TABLE_BREAKING_CELL.test(value)) {
+      return `${what} may not contain "|", a newline, or a carriage return — it would corrupt the markdown table (got ${JSON.stringify(value)})`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Report a failure. With `--json` the error is emitted as structured JSON on
+ * stdout (`{ ok: false, error, ... }`) so a script/CI caller gets a parseable
+ * result on every path, mirroring `contract query`'s `printFailure`; otherwise it
+ * is logged to stderr. Always returns 1 so callers can `return fail(...)`.
+ */
+function fail(json: boolean, message: string, extra: Record<string, unknown> = {}): 1 {
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ ok: false, error: message, ...extra }, null, 2)}\n`);
+  } else {
+    log.error(message);
+  }
+  return 1;
+}
 
 export interface EndpointSetOptions {
   contract: string;
@@ -111,18 +147,15 @@ function schemaBaseName(cell: string): string {
 export async function contractEndpointSet(opts: EndpointSetOptions): Promise<number> {
   const contractPath = opts.contract || DEFAULT_CONTRACT;
   if (!existsSync(contractPath)) {
-    log.error(`API contract not found: ${contractPath}`);
-    return 1;
+    return fail(opts.json, `API contract not found: ${contractPath}`);
   }
 
   const method = opts.method.trim().toLowerCase();
   if (!VALID_METHODS.has(method)) {
-    log.error(`invalid method "${opts.method}" — expected one of: ${[...VALID_METHODS].join(', ')}`);
-    return 1;
+    return fail(opts.json, `invalid method "${opts.method}" — expected one of: ${[...VALID_METHODS].join(', ')}`);
   }
   if (!opts.path.startsWith('/')) {
-    log.error(`path must start with "/" (got "${opts.path}")`);
-    return 1;
+    return fail(opts.json, `path must start with "/" (got "${opts.path}")`);
   }
 
   const raw = readFileSync(contractPath, 'utf8');
@@ -131,12 +164,24 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
 
   const block = locateEndpointTable(lines);
   if (!block) {
-    log.error(`No endpoint table (a "| method | path | ... |" table) found in ${contractPath}.`);
-    return 1;
+    return fail(opts.json, `No endpoint table (a "| method | path | ... |" table) found in ${contractPath}.`);
   }
 
   const methodIdx = block.labels.indexOf('method');
   const pathIdx = block.labels.indexOf('path');
+
+  // The table must be internally consistent before we upsert into it: a
+  // pre-existing duplicate (method, path) for ANY key — not just the one being
+  // set — means a keyed mutation cannot be guaranteed, so refuse rather than
+  // rewrite a malformed table and leave the other duplicate behind. ADR 0004 §3.
+  const seenKeys = new Set<string>();
+  for (const r of block.rows) {
+    const key = `${(r[methodIdx] ?? '').toLowerCase()} ${r[pathIdx] ?? ''}`;
+    if (seenKeys.has(key)) {
+      return fail(opts.json, `the endpoint table already contains a duplicate key (${key.toUpperCase()}) before this change — resolve it by hand first.`);
+    }
+    seenKeys.add(key);
+  }
 
   // Resolve the target column for each provided value flag.
   const columnFor = (aliases: string[]): number => {
@@ -157,11 +202,17 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
     if (value === undefined) continue;
     const idx = columnFor(aliases);
     if (idx === -1) {
-      log.error(`the endpoint table has no column for ${flag} (looked for: ${aliases.join(' / ')})`);
-      return 1;
+      return fail(opts.json, `the endpoint table has no column for ${flag} (looked for: ${aliases.join(' / ')})`);
     }
     provided.push({ flag, aliases, value });
   }
+
+  // No cell may contain a pipe or line break, which would corrupt the table.
+  const cellError = tableBreakingCellError([
+    { value: opts.path, what: 'path' },
+    ...provided.map(p => ({ value: p.value, what: `${p.flag} value` })),
+  ]);
+  if (cellError) return fail(opts.json, cellError);
 
   // Validate referenced schemas resolve (a clean schema-name reference must point
   // at a defined `### Name` section; multi-word prose references are left alone).
@@ -176,10 +227,7 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
       refErrors.push(`${ref.kind} schema "${base}" is not defined in ## Schemas — add it first with \`cdd-kit contract schema set ${base} ...\`, or use "-"`);
     }
   }
-  if (refErrors.length > 0) {
-    for (const e of refErrors) log.error(e);
-    return 1;
-  }
+  if (refErrors.length > 0) return fail(opts.json, refErrors.join('\n'), { errors: refErrors });
 
   // Upsert by primary key.
   const rows = block.rows.map(r => [...r]);
@@ -197,14 +245,6 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
     for (const p of provided) row[columnFor(p.aliases)] = p.value;
     rows.push(row);
     action = 'added';
-  }
-
-  // No-duplicate-key guard (also catches a pre-existing duplicate the upsert
-  // could not collapse — refuse to write rather than silently leave it).
-  const keyMatches = rows.filter(r => (r[methodIdx] ?? '').toLowerCase() === method && (r[pathIdx] ?? '') === opts.path);
-  if (keyMatches.length > 1) {
-    log.error(`duplicate endpoint ${method.toUpperCase()} ${opts.path}: ${keyMatches.length} rows share this key. Resolve the duplicate by hand first.`);
-    return 1;
   }
 
   const newBlock = [renderRow(block.headerCells), renderSeparator(block.headerCells.length), ...rows.map(renderRow)];
@@ -226,11 +266,25 @@ interface FieldSpec {
   notes: string;
 }
 
-function isValidFieldType(type: string): boolean {
+/**
+ * Validate a field type the same way the shared compiler does, returning a
+ * specific reason or null. In particular an `enum(...)` whose body has no
+ * non-empty member (`enum( )`, `enum(,)`) is rejected here — otherwise the regex
+ * accepts it, `contract set` writes the schema, and `openapi export` later fails
+ * with "enum must list at least one value". A bare SchemaName shape is a
+ * reference; full resolution is the export/gate's job, so it passes here.
+ */
+function fieldTypeError(type: string): string | null {
   const base = type.endsWith('[]') ? type.slice(0, -2).trim() : type;
-  if (PRIMITIVE_TYPES.includes(base)) return true;
-  if (/^enum\(.+\)$/.test(base)) return true;
-  return SCHEMA_NAME_RE.test(base); // reference to another schema (full resolution is checked by export/gate)
+  if (!base) return `has an empty type`;
+  if (PRIMITIVE_TYPES.includes(base)) return null;
+  const enumMatch = base.match(/^enum\((.*)\)$/);
+  if (enumMatch) {
+    const values = (enumMatch[1] ?? '').split(',').map(v => v.trim()).filter(Boolean);
+    return values.length > 0 ? null : `enum type "${type}" must list at least one value`;
+  }
+  if (SCHEMA_NAME_RE.test(base)) return null;
+  return `has unsupported type "${type}" (use string/integer/number/boolean, enum(...), a SchemaName, or those with [])`;
 }
 
 /** Parse `name:type:required[:format[:notes]]` (notes may contain colons). */
@@ -239,10 +293,34 @@ function parseFieldSpec(spec: string): FieldSpec | { error: string } {
   if (parts.length < 3) return { error: `field "${spec}" must be at least name:type:required` };
   const [name, type, required, format = '', ...rest] = parts;
   if (!name.trim()) return { error: `field "${spec}" has an empty name` };
-  if (!isValidFieldType(type.trim())) return { error: `field "${name.trim()}" has unsupported type "${type.trim()}" (use string/integer/number/boolean, enum(...), a SchemaName, or those with [])` };
+  const typeErr = fieldTypeError(type.trim());
+  if (typeErr) return { error: `field "${name.trim()}" ${typeErr}` };
+  // `required` must be stated explicitly: an empty cell (`name:type:`) is a
+  // malformed/typoed flag, not a silent "no" — that would quietly turn a field
+  // the author meant to mark required into an optional one in the export.
   const req = required.trim().toLowerCase();
-  if (req && req !== 'yes' && req !== 'no') return { error: `field "${name.trim()}" required must be "yes" or "no" (got "${required.trim()}")` };
-  return { name: name.trim(), type: type.trim(), required: req === 'yes' ? 'yes' : 'no', format: format.trim(), notes: rest.join(':').trim() };
+  if (req !== 'yes' && req !== 'no') return { error: `field "${name.trim()}" required must be "yes" or "no" (got "${required.trim() || '(empty)'}")` };
+  return { name: name.trim(), type: type.trim(), required: req, format: format.trim(), notes: rest.join(':').trim() };
+}
+
+/** Real (non-commented) `### Name` heading indices+names in lines[from, to). */
+function findSchemaHeadings(lines: string[], from: number, to: number): Array<{ index: number; name: string }> {
+  const out: Array<{ index: number; name: string }> = [];
+  let inComment = false;
+  for (let i = from; i < to; i += 1) {
+    if (!inComment) {
+      const m = lines[i].trim().match(/^###\s+(.+?)\s*$/);
+      if (m) out.push({ index: i, name: m[1].trim() });
+    }
+    // Track multi-line HTML comments so the template's `<!-- ### ExampleRequest
+    // ... -->` example block is not mistaken for a real schema section (the
+    // shared parser strips comments before it reads sections, so we must too).
+    const opens = (lines[i].match(/<!--/g) ?? []).length;
+    const closes = (lines[i].match(/-->/g) ?? []).length;
+    if (opens > closes) inComment = true;
+    else if (closes > opens) inComment = false;
+  }
+  return out;
 }
 
 function buildSchemaSection(name: string, fields: FieldSpec[]): string[] {
@@ -254,31 +332,31 @@ function buildSchemaSection(name: string, fields: FieldSpec[]): string[] {
 export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number> {
   const contractPath = opts.contract || DEFAULT_CONTRACT;
   if (!existsSync(contractPath)) {
-    log.error(`API contract not found: ${contractPath}`);
-    return 1;
+    return fail(opts.json, `API contract not found: ${contractPath}`);
   }
   if (!SCHEMA_NAME_RE.test(opts.name)) {
-    log.error(`invalid schema name "${opts.name}" — must match ${SCHEMA_NAME_RE}`);
-    return 1;
+    return fail(opts.json, `invalid schema name "${opts.name}" — must match ${SCHEMA_NAME_RE}`);
   }
   if (opts.fields.length === 0) {
-    log.error('contract schema set needs at least one --field "name:type:required[:format[:notes]]"');
-    return 1;
+    return fail(opts.json, 'contract schema set needs at least one --field "name:type:required[:format[:notes]]"');
   }
 
   const fields: FieldSpec[] = [];
   const seen = new Set<string>();
   for (const spec of opts.fields) {
     const parsed = parseFieldSpec(spec);
-    if ('error' in parsed) {
-      log.error(parsed.error);
-      return 1;
-    }
-    if (seen.has(parsed.name)) {
-      log.error(`duplicate field "${parsed.name}" in schema ${opts.name}`);
-      return 1;
-    }
+    if ('error' in parsed) return fail(opts.json, parsed.error);
+    if (seen.has(parsed.name)) return fail(opts.json, `duplicate field "${parsed.name}" in schema ${opts.name}`);
     seen.add(parsed.name);
+    // No field cell may contain a pipe or line break (an enum like enum(a|b) or
+    // free-form notes are the usual culprits), which would corrupt the table.
+    const cellError = tableBreakingCellError([
+      { value: parsed.name, what: `field "${parsed.name}" name` },
+      { value: parsed.type, what: `field "${parsed.name}" type` },
+      { value: parsed.format, what: `field "${parsed.name}" format` },
+      { value: parsed.notes, what: `field "${parsed.name}" notes` },
+    ]);
+    if (cellError) return fail(opts.json, cellError);
     fields.push(parsed);
   }
 
@@ -287,8 +365,7 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
 
   const schemasIdx = lines.findIndex(l => /^##\s+Schemas\s*$/i.test(l.trim()));
   if (schemasIdx === -1) {
-    log.error(`No "## Schemas" section found in ${contractPath}.`);
-    return 1;
+    return fail(opts.json, `No "## Schemas" section found in ${contractPath}.`);
   }
   let schemasEnd = lines.length;
   for (let i = schemasIdx + 1; i < lines.length; i += 1) {
@@ -298,24 +375,30 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
     }
   }
 
-  const section = buildSchemaSection(opts.name, fields);
-
-  let nameStart = -1;
-  for (let i = schemasIdx + 1; i < schemasEnd; i += 1) {
-    const m = lines[i].trim().match(/^###\s+(.+?)\s*$/);
-    if (m && m[1].trim() === opts.name) {
-      nameStart = i;
-      break;
-    }
+  // Locate the target among the REAL (non-commented) `### Name` headings. A
+  // heading inside the template's `<!-- ### ExampleRequest ... -->` example is
+  // not a usable section, so `schema set ExampleRequest` must insert a real one
+  // rather than "replace" inside the comment; and if the key is defined more than
+  // once we refuse, mirroring the endpoint duplicate guard (the shared parser
+  // reports duplicate sections and `openapi export` fails on them).
+  const headings = findSchemaHeadings(lines, schemasIdx + 1, schemasEnd);
+  const targets = headings.filter(h => h.name === opts.name);
+  if (targets.length > 1) {
+    return fail(opts.json, `schema "${opts.name}" is defined ${targets.length} times in ## Schemas — resolve the duplicate by hand first.`);
   }
+
+  const section = buildSchemaSection(opts.name, fields);
+  const nameStart = targets.length === 1 ? targets[0].index : -1;
 
   let out: string[];
   let action: 'replaced' | 'inserted';
   if (nameStart !== -1) {
-    // Replace the section's content lines, preserving any blank separators after it.
-    let nameEnd = schemasEnd;
-    for (let i = nameStart + 1; i < schemasEnd; i += 1) {
-      if (/^###\s+/.test(lines[i].trim())) {
+    // Replace the section's content, stopping at the next real heading OR a
+    // comment block, so a trailing `<!-- ... -->` example is preserved, not eaten.
+    const nextHeading = headings.find(h => h.index > nameStart);
+    let nameEnd = nextHeading ? nextHeading.index : schemasEnd;
+    for (let i = nameStart + 1; i < nameEnd; i += 1) {
+      if (lines[i].trim().startsWith('<!--')) {
         nameEnd = i;
         break;
       }

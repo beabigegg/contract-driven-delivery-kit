@@ -21,6 +21,15 @@ export type JsonSchema = Record<string, unknown>;
 
 export const VALID_METHODS: ReadonlySet<string> = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options']);
 export const SCHEMA_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/**
+ * The default on-disk locations of the API contract and its inventory. Defined
+ * here, in the shared contract module, so the CLI command definitions and every
+ * command implementation (openapi export, contract query, contract set) read the
+ * same value instead of each repeating the literal — one place to change.
+ */
+export const DEFAULT_CONTRACT_PATH = 'contracts/api/api-contract.md';
+export const DEFAULT_INVENTORY_PATH = 'contracts/api/api-inventory.md';
 const PRIMITIVE_TYPES = new Set(['string', 'integer', 'number', 'boolean']);
 
 export interface EndpointRow {
