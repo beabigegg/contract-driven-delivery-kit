@@ -183,11 +183,19 @@ describe('cdd-kit contract schema set', () => {
     expect(read()).toBe(before);
   });
 
-  it('allows a field type that references another schema, even before it is defined', () => {
-    // A schema-name-shaped type is a reference; full resolution is the export/gate's
-    // job, not set's, so forward references are permitted here.
-    const r = runCli(['contract', 'schema', 'set', 'Wrapper', '--field', 'item:NotYetDefined:no'], { cwd: repo, home });
-    expect(r.status, r.stderr).toBe(0);
+  it('rejects a field referencing an undefined schema, but accepts a defined or self reference', () => {
+    // A schema-name-shaped type is a reference; openapi export rejects a reference
+    // to a never-defined schema, so set must too (valid-by-construction).
+    const before = read();
+    const ghost = runCli(['contract', 'schema', 'set', 'Wrapper', '--field', 'item:Ghost:no'], { cwd: repo, home });
+    expect(ghost.status).toBe(1);
+    expect(ghost.stderr).toMatch(/not defined in ## Schemas/i);
+    expect(read()).toBe(before); // not written
+
+    // User IS defined in the contract, so a reference to it is accepted...
+    expect(runCli(['contract', 'schema', 'set', 'Wrapper', '--field', 'owner:User:yes'], { cwd: repo, home }).status).toBe(0);
+    // ...and a self-reference is allowed (the schema being set counts as defined).
+    expect(runCli(['contract', 'schema', 'set', 'Node', '--field', 'parent:Node:no', '--field', 'label:string:yes'], { cwd: repo, home }).status).toBe(0);
   });
 });
 
@@ -287,6 +295,98 @@ describe('cdd-kit contract set — review hardening (ADR 0004 Phase 3)', () => {
     const payload = JSON.parse(r.stdout);
     expect(payload).toMatchObject({ ok: false });
     expect(payload.error).toMatch(/invalid method/i);
+    expect(read()).toBe(before);
+  });
+});
+
+describe('cdd-kit contract set — review round 2 (ADR 0004 Phase 3)', () => {
+  // Codex P2: trim the path so a trailing space doesn't miss the existing row.
+  it('normalizes a path with surrounding whitespace so it updates the existing row', () => {
+    const r = runCli(
+      ['contract', 'endpoint', 'set', '--method', 'GET', '--path', '/api/users ', '--auth', 'optional', '--json'],
+      { cwd: repo, home },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ action: 'updated', path: '/api/users' });
+    const content = read();
+    expect(content).toContain('| GET | /api/users | optional | - | User[] | 401 | yes |');
+    expect(content.match(/\/api\/users\b/g)).toHaveLength(1); // not duplicated
+  });
+
+  // Codex P2: a discarded schema parse error must not let a bad reference through.
+  it('refuses to set an endpoint when ## Schemas has a parse error (duplicate section)', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### User\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| email | string | yes |  |  |\n\n## Error Format',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/x', '--request', 'User'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Duplicate schema section/i);
+    expect(read()).toBe(before);
+  });
+
+  // Codex P2: search every endpoint table, not just the first.
+  it('updates a row that lives in a later endpoint table instead of appending to the first', () => {
+    write(`---
+contract: api
+summary: Test API
+schema-version: 1.0.0
+last-changed: 2026-01-01
+---
+
+# API Contract
+
+## Endpoint Requirements
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| GET | /api/users | required | - | User[] | 401 | yes |
+
+## Admin Endpoints
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| POST | /api/orders | admin | - | User | 400 | yes |
+
+## Schemas
+
+### User
+| field | type | required | format | notes |
+|---|---|---|---|---|
+| name | string | yes |  |  |
+`);
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/orders', '--errors', '409', '--json'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout).action).toBe('updated');
+    const content = read();
+    expect(content).toContain('| POST | /api/orders | admin | - | User | 409 | yes |');
+    expect(content.match(/\/api\/orders\b/g)).toHaveLength(1); // not appended to the first table
+    expect(content).toContain('| GET | /api/users | required | - | User[] | 401 | yes |'); // first table untouched
+  });
+
+  it('catches a duplicate key spanning two endpoint tables before writing', () => {
+    write(`---
+contract: api
+schema-version: 1.0.0
+---
+
+# API Contract
+
+## Endpoint Requirements
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| GET | /api/users | required | - | - | 401 | yes |
+
+## More
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| GET | /api/users | none | - | - | 404 | no |
+
+## Schemas
+`);
+    const before = read();
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/new', '--tests', 'yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/duplicate key/i);
     expect(read()).toBe(before);
   });
 });

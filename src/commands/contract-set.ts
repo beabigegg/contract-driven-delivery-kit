@@ -113,8 +113,12 @@ interface EndpointTableBlock {
   rows: string[][];
 }
 
-/** Locate the first endpoint (`method` + `path`) table and its data rows. */
-function locateEndpointTable(lines: string[]): EndpointTableBlock | null {
+/** Locate EVERY endpoint (`method` + `path`) table and its data rows. The shared
+ * parser collects rows from all such tables, so set must consider all of them too
+ * — otherwise a key living in a later table is missed and a duplicate is appended
+ * to the first. */
+function locateEndpointTables(lines: string[]): EndpointTableBlock[] {
+  const blocks: EndpointTableBlock[] = [];
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i].trim();
     if (!line.startsWith('|')) continue;
@@ -132,9 +136,26 @@ function locateEndpointTable(lines: string[]): EndpointTableBlock | null {
       if (isSeparator(cells)) break;
       rows.push(cells);
     }
-    return { start: i, end: j - 1, headerCells, labels: headerCells.map(c => c.trim().toLowerCase()), rows };
+    blocks.push({ start: i, end: j - 1, headerCells, labels: headerCells.map(c => c.trim().toLowerCase()), rows });
+    i = j - 1; // resume scanning after this table
   }
-  return null;
+  return blocks;
+}
+
+/** Index of the first present alias in a table's header labels (-1 if none). */
+function columnIn(block: EndpointTableBlock, aliases: string[]): number {
+  for (const alias of aliases) {
+    const idx = block.labels.indexOf(alias);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+/** The (method, path) primary key of a row in a given block, normalized (method lowercased, path trimmed). */
+function rowKey(block: EndpointTableBlock, row: string[]): string {
+  const m = (row[block.labels.indexOf('method')] ?? '').toLowerCase();
+  const p = (row[block.labels.indexOf('path')] ?? '').trim();
+  return `${m} ${p}`;
 }
 
 /** `CreateOrder` / `CreateOrder[]` → `CreateOrder`; `-`/empty → ''. */
@@ -151,47 +172,68 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
   }
 
   const method = opts.method.trim().toLowerCase();
+  // Normalize the path once and use it everywhere (validation, matching, output):
+  // the parser trims cells, so an un-trimmed `--path "/x "` would otherwise miss
+  // the existing `/x` row and append a second one that collapses to a duplicate.
+  const path = opts.path.trim();
   if (!VALID_METHODS.has(method)) {
     return fail(opts.json, `invalid method "${opts.method}" — expected one of: ${[...VALID_METHODS].join(', ')}`);
   }
-  if (!opts.path.startsWith('/')) {
+  if (!path.startsWith('/')) {
     return fail(opts.json, `path must start with "/" (got "${opts.path}")`);
   }
 
   const raw = readFileSync(contractPath, 'utf8');
-  const definedSchemas = new Set(parseSchemaSections(stripFrontmatter(raw).body).sections.map(s => s.name));
+  // The defined-schema set must be trustworthy before we validate references
+  // against it: if ## Schemas has a structural error (e.g. a duplicate section),
+  // refuse rather than write an endpoint whose reference only "resolves" because
+  // the error was discarded — `openapi export` would reject the same contract.
+  const schemaParse = parseSchemaSections(stripFrontmatter(raw).body);
+  if (schemaParse.errors.length > 0) {
+    return fail(opts.json, `the contract's ## Schemas section has errors that must be fixed first:\n${schemaParse.errors.join('\n')}`, { errors: schemaParse.errors });
+  }
+  const definedSchemas = new Set(schemaParse.sections.map(s => s.name));
   const { lines, trailingNewline } = toLines(raw);
 
-  const block = locateEndpointTable(lines);
-  if (!block) {
+  const blocks = locateEndpointTables(lines);
+  if (blocks.length === 0) {
     return fail(opts.json, `No endpoint table (a "| method | path | ... |" table) found in ${contractPath}.`);
+  }
+
+  // Every table must be internally consistent before we upsert: a pre-existing
+  // duplicate (method, path) for ANY key, in ANY table, means a keyed mutation
+  // cannot be guaranteed, so refuse rather than rewrite a malformed table. ADR 0004 §3.
+  const keyCount = new Map<string, number>();
+  for (const b of blocks) {
+    for (const r of b.rows) keyCount.set(rowKey(b, r), (keyCount.get(rowKey(b, r)) ?? 0) + 1);
+  }
+  for (const [key, count] of keyCount) {
+    if (count > 1) {
+      return fail(opts.json, `the endpoint table already contains a duplicate key (${key.toUpperCase()}) before this change — resolve it by hand first.`);
+    }
+  }
+
+  // Find which table (if any) already holds the target key; the duplicate guard
+  // above guarantees at most one match. Update that table in place; otherwise
+  // append to the first endpoint table.
+  const targetKey = `${method} ${path}`;
+  let block = blocks[0];
+  let existingIdx = -1;
+  for (const b of blocks) {
+    const idx = b.rows.findIndex(r => rowKey(b, r) === targetKey);
+    if (idx !== -1) {
+      block = b;
+      existingIdx = idx;
+      break;
+    }
   }
 
   const methodIdx = block.labels.indexOf('method');
   const pathIdx = block.labels.indexOf('path');
 
-  // The table must be internally consistent before we upsert into it: a
-  // pre-existing duplicate (method, path) for ANY key — not just the one being
-  // set — means a keyed mutation cannot be guaranteed, so refuse rather than
-  // rewrite a malformed table and leave the other duplicate behind. ADR 0004 §3.
-  const seenKeys = new Set<string>();
-  for (const r of block.rows) {
-    const key = `${(r[methodIdx] ?? '').toLowerCase()} ${r[pathIdx] ?? ''}`;
-    if (seenKeys.has(key)) {
-      return fail(opts.json, `the endpoint table already contains a duplicate key (${key.toUpperCase()}) before this change — resolve it by hand first.`);
-    }
-    seenKeys.add(key);
-  }
-
-  // Resolve the target column for each provided value flag.
-  const columnFor = (aliases: string[]): number => {
-    for (const alias of aliases) {
-      const idx = block.labels.indexOf(alias);
-      if (idx !== -1) return idx;
-    }
-    return -1;
-  };
-  const provided: Array<{ flag: string; aliases: string[]; value: string }> = [];
+  // Resolve the target column for each provided value flag, against the table we
+  // are about to write to.
+  const provided: Array<{ flag: string; idx: number; value: string }> = [];
   for (const [flag, aliases, value] of [
     ['--auth', ['auth'], opts.auth],
     ['--request', ['request schema', 'request'], opts.request],
@@ -200,16 +242,16 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
     ['--tests', ['tests'], opts.tests],
   ] as Array<[string, string[], string | undefined]>) {
     if (value === undefined) continue;
-    const idx = columnFor(aliases);
+    const idx = columnIn(block, aliases);
     if (idx === -1) {
       return fail(opts.json, `the endpoint table has no column for ${flag} (looked for: ${aliases.join(' / ')})`);
     }
-    provided.push({ flag, aliases, value });
+    provided.push({ flag, idx, value });
   }
 
   // No cell may contain a pipe or line break, which would corrupt the table.
   const cellError = tableBreakingCellError([
-    { value: opts.path, what: 'path' },
+    { value: path, what: 'path' },
     ...provided.map(p => ({ value: p.value, what: `${p.flag} value` })),
   ]);
   if (cellError) return fail(opts.json, cellError);
@@ -229,20 +271,19 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
   }
   if (refErrors.length > 0) return fail(opts.json, refErrors.join('\n'), { errors: refErrors });
 
-  // Upsert by primary key.
+  // Upsert by primary key, re-serializing only the target table block.
   const rows = block.rows.map(r => [...r]);
-  const existingIdx = rows.findIndex(r => (r[methodIdx] ?? '').toLowerCase() === method && (r[pathIdx] ?? '') === opts.path);
   let action: 'updated' | 'added';
   if (existingIdx !== -1) {
     const row = rows[existingIdx];
     while (row.length < block.headerCells.length) row.push('-');
-    for (const p of provided) row[columnFor(p.aliases)] = p.value;
+    for (const p of provided) row[p.idx] = p.value;
     action = 'updated';
   } else {
     const row = Array.from({ length: block.headerCells.length }, () => '-');
-    row[methodIdx] = opts.method.trim().toUpperCase();
-    row[pathIdx] = opts.path;
-    for (const p of provided) row[columnFor(p.aliases)] = p.value;
+    row[methodIdx] = method.toUpperCase();
+    row[pathIdx] = path;
+    for (const p of provided) row[p.idx] = p.value;
     rows.push(row);
     action = 'added';
   }
@@ -251,8 +292,8 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
   const out = [...lines.slice(0, block.start), ...newBlock, ...lines.slice(block.end + 1)];
   writeFileSync(contractPath, fromLines(out, trailingNewline), 'utf8');
 
-  const summary = `${action} ${opts.method.toUpperCase()} ${opts.path} (1 row ${action === 'added' ? 'added' : 'changed'})`;
-  emit(opts.json, { ok: true, action, method, path: opts.path, summary }, summary);
+  const summary = `${action} ${method.toUpperCase()} ${path} (1 row ${action === 'added' ? 'added' : 'changed'})`;
+  emit(opts.json, { ok: true, action, method, path, summary }, summary);
   return 0;
 }
 
@@ -267,12 +308,13 @@ interface FieldSpec {
 }
 
 /**
- * Validate a field type the same way the shared compiler does, returning a
- * specific reason or null. In particular an `enum(...)` whose body has no
- * non-empty member (`enum( )`, `enum(,)`) is rejected here — otherwise the regex
- * accepts it, `contract set` writes the schema, and `openapi export` later fails
- * with "enum must list at least one value". A bare SchemaName shape is a
- * reference; full resolution is the export/gate's job, so it passes here.
+ * Validate the SHAPE of a field type, returning a specific reason or null. In
+ * particular an `enum(...)` whose body has no non-empty member (`enum( )`,
+ * `enum(,)`) is rejected here — otherwise the regex accepts it, `contract set`
+ * writes the schema, and `openapi export` later fails with "enum must list at
+ * least one value". A bare SchemaName shape passes the shape check; whether that
+ * reference actually resolves is checked separately (against the defined-schema
+ * set) by `contractSchemaSet`.
  */
 function fieldTypeError(type: string): string | null {
   const base = type.endsWith('[]') ? type.slice(0, -2).trim() : type;
@@ -285,6 +327,14 @@ function fieldTypeError(type: string): string | null {
   }
   if (SCHEMA_NAME_RE.test(base)) return null;
   return `has unsupported type "${type}" (use string/integer/number/boolean, enum(...), a SchemaName, or those with [])`;
+}
+
+/** The schema name a field type references (after stripping `[]`), or null for a
+ * primitive / enum / non-reference. Assumes the type already passed `fieldTypeError`. */
+function schemaRefName(type: string): string | null {
+  const base = type.endsWith('[]') ? type.slice(0, -2).trim() : type.trim();
+  if (!base || PRIMITIVE_TYPES.includes(base) || /^enum\(/.test(base)) return null;
+  return SCHEMA_NAME_RE.test(base) ? base : null;
 }
 
 /** Parse `name:type:required[:format[:notes]]` (notes may contain colons). */
@@ -362,6 +412,20 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
 
   const raw = readFileSync(contractPath, 'utf8');
   const { lines, trailingNewline } = toLines(raw);
+
+  // A field whose type is a SchemaName (or SchemaName[]) must point at a schema
+  // that is already defined in ## Schemas — or at this schema itself, for a
+  // self-reference. A reference to a never-defined schema is refused because
+  // `openapi export` rejects it with `unknown type "X"`, so writing it would
+  // break `set`'s valid-by-construction guarantee. (Mutually recursive schemas
+  // are still reachable: create one without the back-reference, then add it.)
+  const knownSchemas = new Set([...parseSchemaSections(stripFrontmatter(raw).body).sections.map(s => s.name), opts.name]);
+  for (const f of fields) {
+    const ref = schemaRefName(f.type);
+    if (ref && !knownSchemas.has(ref)) {
+      return fail(opts.json, `field "${f.name}" references schema "${ref}", which is not defined in ## Schemas — add it first with \`cdd-kit contract schema set ${ref} ...\``);
+    }
+  }
 
   const schemasIdx = lines.findIndex(l => /^##\s+Schemas\s*$/i.test(l.trim()));
   if (schemasIdx === -1) {
