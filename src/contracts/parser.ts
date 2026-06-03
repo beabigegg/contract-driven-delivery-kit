@@ -82,33 +82,18 @@ export function isSeparator(cells: string[]): boolean {
 }
 
 /**
- * Map a normalized contract-table header label to an `EndpointRow` field.
- * Header-driven (not positional) so a reordered column — or a different
- * contract surface — can never silently land in the wrong field. Aliases cover
- * the API contract's `request schema` / `response schema` headers and the
- * shorter `request` / `response` forms.
+ * Per-field header aliases used to project a generic endpoint row onto the
+ * API-contract `EndpointRow`. The API contract writes `request schema` /
+ * `response schema`; the shorter `request` / `response` forms are also accepted.
+ * Aliases are listed in priority order.
  */
-const ENDPOINT_HEADER_ALIASES: Record<string, keyof EndpointRow> = {
-  method: 'method',
-  path: 'path',
-  auth: 'auth',
-  request: 'request',
-  'request schema': 'request',
-  response: 'response',
-  'response schema': 'response',
-  errors: 'errors',
-  tests: 'tests',
+const ENDPOINT_FIELD_ALIASES: Record<Exclude<keyof EndpointRow, 'method' | 'path'>, string[]> = {
+  auth: ['auth'],
+  request: ['request schema', 'request'],
+  response: ['response schema', 'response'],
+  errors: ['errors'],
+  tests: ['tests'],
 };
-
-/** Build a field→column-index map from a detected header row's cells. */
-function endpointHeaderMap(headerCells: string[]): Partial<Record<keyof EndpointRow, number>> {
-  const map: Partial<Record<keyof EndpointRow, number>> = {};
-  headerCells.forEach((cell, i) => {
-    const field = ENDPOINT_HEADER_ALIASES[cell.trim().toLowerCase()];
-    if (field && map[field] === undefined) map[field] = i;
-  });
-  return map;
-}
 
 /**
  * True when a table row is an endpoint header. Detection is by the presence of
@@ -122,50 +107,80 @@ function isEndpointHeaderRow(cells: string[]): boolean {
   return labels.has('method') && labels.has('path');
 }
 
-/** Collect data rows from every endpoint (`method` + `path`) table in the document. */
-export function parseEndpoints(body: string): EndpointRow[] {
-  const rows: EndpointRow[] = [];
-  let header: Partial<Record<keyof EndpointRow, number>> | null = null;
+/**
+ * A generic endpoint-table data row: every column keyed by its normalized
+ * (lowercased) header label, plus the validated `method` / `path` primary key
+ * (`method` lowercased; `cells` preserves the raw values). This is the substrate
+ * `cdd-kit contract query` reads — so it can see inventory columns like
+ * `category` / `owner` that the OpenAPI projection ignores — and `parseEndpoints`
+ * is the API-contract projection over it.
+ */
+export interface EndpointTableRow {
+  method: string;
+  path: string;
+  cells: Record<string, string>;
+}
+
+/** Collect a generic record for every data row of every endpoint (`method` + `path`) table. */
+export function parseEndpointTableRows(body: string): EndpointTableRow[] {
+  const rows: EndpointTableRow[] = [];
+  let headerLabels: string[] | null = null;
   let sepSeen = false;
   for (const raw of body.split('\n')) {
     const line = raw.trim();
     if (!line || !line.startsWith('|')) {
       // A blank or non-table line ends the current table; reset the header so it
       // can never leak into an unrelated table further down the document.
-      header = null;
+      headerLabels = null;
       sepSeen = false;
       continue;
     }
     const cells = parseRow(line);
     if (isEndpointHeaderRow(cells)) {
-      header = endpointHeaderMap(cells);
+      headerLabels = cells.map(c => c.trim().toLowerCase());
       sepSeen = false;
       continue;
     }
-    if (!header) continue;
+    if (!headerLabels) continue;
     if (!sepSeen && isSeparator(cells)) {
       sepSeen = true;
       continue;
     }
     if (cells.length < 2 || !cells.some(Boolean)) continue;
-    const at = (field: keyof EndpointRow): string => {
-      const idx = header![field];
-      return idx === undefined ? '' : (cells[idx] ?? '');
-    };
-    const method = at('method').toLowerCase();
-    const path = at('path');
-    if (!VALID_METHODS.has(method) || !path.startsWith('/')) continue;
-    rows.push({
-      method,
-      path,
-      auth: at('auth').toLowerCase(),
-      request: at('request'),
-      response: at('response'),
-      errors: at('errors'),
-      tests: at('tests'),
+    const record: Record<string, string> = {};
+    headerLabels.forEach((label, i) => {
+      if (label && record[label] === undefined) record[label] = cells[i] ?? '';
     });
+    const method = (record.method ?? '').toLowerCase();
+    const path = record.path ?? '';
+    if (!VALID_METHODS.has(method) || !path.startsWith('/')) continue;
+    rows.push({ method, path, cells: record });
   }
   return rows;
+}
+
+/**
+ * Collect API-contract endpoint rows — the projection the OpenAPI export reads.
+ * `method` and `auth` are lowercased; schema / errors / tests cells are verbatim.
+ */
+export function parseEndpoints(body: string): EndpointRow[] {
+  return parseEndpointTableRows(body).map(row => {
+    const pick = (aliases: string[]): string => {
+      for (const alias of aliases) {
+        if (row.cells[alias] !== undefined) return row.cells[alias];
+      }
+      return '';
+    };
+    return {
+      method: row.method,
+      path: row.path,
+      auth: pick(ENDPOINT_FIELD_ALIASES.auth).toLowerCase(),
+      request: pick(ENDPOINT_FIELD_ALIASES.request),
+      response: pick(ENDPOINT_FIELD_ALIASES.response),
+      errors: pick(ENDPOINT_FIELD_ALIASES.errors),
+      tests: pick(ENDPOINT_FIELD_ALIASES.tests),
+    };
+  });
 }
 
 function extractSchemasSection(body: string): string {
@@ -180,7 +195,29 @@ function extractSchemasSection(body: string): string {
   return out.join('\n');
 }
 
-function parseSchemaSections(body: string): { sections: SchemaSection[]; errors: string[] } {
+/**
+ * Return the trimmed body of a `## <heading>` section (case-insensitive), up to
+ * the next `## ` heading or end of document. Used to surface the bounded shared
+ * prose sections (Error Format, Compatibility Policy, Breaking Change Policy) an
+ * endpoint answer references. Returns '' when the heading is absent.
+ */
+export function extractSection(body: string, heading: string): string {
+  const lines = body.split('\n');
+  const target = heading.trim().toLowerCase();
+  const start = lines.findIndex(line => {
+    const m = line.trim().match(/^##\s+(.+?)\s*$/);
+    return m ? m[1].trim().toLowerCase() === target : false;
+  });
+  if (start === -1) return '';
+  const out: string[] = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s+/.test(lines[i].trim())) break;
+    out.push(lines[i]);
+  }
+  return out.join('\n').trim();
+}
+
+export function parseSchemaSections(body: string): { sections: SchemaSection[]; errors: string[] } {
   const schemasBlock = extractSchemasSection(body).replace(/<!--[\s\S]*?-->/g, '');
   if (!schemasBlock.trim()) return { sections: [], errors: [] };
 
