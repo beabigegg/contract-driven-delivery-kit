@@ -411,6 +411,23 @@ describe('validate_api_conformance.py', () => {
     expect(r.out).toContain('API conformance validation passed.');
   });
 
+  it('honors an explicit empty register_blueprint url_prefix as a root-mount override', () => {
+    if (!hasPython()) return;
+    // Blueprint('/old') is deliberately mounted at root via url_prefix="" — Flask
+    // serves /items, so the empty registration prefix must override the
+    // constructor's /old, not be discarded as falsy (which would invent /old/items
+    // and report the real /items as unimplemented).
+    writeApiContract(repo, ['| GET | /items | required | - | Item[] | 401 | yes |']);
+    writeConfig(repo, { enabled: true, apiPrefixes: [], sourceRoots: ['src'], strict: true, frontendGlobsExt: [] });
+    writeSrc(repo, 'routes/admin.py',
+      'admin_bp = Blueprint("a", __name__, url_prefix="/old")\n@admin_bp.route("/items")\ndef i(): ...\n');
+    writeSrc(repo, 'app.py',
+      'from routes.admin import admin_bp\napp.register_blueprint(admin_bp, url_prefix="")\n');
+    const r = run(repo);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('API conformance validation passed.');
+  });
+
   it('fails when enabled but no source roots resolve (config mistake)', () => {
     if (!hasPython()) return;
     writeApiContract(repo, ['| GET | /api/users | required | - | User[] | 401 | yes |']);

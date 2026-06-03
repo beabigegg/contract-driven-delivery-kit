@@ -327,11 +327,15 @@ def _join_route(prefix: str, suffix: str) -> str:
 
 
 def _prefix_kwargs(text: str, pattern: re.Pattern) -> dict:
-    """Collect {var: prefix} from constructor or registration calls in `text`."""
+    """Collect {var: prefix} from constructor calls in `text`.
+
+    Presence-checks the kwarg rather than truthiness so an explicit empty prefix
+    (`url_prefix=""` / `prefix=""`, a deliberate root mount) is preserved and can
+    override a value elsewhere, instead of being silently discarded."""
     out = {}
     for m in pattern.finditer(text):
         km = PREFIX_KWARG_RE.search(m.group(2))
-        if km and km.group(1):
+        if km is not None:
             out[m.group(1)] = km.group(1)
     return out
 
@@ -348,13 +352,16 @@ def _apply_prefix(reg_prefixes: dict, local_ctor: dict, receiver: str, raw: str)
         path is `<include prefix>/<APIRouter prefix>/<route>`.
     `reg_prefixes` maps receiver -> (verb, prefix); ambiguous receivers (the same
     name registered with conflicting prefixes across files) are dropped upstream
-    so the per-file constructor prefix wins instead of a guessed one. Receivers
-    with no resolved prefix (the Flask `app` itself, or a shape the heuristic
-    cannot follow) pass through unchanged — that residual gap is why
-    backendRouteNotInContract defaults to a warning."""
+    so the per-file constructor prefix wins instead of a guessed one. An explicit
+    empty registration prefix (`register_blueprint(bp, url_prefix="")`) is a
+    deliberate root mount and still shadows the constructor prefix — the route
+    resolves to root, not the constructor's value. Receivers with no resolved
+    prefix (the Flask `app` itself, or a shape the heuristic cannot follow) pass
+    through unchanged — that residual gap is why backendRouteNotInContract
+    defaults to a warning."""
     ctor = local_ctor.get(receiver)
     reg = reg_prefixes.get(receiver)
-    if reg:
+    if reg is not None:
         verb, rprefix = reg
         # FastAPI: include_router prefix + APIRouter prefix. Flask: override.
         prefix = _join_route(rprefix, ctor) if (verb == 'include_router' and ctor) else rprefix
@@ -404,12 +411,16 @@ def scan_backend(roots, exts, exclude_dirs):
         py_text[path] = text
         for m in BLUEPRINT_REG_RE.finditer(text):
             km = PREFIX_KWARG_RE.search(m.group(3))
-            if km and km.group(1):
+            if km is not None:  # presence, not truthiness: keep an explicit ""
                 reg_seen.setdefault(m.group(2), set()).add((m.group(1).lower(), km.group(1)))
     # Keep only receivers registered with a single, unambiguous prefix. A name
     # registered under conflicting prefixes across files (e.g. two modules each
     # `include_router(router, prefix=...)`) is dropped so the per-file
-    # constructor prefix decides rather than whichever was scanned last.
+    # constructor prefix decides rather than whichever was scanned last. When the
+    # routers carry no constructor prefix either, that receiver is left
+    # unresolved (a warning under the default) rather than mis-attributed —
+    # resolving it would need import tracking (which module each bare `router`
+    # came from), which this regex heuristic deliberately does not attempt.
     reg_prefixes = {var: next(iter(entries)) for var, entries in reg_seen.items()
                     if len({prefix for _, prefix in entries}) == 1}
 

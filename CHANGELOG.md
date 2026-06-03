@@ -32,8 +32,11 @@ fatal by default.
   tolerates a nested-paren kwarg (`APIRouter(dependencies=[Depends(x)],
   prefix=...)`), a module-qualified call (`flask.Blueprint(...)`,
   `fastapi.APIRouter(...)`), and a type-annotated assignment (`router: APIRouter =
-  APIRouter(...)`); Flask 2.0 `@bp.get(...)` shorthand is covered too. (Issue #15;
-  hardened over two rounds of Codex/Sourcery PR review.)
+  APIRouter(...)`); Flask 2.0 `@bp.get(...)` shorthand is covered too. An explicit
+  empty registration prefix (`register_blueprint(bp, url_prefix="")`, a deliberate
+  root mount) is preserved and overrides the constructor prefix rather than being
+  discarded as falsy. (Issue #15; hardened over three rounds of Codex/Sourcery PR
+  review.)
 
 ### Changed
 

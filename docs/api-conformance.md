@@ -71,7 +71,11 @@ proof.
 - **Module-qualified registrations** such as `include_router(users.router,
   prefix="/api")` (where the router is referenced through an imported module
   rather than a bare local name) are not resolved — that needs import tracking
-  the regex heuristic deliberately does not attempt.
+  the regex heuristic deliberately does not attempt. The same applies when two
+  modules each expose a bare `router = APIRouter()` (no constructor prefix) and
+  the app registers them under different prefixes by the reused name: the
+  ambiguous registration is dropped, so those routes are left unresolved (a
+  warning) rather than mis-attributed to the wrong module's prefix.
 - **Dynamic routes** built from variables or registered via framework modules
   (NestJS `RouterModule`, dynamic prefixes) are not detected.
 
