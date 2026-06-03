@@ -69,6 +69,32 @@ describe('parseEndpoints', () => {
     ]);
   });
 
+  it('detects an endpoint header even when method is not the first column', () => {
+    const body = [
+      '| path | method | auth | request schema | response schema | errors | tests |',
+      '|---|---|---|---|---|---|---|',
+      '| /x | GET | none | A | B | - | yes |',
+    ].join('\n');
+    expect(parseEndpoints(body)).toEqual([
+      { method: 'get', path: '/x', auth: 'none', request: 'A', response: 'B', errors: '-', tests: 'yes' },
+    ]);
+  });
+
+  it('does not leak a header into an unrelated table later in the document', () => {
+    const body = [
+      '| method | path | auth | request schema | response schema | errors | tests |',
+      '|---|---|---|---|---|---|---|',
+      '| GET | /a | none | - | A | - | yes |',
+      '',
+      'Prose, then an unrelated table whose first columns look endpoint-ish:',
+      '',
+      '| verb | route | note |',
+      '|---|---|---|',
+      '| GET | /not-an-endpoint | leaked? |',
+    ].join('\n');
+    expect(parseEndpoints(body).map(r => r.path)).toEqual(['/a']);
+  });
+
   it('accepts the short request / response header aliases', () => {
     const body = [
       '| method | path | auth | request | response | errors | tests |',

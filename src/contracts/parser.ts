@@ -19,7 +19,7 @@
 
 export type JsonSchema = Record<string, unknown>;
 
-export const VALID_METHODS = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options']);
+export const VALID_METHODS: ReadonlySet<string> = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options']);
 export const SCHEMA_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const PRIMITIVE_TYPES = new Set(['string', 'integer', 'number', 'boolean']);
 
@@ -110,16 +110,34 @@ function endpointHeaderMap(headerCells: string[]): Partial<Record<keyof Endpoint
   return map;
 }
 
-/** Collect data rows from every `| method | ... |` table in the document. */
+/**
+ * True when a table row is an endpoint header. Detection is by the presence of
+ * the `method` and `path` labels anywhere in the row (not by `method` being the
+ * first column), so a reordered header — `| path | method | … |` — is still
+ * recognised, while a non-endpoint table (e.g. a `| field | type | … |` schema
+ * field table) is never mistaken for one.
+ */
+function isEndpointHeaderRow(cells: string[]): boolean {
+  const labels = new Set(cells.map(c => c.trim().toLowerCase()));
+  return labels.has('method') && labels.has('path');
+}
+
+/** Collect data rows from every endpoint (`method` + `path`) table in the document. */
 export function parseEndpoints(body: string): EndpointRow[] {
   const rows: EndpointRow[] = [];
   let header: Partial<Record<keyof EndpointRow, number>> | null = null;
   let sepSeen = false;
   for (const raw of body.split('\n')) {
     const line = raw.trim();
-    if (!line || !line.startsWith('|')) continue;
+    if (!line || !line.startsWith('|')) {
+      // A blank or non-table line ends the current table; reset the header so it
+      // can never leak into an unrelated table further down the document.
+      header = null;
+      sepSeen = false;
+      continue;
+    }
     const cells = parseRow(line);
-    if (cells[0]?.toLowerCase() === 'method') {
+    if (isEndpointHeaderRow(cells)) {
       header = endpointHeaderMap(cells);
       sepSeen = false;
       continue;
@@ -190,13 +208,34 @@ function parseSchemaSections(body: string): { sections: SchemaSection[]; errors:
   return { sections, errors };
 }
 
+interface FenceBlock {
+  /** Full info string after the opening backticks, trimmed (`''` when untagged). */
+  info: string;
+  /** Inner block content, without the backtick fences. */
+  content: string;
+}
+
+/**
+ * Scan a section for fenced code blocks once. `parseJsonSchemaBlocks` and
+ * `findForeignFenceTag` both classify off this single pass rather than each
+ * running its own near-identical regex over the same text.
+ */
+function findFencedBlocks(text: string): FenceBlock[] {
+  const blocks: FenceBlock[] = [];
+  const fenceRe = /```([^\n]*)(?:\n|$)([\s\S]*?)```/g;
+  for (const match of text.matchAll(fenceRe)) {
+    blocks.push({ info: (match[1] ?? '').trim(), content: match[2] ?? '' });
+  }
+  return blocks;
+}
+
 function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; errors: string[] } {
   const blocks: JsonSchema[] = [];
   const errors: string[] = [];
-  const blockRe = /```json-schema\s*\n([\s\S]*?)```/g;
-  for (const match of section.content.matchAll(blockRe)) {
+  for (const fence of findFencedBlocks(section.content)) {
+    if (fence.info !== 'json-schema') continue; // only a bare `json-schema` fence is a typed schema body
     try {
-      const parsed = JSON.parse(match[1] ?? '') as unknown;
+      const parsed = JSON.parse(fence.content) as unknown;
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         errors.push(`Schema ${section.name}: json-schema block must be a JSON object`);
       } else {
@@ -216,17 +255,13 @@ function parseJsonSchemaBlocks(section: SchemaSection): { blocks: JsonSchema[]; 
  * authors and agents reach for ```` ```json ````; a decorated
  * ```` ```json-schema title="X" ```` is also rejected because
  * `parseJsonSchemaBlocks` only parses a bare `json-schema` fence, so a decorated
- * one would otherwise be silently dropped). The whole info string is captured —
+ * one would otherwise be silently dropped). The whole info string is compared —
  * not just the leading word — so the two stay in lock-step. Returns the
  * offending info string (`''` = a fence with no tag); `null` = no foreign fence.
  */
 function findForeignFenceTag(section: SchemaSection): string | null {
-  const fenceRe = /```([^\n]*)(?:\n|$)[\s\S]*?```/g;
-  for (const match of section.content.matchAll(fenceRe)) {
-    const info = (match[1] ?? '').trim();
-    if (info !== 'json-schema') return info;
-  }
-  return null;
+  const foreign = findFencedBlocks(section.content).find(f => f.info !== 'json-schema');
+  return foreign ? foreign.info : null;
 }
 
 function parseFieldTable(section: SchemaSection): { rows: FieldRow[]; found: boolean } {
