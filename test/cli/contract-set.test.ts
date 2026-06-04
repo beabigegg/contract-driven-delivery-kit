@@ -189,7 +189,7 @@ describe('cdd-kit contract schema set', () => {
     const before = read();
     const ghost = runCli(['contract', 'schema', 'set', 'Wrapper', '--field', 'item:Ghost:no'], { cwd: repo, home });
     expect(ghost.status).toBe(1);
-    expect(ghost.stderr).toMatch(/not defined in ## Schemas/i);
+    expect(ghost.stderr).toMatch(/resolvable schema in ## Schemas/i);
     expect(read()).toBe(before); // not written
 
     // User IS defined in the contract, so a reference to it is accepted...
@@ -388,6 +388,74 @@ schema-version: 1.0.0
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/duplicate key/i);
     expect(read()).toBe(before);
+  });
+});
+
+describe('cdd-kit contract set — review round 3 (ADR 0004 Phase 3)', () => {
+  // Codex P2: schema writes must refuse a contract whose ## Schemas already errors.
+  it('refuses to write a schema when ## Schemas has a duplicate (parse error) elsewhere', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### User\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| email | string | yes |  |  |\n\n## Error Format',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'schema', 'set', 'Order', '--field', 'id:string:yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Duplicate schema section/i);
+    expect(read()).toBe(before);
+  });
+
+  // Codex P2: a field reference must be machine-resolvable, not merely defined.
+  it('rejects a field that references a Tier-C prose schema (no resolvable body)', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### Address\nAddress is described in prose for now (Tier C); it has no field table.\n\n## Error Format',
+    ));
+    const before = read();
+    const bad = runCli(['contract', 'schema', 'set', 'Customer', '--field', 'home:Address:yes'], { cwd: repo, home });
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/resolvable schema in ## Schemas/i);
+    expect(read()).toBe(before);
+    // A reference to the resolvable User schema (field table) is still accepted.
+    expect(runCli(['contract', 'schema', 'set', 'Customer', '--field', 'who:User:yes'], { cwd: repo, home }).status).toBe(0);
+  });
+
+  // Codex P2: replacing a section must not stop at a comment INTERNAL to it.
+  it('replaces a section whose old body sits after an internal comment, leaving no stale block', () => {
+    write(`---
+contract: api
+schema-version: 1.0.0
+---
+
+# API Contract
+
+## Endpoint Requirements
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| GET | /api/users | required | - | User | 401 | yes |
+
+## Schemas
+
+### User
+<!-- legacy note: was machine-typed -->
+\`\`\`json-schema
+{ "type": "object", "properties": { "name": { "type": "string" } } }
+\`\`\`
+
+## Error Format
+
+Errors use a JSON envelope.
+`);
+    const r = runCli(['contract', 'schema', 'set', 'User', '--field', 'email:string:yes', '--json'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout).action).toBe('replaced');
+    const content = read();
+    expect(content).toContain('| email | string | yes |  |  |'); // new field table
+    expect(content).not.toContain('json-schema'); // the stale block is gone, not left beside the table
+    // A section can't have both a table and a block, so the result must export.
+    const exp = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(exp.status, exp.stderr).toBe(0);
+    expect(JSON.parse(exp.stdout).components.schemas.User).toMatchObject({ type: 'object' });
   });
 });
 

@@ -6,6 +6,7 @@ import {
   isSeparator,
   isEndpointHeaderRow,
   parseSchemaSections,
+  parseContractSchemas,
   VALID_METHODS,
   SCHEMA_NAME_RE,
   DEFAULT_CONTRACT_PATH,
@@ -373,6 +374,20 @@ function findSchemaHeadings(lines: string[], from: number, to: number): Array<{ 
   return out;
 }
 
+/** For lines[from, to), mark each line that is inside or delimits an HTML comment. */
+function commentMask(lines: string[], from: number, to: number): boolean[] {
+  const mask: boolean[] = [];
+  let inComment = false;
+  for (let i = from; i < to; i += 1) {
+    const opens = (lines[i].match(/<!--/g) ?? []).length;
+    const closes = (lines[i].match(/-->/g) ?? []).length;
+    mask.push(inComment || opens > 0 || closes > 0);
+    if (opens > closes) inComment = true;
+    else if (closes > opens) inComment = false;
+  }
+  return mask;
+}
+
 function buildSchemaSection(name: string, fields: FieldSpec[]): string[] {
   const lines = [`### ${name}`, renderRow(['field', 'type', 'required', 'format', 'notes']), renderSeparator(5)];
   for (const f of fields) lines.push(renderRow([f.name, f.type, f.required, f.format, f.notes]));
@@ -411,21 +426,8 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
   }
 
   const raw = readFileSync(contractPath, 'utf8');
+  const body = stripFrontmatter(raw).body;
   const { lines, trailingNewline } = toLines(raw);
-
-  // A field whose type is a SchemaName (or SchemaName[]) must point at a schema
-  // that is already defined in ## Schemas — or at this schema itself, for a
-  // self-reference. A reference to a never-defined schema is refused because
-  // `openapi export` rejects it with `unknown type "X"`, so writing it would
-  // break `set`'s valid-by-construction guarantee. (Mutually recursive schemas
-  // are still reachable: create one without the back-reference, then add it.)
-  const knownSchemas = new Set([...parseSchemaSections(stripFrontmatter(raw).body).sections.map(s => s.name), opts.name]);
-  for (const f of fields) {
-    const ref = schemaRefName(f.type);
-    if (ref && !knownSchemas.has(ref)) {
-      return fail(opts.json, `field "${f.name}" references schema "${ref}", which is not defined in ## Schemas — add it first with \`cdd-kit contract schema set ${ref} ...\``);
-    }
-  }
 
   const schemasIdx = lines.findIndex(l => /^##\s+Schemas\s*$/i.test(l.trim()));
   if (schemasIdx === -1) {
@@ -442,13 +444,37 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
   // Locate the target among the REAL (non-commented) `### Name` headings. A
   // heading inside the template's `<!-- ### ExampleRequest ... -->` example is
   // not a usable section, so `schema set ExampleRequest` must insert a real one
-  // rather than "replace" inside the comment; and if the key is defined more than
-  // once we refuse, mirroring the endpoint duplicate guard (the shared parser
-  // reports duplicate sections and `openapi export` fails on them).
+  // rather than "replace" inside the comment; a duplicate target is refused with
+  // a specific message (checked here, before the generic parse-error guard).
   const headings = findSchemaHeadings(lines, schemasIdx + 1, schemasEnd);
   const targets = headings.filter(h => h.name === opts.name);
   if (targets.length > 1) {
     return fail(opts.json, `schema "${opts.name}" is defined ${targets.length} times in ## Schemas — resolve the duplicate by hand first.`);
+  }
+
+  // Refuse to mutate a contract whose ## Schemas already has a structural error
+  // (e.g. a duplicate of some OTHER section): we would write a section into a
+  // contract `openapi export` rejects, and the resolvable-name set trusted below
+  // would be built from a partial parse. Mirrors the endpoint-set guard.
+  const sectionErrors = parseSchemaSections(body).errors;
+  if (sectionErrors.length > 0) {
+    return fail(opts.json, `the contract's ## Schemas section has errors that must be fixed first:\n${sectionErrors.join('\n')}`, { errors: sectionErrors });
+  }
+
+  // A field whose type is a SchemaName (or SchemaName[]) must reference a schema
+  // openapi export can actually resolve — one with a field table or a json-schema
+  // block — or this schema itself (a self-reference becomes resolvable once
+  // written). A reference to an undefined OR Tier-C prose schema is refused,
+  // because the compiler rejects it and `set` would otherwise write a contract
+  // that does not export. (Mutually recursive schemas are still reachable by
+  // building them incrementally.) The resolvable set is exactly the parser's
+  // compiled-schema map, so this never drifts from what export accepts.
+  const resolvable = new Set([...Object.keys(parseContractSchemas(body).schemas), opts.name]);
+  for (const f of fields) {
+    const ref = schemaRefName(f.type);
+    if (ref && !resolvable.has(ref)) {
+      return fail(opts.json, `field "${f.name}" references schema "${ref}", which is not defined as a resolvable schema in ## Schemas (it needs a field table or a json-schema block) — add it first with \`cdd-kit contract schema set ${ref} ...\``);
+    }
   }
 
   const section = buildSchemaSection(opts.name, fields);
@@ -457,18 +483,17 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
   let out: string[];
   let action: 'replaced' | 'inserted';
   if (nameStart !== -1) {
-    // Replace the section's content, stopping at the next real heading OR a
-    // comment block, so a trailing `<!-- ... -->` example is preserved, not eaten.
+    // Replace the whole section body (heading → next real `###`/`##`), but keep a
+    // TRAILING run of comment/blank lines: a sibling `<!-- ### Example ... -->`
+    // block after the section is preserved, while a comment INTERNAL to the
+    // section (one sitting before the section's real body) is replaced along with
+    // that body — otherwise an old json-schema block could survive next to the new
+    // field table and export would reject a section that has both.
     const nextHeading = headings.find(h => h.index > nameStart);
-    let nameEnd = nextHeading ? nextHeading.index : schemasEnd;
-    for (let i = nameStart + 1; i < nameEnd; i += 1) {
-      if (lines[i].trim().startsWith('<!--')) {
-        nameEnd = i;
-        break;
-      }
-    }
+    const nameEnd = nextHeading ? nextHeading.index : schemasEnd;
+    const commented = commentMask(lines, nameStart + 1, nameEnd);
     let last = nameEnd - 1;
-    while (last > nameStart && lines[last].trim() === '') last -= 1;
+    while (last > nameStart && (lines[last].trim() === '' || commented[last - (nameStart + 1)])) last -= 1;
     out = [...lines.slice(0, nameStart), ...section, ...lines.slice(last + 1)];
     action = 'replaced';
   } else {
