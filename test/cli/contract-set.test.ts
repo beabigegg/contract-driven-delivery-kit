@@ -189,7 +189,7 @@ describe('cdd-kit contract schema set', () => {
     const before = read();
     const ghost = runCli(['contract', 'schema', 'set', 'Wrapper', '--field', 'item:Ghost:no'], { cwd: repo, home });
     expect(ghost.status).toBe(1);
-    expect(ghost.stderr).toMatch(/resolvable schema in ## Schemas/i);
+    expect(ghost.stderr).toMatch(/unknown type "Ghost"/i); // export's own compiler message
     expect(read()).toBe(before); // not written
 
     // User IS defined in the contract, so a reference to it is accepted...
@@ -414,7 +414,7 @@ describe('cdd-kit contract set — review round 3 (ADR 0004 Phase 3)', () => {
     const before = read();
     const bad = runCli(['contract', 'schema', 'set', 'Customer', '--field', 'home:Address:yes'], { cwd: repo, home });
     expect(bad.status).toBe(1);
-    expect(bad.stderr).toMatch(/resolvable schema in ## Schemas/i);
+    expect(bad.stderr).toMatch(/no field table or json-schema block/i);
     expect(read()).toBe(before);
     // A reference to the resolvable User schema (field table) is still accepted.
     expect(runCli(['contract', 'schema', 'set', 'Customer', '--field', 'who:User:yes'], { cwd: repo, home }).status).toBe(0);
@@ -456,6 +456,59 @@ Errors use a JSON envelope.
     const exp = runCli(['openapi', 'export'], { cwd: repo, home });
     expect(exp.status, exp.stderr).toBe(0);
     expect(JSON.parse(exp.stdout).components.schemas.User).toMatchObject({ type: 'object' });
+  });
+});
+
+describe('cdd-kit contract set — review round 4 (ADR 0004 Phase 3)', () => {
+  // Codex P2: a heading with an inline comment is the same section to the parser.
+  it('matches and replaces a schema whose heading carries an inline comment (no duplicate)', () => {
+    write(CONTRACT.replace('### User', '### User <!-- legacy -->'));
+    const r = runCli(['contract', 'schema', 'set', 'User', '--field', 'email:string:yes', '--json'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout).action).toBe('replaced'); // matched the existing section, did not insert a second
+    const content = read();
+    expect(content.match(/^### User\b/gm)).toHaveLength(1); // exactly one User section
+    expect(content).toContain('| email | string | yes |  |  |');
+    expect(runCli(['openapi', 'export'], { cwd: repo, home }).status).toBe(0); // no duplicate ### User
+  });
+
+  // Codex P2: refuse a write when an UNRELATED schema has a compile-level error
+  // that parseSchemaSections() does not surface (only parseContractSchemas does).
+  it('refuses a schema write when another schema has a compile-level error', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### Bad\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| x | weirdtype | yes |  |  |\n\n## Error Format',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'schema', 'set', 'Order', '--field', 'id:string:yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/unknown type "weirdtype"/i);
+    expect(read()).toBe(before);
+  });
+
+  it('refuses an endpoint write when a schema has a compile-level error', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### Bad\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| x | weirdtype | yes |  |  |\n\n## Error Format',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/x', '--tests', 'yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/unknown type "weirdtype"/i);
+    expect(read()).toBe(before);
+  });
+
+  // Validating the POST-mutation result (not the pre-state) lets a write that
+  // FIXES a dangling reference through, so recursive schemas stay buildable.
+  it('allows a schema write that resolves a previously dangling reference', () => {
+    write(CONTRACT.replace(
+      '## Error Format',
+      '### Wrapper\n| field | type | required | format | notes |\n|---|---|---|---|---|\n| item | Item | yes |  |  |\n\n## Error Format',
+    ));
+    expect(runCli(['openapi', 'export'], { cwd: repo, home }).status).toBe(1); // Wrapper.item → undefined Item
+    const r = runCli(['contract', 'schema', 'set', 'Item', '--field', 'id:string:yes'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0); // adding Item makes the POST-mutation contract valid
+    expect(runCli(['openapi', 'export'], { cwd: repo, home }).status).toBe(0);
   });
 });
 

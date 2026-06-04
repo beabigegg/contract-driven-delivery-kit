@@ -185,15 +185,18 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
   }
 
   const raw = readFileSync(contractPath, 'utf8');
-  // The defined-schema set must be trustworthy before we validate references
-  // against it: if ## Schemas has a structural error (e.g. a duplicate section),
-  // refuse rather than write an endpoint whose reference only "resolves" because
-  // the error was discarded — `openapi export` would reject the same contract.
-  const schemaParse = parseSchemaSections(stripFrontmatter(raw).body);
-  if (schemaParse.errors.length > 0) {
-    return fail(opts.json, `the contract's ## Schemas section has errors that must be fixed first:\n${schemaParse.errors.join('\n')}`, { errors: schemaParse.errors });
+  const body = stripFrontmatter(raw).body;
+  // Refuse to mutate a contract whose ## Schemas does not compile: an endpoint
+  // edit cannot fix a schema error, and `openapi export` rejects the whole
+  // document on any `parseContractSchemas` error (a duplicate section, an unknown
+  // field type, a mistagged fence …). Gating on the SAME check export runs — not
+  // just the duplicate subset — keeps `set` from writing into a contract that
+  // will not export, and makes the defined-name set below trustworthy.
+  const compileErrors = parseContractSchemas(body).errors;
+  if (compileErrors.length > 0) {
+    return fail(opts.json, `the contract's ## Schemas section has errors that must be fixed first:\n${compileErrors.join('\n')}`, { errors: compileErrors });
   }
-  const definedSchemas = new Set(schemaParse.sections.map(s => s.name));
+  const definedSchemas = new Set(parseSchemaSections(body).sections.map(s => s.name));
   const { lines, trailingNewline } = toLines(raw);
 
   const blocks = locateEndpointTables(lines);
@@ -330,14 +333,6 @@ function fieldTypeError(type: string): string | null {
   return `has unsupported type "${type}" (use string/integer/number/boolean, enum(...), a SchemaName, or those with [])`;
 }
 
-/** The schema name a field type references (after stripping `[]`), or null for a
- * primitive / enum / non-reference. Assumes the type already passed `fieldTypeError`. */
-function schemaRefName(type: string): string | null {
-  const base = type.endsWith('[]') ? type.slice(0, -2).trim() : type.trim();
-  if (!base || PRIMITIVE_TYPES.includes(base) || /^enum\(/.test(base)) return null;
-  return SCHEMA_NAME_RE.test(base) ? base : null;
-}
-
 /** Parse `name:type:required[:format[:notes]]` (notes may contain colons). */
 function parseFieldSpec(spec: string): FieldSpec | { error: string } {
   const parts = spec.split(':');
@@ -361,7 +356,14 @@ function findSchemaHeadings(lines: string[], from: number, to: number): Array<{ 
   for (let i = from; i < to; i += 1) {
     if (!inComment) {
       const m = lines[i].trim().match(/^###\s+(.+?)\s*$/);
-      if (m) out.push({ index: i, name: m[1].trim() });
+      // Strip any inline `<!-- ... -->` so the name matches what the shared parser
+      // reads (it removes comments before reading section names): a heading like
+      // `### User <!-- legacy -->` is the section `User`, so `schema set User` must
+      // match and REPLACE it rather than insert a second `### User`.
+      if (m) {
+        const name = m[1].replace(/<!--.*?-->/g, '').trim();
+        if (name) out.push({ index: i, name });
+      }
     }
     // Track multi-line HTML comments so the template's `<!-- ### ExampleRequest
     // ... -->` example block is not mistaken for a real schema section (the
@@ -426,7 +428,6 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
   }
 
   const raw = readFileSync(contractPath, 'utf8');
-  const body = stripFrontmatter(raw).body;
   const { lines, trailingNewline } = toLines(raw);
 
   const schemasIdx = lines.findIndex(l => /^##\s+Schemas\s*$/i.test(l.trim()));
@@ -450,31 +451,6 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
   const targets = headings.filter(h => h.name === opts.name);
   if (targets.length > 1) {
     return fail(opts.json, `schema "${opts.name}" is defined ${targets.length} times in ## Schemas — resolve the duplicate by hand first.`);
-  }
-
-  // Refuse to mutate a contract whose ## Schemas already has a structural error
-  // (e.g. a duplicate of some OTHER section): we would write a section into a
-  // contract `openapi export` rejects, and the resolvable-name set trusted below
-  // would be built from a partial parse. Mirrors the endpoint-set guard.
-  const sectionErrors = parseSchemaSections(body).errors;
-  if (sectionErrors.length > 0) {
-    return fail(opts.json, `the contract's ## Schemas section has errors that must be fixed first:\n${sectionErrors.join('\n')}`, { errors: sectionErrors });
-  }
-
-  // A field whose type is a SchemaName (or SchemaName[]) must reference a schema
-  // openapi export can actually resolve — one with a field table or a json-schema
-  // block — or this schema itself (a self-reference becomes resolvable once
-  // written). A reference to an undefined OR Tier-C prose schema is refused,
-  // because the compiler rejects it and `set` would otherwise write a contract
-  // that does not export. (Mutually recursive schemas are still reachable by
-  // building them incrementally.) The resolvable set is exactly the parser's
-  // compiled-schema map, so this never drifts from what export accepts.
-  const resolvable = new Set([...Object.keys(parseContractSchemas(body).schemas), opts.name]);
-  for (const f of fields) {
-    const ref = schemaRefName(f.type);
-    if (ref && !resolvable.has(ref)) {
-      return fail(opts.json, `field "${f.name}" references schema "${ref}", which is not defined as a resolvable schema in ## Schemas (it needs a field table or a json-schema block) — add it first with \`cdd-kit contract schema set ${ref} ...\``);
-    }
   }
 
   const section = buildSchemaSection(opts.name, fields);
@@ -504,7 +480,20 @@ export async function contractSchemaSet(opts: SchemaSetOptions): Promise<number>
     action = 'inserted';
   }
 
-  writeFileSync(contractPath, fromLines(out, trailingNewline), 'utf8');
+  // Validate the POST-mutation contract with the SAME compiler `openapi export`
+  // runs, and only write if it is clean. This is the valid-by-construction
+  // guarantee in one place — it subsumes the per-case schema checks (duplicate
+  // sections, dangling/Tier-C field references, bad types, mixed table+block) and
+  // never drifts from export. Validating the RESULT (not the pre-state) is also
+  // what lets a write that FIXES an error through (e.g. adding the schema a field
+  // referenced), while still refusing a pre-existing error this edit leaves intact.
+  const newContent = fromLines(out, trailingNewline);
+  const postErrors = parseContractSchemas(stripFrontmatter(newContent).body).errors;
+  if (postErrors.length > 0) {
+    return fail(opts.json, `this change would leave ## Schemas invalid (openapi export would reject it) — fix or define the referenced schemas first:\n${postErrors.join('\n')}`, { errors: postErrors });
+  }
+
+  writeFileSync(contractPath, newContent, 'utf8');
   const summary = `${action} schema ${opts.name} (${fields.length} field${fields.length === 1 ? '' : 's'})`;
   emit(opts.json, { ok: true, action, name: opts.name, fields: fields.length, summary }, summary);
   return 0;
