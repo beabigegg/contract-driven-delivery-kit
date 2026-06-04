@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { createInterface } from 'readline';
+import { DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH } from '../contracts/parser.js';
 
 type JsonRpcId = string | number | null;
 
@@ -142,8 +143,8 @@ const tools: ToolDef[] = [
         category: { type: 'string', description: 'Filter inventory endpoints by category.' },
         owner: { type: 'string', description: 'Filter inventory endpoints by owner.' },
         term: { type: 'string', description: 'Free-text fuzzy match across endpoint rows and schema names.' },
-        contract: { type: 'string', description: 'API contract markdown path.', default: 'contracts/api/api-contract.md' },
-        inventory: { type: 'string', description: 'API inventory markdown path.', default: 'contracts/api/api-inventory.md' },
+        contract: { type: 'string', description: 'API contract markdown path.', default: DEFAULT_CONTRACT_PATH },
+        inventory: { type: 'string', description: 'API inventory markdown path.', default: DEFAULT_INVENTORY_PATH },
         limit: { type: 'integer', minimum: 1, maximum: 200, default: 20 },
       },
       additionalProperties: false,

@@ -11,6 +11,7 @@ import { gate } from '../commands/gate.js';
 import { installHooks } from '../commands/install-hooks.js';
 import { installAgentHooks } from '../commands/install-agent-hooks.js';
 import { openapiExport } from '../commands/openapi-export.js';
+import { DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH } from '../contracts/parser.js';
 import { detectStack } from '../utils/stack-detect.js';
 import type { ProviderOption } from '../utils/provider.js';
 
@@ -485,7 +486,7 @@ const openapi = program
 openapi
   .command('export')
   .description('Export contracts/api/api-contract.md as a minimal OpenAPI 3.1 skeleton')
-  .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
+  .option('--contract <path>', 'API contract markdown path', DEFAULT_CONTRACT_PATH)
   .option('--out <path>', 'Write to a file instead of stdout')
   .option('--yaml', 'Emit YAML instead of JSON', false)
   .option('--check', 'Verify the artifact at --out is in sync with the contract (exits 1 on drift); does not write', false)
@@ -507,8 +508,8 @@ const contract = program
 contract
   .command('query [term]')
   .description('Return only the matching slice of the API contract (endpoint, schema, path, or column filter)')
-  .option('--contract <path>', 'API contract markdown path', 'contracts/api/api-contract.md')
-  .option('--inventory <path>', 'API inventory markdown path', 'contracts/api/api-inventory.md')
+  .option('--contract <path>', 'API contract markdown path', DEFAULT_CONTRACT_PATH)
+  .option('--inventory <path>', 'API inventory markdown path', DEFAULT_INVENTORY_PATH)
   .option('--endpoint <method-and-path>', 'Exact endpoint, e.g. "POST /api/orders" — returns the row plus the schemas it references and shared prose')
   .option('--path <prefix-or-glob>', 'Endpoints under a path prefix, or a glob where * matches within one segment, across the contract and inventory')
   .option('--schema <name>', 'A schema definition plus the endpoints that reference it')
@@ -529,6 +530,55 @@ contract
       category: opts.category,
       owner: opts.owner,
       limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+    });
+    process.exit(exit);
+  });
+
+contract
+  .command('endpoint')
+  .description('Mutate endpoint rows by key')
+  .command('set')
+  .description('Upsert an endpoint row by (method, path) — valid by construction, touches only that row')
+  .requiredOption('--method <method>', 'HTTP method, e.g. POST')
+  .requiredOption('--path <path>', 'Endpoint path, e.g. /api/orders')
+  .option('--contract <path>', 'API contract markdown path', DEFAULT_CONTRACT_PATH)
+  .option('--auth <value>', 'auth cell value')
+  .option('--request <schema>', 'request schema cell (a defined schema name, Name[], or -)')
+  .option('--response <schema>', 'response schema cell (a defined schema name, Name[], or -)')
+  .option('--errors <value>', 'errors cell, e.g. "400, 409"')
+  .option('--tests <value>', 'tests cell, e.g. yes')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: { contract: string; method: string; path: string; auth?: string; request?: string; response?: string; errors?: string; tests?: string; json?: boolean }) => {
+    const { contractEndpointSet } = await import('../commands/contract-set.js');
+    const exit = await contractEndpointSet({
+      contract: opts.contract,
+      method: opts.method,
+      path: opts.path,
+      auth: opts.auth,
+      request: opts.request,
+      response: opts.response,
+      errors: opts.errors,
+      tests: opts.tests,
+      json: opts.json === true,
+    });
+    process.exit(exit);
+  });
+
+contract
+  .command('schema')
+  .description('Mutate schema sections by name')
+  .command('set <name>')
+  .description('Upsert a `### Name` schema section from --field specs')
+  .option('--contract <path>', 'API contract markdown path', DEFAULT_CONTRACT_PATH)
+  .option('--field <spec>', 'repeatable field "name:type:required[:format[:notes]]"', (value: string, acc: string[]) => { acc.push(value); return acc; }, [] as string[])
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (name: string, opts: { contract: string; field: string[]; json?: boolean }) => {
+    const { contractSchemaSet } = await import('../commands/contract-set.js');
+    const exit = await contractSchemaSet({
+      contract: opts.contract,
+      name,
+      fields: opts.field ?? [],
       json: opts.json === true,
     });
     process.exit(exit);

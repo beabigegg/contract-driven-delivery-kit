@@ -21,6 +21,15 @@ export type JsonSchema = Record<string, unknown>;
 
 export const VALID_METHODS: ReadonlySet<string> = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options']);
 export const SCHEMA_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/**
+ * The default on-disk locations of the API contract and its inventory. Defined
+ * here, in the shared contract module, so the CLI command definitions and every
+ * command implementation (openapi export, contract query, contract set) read the
+ * same value instead of each repeating the literal — one place to change.
+ */
+export const DEFAULT_CONTRACT_PATH = 'contracts/api/api-contract.md';
+export const DEFAULT_INVENTORY_PATH = 'contracts/api/api-inventory.md';
 const PRIMITIVE_TYPES = new Set(['string', 'integer', 'number', 'boolean']);
 
 export interface EndpointRow {
@@ -102,7 +111,7 @@ const ENDPOINT_FIELD_ALIASES: Record<Exclude<keyof EndpointRow, 'method' | 'path
  * recognised, while a non-endpoint table (e.g. a `| field | type | … |` schema
  * field table) is never mistaken for one.
  */
-function isEndpointHeaderRow(cells: string[]): boolean {
+export function isEndpointHeaderRow(cells: string[]): boolean {
   const labels = new Set(cells.map(c => c.trim().toLowerCase()));
   return labels.has('method') && labels.has('path');
 }
@@ -181,6 +190,24 @@ export function parseEndpoints(body: string): EndpointRow[] {
       tests: pick(ENDPOINT_FIELD_ALIASES.tests),
     };
   });
+}
+
+/**
+ * Normalize an endpoint path to the OpenAPI path-template form that `openapi
+ * export` uses as the `paths[path]` key: Express-style `:id` and brace `{ id }`
+ * params both collapse to `{id}`, and any `?query` suffix is dropped. Two
+ * contract rows whose paths normalize to the same string land on the same
+ * OpenAPI operation (`paths[path][method]`), so the later one silently
+ * overwrites the earlier. `contract set` keys its duplicate guard on THIS, not
+ * the raw cell, to stay valid-by-construction against what export will emit —
+ * and export computes its path key from the same function so the two can never
+ * drift on which rows collide.
+ */
+export function normalizeApiPath(path: string): string {
+  return path
+    .replace(/:([A-Za-z_][\w]*)/g, (_m, n: string) => `{${n}}`)
+    .replace(/\{([^}/]+)\}/g, (_m, n: string) => `{${n.trim()}}`)
+    .split('?', 1)[0];
 }
 
 function extractSchemasSection(body: string): string {
