@@ -7,6 +7,7 @@ import {
   isEndpointHeaderRow,
   parseSchemaSections,
   parseContractSchemas,
+  normalizeApiPath,
   VALID_METHODS,
   SCHEMA_NAME_RE,
   DEFAULT_CONTRACT_PATH,
@@ -152,10 +153,17 @@ function columnIn(block: EndpointTableBlock, aliases: string[]): number {
   return -1;
 }
 
-/** The (method, path) primary key of a row in a given block, normalized (method lowercased, path trimmed). */
+/**
+ * The (method, path) primary key of a row in a given block: method lowercased,
+ * path normalized to the SAME OpenAPI template `openapi export` keys on
+ * (`:id` and `{id}` both → `{id}`). Keying on the normalized path — not the raw
+ * cell — is what stops two rows that differ only in param syntax from slipping
+ * past the duplicate/match logic here and then silently colliding on one
+ * `paths[path][method]` operation at export time.
+ */
 function rowKey(block: EndpointTableBlock, row: string[]): string {
   const m = (row[block.labels.indexOf('method')] ?? '').toLowerCase();
-  const p = (row[block.labels.indexOf('path')] ?? '').trim();
+  const p = normalizeApiPath((row[block.labels.indexOf('path')] ?? '').trim());
   return `${m} ${p}`;
 }
 
@@ -219,8 +227,10 @@ export async function contractEndpointSet(opts: EndpointSetOptions): Promise<num
 
   // Find which table (if any) already holds the target key; the duplicate guard
   // above guarantees at most one match. Update that table in place; otherwise
-  // append to the first endpoint table.
-  const targetKey = `${method} ${path}`;
+  // append to the first endpoint table. The key is normalized the same way, so
+  // `set --path /x/{id}` updates an existing `/x/:id` row instead of appending a
+  // second row that would overwrite the first operation on export.
+  const targetKey = `${method} ${normalizeApiPath(path)}`;
   let block = blocks[0];
   let existingIdx = -1;
   for (const b of blocks) {

@@ -192,6 +192,24 @@ export function parseEndpoints(body: string): EndpointRow[] {
   });
 }
 
+/**
+ * Normalize an endpoint path to the OpenAPI path-template form that `openapi
+ * export` uses as the `paths[path]` key: Express-style `:id` and brace `{ id }`
+ * params both collapse to `{id}`, and any `?query` suffix is dropped. Two
+ * contract rows whose paths normalize to the same string land on the same
+ * OpenAPI operation (`paths[path][method]`), so the later one silently
+ * overwrites the earlier. `contract set` keys its duplicate guard on THIS, not
+ * the raw cell, to stay valid-by-construction against what export will emit —
+ * and export computes its path key from the same function so the two can never
+ * drift on which rows collide.
+ */
+export function normalizeApiPath(path: string): string {
+  return path
+    .replace(/:([A-Za-z_][\w]*)/g, (_m, n: string) => `{${n}}`)
+    .replace(/\{([^}/]+)\}/g, (_m, n: string) => `{${n.trim()}}`)
+    .split('?', 1)[0];
+}
+
 function extractSchemasSection(body: string): string {
   const lines = body.split('\n');
   const start = lines.findIndex(line => /^##\s+Schemas\s*$/i.test(line.trim()));

@@ -5,6 +5,7 @@ import {
   stripFrontmatter,
   parseEndpoints,
   parseContractSchemas,
+  normalizeApiPath,
   SCHEMA_NAME_RE,
   DEFAULT_CONTRACT_PATH,
   type EndpointRow,
@@ -92,24 +93,19 @@ function toOpenApiPath(path: string): { path: string; params: OpenApiParameter[]
   const params: OpenApiParameter[] = [];
   const seen = new Set<string>();
   const addParam = (name: string) => {
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      params.push({ name, in: 'path', required: true, schema: { type: 'string' } });
+    const n = name.trim();
+    if (n && !seen.has(n)) {
+      seen.add(n);
+      params.push({ name: n, in: 'path', required: true, schema: { type: 'string' } });
     }
   };
-  let oapi = path
-    // :id  ->  {id}
-    .replace(/:([A-Za-z_][\w]*)/g, (_m, n: string) => {
-      addParam(n);
-      return `{${n}}`;
-    })
-    // already-{id}  ->  record the name
-    .replace(/\{([^}/]+)\}/g, (_m, n: string) => {
-      addParam(n.trim());
-      return `{${n.trim()}}`;
-    });
-  oapi = oapi.split('?', 1)[0];
-  return { path: oapi, params };
+  // The path template itself is normalized by the shared parser so export and
+  // `contract set` agree on which rows collide; param names are then read off
+  // both the `:name` and `{name}` forms, in path order.
+  for (const m of path.matchAll(/:([A-Za-z_][\w]*)/g)) addParam(m[1]);
+  const withBraces = path.replace(/:([A-Za-z_][\w]*)/g, (_m, n: string) => `{${n}}`);
+  for (const m of withBraces.matchAll(/\{([^}/]+)\}/g)) addParam(m[1]);
+  return { path: normalizeApiPath(path), params };
 }
 
 function authToSecurity(auth: string): { security?: Array<Record<string, string[]>>; scheme?: string } {

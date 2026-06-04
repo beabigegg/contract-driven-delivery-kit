@@ -512,6 +512,44 @@ describe('cdd-kit contract set — review round 4 (ADR 0004 Phase 3)', () => {
   });
 });
 
+describe('cdd-kit contract set — review round 5 (ADR 0004 Phase 3)', () => {
+  // Codex P2: `:id` and `{id}` are the SAME OpenAPI path key (export normalizes
+  // both to `{id}` and assigns `paths[path][method]`). Setting one form must
+  // UPDATE the row written in the other form, not append a second row that then
+  // silently overwrites the first operation on export.
+  it('updates an existing `:id` row when set with the `{id}` form (no normalized-duplicate append)', () => {
+    write(CONTRACT.replace('| GET | /api/users |', '| GET | /api/users/:id |'));
+    const r = runCli(
+      ['contract', 'endpoint', 'set', '--method', 'GET', '--path', '/api/users/{id}', '--auth', 'optional', '--json'],
+      { cwd: repo, home },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout).action).toBe('updated'); // matched the :id row, did not append
+    const content = read();
+    expect(content).toContain('| GET | /api/users/:id | optional | - | User[] | 401 | yes |'); // updated in place, stored path form preserved
+    expect(content).not.toContain('/api/users/{id}'); // no second row appended in the other syntax
+    // Exactly one operation, so export has no silent collision on paths['/api/users/{id}'].get.
+    const exp = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(exp.status, exp.stderr).toBe(0);
+    expect(JSON.parse(exp.stdout).paths['/api/users/{id}'].get).toBeTruthy();
+  });
+
+  // Codex P2: a pre-existing pair that collides only under path-template
+  // normalization is a duplicate the keyed guarantee cannot honor — refuse
+  // before writing anything, the same as a raw duplicate key.
+  it('refuses to set any endpoint when the table already holds a normalized-duplicate (:id vs {id})', () => {
+    write(CONTRACT.replace(
+      '| GET | /api/users | required | - | User[] | 401 | yes |',
+      '| GET | /api/users/:id | required | - | User | 401 | yes |\n| GET | /api/users/{id} | none | - | User | 404 | no |',
+    ));
+    const before = read();
+    const r = runCli(['contract', 'endpoint', 'set', '--method', 'POST', '--path', '/api/orders', '--tests', 'yes'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/duplicate key/i);
+    expect(read()).toBe(before); // nothing written
+  });
+});
+
 describe('contract set round-trip', () => {
   it('produces a contract that openapi export accepts, with the new schema and endpoint', () => {
     expect(runCli(['contract', 'schema', 'set', 'Order', '--field', 'id:string:yes', '--field', 'total:number:yes'], { cwd: repo, home }).status).toBe(0);
