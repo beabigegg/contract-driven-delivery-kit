@@ -28,6 +28,8 @@ export interface ChokepointStatus {
 
 /** Marker the install-agent-hooks command writes into settings.json commands. */
 const GRAPH_FIRST_MARKER = 'pre-tool-use-graph-first';
+/** Marker for the contract-write PreToolUse hook (ADR 0004 §6, Stage 2). */
+const CONTRACT_WRITE_MARKER = 'pre-tool-use-contract-write';
 /** Marker the install-hooks command writes into .git/hooks/pre-commit. */
 const PRECOMMIT_MARKER = '# cdd-kit-managed-block-start';
 /** Substring identifying the OpenAPI sync gate in a script or CI step. */
@@ -41,31 +43,39 @@ function safeRead(path: string): string {
   }
 }
 
+/**
+ * Every command string nested under a PreToolUse handler (the shape Claude Code
+ * actually executes). A legacy top-level `command` is intentionally excluded: it
+ * never fires, so a chokepoint that relied on it must read as dormant — that
+ * nudges the user to re-run install-agent-hooks, which rewrites it correctly. A
+ * malformed/absent settings.json yields no commands (install-agent-hooks reports
+ * the JSON error itself when the user tries to arm it).
+ */
+function nestedPreToolUseCommands(cwd: string): string[] {
+  const settingsPath = join(cwd, '.claude', 'settings.json');
+  if (!existsSync(settingsPath)) return [];
+  try {
+    const settings = JSON.parse(safeRead(settingsPath)) as {
+      hooks?: { PreToolUse?: Array<{ hooks?: Array<{ command?: unknown }> }> };
+    };
+    const entries = settings.hooks?.PreToolUse;
+    if (!Array.isArray(entries)) return [];
+    const commands: string[] = [];
+    for (const entry of entries) {
+      if (!Array.isArray(entry?.hooks)) continue;
+      for (const handler of entry.hooks) {
+        if (typeof handler?.command === 'string') commands.push(handler.command);
+      }
+    }
+    return commands;
+  } catch {
+    return [];
+  }
+}
+
 /** graph-first PreToolUse hook armed in .claude/settings.json? */
 function probeGraphFirst(cwd: string): ChokepointStatus {
-  const settingsPath = join(cwd, '.claude', 'settings.json');
-  let live = false;
-  if (existsSync(settingsPath)) {
-    try {
-      const settings = JSON.parse(safeRead(settingsPath)) as {
-        hooks?: { PreToolUse?: Array<{ command?: unknown; hooks?: Array<{ command?: unknown }> }> };
-      };
-      const entries = settings.hooks?.PreToolUse;
-      if (Array.isArray(entries)) {
-        // The chokepoint only fires when the command sits in the nested `hooks`
-        // handler array (the shape Claude Code executes). A legacy top-level
-        // `command` does NOT fire, so it must read as dormant — that nudges the
-        // user to re-run install-agent-hooks, which rewrites it correctly.
-        live = entries.some(e =>
-          Array.isArray(e?.hooks) &&
-          e.hooks.some(h => typeof h?.command === 'string' && h.command.includes(GRAPH_FIRST_MARKER)),
-        );
-      }
-    } catch {
-      // Malformed settings.json — treat as dormant; install-agent-hooks reports
-      // the JSON error itself when the user tries to arm it.
-    }
-  }
+  const live = nestedPreToolUseCommands(cwd).some(c => c.includes(GRAPH_FIRST_MARKER));
   return {
     id: 'graph-first-hook',
     name: 'graph-first exploration hook',
@@ -73,6 +83,19 @@ function probeGraphFirst(cwd: string): ChokepointStatus {
     detail: live
       ? 'PreToolUse hook steers agents to graph/index queries before Read'
       : 'dormant — run `cdd-kit install-agent-hooks --graph-first advisory` to stop agents defaulting to Read',
+  };
+}
+
+/** contract-write PreToolUse hook armed in .claude/settings.json? (ADR 0004 §6) */
+function probeContractWrite(cwd: string): ChokepointStatus {
+  const live = nestedPreToolUseCommands(cwd).some(c => c.includes(CONTRACT_WRITE_MARKER));
+  return {
+    id: 'contract-write-hook',
+    name: 'contract-write hook',
+    live,
+    detail: live
+      ? 'PreToolUse hook routes agent edits of the API contract through `cdd-kit contract set`'
+      : 'dormant — run `cdd-kit install-agent-hooks --contract-write strict` to route agent contract edits through `cdd-kit contract set`',
   };
 }
 
@@ -157,6 +180,7 @@ function probeOpenApiGate(cwd: string): ChokepointStatus {
 export function detectChokepoints(cwd: string): ChokepointStatus[] {
   return [
     probeGraphFirst(cwd),
+    probeContractWrite(cwd),
     probePreCommitGate(cwd),
     probeOpenApiGate(cwd),
   ];

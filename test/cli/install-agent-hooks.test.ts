@@ -195,3 +195,92 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     }
   });
 });
+
+describe('cdd-kit install-agent-hooks --contract-write (ADR 0004 §6)', () => {
+  const CW_SCRIPT = './.claude/hooks/pre-tool-use-contract-write.sh';
+  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+
+  /** The PreToolUse entry whose nested command names the given hook script. */
+  function entryFor(marker: string): HookEntry | undefined {
+    return preTool().find(e => cmdOf(e)?.includes(marker));
+  }
+
+  it('installs the advisory contract-write hook and copies the script', () => {
+    const r = runCli(['install-agent-hooks', '--contract-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-contract-write.sh'))).toBe(true);
+    const entry = entryFor('pre-tool-use-contract-write');
+    expect(entry).toBeDefined();
+    // Matches the agent's file-mutation tools.
+    expect(entry?.matcher).toBe('Write|Edit|MultiEdit');
+    expect(entry?.command).toBeUndefined(); // nested handler shape, not top-level
+    expect(entry?.hooks?.[0]).toMatchObject({ type: 'command' });
+    expect(cmdOf(entry!)).toBe(CW_SCRIPT);
+    expect(cmdOf(entry!)).not.toContain('CDD_CONTRACT_WRITE_STRICT');
+  });
+
+  it('installs the strict contract-write hook with the CDD_CONTRACT_WRITE_STRICT flag', () => {
+    const r = runCli(['install-agent-hooks', '--contract-write', 'strict'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(cmdOf(entryFor('pre-tool-use-contract-write')!)).toBe(`CDD_CONTRACT_WRITE_STRICT=1 ${CW_SCRIPT}`);
+  });
+
+  it('arming contract-write does NOT install or disturb graph-first (opt-in, independent)', () => {
+    const r = runCli(['install-agent-hooks', '--contract-write', 'strict'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    // Only the contract-write hook is present; graph-first was never requested.
+    expect(preTool()).toHaveLength(1);
+    expect(entryFor('pre-tool-use-graph-first')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-graph-first.sh'))).toBe(false);
+  });
+
+  it('a bare install-agent-hooks does NOT arm contract-write (opt-in)', () => {
+    const r = runCli(['install-agent-hooks'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(entryFor('pre-tool-use-contract-write')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-contract-write.sh'))).toBe(false);
+  });
+
+  it('arms graph-first and contract-write independently across separate runs', () => {
+    expect(runCli(['install-agent-hooks', '--graph-first', 'advisory'], { cwd: repo, home }).status).toBe(0);
+    expect(runCli(['install-agent-hooks', '--contract-write', 'strict'], { cwd: repo, home }).status).toBe(0);
+
+    // Both hooks coexist; arming the second left the first untouched.
+    expect(preTool()).toHaveLength(2);
+    expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(GF_SCRIPT);
+    expect(cmdOf(entryFor('pre-tool-use-contract-write')!)).toBe(`CDD_CONTRACT_WRITE_STRICT=1 ${CW_SCRIPT}`);
+  });
+
+  it('arms both hooks in a single invocation', () => {
+    const r = runCli(['install-agent-hooks', '--graph-first', 'strict', '--contract-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(2);
+    expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(`CDD_GRAPH_FIRST_STRICT=1 ${GF_SCRIPT}`);
+    expect(cmdOf(entryFor('pre-tool-use-contract-write')!)).toBe(CW_SCRIPT);
+  });
+
+  it('is idempotent and switches contract-write mode without duplicating entries', () => {
+    runCli(['install-agent-hooks', '--contract-write', 'advisory'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--contract-write', 'strict'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--contract-write', 'advisory'], { cwd: repo, home });
+
+    const ours = preTool().filter(e => cmdOf(e)?.includes('pre-tool-use-contract-write'));
+    expect(ours).toHaveLength(1); // replaced each time, never appended
+    expect(cmdOf(ours[0])).toBe(CW_SCRIPT);
+  });
+
+  it('rejects an invalid contract-write mode', () => {
+    const r = runCli(['install-agent-hooks', '--contract-write', 'bogus'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid.*mode/i);
+  });
+
+  it('writes an executable contract-write hook script', () => {
+    runCli(['install-agent-hooks', '--contract-write', 'advisory'], { cwd: repo, home });
+    const mode = statSync(join(repo, '.claude', 'hooks', 'pre-tool-use-contract-write.sh')).mode;
+    if (process.platform !== 'win32') {
+      expect(mode & 0o100).toBeTruthy();
+    }
+  });
+});
