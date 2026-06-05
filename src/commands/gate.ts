@@ -8,6 +8,13 @@ import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
+import {
+  stripFrontmatter,
+  parseEndpointTableRows,
+  parseSchemaSections,
+  SCHEMA_NAME_RE,
+  DEFAULT_CONTRACT_PATH,
+} from '../contracts/parser.js';
 
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
@@ -356,6 +363,116 @@ function enforceTierFloor(changeDir: string, errors: string[], warnings: string[
   }
 }
 
+// ── substantive contract check (ADR 0004 §5) ─────────────────────────────────
+
+/**
+ * Primitive field types that are never `### Name` schema references. Mirrors the
+ * shared parser's PRIMITIVE_TYPES (which it does not export); kept in lock-step.
+ */
+const PRIMITIVE_SCHEMA_TYPES = new Set(['string', 'integer', 'number', 'boolean']);
+
+/** Header aliases for the request / response schema columns (priority order). */
+const REQUEST_COLUMN_ALIASES = ['request schema', 'request'];
+const RESPONSE_COLUMN_ALIASES = ['response schema', 'response'];
+
+/** First present alias's value in a header-keyed row, or undefined if absent. */
+function pickColumn(cells: Record<string, string>, aliases: string[]): string | undefined {
+  for (const alias of aliases) {
+    if (cells[alias] !== undefined) return cells[alias];
+  }
+  return undefined;
+}
+
+/**
+ * The schema NAME a request/response cell references, or '' when the cell names
+ * no schema. A cell names a schema when — after dropping a trailing `[]` array
+ * marker — it is a bare identifier (SCHEMA_NAME_RE) that is not a primitive type.
+ * `-`, empty, a primitive, an `enum(...)`, or any multi-word prose return '' and
+ * are left alone: a Tier C prose cell that names no schema is not a violation
+ * (ADR 0002 no-migration / ADR 0004 §5). This is the read-side mirror of the
+ * reference check `contract set` runs on write.
+ */
+function schemaCellRef(cell: string): string {
+  const raw = (cell ?? '').trim();
+  if (!raw || raw === '-') return '';
+  const base = raw.endsWith('[]') ? raw.slice(0, -2).trim() : raw;
+  if (!SCHEMA_NAME_RE.test(base) || PRIMITIVE_SCHEMA_TYPES.has(base)) return '';
+  return base;
+}
+
+/**
+ * Substantive contract check (ADR 0004 §5). The structural validators confirm the
+ * contract is well-formed; this asserts it actually *says what a change claims* —
+ * mechanically, via the shared parser — directly addressing the
+ * "gate passes placeholders / self-reported done" weakness. It reads the repo's
+ * API contract (contracts are repo-global, like the validators the gate runs),
+ * and is deliberately MINIMAL and CONSERVATIVE: a false positive here would break
+ * ADR 0002's no-migration guarantee, so each rule exempts legitimately-prose
+ * Tier C contracts, and the rule set is designed to grow (ADR 0004 §5).
+ *
+ *   - Schema reference integrity (error): once a contract defines at least one
+ *     `### Name` schema (i.e. it has opted into machine-typed schemas), every
+ *     request/response cell that NAMES a schema must resolve to a defined section.
+ *     A contract with no defined schemas is pure Tier C and wholly exempt; a
+ *     referenced Tier C *prose* section still counts as defined, so only a
+ *     dangling/typo'd name is flagged. Mirrors `contract set`'s write-side rule.
+ *   - Declared test coverage (warning; error under --strict): when the endpoint
+ *     table has a `tests` column, no row may leave it blank — a row must not be
+ *     silent about the coverage it claims. A table with no `tests` column is left
+ *     alone (it is not tracking tests in the contract).
+ */
+function enforceContractSubstance(cwd: string, errors: string[], warnings: string[], strict: boolean): void {
+  const contractPath = join(cwd, DEFAULT_CONTRACT_PATH);
+  if (!existsSync(contractPath)) return;
+
+  let body: string;
+  try {
+    body = stripFrontmatter(readFileSync(contractPath, 'utf8')).body;
+  } catch {
+    return; // an unreadable contract is the structural validators' concern, not this one
+  }
+
+  const rows = parseEndpointTableRows(body);
+  if (rows.length === 0) return; // empty / freshly-scaffolded table — nothing to assert
+  const label = DEFAULT_CONTRACT_PATH;
+
+  // Rule A — schema reference integrity. Gated on the contract having opted into
+  // machine schemas (≥1 defined `### Name`): a pure-prose Tier C contract whose
+  // request/response cells are informal labels is exempt (no-migration).
+  const definedSchemas = new Set(parseSchemaSections(body).sections.map(s => s.name));
+  if (definedSchemas.size > 0) {
+    for (const row of rows) {
+      // `openapi export` ignores a GET request body, so don't assert one for GET.
+      const kinds: Array<{ kind: string; aliases: string[] }> = [
+        ...(row.method === 'get' ? [] : [{ kind: 'request', aliases: REQUEST_COLUMN_ALIASES }]),
+        { kind: 'response', aliases: RESPONSE_COLUMN_ALIASES },
+      ];
+      for (const { kind, aliases } of kinds) {
+        const cell = pickColumn(row.cells, aliases);
+        if (cell === undefined) continue;
+        const name = schemaCellRef(cell);
+        if (name && !definedSchemas.has(name)) {
+          errors.push(
+            `${label}: endpoint ${row.method.toUpperCase()} ${row.path} references undefined schema "${name}" in its ${kind} cell — ` +
+            `define it in ## Schemas (### ${name}) or via \`cdd-kit contract schema set ${name} ...\`, or use "-" if the body is free-form.`,
+          );
+        }
+      }
+    }
+  }
+
+  // Rule B — declared test coverage, only when the table has a `tests` column.
+  for (const row of rows) {
+    const tests = pickColumn(row.cells, ['tests']);
+    if (tests === undefined || tests.trim() !== '') continue;
+    const msg =
+      `${label}: endpoint ${row.method.toUpperCase()} ${row.path} has an empty tests cell — ` +
+      `name its contract test(s), or "-" if intentionally none.`;
+    if (strict) errors.push(msg);
+    else warnings.push(msg);
+  }
+}
+
 function isArchivedChange(cwd: string, changeId: string): boolean {
   const archiveRoot = join(cwd, 'specs', 'archive');
   if (!existsSync(archiveRoot)) return false;
@@ -531,6 +648,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   enforceTierConsistency(changeDir, errors, warnings);
   enforceTierFloor(changeDir, errors, warnings);
+  enforceContractSubstance(cwd, errors, warnings, strict);
 
   for (const w of warnings) {
     log.warn(`  ${w}`);

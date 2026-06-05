@@ -1157,6 +1157,180 @@ describe('cdd-kit gate — tier floor', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Substantive contract check (ADR 0004 §5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cdd-kit gate — substantive contract check (ADR 0004 §5)', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-gate-substance-repo-');
+    tmpHome = makeTempDir('cdd-gate-substance-home-');
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    if (r.status !== 0) throw new Error(`Setup init failed: ${r.stderr}`);
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  /**
+   * Build an API contract with explicit columns / rows / optional `## Schemas`
+   * block. Self-contained (does not reuse buildApiContract) so a test can vary the
+   * column set — e.g. drop the `tests` column — and still emit every section the
+   * contract validators expect.
+   */
+  function apiContract(opts: { columns?: string[]; rows: string[]; schemas?: string }): string {
+    const columns = opts.columns ?? ['method', 'path', 'auth', 'request schema', 'response schema', 'errors', 'tests'];
+    const header = `| ${columns.join(' | ')} |`;
+    const sep = `|${columns.map(() => '---').join('|')}|`;
+    return [
+      '---',
+      'contract: api',
+      'schema-version: 0.1.0',
+      'last-changed: 2026-04-27',
+      'breaking-change-policy: deprecate-2-minors',
+      '---',
+      '',
+      '# API Contract',
+      '',
+      '## API Style',
+      '- response style: JSON REST',
+      '',
+      '## Endpoint Requirements',
+      header,
+      sep,
+      ...opts.rows,
+      '',
+      '## Schemas',
+      '',
+      opts.schemas ?? '',
+      '',
+      '## Error Format',
+      'Standard envelope.',
+      '',
+      '## Compatibility Policy',
+      'No breaking changes without a major version bump.',
+      '',
+      '## Endpoint Inventory Policy',
+      'All endpoints must appear here.',
+      '',
+      '## Breaking Change Policy',
+      'RFC required.',
+      '',
+    ].join('\n');
+  }
+
+  function writeApiContract(content: string): void {
+    mkdirSync(join(tmpRepo, 'contracts', 'api'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'contracts', 'api', 'api-contract.md'), content, 'utf8');
+  }
+
+  /** Scaffold an otherwise-valid change so the gate reaches the substantive check. */
+  function scaffold(changeId: string): void {
+    runCli(['new', changeId], { cwd: tmpRepo, home: tmpHome });
+    writeValidChangeArtifacts(join(tmpRepo, 'specs', 'changes', changeId));
+  }
+
+  const userSchema = [
+    '### User',
+    '| field | type | required | format | notes |',
+    '|---|---|---|---|---|',
+    '| id | string | yes | | |',
+  ].join('\n');
+
+  it('A1: fails when a response cell names a schema not defined in ## Schemas', () => {
+    scaffold('sub-a1');
+    writeApiContract(apiContract({
+      rows: ['| GET | /api/users | required | - | Odrer | 401 | users.spec.ts |'],
+      schemas: userSchema,
+    }));
+    const r = runCli(['gate', 'sub-a1'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/undefined schema "Odrer"/i);
+    expect(r.stderr + r.stdout).toMatch(/GET \/api\/users/);
+  });
+
+  it('A2: does NOT flag a Tier C contract that defines no schemas (no-migration)', () => {
+    scaffold('sub-a2');
+    // The response cell names an informal label, but the contract has no `### Name`
+    // section at all — pure Tier C, wholly exempt from the reference check.
+    writeApiContract(apiContract({
+      rows: ['| GET | /api/users | required | - | UserList | 401 | users.spec.ts |'],
+    }));
+    const r = runCli(['gate', 'sub-a2'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/undefined schema/i);
+  });
+
+  it('A3: a referenced Tier C prose section counts as defined; only a dangling name is flagged', () => {
+    scaffold('sub-a3');
+    // `### LegacyShape` is prose-only (no field table / json-schema) but still a
+    // defined section, so `response: LegacyShape` resolves; `Ghost` does not.
+    const schemas = [
+      '### LegacyShape',
+      'Free-form prose describing the legacy response shape. No machine schema.',
+    ].join('\n');
+    writeApiContract(apiContract({
+      rows: [
+        '| GET | /api/legacy | required | - | LegacyShape | 401 | legacy.spec.ts |',
+        '| GET | /api/ghost | required | - | Ghost | 401 | ghost.spec.ts |',
+      ],
+      schemas,
+    }));
+    const r = runCli(['gate', 'sub-a3'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/undefined schema "Ghost"/i);
+    expect(r.stderr + r.stdout).not.toMatch(/undefined schema "LegacyShape"/i);
+  });
+
+  it('A4: array `Name[]` resolves, and a GET request cell is not asserted (mirrors export)', () => {
+    scaffold('sub-a4');
+    // response `User[]` resolves to `### User`; the GET row's `request` cell names
+    // an undefined `GhostReq`, but export ignores a GET body so it must not flag.
+    writeApiContract(apiContract({
+      rows: ['| GET | /api/users | required | GhostReq | User[] | 401 | users.spec.ts |'],
+      schemas: userSchema,
+    }));
+    const r = runCli(['gate', 'sub-a4'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/undefined schema/i);
+  });
+
+  it('B1: warns (does not assert failure) on an empty tests cell in non-strict mode', () => {
+    scaffold('sub-b1');
+    writeApiContract(apiContract({
+      rows: ['| GET | /api/users | required | - | - | 401 | |'],
+    }));
+    const r = runCli(['gate', 'sub-b1'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).toMatch(/GET \/api\/users has an empty tests cell/i);
+  });
+
+  it('B2: --strict turns an empty tests cell into a gate failure', () => {
+    scaffold('sub-b2');
+    writeApiContract(apiContract({
+      rows: ['| GET | /api/users | required | - | - | 401 | |'],
+    }));
+    const r = runCli(['gate', 'sub-b2', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/empty tests cell/i);
+  });
+
+  it('B3: does NOT assert tests when the endpoint table has no tests column', () => {
+    scaffold('sub-b3');
+    // A table with no `tests` column at all — the contract is not tracking tests
+    // here, so an absent column must not be read as a blank cell. --strict to prove
+    // even the strictest mode stays silent.
+    writeApiContract(apiContract({
+      columns: ['method', 'path', 'auth', 'request schema', 'response schema', 'errors'],
+      rows: ['| GET | /api/users | required | - | - | 401 |'],
+    }));
+    const r = runCli(['gate', 'sub-b3', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr + r.stdout).not.toMatch(/empty tests cell/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // classify-check advisory
 // ─────────────────────────────────────────────────────────────────────────────
 
