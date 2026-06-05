@@ -2,7 +2,27 @@
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Added
+
+- **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
+  --contract-write <mode>`).** The write-side analog of the graph-first hook
+  (ADR 0004 §6): an opt-in Claude Code hook that intercepts the agent's
+  `Edit`/`Write`/`MultiEdit` of `contracts/api/api-contract.md` and routes it to
+  `cdd-kit contract set`, which upserts by key and is valid by construction.
+  Advisory by default (reminds, allows the edit); `--contract-write strict`
+  writes `CDD_CONTRACT_WRITE_STRICT=1` so the hook hard-blocks the edit (exit 2),
+  feeding the routing reason back to the agent. It gates only the *agent's* tools
+  — a human editing the contract in their editor is unaffected, and `contract
+  set` stays available to humans who want validated edits — and is scoped to the
+  one contract `contract set` can mutate today, so it can never brick an edit
+  with no `set` form yet (the API surface ships first; §7 extends both later). A
+  first-time scaffold (the file does not exist yet) is always allowed.
+  `install-agent-hooks` now arms graph-first and contract-write **independently**:
+  naming one flag arms only that hook and leaves the other untouched, while a
+  bare invocation still arms graph-first advisory (unchanged). `cdd-kit doctor`'s
+  chokepoint dashboard reports the new hook as `live`/`dormant`. Not armed by
+  `cdd-kit init` — opt-in per the ADR, shipped only now that query + set + gate
+  are proven green.
 
 ## [2.2.1] - 2026-06-03
 

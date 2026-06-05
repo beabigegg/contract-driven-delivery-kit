@@ -401,7 +401,7 @@ Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS
 
 For Claude projects, `doctor` also reports whether the **cdd-kit MCP server is registered** with Claude Code (it runs `claude mcp list`). If it is not registered, agents never see the graph/index tools and silently fall back to `Read`, so doctor surfaces the exact `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it. This check is **informational only** — it never fails `--strict`, never blocks on a slow or missing `claude` CLI (3s timeout, best-effort), and is skipped for non-Claude projects. Point `CDD_CLAUDE_BIN` at an alternate Claude CLI if needed.
 
-`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. Like the MCP and conformance lines, it is **advisory only** and never fails `--strict`.
+`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the contract-write hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. Like the MCP and conformance lines, it is **advisory only** and never fails `--strict`.
 
 ---
 
@@ -735,17 +735,22 @@ Idempotent. Preserves existing hook content. Bypass with `--no-verify` is possib
 
 ### `cdd-kit install-agent-hooks`
 
-Installs Claude Code **agent hooks** into the project's `.claude/settings.json`. Currently installs the graph-first `PreToolUse` hook, which steers agents to `cdd-kit index query --with-source` before reading source files — turning the hook from a documented file you wire by hand into an enforced harness chokepoint.
+Installs Claude Code **agent hooks** into the project's `.claude/settings.json`, turning a hook from a documented file you wire by hand into an enforced harness chokepoint. Two hooks are available and armed independently:
+
+- the **graph-first** `PreToolUse` hook, which steers agents to `cdd-kit index query --with-source` before reading source files;
+- the **contract-write** `PreToolUse` hook (ADR 0004 §6), which routes the agent's `Edit`/`Write` of `contracts/api/api-contract.md` to `cdd-kit contract set` — a keyed, valid-by-construction mutation instead of a free-form edit.
 
 ```bash
-cdd-kit install-agent-hooks                      # advisory (default)
-cdd-kit install-agent-hooks --graph-first strict # hard-block source Reads when a code-map exists
+cdd-kit install-agent-hooks                                                # graph-first advisory (default)
+cdd-kit install-agent-hooks --graph-first strict                           # hard-block source Reads when a code-map exists
+cdd-kit install-agent-hooks --contract-write strict                        # hard-block agent edits of the API contract
+cdd-kit install-agent-hooks --graph-first advisory --contract-write strict # arm both at once
 ```
 
-- **advisory** (default): reminds the agent to use the graph/index query first; does not block the `Read`.
-- **strict**: writes `CDD_GRAPH_FIRST_STRICT=1` into the hook command so the hook blocks source-file `Read` when `.cdd/code-map.yml` exists.
+- **advisory**: reminds the agent to use the kit command first; does not block the tool call.
+- **strict**: writes the hook's `CDD_*_STRICT=1` flag so the hook blocks the tool call (`exit 2`) — graph-first blocks source `Read` when `.cdd/code-map.yml` exists; contract-write blocks `Edit`/`Write` of the API contract (a first-time scaffold, when the file does not exist yet, is always allowed).
 
-Writes the hook script to `.claude/hooks/pre-tool-use-graph-first.sh` and a `PreToolUse` entry to `.claude/settings.json` (project-scoped, so it travels with the repo). Idempotent: re-running replaces the cdd-kit entry and switches mode cleanly, preserving every other setting and hook.
+Naming one flag arms only that hook and leaves the other untouched, so the two can be armed in separate runs; a bare `install-agent-hooks` arms graph-first advisory (unchanged). Both gate only the *agent's* tools — a human editing in their own editor is unaffected, and `contract set` stays available to humans who want validated edits. Writes the hook script(s) to `.claude/hooks/` and `PreToolUse` entries to `.claude/settings.json` (project-scoped, so they travel with the repo). Idempotent: re-running replaces only the cdd-kit entry for the named hook and switches its mode cleanly, preserving every other setting and hook. The contract-write hook is **opt-in** — `cdd-kit init` does not arm it.
 
 ---
 

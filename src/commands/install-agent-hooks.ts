@@ -3,10 +3,15 @@ import { join } from 'path';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 
-export type GraphFirstMode = 'advisory' | 'strict';
+export type HookMode = 'advisory' | 'strict';
+/** Back-compat alias for the original (graph-first-only) public name. */
+export type GraphFirstMode = HookMode;
 
 export interface InstallAgentHooksOptions {
-  graphFirst?: GraphFirstMode;
+  /** Arm the graph-first Read hook at this mode. */
+  graphFirst?: HookMode;
+  /** Arm the contract-write Edit/Write hook at this mode (ADR 0004 §6, Stage 2). */
+  contractWrite?: HookMode;
   /**
    * When invoked from `cdd-kit init`, recoverable problems (missing asset,
    * malformed settings.json) warn and return instead of hard-exiting — arming
@@ -15,13 +20,46 @@ export interface InstallAgentHooksOptions {
   fromInit?: boolean;
 }
 
-const HOOK_FILENAME = 'pre-tool-use-graph-first.sh';
-// Stable in-repo location the settings.json entry points at. Kept under
-// .claude/ so it travels with the project alongside settings.json itself.
-const HOOK_REL_PATH = `.claude/hooks/${HOOK_FILENAME}`;
 const SETTINGS_REL_PATH = '.claude/settings.json';
-// Identifies our PreToolUse entry for idempotent replace.
-const HOOK_MARKER = 'pre-tool-use-graph-first';
+
+/** Static description of one agent PreToolUse hook the kit can arm. */
+interface HookDef {
+  /** Stable short id shown in logs. */
+  id: string;
+  /** Bundled script filename under assets/hooks and the project's .claude/hooks. */
+  filename: string;
+  /** Tool name(s) the hook matches — a Claude Code matcher (regex alternation ok). */
+  matcher: string;
+  /** Substring identifying OUR handler for idempotent replace. */
+  marker: string;
+  /** Env var that flips the script from advisory to hard-block. */
+  strictEnv: string;
+  /** One-line advisory/strict explainer for the success log. */
+  describe: (mode: HookMode) => string;
+}
+
+const GRAPH_FIRST: HookDef = {
+  id: 'graph-first',
+  filename: 'pre-tool-use-graph-first.sh',
+  matcher: 'Read',
+  marker: 'pre-tool-use-graph-first',
+  strictEnv: 'CDD_GRAPH_FIRST_STRICT',
+  describe: (mode) => mode === 'advisory'
+    ? 'advisory mode: reminds agents to use `cdd-kit index query --with-source` before Read; does not block.'
+    : 'strict mode: blocks source-file Read when .cdd/code-map.yml exists, steering to graph/index queries.',
+};
+
+const CONTRACT_WRITE: HookDef = {
+  id: 'contract-write',
+  filename: 'pre-tool-use-contract-write.sh',
+  // The agent's file-mutation tools; a human's editor is unaffected.
+  matcher: 'Write|Edit|MultiEdit',
+  marker: 'pre-tool-use-contract-write',
+  strictEnv: 'CDD_CONTRACT_WRITE_STRICT',
+  describe: (mode) => mode === 'advisory'
+    ? 'advisory mode: reminds agents to use `cdd-kit contract set` before editing contracts/api/api-contract.md; does not block.'
+    : "strict mode: blocks the agent's Edit/Write of contracts/api/api-contract.md, routing to `cdd-kit contract set`.",
+};
 
 /** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
 interface HookHandler {
@@ -47,40 +85,90 @@ interface SettingsShape {
   [k: string]: unknown;
 }
 
+/** POSIX-style relative path so the settings.json command resolves from the
+ * project root regardless of OS path separators. */
+function hookRelPath(filename: string): string {
+  return `.claude/hooks/${filename}`;
+}
+
 /**
- * Install the graph-first PreToolUse hook into the project's
- * `.claude/settings.json` so steering toward `cdd-kit index query --with-source`
- * becomes an actual harness-enforced chokepoint rather than a prose suggestion
- * the agent can ignore. Idempotent: re-running replaces the cdd-kit entry and
- * preserves every other setting/hook.
+ * Strip OUR handler for `def` from the PreToolUse list, preserving everything
+ * else. Removes only the marker-matched handler — in both the correct nested
+ * shape and the legacy top-level `command` shape older versions wrote — so an
+ * unrelated hook (including the OTHER cdd hook, which carries a different marker)
+ * sharing the same matcher group is preserved rather than dropped. Re-running is
+ * therefore idempotent and a mode switch (advisory <-> strict) cleanly replaces.
+ */
+function withoutHandler(preTool: HookEntry[], def: HookDef): HookEntry[] {
+  const isOurs = (h: HookHandler): boolean =>
+    typeof h?.command === 'string' && h.command.includes(def.marker);
+  const out: HookEntry[] = [];
+  for (const e of preTool) {
+    // Legacy top-level cdd entry (no nested handlers) — drop it entirely.
+    if (typeof e?.command === 'string' && e.command.includes(def.marker) && !Array.isArray(e?.hooks)) {
+      continue;
+    }
+    if (Array.isArray(e?.hooks) && e.hooks.some(isOurs)) {
+      const others = e.hooks.filter(h => !isOurs(h));
+      // The group held nothing but our handler(s) — drop the whole group.
+      if (others.length === 0) continue;
+      // Mixed group — keep it minus our handler, preserving the rest.
+      out.push({ ...e, hooks: others });
+      continue;
+    }
+    out.push(e);
+  }
+  return out;
+}
+
+/**
+ * Install the kit's agent PreToolUse hooks into the project's
+ * `.claude/settings.json` so steering toward `cdd-kit` chokepoints becomes a
+ * harness-enforced chokepoint rather than prose the agent can ignore.
+ *
+ * Two hooks are armed independently:
+ *  - graph-first (`Read`)  → steer to `cdd-kit index query --with-source`;
+ *  - contract-write (`Edit`/`Write`) → route API-contract edits to
+ *    `cdd-kit contract set` (ADR 0004 §6, Stage 2).
+ *
+ * With no hook flag at all, defaults to graph-first advisory — the historical
+ * behavior of a bare `install-agent-hooks` and of `init`'s arming step. Naming a
+ * flag arms only that hook and leaves the other untouched, so the two can be
+ * armed across separate invocations. Idempotent: re-running replaces only the
+ * cdd-kit entry for each named hook and preserves every other setting/hook.
  */
 export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Promise<void> {
-  const mode: GraphFirstMode = opts.graphFirst ?? 'advisory';
-  if (mode !== 'advisory' && mode !== 'strict') {
-    log.error(`invalid mode: ${mode}. Use 'advisory' or 'strict'.`);
-    process.exit(1);
+  const requested: Array<{ def: HookDef; mode: HookMode }> = [];
+  if (opts.graphFirst === undefined && opts.contractWrite === undefined) {
+    requested.push({ def: GRAPH_FIRST, mode: 'advisory' });
+  } else {
+    if (opts.graphFirst !== undefined) requested.push({ def: GRAPH_FIRST, mode: opts.graphFirst });
+    if (opts.contractWrite !== undefined) requested.push({ def: CONTRACT_WRITE, mode: opts.contractWrite });
+  }
+
+  for (const { def, mode } of requested) {
+    if (mode !== 'advisory' && mode !== 'strict') {
+      log.error(`invalid mode for ${def.id}: ${mode}. Use 'advisory' or 'strict'.`);
+      process.exit(1);
+    }
   }
 
   const cwd = process.cwd();
 
-  // 1. Copy the hook script into the project at a stable path.
-  const srcHook = join(ASSET.hooks, HOOK_FILENAME);
-  if (!existsSync(srcHook)) {
-    if (opts.fromInit) {
-      log.warn(`graph-first hook not armed: bundled hook missing (${srcHook}). Reinstall the package, then run \`cdd-kit install-agent-hooks\`.`);
-      return;
+  // 1. Every requested hook script must be bundled before we touch settings.
+  for (const { def } of requested) {
+    const srcHook = join(ASSET.hooks, def.filename);
+    if (!existsSync(srcHook)) {
+      if (opts.fromInit) {
+        log.warn(`${def.id} hook not armed: bundled hook missing (${srcHook}). Reinstall the package, then run \`cdd-kit install-agent-hooks\`.`);
+        return;
+      }
+      log.error(`bundled hook not found: ${srcHook}. Reinstall the cdd-kit package.`);
+      process.exit(1);
     }
-    log.error(`bundled hook not found: ${srcHook}. Reinstall the cdd-kit package.`);
-    process.exit(1);
   }
-  const destHook = join(cwd, HOOK_REL_PATH);
-  mkdirSync(join(cwd, '.claude', 'hooks'), { recursive: true });
-  copyFileSync(srcHook, destHook);
-  try {
-    chmodSync(destHook, 0o755);
-  } catch { /* ignore on Windows */ }
 
-  // 2. Merge a PreToolUse entry into .claude/settings.json (preserve the rest).
+  // 2. Load .claude/settings.json once (preserve everything we do not own).
   const settingsPath = join(cwd, SETTINGS_REL_PATH);
   let settings: SettingsShape = {};
   if (existsSync(settingsPath)) {
@@ -88,7 +176,7 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
       settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as SettingsShape;
     } catch (err) {
       if (opts.fromInit) {
-        log.warn(`graph-first hook not armed: ${SETTINGS_REL_PATH} is not valid JSON (${(err as Error).message}). Fix it, then run \`cdd-kit install-agent-hooks\`.`);
+        log.warn(`agent hooks not armed: ${SETTINGS_REL_PATH} is not valid JSON (${(err as Error).message}). Fix it, then run \`cdd-kit install-agent-hooks\`.`);
         return;
       }
       log.error(`${SETTINGS_REL_PATH} is not valid JSON: ${(err as Error).message}. Fix or remove it, then re-run.`);
@@ -96,7 +184,7 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
     }
     if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) {
       if (opts.fromInit) {
-        log.warn(`graph-first hook not armed: ${SETTINGS_REL_PATH} must be a JSON object. Fix it, then run \`cdd-kit install-agent-hooks\`.`);
+        log.warn(`agent hooks not armed: ${SETTINGS_REL_PATH} must be a JSON object. Fix it, then run \`cdd-kit install-agent-hooks\`.`);
         return;
       }
       log.error(`${SETTINGS_REL_PATH} must be a JSON object.`);
@@ -104,54 +192,33 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
     }
   }
 
+  mkdirSync(join(cwd, '.claude', 'hooks'), { recursive: true });
   settings.hooks = settings.hooks ?? {};
-  const preTool: HookEntry[] = Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
+  let preTool: HookEntry[] = Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
 
-  // Strip any prior cdd-kit graph-first handler so re-running is idempotent and
-  // a mode switch (advisory <-> strict) cleanly replaces it. Remove only OUR
-  // handler — matched by marker, in both the correct nested shape and the
-  // legacy top-level `command` shape older versions wrote — so an unrelated
-  // hook sharing the same matcher group is preserved rather than dropped.
-  const isOurHandler = (h: HookHandler): boolean =>
-    typeof h?.command === 'string' && h.command.includes(HOOK_MARKER);
-  const preserved: HookEntry[] = [];
-  for (const e of preTool) {
-    // Legacy top-level cdd entry (no nested handlers) — drop it entirely.
-    if (typeof e?.command === 'string' && e.command.includes(HOOK_MARKER) && !Array.isArray(e?.hooks)) {
-      continue;
-    }
-    if (Array.isArray(e?.hooks) && e.hooks.some(isOurHandler)) {
-      const others = e.hooks.filter(h => !isOurHandler(h));
-      // The group held nothing but our handler(s) — drop the whole group.
-      if (others.length === 0) continue;
-      // Mixed group — keep it minus our handler, preserving the rest.
-      preserved.push({ ...e, hooks: others });
-      continue;
-    }
-    preserved.push(e);
+  // 3. Arm each requested hook: copy its script, then replace its entry. Nest the
+  // command under `hooks` as a `{ type: 'command' }` handler — the shape Claude
+  // Code actually executes. Writing `command` on the matcher group directly
+  // leaves the chokepoint silently dormant.
+  for (const { def, mode } of requested) {
+    const destHook = join(cwd, hookRelPath(def.filename));
+    copyFileSync(join(ASSET.hooks, def.filename), destHook);
+    try {
+      chmodSync(destHook, 0o755);
+    } catch { /* ignore on Windows */ }
+
+    preTool = withoutHandler(preTool, def);
+    const invoke = `./${hookRelPath(def.filename)}`;
+    const command = mode === 'strict' ? `${def.strictEnv}=1 ${invoke}` : invoke;
+    preTool.push({ matcher: def.matcher, hooks: [{ type: 'command', command }] });
   }
 
-  // Use a POSIX-style relative command so it resolves from the project root
-  // regardless of OS path separators; prefix the strict env inline.
-  const invoke = `./${HOOK_REL_PATH}`;
-  const command = mode === 'strict' ? `CDD_GRAPH_FIRST_STRICT=1 ${invoke}` : invoke;
-
-  // Nest the command under `hooks` as a `{ type: 'command' }` handler — the
-  // shape Claude Code actually executes. Writing `command` on the matcher group
-  // directly leaves the chokepoint silently dormant.
-  preserved.push({ matcher: 'Read', hooks: [{ type: 'command', command }] });
-  settings.hooks.PreToolUse = preserved;
-
-  mkdirSync(join(cwd, '.claude'), { recursive: true });
+  settings.hooks.PreToolUse = preTool;
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
 
-  log.ok(`graph-first PreToolUse hook installed (${mode}) at ${SETTINGS_REL_PATH}`);
-  log.info(`hook script: ${HOOK_REL_PATH}`);
-  if (mode === 'advisory') {
-    log.info('advisory mode: reminds agents to use `cdd-kit index query --with-source` before Read; does not block.');
-    log.info('re-run with `--graph-first strict` to hard-block source Reads when a code-map exists.');
-  } else {
-    log.info('strict mode: blocks source-file Read when .cdd/code-map.yml exists, steering to graph/index queries.');
-    log.info('re-run with `--graph-first advisory` to downgrade to reminders only.');
+  for (const { def, mode } of requested) {
+    log.ok(`${def.id} PreToolUse hook installed (${mode}) at ${SETTINGS_REL_PATH}`);
+    log.info(`hook script: ${hookRelPath(def.filename)}`);
+    log.info(def.describe(mode));
   }
 }

@@ -94,4 +94,29 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout).not.toContain('chokepoint ');
   });
+
+  it('reports the contract-write hook as dormant on a fresh repo', () => {
+    setupRepo();
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint contract-write hook:.*install-agent-hooks/);
+    expect(r.stdout).toMatch(/chokepoint contract-write hook: dormant/);
+  });
+
+  it('leaves the contract-write hook dormant after a default armed init (opt-in)', () => {
+    // init arms graph-first + the pre-commit gate, but the Stage-2 contract-write
+    // hook is opt-in (ADR 0004 §6) and must NOT be auto-armed.
+    const r0 = runCli(['init', '--local-only'], { cwd, home });
+    expect(r0.status, r0.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint graph-first exploration hook: live/);
+    expect(r.stdout).toMatch(/chokepoint contract-write hook: dormant/);
+  });
+
+  it('flips the contract-write hook to live once it is installed', () => {
+    setupRepo();
+    const install = runCli(['install-agent-hooks', '--contract-write', 'strict'], { cwd, home });
+    expect(install.status, install.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint contract-write hook: live/);
+  });
 });
