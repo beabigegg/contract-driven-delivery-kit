@@ -41,6 +41,21 @@
   selector (`cdd-kit test select`), and gate enforcement follow in later ADR 0005
   phases.
 
+- **Bounded test runner: `cdd-kit test run <change-id> --phase <phase>` (ADR 0005
+  §4-§6).** Runs one phase of the test ladder, captures durable artifacts under
+  `specs/changes/<id>/test-runs/<run-id>/` (`command.txt`, `stdout.log`,
+  `stderr.log`, `summary.json`, and `junit.xml` for pytest), and upserts the run
+  into `test-evidence.yml` with a recomputed, schema-valid `final-status`. pytest
+  commands get the bounded defaults (`-q --maxfail=1 --tb=short -ra`) plus JUnit
+  output unless the selected command is already stricter. Assistant-visible output
+  is capped to the last 4000 chars (and the first failure message to 500) while
+  the full logs stay on disk; the first failure is classified (collection /
+  import / fixture / assertion / contract-drift / timeout / runner-error /
+  unknown) from JUnit XML, then text, then pytest exit codes. `--json` prints the
+  machine-readable summary; `--command` supplies the command until `cdd-kit test
+  select` lands. Selection and gate enforcement follow in the next ADR 0005
+  phases.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any
