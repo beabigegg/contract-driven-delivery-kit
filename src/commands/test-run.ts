@@ -1,4 +1,4 @@
-import { createWriteStream, existsSync, readFileSync, writeFileSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, relative, resolve } from 'path';
 import { spawn, spawnSync } from 'child_process';
 import yaml from 'js-yaml';
@@ -70,7 +70,7 @@ interface EvidenceFile {
  * path ending in either, or `python[3]/py -m pytest` at the command position
  * (after leading `VAR=value` env assignments). NOT when pytest appears merely as
  * an argument to a wrapper (`npm run pytest`, `tox -e py -- python -m pytest`,
- * `echo python -m pytest`), which must not get pytest flags appended.
+ * `echo python -m pytest`).
  */
 export function isPytestCommand(command: string): boolean {
   const tokens = command.trim().split(/\s+/);
@@ -84,29 +84,56 @@ export function isPytestCommand(command: string): boolean {
 }
 
 /**
- * Apply the bounded pytest defaults from ADR 0005 §4. Each bound is only
- * suppressed when the selected command is already AT LEAST AS STRICT (compared by
- * value, not mere presence -- `--maxfail=0` and `--tb=long` are looser, not
- * stricter). JUnit output is always pointed at the run dir (pytest honours the
- * last `--junitxml`), so a user-specified path can never hide the report.
+ * Shell composition we cannot safely rewrite: appending pytest flags to a string
+ * containing operators/redirects/substitutions would target the wrong command
+ * (e.g. `pytest x && coverage`). Such commands run verbatim, unaugmented.
+ */
+export function hasShellControl(command: string): boolean {
+  return /[\n;&|<>`]/.test(command) || command.includes('$(');
+}
+
+/** Quote a path for the platform shell (the command runs with shell:true). */
+function shellQuote(s: string): string {
+  if (process.platform === 'win32') return `"${s.replace(/"/g, '""')}"`;
+  return `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+// pytest applies the LAST occurrence of a repeated option, so resolve effective
+// values from the last match rather than the first.
+function effectiveMaxfail(command: string): number | null {
+  const re = /(?:^|\s)(?:-x\b|--maxfail[=\s]+(\d+))/g;
+  let m: RegExpExecArray | null;
+  let val: number | null = null;
+  while ((m = re.exec(command)) !== null) val = m[1] === undefined ? 1 : parseInt(m[1], 10);
+  return val;
+}
+
+function effectiveTb(command: string): string | null {
+  const re = /--tb[=\s]+(\w+)/g;
+  let m: RegExpExecArray | null;
+  let val: string | null = null;
+  while ((m = re.exec(command)) !== null) val = m[1];
+  return val;
+}
+
+/**
+ * Apply the bounded pytest defaults from ADR 0005 §4. Each bound is suppressed
+ * only when the selected command is already AT LEAST AS STRICT (compared by the
+ * last value, not mere presence). JUnit output is always pointed (shell-quoted)
+ * at the run dir -- pytest honours the last `--junitxml`, so a user path cannot
+ * hide the report. Callers must not pass shell-composed commands here.
  */
 export function augmentPytestCommand(command: string, junitPath: string): string {
   const add: string[] = [];
 
-  add.push(`--junitxml="${junitPath}"`);
+  add.push(`--junitxml=${shellQuote(junitPath)}`);
 
   if (!/(^|\s)(-q+\b|--quiet\b)/.test(command)) add.push('-q');
 
-  // Fail fast: ensure maxfail<=1. `-x` and `--maxfail=1` already do; 0 (unlimited)
-  // or any value >1 is looser, so append the stricter bound (last value wins).
-  const maxfail = command.match(/--maxfail[=\s]+(\d+)/);
-  const failFast = /(^|\s)-x\b/.test(command) || (maxfail !== null && parseInt(maxfail[1], 10) === 1);
-  if (!failFast) add.push('--maxfail=1');
+  if (effectiveMaxfail(command) !== 1) add.push('--maxfail=1');
 
-  // Short tracebacks unless already as short or shorter (line/no).
-  const tb = command.match(/--tb[=\s]+(\w+)/);
-  const tbTight = tb !== null && ['short', 'line', 'no'].includes(tb[1]);
-  if (!tbTight) add.push('--tb=short');
+  const tb = effectiveTb(command);
+  if (!(tb !== null && ['short', 'line', 'no'].includes(tb))) add.push('--tb=short');
 
   if (!/(^|\s)-r[a-zA-Z]+/.test(command)) add.push('-ra');
 
@@ -310,12 +337,27 @@ export function defaultRunId(d: Date = new Date()): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-function uniqueRunId(testRunsDir: string): string {
+/**
+ * Reserve a fresh run dir atomically. mkdirSync without `recursive` throws EEXIST
+ * if the dir already exists, so two runs that pick the same timestamp cannot both
+ * win -- the loser retries the next suffix instead of racing artifact writes.
+ */
+function reserveGeneratedRunDir(testRunsDir: string): { runId: string; runDir: string } {
   const base = defaultRunId();
-  let id = base;
-  let n = 2;
-  while (existsSync(join(testRunsDir, id))) id = `${base}-${n++}`;
-  return id;
+  for (let n = 1; n <= 1000; n++) {
+    const id = n === 1 ? base : `${base}-${n}`;
+    const dir = join(testRunsDir, id);
+    try {
+      mkdirSync(dir);
+      return { runId: id, runDir: dir };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    }
+  }
+  const id = `${base}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+  const dir = join(testRunsDir, id);
+  mkdirSync(dir, { recursive: true });
+  return { runId: id, runDir: dir };
 }
 
 // Leading alnum (so it cannot start with `.`) and no `..`, so an explicit
@@ -443,8 +485,22 @@ function runCommand(
     let spawnError: Error | undefined;
     let settled = false;
 
-    child.stdout?.on('data', (d: Buffer) => { outStream.write(d); outTail = appendTail(outTail, d); });
-    child.stderr?.on('data', (d: Buffer) => { errStream.write(d); errTail = appendTail(errTail, d); });
+    // Honour backpressure: if the file stream is full, pause the child pipe until
+    // it drains so a slow disk cannot grow the writable buffer unbounded.
+    const pump = (
+      source: NodeJS.ReadableStream | null,
+      sink: ReturnType<typeof createWriteStream>,
+      chunk: Buffer,
+      setTail: (b: Buffer) => void,
+    ): void => {
+      setTail(chunk);
+      if (!sink.write(chunk) && source) {
+        source.pause();
+        sink.once('drain', () => source.resume());
+      }
+    };
+    child.stdout?.on('data', (d: Buffer) => pump(child.stdout, outStream, d, (b) => { outTail = appendTail(outTail, b); }));
+    child.stderr?.on('data', (d: Buffer) => pump(child.stderr, errStream, d, (b) => { errTail = appendTail(errTail, b); }));
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -519,7 +575,9 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
   }
 
   const testRunsDir = join(changeDir, 'test-runs');
+  ensureDir(testRunsDir);
   let runId: string;
+  let runDir: string;
   if (opts.runId !== undefined) {
     if (!isSafeRunId(opts.runId)) {
       emitError(opts.json, { change_id: changeId, status: 'error', reason: `invalid run id: ${opts.runId}` },
@@ -527,22 +585,28 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
       return 2;
     }
     runId = opts.runId;
-    // Reject reuse: a shared run-id across phases would overwrite an earlier
-    // phase's artifacts while its evidence entry still points at this dir.
-    if (existsSync(join(testRunsDir, runId))) {
-      emitError(opts.json, { change_id: changeId, status: 'error', reason: `run id already exists: ${runId}` },
-        `Run id "${runId}" already exists under specs/changes/${changeId}/test-runs/. Use a fresh --run-id or omit it.`);
-      return 2;
+    runDir = join(testRunsDir, runId);
+    // Atomic reservation: mkdir (no recursive) throws EEXIST if the run-id was
+    // already used, so a shared run-id across phases cannot overwrite artifacts.
+    try {
+      mkdirSync(runDir);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+        emitError(opts.json, { change_id: changeId, status: 'error', reason: `run id already exists: ${runId}` },
+          `Run id "${runId}" already exists under specs/changes/${changeId}/test-runs/. Use a fresh --run-id or omit it.`);
+        return 2;
+      }
+      throw e;
     }
   } else {
-    runId = uniqueRunId(testRunsDir);
+    ({ runId, runDir } = reserveGeneratedRunDir(testRunsDir));
   }
 
-  const runDir = join(testRunsDir, runId);
-  ensureDir(runDir);
   const junitAbs = join(runDir, 'junit.xml');
 
-  const pytest = isPytestCommand(opts.command);
+  // Only a simple pytest invocation is rewritten; shell-composed commands run
+  // verbatim so flags never land on the wrong segment.
+  const pytest = isPytestCommand(opts.command) && !hasShellControl(opts.command);
   const executed = pytest ? augmentPytestCommand(opts.command, junitAbs) : opts.command;
   writeFileSync(join(runDir, 'command.txt'), `${executed}\n`, 'utf8');
 

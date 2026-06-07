@@ -59,7 +59,11 @@
   process tree (not just the shell), `change-id` and an explicit `--run-id` are
   validated against path traversal and reuse, and pytest is detected as the
   invoked program rather than as an argument (so `npm run pytest` is not
-  rewritten). Selection and gate enforcement follow in the next ADR 0005 phases.
+  rewritten). Only a simple pytest invocation is rewritten -- a shell-composed
+  command (`pytest x && coverage`, pipes, redirects) runs verbatim; generated
+  run-ids are reserved atomically, the JUnit path is shell-quoted, and log capture
+  honours stream backpressure. Selection and gate enforcement follow in the next
+  ADR 0005 phases.
 
 ### Changed
 

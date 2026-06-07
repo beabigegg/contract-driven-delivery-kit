@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import Ajv from 'ajv';
@@ -8,6 +8,7 @@ import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 import { testEvidenceSchema } from '../../src/schemas/test-evidence.schema.js';
 import {
   isPytestCommand,
+  hasShellControl,
   augmentPytestCommand,
   parseJunitFirstFailure,
   classifyFailure,
@@ -166,6 +167,23 @@ describe('cdd-kit test run (integration)', () => {
     await new Promise((res) => setTimeout(res, 3000));
     expect(existsSync(sentinel)).toBe(false);
   }, 20000);
+
+  it('runs a shell-composed command verbatim (no pytest flags appended)', () => {
+    const cmd = 'pytest tests && echo done';
+    runCli(['test', 'run', 'demo', '--phase', 'targeted', '--command', cmd, '--run-id', 'cmp'], { cwd: repo, home });
+    const written = readFileSync(join(changeDir(), 'test-runs', 'cmp', 'command.txt'), 'utf8').trim();
+    expect(written).toBe(cmd);
+  });
+
+  it('reserves distinct run dirs for back-to-back auto runs', () => {
+    runCli(['test', 'run', 'demo', '--phase', 'targeted', '--command', NODE_PASS], { cwd: repo, home });
+    runCli(['test', 'run', 'demo', '--phase', 'changed-area', '--command', NODE_PASS], { cwd: repo, home });
+    const dirs = readdirSync(join(changeDir(), 'test-runs'));
+    expect(dirs.length).toBe(2);
+    for (const d of dirs) {
+      expect(existsSync(join(changeDir(), 'test-runs', d, 'summary.json'))).toBe(true);
+    }
+  });
 });
 
 describe('test-run helpers (unit)', () => {
@@ -183,9 +201,19 @@ describe('test-run helpers (unit)', () => {
     expect(isPytestCommand('node -e "x"')).toBe(false);
   });
 
+  it('hasShellControl detects shell composition', () => {
+    expect(hasShellControl('pytest tests/x.py::test_y')).toBe(false);
+    expect(hasShellControl('pytest tests && coverage report')).toBe(true);
+    expect(hasShellControl('pytest tests | tee log')).toBe(true);
+    expect(hasShellControl('pytest tests > out.log')).toBe(true);
+    expect(hasShellControl('pytest tests; echo done')).toBe(true);
+    expect(hasShellControl('pytest $(ls)')).toBe(true);
+  });
+
   it('augmentPytestCommand adds the bounded defaults and JUnit output', () => {
     const out = augmentPytestCommand('python -m pytest tests/x.py::test_y', '/run/junit.xml');
-    expect(out).toContain('--junitxml="/run/junit.xml"');
+    expect(out).toContain('--junitxml=');
+    expect(out).toContain('/run/junit.xml');
     expect(out).toContain('-q');
     expect(out).toContain('--maxfail=1');
     expect(out).toContain('--tb=short');
@@ -197,12 +225,24 @@ describe('test-run helpers (unit)', () => {
     expect(out).toContain('--maxfail=1'); // --maxfail=0 (unlimited) is looser, not stricter
     expect(out).toContain('--tb=short');  // --tb=long is looser
     expect(out).toContain('-q');          // -v must not suppress the quiet bound
-    expect(out).toContain('--junitxml="/run/junit.xml"');
+    expect(out).toContain('/run/junit.xml');
+  });
+
+  it('augmentPytestCommand reads the last occurrence of a repeated bound', () => {
+    // pytest applies the last --maxfail; --maxfail=1 then =0 is effectively unlimited.
+    const out = augmentPytestCommand('pytest x --maxfail=1 --maxfail=0', '/run/junit.xml');
+    expect(out.match(/--maxfail=\d+/g)!.pop()).toBe('--maxfail=1'); // our bound is appended last and wins
   });
 
   it('augmentPytestCommand respects already-strict flags but always forces the run-dir JUnit', () => {
-    const out = augmentPytestCommand('pytest x -x --tb=line -q -rn --junitxml=keep.xml', '/run/junit.xml');
-    expect(out).toBe('pytest x -x --tb=line -q -rn --junitxml=keep.xml --junitxml="/run/junit.xml"');
+    const original = 'pytest x -x --tb=line -q -rn --junitxml=keep.xml';
+    const out = augmentPytestCommand(original, '/run/junit.xml');
+    expect(out.startsWith(`${original} --junitxml=`)).toBe(true);
+    expect(out).toContain('/run/junit.xml');  // run-dir JUnit forced (last wins)
+    expect(out).not.toContain('--maxfail=1'); // -x already fail-fast
+    expect(out).not.toContain('--tb=short');  // --tb=line already tighter
+    // Only the forced JUnit flag is appended; no extra -q/-ra/maxfail/tb.
+    expect(out.slice(original.length).trim().split(/\s+/).length).toBe(1);
   });
 
   it('parseJunitFirstFailure extracts an assertion failure', () => {
