@@ -24,7 +24,9 @@ const NODE_PASS = 'node -e "process.exit(0)"';
 const NODE_FAIL = 'node -e "process.stderr.write(String.fromCharCode(98,111,111,109)); process.exit(1)"';
 // Use process.exitCode (not process.exit) so the large async pipe write fully
 // drains before the child exits -- process.exit() would truncate its own output.
-const NODE_BIG_FAIL = 'node -e "process.stdout.write(Array(200001).join(String.fromCharCode(120))); process.exitCode = 1;"';
+// 300k exceeds the runner's in-memory tail (256k), so the on-disk log proves the
+// full output is streamed, not capped to the tail.
+const NODE_BIG_FAIL = 'node -e "process.stdout.write(Array(300001).join(String.fromCharCode(120))); process.exitCode = 1;"';
 const NODE_HANG = 'node -e "setTimeout(function(){}, 60000)"';
 
 describe('cdd-kit test run (integration)', () => {
@@ -108,7 +110,7 @@ describe('cdd-kit test run (integration)', () => {
     // The command produced 200k chars; assistant-visible stdout stays bounded.
     expect(r.stdout.length).toBeLessThan(8000);
     const full = readFileSync(join(changeDir(), 'test-runs', 'rc', 'stdout.log'), 'utf8');
-    expect(full.length).toBeGreaterThanOrEqual(200000);
+    expect(full.length).toBeGreaterThanOrEqual(300000);
   });
 
   it('exits 2 with no artifacts when --command is missing', () => {
@@ -176,6 +178,8 @@ describe('test-run helpers (unit)', () => {
     expect(isPytestCommand('PYTHONPATH=. pytest')).toBe(true);
     expect(isPytestCommand('npm run pytest')).toBe(false);
     expect(isPytestCommand('npm test')).toBe(false);
+    expect(isPytestCommand('tox -e py -- python -m pytest tests')).toBe(false);
+    expect(isPytestCommand('echo python -m pytest')).toBe(false);
     expect(isPytestCommand('node -e "x"')).toBe(false);
   });
 
@@ -188,9 +192,17 @@ describe('test-run helpers (unit)', () => {
     expect(out).toContain('-ra');
   });
 
-  it('augmentPytestCommand respects a stricter selected command', () => {
-    const input = 'pytest tests/x.py --maxfail=3 -v --tb=long --junitxml=mine.xml -rA';
-    expect(augmentPytestCommand(input, '/run/junit.xml')).toBe(input);
+  it('augmentPytestCommand enforces stricter bounds over looser flags', () => {
+    const out = augmentPytestCommand('pytest x --maxfail=0 --tb=long -v', '/run/junit.xml');
+    expect(out).toContain('--maxfail=1'); // --maxfail=0 (unlimited) is looser, not stricter
+    expect(out).toContain('--tb=short');  // --tb=long is looser
+    expect(out).toContain('-q');          // -v must not suppress the quiet bound
+    expect(out).toContain('--junitxml="/run/junit.xml"');
+  });
+
+  it('augmentPytestCommand respects already-strict flags but always forces the run-dir JUnit', () => {
+    const out = augmentPytestCommand('pytest x -x --tb=line -q -rn --junitxml=keep.xml', '/run/junit.xml');
+    expect(out).toBe('pytest x -x --tb=line -q -rn --junitxml=keep.xml --junitxml="/run/junit.xml"');
   });
 
   it('parseJunitFirstFailure extracts an assertion failure', () => {
@@ -202,6 +214,17 @@ describe('test-run helpers (unit)', () => {
     expect(ff?.nodeid).toBe('tests/t.py::test_a');
     expect(ff?.line).toBe(41);
     expect(ff?.message).toContain('assert');
+  });
+
+  it('parseJunitFirstFailure skips a self-closing passing testcase before a failure', () => {
+    const xml =
+      '<testsuite>' +
+      '<testcase classname="t" name="test_pass" file="t.py"/>' +
+      '<testcase classname="t" name="test_fail" file="t.py" line="9"><failure message="boom">E boom</failure></testcase>' +
+      '</testsuite>';
+    const ff = parseJunitFirstFailure(xml);
+    expect(ff?.nodeid).toBe('t.py::test_fail');
+    expect(ff?.line).toBe(9);
   });
 
   it('parseJunitFirstFailure classifies an import error from <error>', () => {

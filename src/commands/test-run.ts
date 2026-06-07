@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { createWriteStream, existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, relative, resolve } from 'path';
 import { spawn, spawnSync } from 'child_process';
 import yaml from 'js-yaml';
@@ -20,7 +20,9 @@ const GENERATED_BY = 'cdd-kit test run';
 const DEFAULT_REQUIRED: Phase[] = ['collect', 'targeted', 'changed-area'];
 const OUTPUT_CAP_CHARS = 4000;
 const MAX_MESSAGE_CHARS = 500;
-const MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
+// Full stdout/stderr stream to disk; only this much tail is held in memory for
+// classification and the capped report, so huge output never truncates the logs.
+const TAIL_CAPTURE_BYTES = 256 * 1024;
 // Same shape new-change.ts enforces; rejects path-escape segments such as `..`.
 const SAFE_CHANGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
@@ -63,40 +65,52 @@ interface EvidenceFile {
 
 // ── command shaping ───────────────────────────────────────────────────────────
 
-/** First real program token, skipping leading `VAR=value` env assignments. */
-function firstCommandToken(command: string): string | undefined {
+/**
+ * True only when pytest is the program actually invoked -- `pytest`, `py.test`, a
+ * path ending in either, or `python[3]/py -m pytest` at the command position
+ * (after leading `VAR=value` env assignments). NOT when pytest appears merely as
+ * an argument to a wrapper (`npm run pytest`, `tox -e py -- python -m pytest`,
+ * `echo python -m pytest`), which must not get pytest flags appended.
+ */
+export function isPytestCommand(command: string): boolean {
   const tokens = command.trim().split(/\s+/);
   let i = 0;
   while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i += 1;
-  return tokens[i];
-}
-
-/**
- * True only when pytest is the program being invoked -- `pytest`, `py.test`, a
- * path ending in pytest, or `python -m pytest`. NOT when pytest is merely an
- * argument such as an npm/yarn script name (`npm run pytest`), which would
- * otherwise get pytest flags appended that the wrapper never forwards.
- */
-export function isPytestCommand(command: string): boolean {
-  if (/(^|[\s;&|])(python[0-9.]*|py)\s+-m\s+pytest(\s|$)/.test(command)) return true;
-  const program = firstCommandToken(command);
+  const program = tokens[i];
   if (!program) return false;
   const base = program.replace(/.*[/\\]/, '');
-  return base === 'pytest' || base === 'py.test';
+  if (base === 'pytest' || base === 'py.test') return true;
+  return /^(python[0-9.]*|py)$/.test(base) && tokens[i + 1] === '-m' && tokens[i + 2] === 'pytest';
 }
 
 /**
- * Apply the bounded pytest defaults from ADR 0005 §4 unless the selected command
- * already sets a stricter form. Adds JUnit XML output pointed at the run dir.
+ * Apply the bounded pytest defaults from ADR 0005 §4. Each bound is only
+ * suppressed when the selected command is already AT LEAST AS STRICT (compared by
+ * value, not mere presence -- `--maxfail=0` and `--tb=long` are looser, not
+ * stricter). JUnit output is always pointed at the run dir (pytest honours the
+ * last `--junitxml`), so a user-specified path can never hide the report.
  */
 export function augmentPytestCommand(command: string, junitPath: string): string {
   const add: string[] = [];
-  if (!/--junit-?xml\b/.test(command)) add.push(`--junitxml="${junitPath}"`);
-  if (!/(^|\s)(-q\b|--quiet\b|-v+\b|--verbose\b)/.test(command)) add.push('-q');
-  if (!/--maxfail\b/.test(command) && !/(^|\s)-x\b/.test(command)) add.push('--maxfail=1');
-  if (!/--tb\b/.test(command)) add.push('--tb=short');
+
+  add.push(`--junitxml="${junitPath}"`);
+
+  if (!/(^|\s)(-q+\b|--quiet\b)/.test(command)) add.push('-q');
+
+  // Fail fast: ensure maxfail<=1. `-x` and `--maxfail=1` already do; 0 (unlimited)
+  // or any value >1 is looser, so append the stricter bound (last value wins).
+  const maxfail = command.match(/--maxfail[=\s]+(\d+)/);
+  const failFast = /(^|\s)-x\b/.test(command) || (maxfail !== null && parseInt(maxfail[1], 10) === 1);
+  if (!failFast) add.push('--maxfail=1');
+
+  // Short tracebacks unless already as short or shorter (line/no).
+  const tb = command.match(/--tb[=\s]+(\w+)/);
+  const tbTight = tb !== null && ['short', 'line', 'no'].includes(tb[1]);
+  if (!tbTight) add.push('--tb=short');
+
   if (!/(^|\s)-r[a-zA-Z]+/.test(command)) add.push('-ra');
-  return add.length ? `${command} ${add.join(' ')}` : command;
+
+  return `${command} ${add.join(' ')}`;
 }
 
 // ── failure classification (ADR 0005 §5) ──────────────────────────────────────
@@ -131,15 +145,17 @@ function classifyErrorMessage(message: string): string {
 /**
  * Pull the first failing/erroring testcase out of a JUnit XML document. Returns
  * null on no failure or on malformed XML -- callers fall back to text/exit-code
- * classification, so a broken report never throws.
+ * classification, so a broken report never throws. Self-closing `<testcase .../>`
+ * elements (passing tests) are skipped so a later failure is not misattributed.
  */
 export function parseJunitFirstFailure(xml: string): FirstFailure | null {
   try {
-    const caseRe = /<testcase\b([^>]*)>([\s\S]*?)<\/testcase>/g;
+    const caseRe = /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g;
     let m: RegExpExecArray | null;
     while ((m = caseRe.exec(xml)) !== null) {
       const caseAttrs = m[1];
       const body = m[2];
+      if (body === undefined) continue; // self-closing testcase = passed, no body
       const fail = /<(failure|error)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/.exec(body);
       if (!fail) continue;
       const tag = fail[1];
@@ -371,8 +387,8 @@ function emitError(json: boolean, payload: Record<string, unknown>, humanMessage
 // ── bounded execution ─────────────────────────────────────────────────────────
 
 interface CommandResult {
-  stdout: string;
-  stderr: string;
+  stdoutTail: string;
+  stderrTail: string;
   exitCode: number | null;
   durationMs: number;
   timedOut: boolean;
@@ -398,7 +414,15 @@ function killTree(pid: number): void {
   }
 }
 
-function runCommand(command: string, opts: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number }): Promise<CommandResult> {
+function appendTail(tail: Buffer, chunk: Buffer): Buffer {
+  const combined = tail.length ? Buffer.concat([tail, chunk]) : chunk;
+  return combined.length > TAIL_CAPTURE_BYTES ? combined.subarray(combined.length - TAIL_CAPTURE_BYTES) : combined;
+}
+
+function runCommand(
+  command: string,
+  opts: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number; stdoutPath: string; stderrPath: string },
+): Promise<CommandResult> {
   return new Promise((resolveResult) => {
     const start = Date.now();
     const child = spawn(command, {
@@ -409,21 +433,18 @@ function runCommand(command: string, opts: { cwd: string; env: NodeJS.ProcessEnv
       detached: process.platform !== 'win32',
     });
 
-    const outChunks: Buffer[] = [];
-    const errChunks: Buffer[] = [];
-    const captured = { out: 0, err: 0 };
+    // Full output streams to disk; only a bounded tail is kept in memory so a
+    // huge run never truncates the durable logs (ADR 0005 §4).
+    const outStream = createWriteStream(opts.stdoutPath);
+    const errStream = createWriteStream(opts.stderrPath);
+    let outTail: Buffer = Buffer.alloc(0);
+    let errTail: Buffer = Buffer.alloc(0);
     let timedOut = false;
     let spawnError: Error | undefined;
     let settled = false;
 
-    const capture = (chunks: Buffer[], key: 'out' | 'err', chunk: Buffer): void => {
-      if (captured[key] >= MAX_CAPTURE_BYTES) return;
-      const room = MAX_CAPTURE_BYTES - captured[key];
-      chunks.push(chunk.length > room ? chunk.subarray(0, room) : chunk);
-      captured[key] += chunk.length;
-    };
-    child.stdout?.on('data', (d: Buffer) => capture(outChunks, 'out', d));
-    child.stderr?.on('data', (d: Buffer) => capture(errChunks, 'err', d));
+    child.stdout?.on('data', (d: Buffer) => { outStream.write(d); outTail = appendTail(outTail, d); });
+    child.stderr?.on('data', (d: Buffer) => { errStream.write(d); errTail = appendTail(errTail, d); });
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -434,14 +455,21 @@ function runCommand(command: string, opts: { cwd: string; env: NodeJS.ProcessEnv
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolveResult({
-        stdout: Buffer.concat(outChunks).toString('utf8'),
-        stderr: Buffer.concat(errChunks).toString('utf8'),
-        exitCode,
-        durationMs: Date.now() - start,
-        timedOut,
-        spawnError,
-      });
+      let pending = 2;
+      const done = (): void => {
+        pending -= 1;
+        if (pending > 0) return;
+        resolveResult({
+          stdoutTail: outTail.toString('utf8'),
+          stderrTail: errTail.toString('utf8'),
+          exitCode,
+          durationMs: Date.now() - start,
+          timedOut,
+          spawnError,
+        });
+      };
+      outStream.end(done);
+      errStream.end(done);
     };
 
     child.on('error', (err) => { spawnError = err; finish(null); });
@@ -519,17 +547,19 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
   writeFileSync(join(runDir, 'command.txt'), `${executed}\n`, 'utf8');
 
   const runCwd = opts.cwd ? resolve(cwd, opts.cwd) : cwd;
+  const stdoutPath = join(runDir, 'stdout.log');
+  const stderrPath = join(runDir, 'stderr.log');
   const res = await runCommand(executed, {
     cwd: runCwd,
     env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
     timeoutMs: opts.timeoutMs,
+    stdoutPath,
+    stderrPath,
   });
   const duration = res.durationMs;
-
-  const stdout = res.stdout;
-  const stderr = res.stderr;
-  writeFileSync(join(runDir, 'stdout.log'), stdout, 'utf8');
-  writeFileSync(join(runDir, 'stderr.log'), stderr, 'utf8');
+  // Bounded tails (full logs are already on disk via the streams above).
+  const stdout = res.stdoutTail;
+  const stderr = res.stderrTail;
 
   let status: RunStatus;
   if (res.timedOut) status = 'timeout';
@@ -548,8 +578,8 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
   const rel = (p: string): string => relative(cwd, p).replace(/\\/g, '/');
   const artifacts: Record<string, string> = {
     summary: rel(join(runDir, 'summary.json')),
-    stdout: rel(join(runDir, 'stdout.log')),
-    stderr: rel(join(runDir, 'stderr.log')),
+    stdout: rel(stdoutPath),
+    stderr: rel(stderrPath),
   };
   if (junitExists) artifacts.junit = rel(junitAbs);
 

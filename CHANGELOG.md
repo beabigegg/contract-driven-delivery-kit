@@ -47,9 +47,11 @@
   `stderr.log`, `summary.json`, and `junit.xml` for pytest), and upserts the run
   into `test-evidence.yml` with a recomputed, schema-valid `final-status`. pytest
   commands get the bounded defaults (`-q --maxfail=1 --tb=short -ra`) plus JUnit
-  output unless the selected command is already stricter. Assistant-visible output
-  is capped to the last 4000 chars (and the first failure message to 500) while
-  the full logs stay on disk; the first failure is classified (collection /
+  output unless the selected command is already stricter by value (so `--maxfail=0`
+  or `--tb=long` cannot loosen the run), and the run-dir JUnit report is always the
+  one read back. Assistant-visible output is capped to the last 4000 chars (and the
+  first failure message to 500) while the full logs stream to disk (only a bounded
+  tail is held in memory); the first failure is classified (collection /
   import / fixture / assertion / contract-drift / timeout / runner-error /
   unknown) from JUnit XML, then text, then pytest exit codes. `--json` prints the
   machine-readable summary; `--command` supplies the command until `cdd-kit test
