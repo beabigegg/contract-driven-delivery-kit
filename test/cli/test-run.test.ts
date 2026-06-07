@@ -140,13 +140,41 @@ describe('cdd-kit test run (integration)', () => {
     expect(targeted[0].summary).toContain('a2');
     expect(ev['final-status']).toBe('passed');
   });
+
+  it('rejects a change id that escapes specs/changes (path traversal)', () => {
+    const r = runCli(['test', 'run', '..', '--phase', 'targeted', '--command', NODE_PASS, '--json'], { cwd: repo, home });
+    expect(r.status).toBe(2);
+    expect(JSON.parse(r.stdout).reason).toBe('invalid change id');
+  });
+
+  it('rejects reuse of an explicit --run-id across phases', () => {
+    const first = runCli(['test', 'run', 'demo', '--phase', 'targeted', '--command', NODE_PASS, '--run-id', 'dup'], { cwd: repo, home });
+    expect(first.status).toBe(0);
+    const second = runCli(['test', 'run', 'demo', '--phase', 'changed-area', '--command', NODE_PASS, '--run-id', 'dup'], { cwd: repo, home });
+    expect(second.status).toBe(2);
+  });
+
+  it('kills the whole process tree on timeout (no orphaned writes)', async () => {
+    const sentinel = join(repo, 'orphan-sentinel.txt');
+    // The shell launches a node child that writes the sentinel after 2.5s. With a
+    // 0.8s timeout, a tree-kill must take the child down before it ever writes.
+    const cmd = `node -e "setTimeout(function(){require('fs').writeFileSync('${sentinel}', 'x')}, 2500)"`;
+    const r = runCli(['test', 'run', 'demo', '--phase', 'targeted', '--command', cmd, '--timeout', '800', '--run-id', 'tk', '--json'], { cwd: repo, home });
+    expect(JSON.parse(r.stdout).status).toBe('timeout');
+    await new Promise((res) => setTimeout(res, 3000));
+    expect(existsSync(sentinel)).toBe(false);
+  }, 20000);
 });
 
 describe('test-run helpers (unit)', () => {
-  it('isPytestCommand detects pytest invocations', () => {
+  it('isPytestCommand detects pytest invocations, not pytest-as-argument', () => {
     expect(isPytestCommand('python -m pytest tests/x.py')).toBe(true);
+    expect(isPytestCommand('python3 -m pytest')).toBe(true);
     expect(isPytestCommand('pytest -q')).toBe(true);
     expect(isPytestCommand('py.test')).toBe(true);
+    expect(isPytestCommand('.venv/bin/pytest tests/')).toBe(true);
+    expect(isPytestCommand('PYTHONPATH=. pytest')).toBe(true);
+    expect(isPytestCommand('npm run pytest')).toBe(false);
     expect(isPytestCommand('npm test')).toBe(false);
     expect(isPytestCommand('node -e "x"')).toBe(false);
   });

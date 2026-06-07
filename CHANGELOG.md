@@ -53,8 +53,11 @@
   import / fixture / assertion / contract-drift / timeout / runner-error /
   unknown) from JUnit XML, then text, then pytest exit codes. `--json` prints the
   machine-readable summary; `--command` supplies the command until `cdd-kit test
-  select` lands. Selection and gate enforcement follow in the next ADR 0005
-  phases.
+  select` lands. Execution is genuinely bounded: a timeout SIGKILLs the whole
+  process tree (not just the shell), `change-id` and an explicit `--run-id` are
+  validated against path traversal and reuse, and pytest is detected as the
+  invoked program rather than as an argument (so `npm run pytest` is not
+  rewritten). Selection and gate enforcement follow in the next ADR 0005 phases.
 
 ### Changed
 

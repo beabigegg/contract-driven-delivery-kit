@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, relative, resolve } from 'path';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
@@ -21,6 +21,8 @@ const DEFAULT_REQUIRED: Phase[] = ['collect', 'targeted', 'changed-area'];
 const OUTPUT_CAP_CHARS = 4000;
 const MAX_MESSAGE_CHARS = 500;
 const MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
+// Same shape new-change.ts enforces; rejects path-escape segments such as `..`.
+const SAFE_CHANGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
 export type RunStatus = 'passed' | 'failed' | 'timeout' | 'error' | 'no-command';
 
@@ -61,8 +63,26 @@ interface EvidenceFile {
 
 // ── command shaping ───────────────────────────────────────────────────────────
 
+/** First real program token, skipping leading `VAR=value` env assignments. */
+function firstCommandToken(command: string): string | undefined {
+  const tokens = command.trim().split(/\s+/);
+  let i = 0;
+  while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i += 1;
+  return tokens[i];
+}
+
+/**
+ * True only when pytest is the program being invoked -- `pytest`, `py.test`, a
+ * path ending in pytest, or `python -m pytest`. NOT when pytest is merely an
+ * argument such as an npm/yarn script name (`npm run pytest`), which would
+ * otherwise get pytest flags appended that the wrapper never forwards.
+ */
 export function isPytestCommand(command: string): boolean {
-  return /\bpytest\b/.test(command) || /\bpy\.test\b/.test(command);
+  if (/(^|[\s;&|])(python[0-9.]*|py)\s+-m\s+pytest(\s|$)/.test(command)) return true;
+  const program = firstCommandToken(command);
+  if (!program) return false;
+  const base = program.replace(/.*[/\\]/, '');
+  return base === 'pytest' || base === 'py.test';
 }
 
 /**
@@ -282,6 +302,12 @@ function uniqueRunId(testRunsDir: string): string {
   return id;
 }
 
+// Leading alnum (so it cannot start with `.`) and no `..`, so an explicit
+// --run-id can never escape the test-runs directory.
+function isSafeRunId(id: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) && !id.includes('..');
+}
+
 function nextAction(status: RunStatus, phase: string): string {
   switch (status) {
     case 'passed': return phase === 'full' ? 'all phases green' : 'proceed to the next phase';
@@ -342,6 +368,87 @@ function emitError(json: boolean, payload: Record<string, unknown>, humanMessage
   else log.error(humanMessage);
 }
 
+// ── bounded execution ─────────────────────────────────────────────────────────
+
+interface CommandResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  durationMs: number;
+  timedOut: boolean;
+  spawnError?: Error;
+}
+
+/**
+ * Kill the whole process tree, not just the shell. On POSIX the command runs in
+ * its own process group (detached), so a negative pid SIGKILLs the shell and any
+ * test process it launched; on Windows we fall back to `taskkill /t /f`. Without
+ * this, a timeout on a shell-wrapped command (e.g. `npm test`, a python wrapper)
+ * would leave the real test process orphaned and unbounded (ADR 0005 §4).
+ */
+function killTree(pid: number): void {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore' });
+    return;
+  }
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+  }
+}
+
+function runCommand(command: string, opts: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number }): Promise<CommandResult> {
+  return new Promise((resolveResult) => {
+    const start = Date.now();
+    const child = spawn(command, {
+      shell: true,
+      cwd: opts.cwd,
+      env: opts.env,
+      // New process group so killTree can take down the whole tree on timeout.
+      detached: process.platform !== 'win32',
+    });
+
+    const outChunks: Buffer[] = [];
+    const errChunks: Buffer[] = [];
+    const captured = { out: 0, err: 0 };
+    let timedOut = false;
+    let spawnError: Error | undefined;
+    let settled = false;
+
+    const capture = (chunks: Buffer[], key: 'out' | 'err', chunk: Buffer): void => {
+      if (captured[key] >= MAX_CAPTURE_BYTES) return;
+      const room = MAX_CAPTURE_BYTES - captured[key];
+      chunks.push(chunk.length > room ? chunk.subarray(0, room) : chunk);
+      captured[key] += chunk.length;
+    };
+    child.stdout?.on('data', (d: Buffer) => capture(outChunks, 'out', d));
+    child.stderr?.on('data', (d: Buffer) => capture(errChunks, 'err', d));
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (typeof child.pid === 'number') killTree(child.pid);
+    }, opts.timeoutMs);
+
+    const finish = (exitCode: number | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveResult({
+        stdout: Buffer.concat(outChunks).toString('utf8'),
+        stderr: Buffer.concat(errChunks).toString('utf8'),
+        exitCode,
+        durationMs: Date.now() - start,
+        timedOut,
+        spawnError,
+      });
+    };
+
+    child.on('error', (err) => { spawnError = err; finish(null); });
+    child.on('close', (code) => finish(code));
+  });
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 export async function testRun(changeId: string, opts: TestRunOptions): Promise<number> {
@@ -361,6 +468,15 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
     }
   }
 
+  // Validate the change id before it is ever joined into a filesystem path, so a
+  // value like `../../src` cannot escape specs/changes/<id> (ADR 0005 §4 / parity
+  // with new-change.ts).
+  if (!SAFE_CHANGE_ID.test(changeId)) {
+    emitError(opts.json, { change_id: changeId, status: 'error', reason: 'invalid change id' },
+      `Invalid change id "${changeId}". Use letters, numbers, hyphens, or underscores (max 64 chars).`);
+    return 2;
+  }
+
   const changeDir = join(cwd, 'specs', 'changes', changeId);
   if (!existsSync(changeDir)) {
     emitError(opts.json, { change_id: changeId, status: 'error', reason: 'change not found' },
@@ -374,14 +490,27 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
     return 2;
   }
 
-  const runId = opts.runId ?? uniqueRunId(join(changeDir, 'test-runs'));
-  if (!/^[A-Za-z0-9._-]+$/.test(runId)) {
-    emitError(opts.json, { change_id: changeId, status: 'error', reason: `invalid run id: ${runId}` },
-      `Invalid --run-id "${runId}". Use letters, numbers, dot, dash, or underscore.`);
-    return 2;
+  const testRunsDir = join(changeDir, 'test-runs');
+  let runId: string;
+  if (opts.runId !== undefined) {
+    if (!isSafeRunId(opts.runId)) {
+      emitError(opts.json, { change_id: changeId, status: 'error', reason: `invalid run id: ${opts.runId}` },
+        `Invalid --run-id "${opts.runId}". Use letters, numbers, dot, dash, or underscore (no "..").`);
+      return 2;
+    }
+    runId = opts.runId;
+    // Reject reuse: a shared run-id across phases would overwrite an earlier
+    // phase's artifacts while its evidence entry still points at this dir.
+    if (existsSync(join(testRunsDir, runId))) {
+      emitError(opts.json, { change_id: changeId, status: 'error', reason: `run id already exists: ${runId}` },
+        `Run id "${runId}" already exists under specs/changes/${changeId}/test-runs/. Use a fresh --run-id or omit it.`);
+      return 2;
+    }
+  } else {
+    runId = uniqueRunId(testRunsDir);
   }
 
-  const runDir = join(changeDir, 'test-runs', runId);
+  const runDir = join(testRunsDir, runId);
   ensureDir(runDir);
   const junitAbs = join(runDir, 'junit.xml');
 
@@ -390,30 +519,22 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
   writeFileSync(join(runDir, 'command.txt'), `${executed}\n`, 'utf8');
 
   const runCwd = opts.cwd ? resolve(cwd, opts.cwd) : cwd;
-  const start = Date.now();
-  const res = spawnSync(executed, {
-    shell: true,
+  const res = await runCommand(executed, {
     cwd: runCwd,
     env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
-    encoding: 'buffer',
-    timeout: opts.timeoutMs,
-    maxBuffer: MAX_CAPTURE_BYTES,
+    timeoutMs: opts.timeoutMs,
   });
-  const duration = Date.now() - start;
+  const duration = res.durationMs;
 
-  const stdout = res.stdout ? res.stdout.toString('utf8') : '';
-  const stderr = res.stderr ? res.stderr.toString('utf8') : '';
+  const stdout = res.stdout;
+  const stderr = res.stderr;
   writeFileSync(join(runDir, 'stdout.log'), stdout, 'utf8');
   writeFileSync(join(runDir, 'stderr.log'), stderr, 'utf8');
 
-  const errCode = (res.error as NodeJS.ErrnoException | undefined)?.code;
-  const timedOut = !!res.error && errCode === 'ETIMEDOUT';
-  const spawnFailed = !!res.error && !timedOut;
-
   let status: RunStatus;
-  if (timedOut) status = 'timeout';
-  else if (spawnFailed) status = 'error';
-  else if (res.status === 0) status = 'passed';
+  if (res.timedOut) status = 'timeout';
+  else if (res.spawnError) status = 'error';
+  else if (res.exitCode === 0) status = 'passed';
   else status = 'failed';
 
   const junitExists = existsSync(junitAbs);
@@ -421,8 +542,8 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
 
   let firstFailure: FirstFailure | null = null;
   if (status === 'timeout') firstFailure = { kind: 'timeout', message: `command exceeded timeout of ${opts.timeoutMs} ms` };
-  else if (status === 'error') firstFailure = { kind: 'runner-error', message: res.error?.message ?? 'failed to start command' };
-  else if (status === 'failed') firstFailure = classifyFailure({ exitCode: res.status, stdout, stderr, junitXml, command: executed });
+  else if (status === 'error') firstFailure = { kind: 'runner-error', message: res.spawnError?.message ?? 'failed to start command' };
+  else if (status === 'failed') firstFailure = classifyFailure({ exitCode: res.exitCode, stdout, stderr, junitXml, command: executed });
 
   const rel = (p: string): string => relative(cwd, p).replace(/\\/g, '/');
   const artifacts: Record<string, string> = {
@@ -436,7 +557,7 @@ export async function testRun(changeId: string, opts: TestRunOptions): Promise<n
     change_id: changeId,
     phase: opts.phase,
     status,
-    exit_code: res.status ?? null,
+    exit_code: res.exitCode,
     command: executed,
     duration_ms: duration,
     first_failure: firstFailure,
