@@ -24,6 +24,20 @@
   `cdd-kit init` — opt-in per the ADR, shipped only now that query + set + gate
   are proven green.
 
+- **Structured test evidence: `test-evidence.yml` template + schema (ADR 0005
+  templates and schema).** Added `specs/templates/test-evidence.yml` (and its
+  skill copy) as the canonical shape of the bounded, machine-readable test
+  evidence that `cdd-kit test run` will generate, plus
+  `src/schemas/test-evidence.schema.ts` to validate it. The schema rejects
+  known-failure waiver fields by name (`known-failures`, `pre-existing-failures`,
+  `allowed-failures`, `waived-failures`, `ignored-failures`) per ADR 0005
+  section 7, and `additionalProperties: false` blocks any other stray key.
+  Upgraded `test-plan.md` (and its skill copy) with the Test Execution Ladder,
+  Test Update Contract, and Stop Rules sections, and registered the new evidence
+  artifact in the `/cdd-new` flow. The bounded runner (`cdd-kit test run`),
+  selector (`cdd-kit test select`), and gate enforcement follow in later ADR 0005
+  phases.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any
