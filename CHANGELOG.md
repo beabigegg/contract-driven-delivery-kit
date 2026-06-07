@@ -34,7 +34,10 @@
   section 7, and `additionalProperties: false` blocks any other stray key.
   Upgraded `test-plan.md` (and its skill copy) with the Test Execution Ladder,
   Test Update Contract, and Stop Rules sections, and registered the new evidence
-  artifact in the `/cdd-new` flow. The bounded runner (`cdd-kit test run`),
+  artifact in the `/cdd-new` flow. The schema also requires at least one recorded
+  run and rejects a `passed` evidence file that contains a failed run, and
+  `cdd-kit new --all` does not scaffold `test-evidence.yml` (it is produced by the
+  runner, never copied as an example). The bounded runner (`cdd-kit test run`),
   selector (`cdd-kit test select`), and gate enforcement follow in later ADR 0005
   phases.
 

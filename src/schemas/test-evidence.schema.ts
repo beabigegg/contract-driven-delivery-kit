@@ -38,6 +38,7 @@ export const testEvidenceSchema = {
     },
     runs: {
       type: "array",
+      minItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -53,4 +54,12 @@ export const testEvidenceSchema = {
     },
     "final-status": { type: "string", enum: ["passed", "failed"] },
   },
+  // Static integrity guard: a `passed` evidence file must contain at least one
+  // run (see runs.minItems) and none of its recorded runs may be failed -- you
+  // cannot claim a green final result while a recorded run failed. Full required-
+  // phase coverage (every entry in `required-phases` has a passing run) is a
+  // cross-field constraint that static JSON Schema cannot express; the gate
+  // enforces that procedurally in a later ADR 0005 phase.
+  if: { required: ["final-status"], properties: { "final-status": { const: "passed" } } },
+  then: { properties: { runs: { items: { properties: { status: { const: "passed" } } } } } },
 } as const;

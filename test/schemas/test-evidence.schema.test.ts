@@ -101,4 +101,24 @@ describe('test-evidence.schema', () => {
     doc['change-id'] = '<change-id>';
     expect(validate(doc)).toBe(false);
   });
+
+  it('rejects evidence with an empty runs array (minItems)', () => {
+    const doc = validEvidence();
+    doc.runs = [];
+    expect(validate(doc)).toBe(false);
+  });
+
+  it('rejects a passed final-status when a recorded run failed', () => {
+    const doc = validEvidence();
+    (doc.runs as Record<string, unknown>[])[1].status = 'failed';
+    // final-status stays "passed" -- a green result over a failed run is invalid.
+    expect(validate(doc)).toBe(false);
+  });
+
+  it('accepts a failed final-status that contains a failed run (negative control)', () => {
+    const doc = validEvidence();
+    doc['final-status'] = 'failed';
+    (doc.runs as Record<string, unknown>[])[0].status = 'failed';
+    expect(validate(doc), JSON.stringify(validate.errors)).toBe(true);
+  });
 });
