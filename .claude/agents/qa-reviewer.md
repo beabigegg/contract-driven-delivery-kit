@@ -46,10 +46,13 @@ Invoke `spec-drift-auditor` at the following points (do not wait for issues to s
 - `approved-with-risk` ??only when (a) the residual risk is documented in qa-report.md, (b) an owner is assigned, (c) a follow-up issue exists with a date.
 - `blocked` ??any required gate failing, any contract claim unverified, any UI change without visual evidence.
 - Sign-off ??single reviewer for low/medium risk; two reviewers (qa-reviewer + spec-architect) for high/critical.
-- Pre-existing failures may be excluded from this change's gate only when the
-  report includes the failing test id, baseline commit or prior evidence,
-  reason it is outside the current scope, owner, and follow-up date. Without
-  that record, treat the failure as blocking.
+- Any required test failure blocks the gate. There is no known, pre-existing,
+  waived, allowed, or ignored exception, and no failing required test may be
+  excluded from a gate by documenting it. If a broad or full-suite run surfaces
+  an unrelated failure, record only the first failure and block; do not chase
+  further failures. To clear it, fix the failure, expand this change's scope to
+  cover the fix, or open a separate tracked change. The gate does not pass until
+  required evidence is green.
 
 ## Output
 
@@ -59,7 +62,7 @@ routine approved change.
 
 Emit a full `# QA Report` body only when `change-classification.md` explicitly
 requires `qa-report.md`, or when the decision is `blocked` /
-`approved-with-risk`, or when pre-existing failures are excluded from this gate.
+`approved-with-risk`.
 
 ```md
 # QA Report
@@ -72,10 +75,6 @@ requires `qa-report.md`, or when the decision is `blocked` /
 
 ## Failures
 ...
-
-## Pre-existing Failures Excluded From This Gate
-| failure/test | baseline evidence | why outside scope | owner/follow-up |
-|---|---|---|---|
 
 ## Fixback Routing
 ...

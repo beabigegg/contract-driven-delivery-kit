@@ -32,15 +32,16 @@ Before implementation, ensure the spec says what should happen for:
 Use fuzz payloads, Playwright action sequences, property-based tests, and targeted randomization where useful. Every monkey test must assert a safe outcome, not merely that the app does not crash.
 
 If an existing monkey/fuzz test already fails before your change, do not hide
-or rewrite that failure to make the current gate look green. Record the test
-id, seed/input, baseline commit or prior evidence, and whether this change
-touched the failing surface. Mark it as a follow-up when it is outside this
-change's scope; keep new or regressed failures blocking.
+or rewrite that failure to make the current gate look green, and do not waive
+it as pre-existing. Record the test id, seed/input, and whether this change
+touched the failing surface. Any required failing test blocks the gate: fix it,
+expand this change's scope to cover the fix, or open a separate tracked change
+rather than excluding it.
 
 Default reporting should be concise response text plus optional
 `agent-log/*.yml` evidence pointers. Create `monkey-test-report.md` only when
-classification explicitly requires it, when failures or excluded pre-existing
-issues need durable prose, or when QA needs approved-with-risk evidence.
+classification explicitly requires it, when failures need durable prose, or
+when QA needs approved-with-risk evidence.
 
 ## Tools
 

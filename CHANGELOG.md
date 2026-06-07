@@ -24,6 +24,21 @@
   `cdd-kit init` — opt-in per the ADR, shipped only now that query + set + gate
   are proven green.
 
+### Changed
+
+- **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any
+  required test failure now blocks the gate with no `known` / `pre-existing` /
+  `waived` / `allowed` / `ignored` exception. Removed the "Pre-existing Failures
+  Excluded From This Gate" section from the QA report template (and its skill
+  copy), the waiver bullet from `qa-reviewer`, the trigger references that told
+  agents to create a report for excluded pre-existing failures, and the parallel
+  exclude-pre-existing mechanisms in `monkey-test-engineer` and the `cdd-new`
+  flow. The resolution path is now: fix the failure, expand this change's scope
+  to cover the fix, or open a separate tracked change. A broad/full-suite run
+  still records only the first unrelated failure and blocks (bounded triage).
+  `approved-with-risk` for documented residual (non-test-failure) risk is
+  unchanged.
+
 ## [2.2.1] - 2026-06-03
 
 Fix a class of false positives in the 2.2.0 API conformance validator that broke

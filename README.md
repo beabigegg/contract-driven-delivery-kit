@@ -138,7 +138,7 @@ not become new markdown files.
 |---|---|---|
 | Core decision and planning | `change-classification.md`, `context-manifest.md`, `test-plan.md`, `ci-gates.md`, `implementation-plan.md`, `tasks.yml` | required for implementation changes |
 | Conditional design | `design.md` | only when `spec-architect` is required |
-| Durable evidence reports | `qa-report.md`, `visual-review-report.md`, `regression-report.md`, `monkey-test-report.md`, `stress-soak-report.md` | only for blocking findings, approved-with-risk, excluded pre-existing failures, visual evidence bundles, or high-risk load/soak results |
+| Durable evidence reports | `qa-report.md`, `visual-review-report.md`, `regression-report.md`, `monkey-test-report.md`, `stress-soak-report.md` | only for blocking findings, approved-with-risk, visual evidence bundles, or high-risk load/soak results |
 | Lightweight traces | `agent-log/*.yml` | optional concise pointers for routine evidence and resume/debugging |
 
 Later artifacts should reference earlier artifacts by path, section, acceptance

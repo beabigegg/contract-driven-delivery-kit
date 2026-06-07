@@ -475,11 +475,11 @@ All agents from Tier 2??, plus insert these after `frontend-engineer` / `backend
 - Skip an agent only if the classifier explicitly marks its surface as "not affected"
 - If backend-only with no UI: skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
 - If UI-only with no backend: skip `backend-engineer`
-- If a required or informational test has pre-existing failures unrelated to
-  this change, do not count them as this change's pass/fail result. Record the
-  failing test id, baseline commit or prior evidence, owner, and follow-up in
-  optional `agent-log/*.yml`; create `qa-report.md` only when the QA decision is
-  `approved-with-risk` or `blocked`.
+- A required test failure blocks the gate; it cannot be waived or excluded as
+  pre-existing. If a broad run surfaces an unrelated failure, record only the
+  first failure and block, then fix it, expand this change's scope to cover the
+  fix, or open a separate tracked change. Informational (non-required) test
+  failures are recorded in optional `agent-log/*.yml` and do not block.
 - If implementation uncovers unrelated old bugs, fix only those needed to meet
   this change's acceptance criteria or to avoid a new safety/security risk.
   Otherwise record them as follow-up with evidence and owner.

@@ -23,8 +23,10 @@
 QA approval requires evidence. Evidence may be command output, CI links, logs,
 screenshots, videos, traces, metrics, or artifact files. Routine approvals
 should use concise verdict text plus optional `agent-log/*.yml` pointers.
-Create `qa-report.md` only for blocked, approved-with-risk, or excluded
-pre-existing failure decisions.
+Create `qa-report.md` only for blocked or approved-with-risk decisions. A
+required test failure blocks the gate and cannot be waived or excluded as
+pre-existing; fix it, expand this change's scope, or open a separate tracked
+change.
 
 ## Fixback rule
 

@@ -27,8 +27,7 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
      gate name instead of duplicating full prose.
    - Use optional `agent-log/*.yml` pointers for routine review evidence.
      Create report markdown only for blocking findings, approved-with-risk,
-     excluded pre-existing failures, visual evidence bundles, or high-risk
-     load/soak results.
+     visual evidence bundles, or high-risk load/soak results.
 4. Update contracts before or alongside implementation. Invoke contract-reviewer to validate API/CSS/env/data/business/CI-CD contracts before or alongside implementation.
    - API: `references/api-contract-standard.md`
    - CSS/UI: `references/css-contract-standard.md`
