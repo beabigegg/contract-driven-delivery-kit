@@ -165,8 +165,7 @@ Artifact minimization rule:
 - Set `qa-report.md`, `visual-review-report.md`, `regression-report.md`,
   `monkey-test-report.md`, or `stress-soak-report.md` to `yes` only when the
   change needs durable prose evidence: blocking findings, approved-with-risk,
-  pre-existing failures excluded from the gate, visual evidence bundles, or
-  high-risk load/soak results.
+  visual evidence bundles, or high-risk load/soak results.
 - Set `current-behavior.md`, `proposal.md`, or `spec.md` to `yes` only when the
   request needs a separate product investigation or user-facing behavior
   decision that does not fit in classification, design, or implementation plan.

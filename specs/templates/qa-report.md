@@ -18,10 +18,6 @@
 
 ## Known Risks
 
-## Pre-existing Failures Excluded From This Gate
-| failure/test | baseline evidence | why outside scope | owner/follow-up |
-|---|---|---|---|
-
 ## Failures and Fixback Routing
 | failure | evidence | owner | required fix |
 |---|---|---|---|

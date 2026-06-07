@@ -36,7 +36,7 @@ Always required: change-request.md, change-classification.md, implementation-pla
 
 Artifact minimization:
 - Prefer optional `agent-log/*.yml` pointers for routine review evidence.
-- Create report markdown only for blocking findings, approved-with-risk, excluded pre-existing failures, visual evidence bundles, or high-risk load/soak results.
+- Create report markdown only for blocking findings, approved-with-risk, visual evidence bundles, or high-risk load/soak results.
 - Later artifacts should reference earlier artifacts by path/section/id instead of duplicating full content.
 
 ## Required Contracts
