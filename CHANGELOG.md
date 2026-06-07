@@ -41,6 +41,30 @@
   selector (`cdd-kit test select`), and gate enforcement follow in later ADR 0005
   phases.
 
+- **Bounded test runner: `cdd-kit test run <change-id> --phase <phase>` (ADR 0005
+  §4-§6).** Runs one phase of the test ladder, captures durable artifacts under
+  `specs/changes/<id>/test-runs/<run-id>/` (`command.txt`, `stdout.log`,
+  `stderr.log`, `summary.json`, and `junit.xml` for pytest), and upserts the run
+  into `test-evidence.yml` with a recomputed, schema-valid `final-status`. pytest
+  commands get the bounded defaults (`-q --maxfail=1 --tb=short -ra`) plus JUnit
+  output unless the selected command is already stricter by value (so `--maxfail=0`
+  or `--tb=long` cannot loosen the run), and the run-dir JUnit report is always the
+  one read back. Assistant-visible output is capped to the last 4000 chars (and the
+  first failure message to 500) while the full logs stream to disk (only a bounded
+  tail is held in memory); the first failure is classified (collection /
+  import / fixture / assertion / contract-drift / timeout / runner-error /
+  unknown) from JUnit XML, then text, then pytest exit codes. `--json` prints the
+  machine-readable summary; `--command` supplies the command until `cdd-kit test
+  select` lands. Execution is genuinely bounded: a timeout SIGKILLs the whole
+  process tree (not just the shell), `change-id` and an explicit `--run-id` are
+  validated against path traversal and reuse, and pytest is detected as the
+  invoked program rather than as an argument (so `npm run pytest` is not
+  rewritten). Only a simple pytest invocation is rewritten -- a shell-composed
+  command (`pytest x && coverage`, pipes, redirects) runs verbatim; generated
+  run-ids are reserved atomically, the JUnit path is shell-quoted, and log capture
+  honours stream backpressure. Selection and gate enforcement follow in the next
+  ADR 0005 phases.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any

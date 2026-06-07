@@ -61,5 +61,5 @@ export const testEvidenceSchema = {
   // cross-field constraint that static JSON Schema cannot express; the gate
   // enforces that procedurally in a later ADR 0005 phase.
   if: { required: ["final-status"], properties: { "final-status": { const: "passed" } } },
-  then: { properties: { runs: { items: { properties: { status: { const: "passed" } } } } } },
+  then: { properties: { runs: { type: "array", items: { type: "object", properties: { status: { const: "passed" } } } } } },
 } as const;

@@ -588,6 +588,36 @@ contract
     process.exit(exit);
   });
 
+// ── cdd test run ──────────────────────────────────────────────────────────────
+const test = program
+  .command('test')
+  .description('Bounded test execution and structured evidence (see docs/adr/0005-bounded-test-execution-and-structured-evidence.md)');
+
+test
+  .command('run <change-id>')
+  .description('Run one bounded test phase, capture artifacts under test-runs/<run-id>/, and update test-evidence.yml')
+  .requiredOption('--phase <phase>', 'ladder phase: collect, targeted, changed-area, contract, quality, or full')
+  .option('--command <cmd>', 'the test command to run; pytest commands get bounded defaults (-q --maxfail=1 --tb=short -ra) plus JUnit XML. Required until cdd-kit test select lands')
+  .option('--run-id <id>', 'override the generated run id (timestamp by default)')
+  .option('--timeout <ms>', 'kill the command after this many milliseconds', '300000')
+  .option('--cwd <dir>', 'working directory for the command (default: current directory)')
+  .option('--required-phases <csv>', 'required phases used when first creating test-evidence.yml (default: collect,targeted,changed-area)')
+  .option('--json', 'print the run summary as JSON', false)
+  .action(async (changeId: string, opts: { phase: string; command?: string; runId?: string; timeout: string; cwd?: string; requiredPhases?: string; json?: boolean }) => {
+    const { testRun } = await import('../commands/test-run.js');
+    const timeoutMs = parseInt(opts.timeout, 10);
+    const exit = await testRun(changeId, {
+      phase: opts.phase,
+      command: opts.command,
+      runId: opts.runId,
+      timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 300000,
+      cwd: opts.cwd,
+      requiredPhases: opts.requiredPhases ? opts.requiredPhases.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      json: opts.json === true,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program
   .command('detect-stack')
