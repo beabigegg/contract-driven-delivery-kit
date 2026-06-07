@@ -65,6 +65,28 @@
   honours stream backpressure. Selection and gate enforcement follow in the next
   ADR 0005 phases.
 
+- **Deterministic test selection: `cdd-kit test select <change-id>` (ADR 0005
+  §3).** Plans the bounded command for each ladder phase from static inputs and
+  never executes tests. It first trusts explicit mappings in `test-plan.md`'s
+  *Acceptance Criteria → Test Mapping* table (then `implementation-plan.md`'s
+  *Test Execution Plan*), emitting ADR-shaped `collect`
+  (`pytest --collect-only -q <target>`) and `targeted`
+  (`pytest <target> -q --maxfail=1 --tb=short -ra`) commands; unfilled scaffold
+  rows (`tests/unit/test_xxx.py`, `<id>`, `tests/example/...`) are recognised as
+  placeholders and ignored. `changed-area` is derived from the change's touched
+  test files and, via the code-map, the test files that import a touched source
+  (graph-impact), falling back to the directory of the mapped targets when there
+  is no git/graph signal. A `contract` phase (`cdd-kit validate --contracts`) is
+  added when contract files are touched or `implementation-plan.md` declares
+  contract updates, and a bounded `full` smoke is always included. When no
+  targeted or changed-area target can be selected safely it returns
+  `needs-test-plan-update` (exit 1) instead of searching the repo indefinitely;
+  `selected` exits 0 and a usage error (bad id, missing change dir) exits 2.
+  `--json` prints the machine-readable plan. The local-import resolver shared with
+  `cdd index impact` was extracted to `src/code-map/resolve.ts` so both commands
+  resolve dependents identically. Gate enforcement of the recorded evidence
+  follows in the next ADR 0005 phase.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any

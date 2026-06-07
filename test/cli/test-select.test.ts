@@ -1,0 +1,257 @@
+import { describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { spawnSync } from 'child_process';
+import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
+import {
+  isPlaceholderTarget,
+  isUsablePytestTarget,
+  formatTarget,
+  isPytestTestFile,
+  parseMarkdownTable,
+  extractMappedTargets,
+  detectContractAffected,
+  findTestDependents,
+} from '../../src/commands/test-select.js';
+import type { FileEntry } from '../../src/code-map/types.js';
+
+const PLAN_HEADING = '## Acceptance Criteria → Test Mapping';
+
+function planWithTarget(target: string): string {
+  return [
+    '---',
+    'change-id: demo',
+    'schema-version: 0.1.0',
+    '---',
+    '',
+    '# Test Plan: demo',
+    '',
+    PLAN_HEADING,
+    '',
+    '| criterion id | test family | test file path | tier |',
+    '|---|---|---|---|',
+    `| AC-1 | unit | ${target} | 0 |`,
+    '',
+  ].join('\n');
+}
+
+describe('cdd-kit test select (integration)', () => {
+  let repo: string;
+  let home: string;
+
+  beforeEach(() => {
+    repo = makeTempDir('cdd-testselect-repo-');
+    home = makeTempDir('cdd-testselect-home-');
+    mkdirSync(join(repo, 'specs', 'changes', 'demo'), { recursive: true });
+  });
+
+  afterEach(() => {
+    cleanupDir(repo);
+    cleanupDir(home);
+  });
+
+  const changeDir = (): string => join(repo, 'specs', 'changes', 'demo');
+  const writePlan = (content: string): void => writeFileSync(join(changeDir(), 'test-plan.md'), content, 'utf8');
+
+  it('selects ADR-shaped commands from an explicit test-plan mapping', () => {
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_status_filter_options'));
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const sel = JSON.parse(r.stdout);
+    expect(sel.status).toBe('selected');
+    expect(sel.change_id).toBe('demo');
+
+    expect(sel.phases.collect[0]).toMatchObject({
+      target: 'tests/orders/test_filter.py::test_status_filter_options',
+      command: 'python -m pytest --collect-only -q tests/orders/test_filter.py::test_status_filter_options',
+      reason: 'AC-1 mapped in test-plan.md',
+    });
+    expect(sel.phases.targeted[0].command).toBe(
+      'python -m pytest tests/orders/test_filter.py::test_status_filter_options -q --maxfail=1 --tb=short -ra',
+    );
+    expect(sel.phases.full[0].command).toBe('python -m pytest -q --maxfail=1 --tb=short -ra');
+  });
+
+  it('falls back to the directory of mapped targets for changed-area (no git signal)', () => {
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_x'));
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    const sel = JSON.parse(r.stdout);
+    expect(sel.phases['changed-area']).toHaveLength(1);
+    expect(sel.phases['changed-area'][0]).toMatchObject({
+      target: 'tests/orders/',
+      reason: 'directory of test-plan targets',
+      command: 'python -m pytest tests/orders/ -q --maxfail=1 --tb=short -ra',
+    });
+  });
+
+  it('returns needs-test-plan-update for an unfilled (placeholder) test-plan', () => {
+    writePlan(planWithTarget('tests/unit/test_xxx.py'));
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    expect(JSON.parse(r.stdout).status).toBe('needs-test-plan-update');
+  });
+
+  it('returns needs-test-plan-update (exit 1) when test-plan.md is missing', () => {
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    const sel = JSON.parse(r.stdout);
+    expect(sel.status).toBe('needs-test-plan-update');
+    expect(sel.reason).toContain('test-plan.md not found');
+  });
+
+  it('rejects a change id that escapes specs/changes (exit 2)', () => {
+    const r = runCli(['test', 'select', '..', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(2);
+    expect(JSON.parse(r.stdout).reason).toBe('invalid change id');
+  });
+
+  it('exits 2 when the change directory does not exist', () => {
+    const r = runCli(['test', 'select', 'ghost', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(2);
+    expect(JSON.parse(r.stdout).status).toBe('error');
+  });
+
+  it('adds the contract phase when implementation-plan.md declares contract updates', () => {
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_x'));
+    writeFileSync(
+      join(changeDir(), 'implementation-plan.md'),
+      '# Implementation Plan\n\n## Contract Updates\n\n- API: add status filter query param\n',
+      'utf8',
+    );
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    const sel = JSON.parse(r.stdout);
+    expect(sel.phases.contract).toHaveLength(1);
+    expect(sel.phases.contract[0].command).toBe('cdd-kit validate --contracts');
+    expect(sel.phases.contract[0].reason).toContain('implementation-plan.md');
+  });
+
+  it('falls back to implementation-plan.md when test-plan.md has no usable mapping', () => {
+    writePlan(planWithTarget('tests/unit/test_xxx.py')); // placeholder only
+    writeFileSync(
+      join(changeDir(), 'implementation-plan.md'),
+      [
+        '# Implementation Plan',
+        '',
+        '## Test Execution Plan',
+        '',
+        '| acceptance criterion | test file / command | expected signal |',
+        '|---|---|---|',
+        '| AC-2 | tests/api/test_orders.py::test_create | 201 returned |',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(0);
+    const sel = JSON.parse(r.stdout);
+    expect(sel.phases.targeted[0]).toMatchObject({
+      target: 'tests/api/test_orders.py::test_create',
+      reason: 'AC-2 mapped in implementation-plan.md',
+    });
+  });
+
+  it('uses changed test files for changed-area when git reports them', () => {
+    if (spawnSync('git', ['init'], { cwd: repo }).status !== 0) return; // git unavailable -> skip
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_x'));
+    mkdirSync(join(repo, 'tests', 'extra'), { recursive: true });
+    writeFileSync(join(repo, 'tests', 'extra', 'test_touch.py'), 'def test_touch():\n    assert True\n', 'utf8');
+
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    const sel = JSON.parse(r.stdout);
+    const changed = sel.phases['changed-area'] as Array<{ target: string; reason: string }>;
+    const hit = changed.find((e) => e.target === 'tests/extra/test_touch.py');
+    expect(hit, JSON.stringify(changed)).toBeTruthy();
+    expect(hit!.reason).toBe('changed test file');
+    // git signal present -> the directory fallback is not used
+    expect(changed.some((e) => e.reason === 'directory of test-plan targets')).toBe(false);
+  });
+
+  it('prints a human-readable plan without --json', () => {
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_x'));
+    const r = runCli(['test', 'select', 'demo'], { cwd: repo, home });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('python -m pytest');
+    expect(r.stdout).toContain('targeted:');
+  });
+});
+
+describe('test-select helpers (unit)', () => {
+  it('isPlaceholderTarget flags scaffold tokens, not real targets', () => {
+    expect(isPlaceholderTarget('tests/unit/test_xxx.py')).toBe(true);
+    expect(isPlaceholderTarget('tests/example/test_old.py')).toBe(true);
+    expect(isPlaceholderTarget('<id>')).toBe(true);
+    expect(isPlaceholderTarget('')).toBe(true);
+    expect(isPlaceholderTarget('-')).toBe(true);
+    expect(isPlaceholderTarget('n/a')).toBe(true);
+    expect(isPlaceholderTarget('tests/orders/test_filter.py::test_x')).toBe(false);
+  });
+
+  it('isUsablePytestTarget accepts files, node ids, and dirs only', () => {
+    expect(isUsablePytestTarget('tests/orders/test_filter.py')).toBe(true);
+    expect(isUsablePytestTarget('tests/orders/test_filter.py::test_x')).toBe(true);
+    expect(isUsablePytestTarget('tests/orders/test_filter.py::test_x[1-2]')).toBe(true);
+    expect(isUsablePytestTarget('tests/orders/')).toBe(true);
+    expect(isUsablePytestTarget('tests/unit/test_xxx.py')).toBe(false); // placeholder
+    expect(isUsablePytestTarget('npm test')).toBe(false);
+    expect(isUsablePytestTarget('pytest && rm -rf /')).toBe(false);
+    expect(isUsablePytestTarget('unit')).toBe(false);
+  });
+
+  it('formatTarget quotes parametrized node ids and leaves simple ones bare', () => {
+    expect(formatTarget('tests/x.py::test_y')).toBe('tests/x.py::test_y');
+    expect(formatTarget('tests/x.py::test_y[1-2]')).toBe("'tests/x.py::test_y[1-2]'");
+  });
+
+  it('isPytestTestFile recognizes pytest filename conventions', () => {
+    expect(isPytestTestFile('tests/test_x.py')).toBe(true);
+    expect(isPytestTestFile('pkg/x_test.py')).toBe(true);
+    expect(isPytestTestFile('src/x.py')).toBe(false);
+    expect(isPytestTestFile('tests/x.test.ts')).toBe(false);
+  });
+
+  it('parseMarkdownTable reads the first table under a heading, else null', () => {
+    const table = parseMarkdownTable(planWithTarget('tests/orders/test_filter.py::test_x'), /acceptance criteria.*test mapping/i);
+    expect(table?.headers).toEqual(['criterion id', 'test family', 'test file path', 'tier']);
+    expect(table?.rows[0][2]).toBe('tests/orders/test_filter.py::test_x');
+    expect(parseMarkdownTable('# No tables here\n\nprose', /acceptance criteria/i)).toBeNull();
+  });
+
+  it('extractMappedTargets pairs targets with criteria and skips placeholders', () => {
+    const table = parseMarkdownTable(planWithTarget('tests/orders/test_filter.py::test_x'), /acceptance criteria.*test mapping/i);
+    expect(extractMappedTargets(table, 'test-plan.md')).toEqual([
+      { target: 'tests/orders/test_filter.py::test_x', reason: 'AC-1 mapped in test-plan.md' },
+    ]);
+    const placeholder = parseMarkdownTable(planWithTarget('tests/unit/test_xxx.py'), /acceptance criteria.*test mapping/i);
+    expect(extractMappedTargets(placeholder, 'test-plan.md')).toEqual([]);
+  });
+
+  it('detectContractAffected triggers on contract paths and non-empty plan bullets', () => {
+    expect(detectContractAffected(['contracts/api/api-contract.md'], '')).toBe('contract files changed');
+    expect(detectContractAffected([], '## Contract Updates\n- API: add field\n')).toContain('implementation-plan.md');
+    expect(detectContractAffected([], '## Contract Updates\n- API:\n- Env:\n')).toBeNull();
+    expect(detectContractAffected([], 'no contract section')).toBeNull();
+  });
+
+  it('findTestDependents matches test files whose imports resolve to the source', () => {
+    const mk = (path: string, modules: string[]): FileEntry => ({
+      path,
+      total_lines: 0,
+      imports: modules.map((module, i) => ({ module, items: [], line: i + 1 })),
+      constants: [],
+      classes: [],
+      functions: [],
+      interfaces: [],
+      types: [],
+      enums: [],
+    });
+    const entries: FileEntry[] = [
+      mk('tests/orders/test_service.py', ['./service']),
+      mk('tests/orders/service.py', []),
+      mk('tests/orders/helper.py', ['./service']),       // not a test file
+      mk('tests/orders/test_other.py', ['./nope']),      // resolves elsewhere
+    ];
+    const pathSet = new Set(entries.map((e) => e.path));
+    expect(findTestDependents(entries, 'tests/orders/service.py', pathSet)).toEqual(['tests/orders/test_service.py']);
+  });
+});
