@@ -98,6 +98,29 @@
   resolve dependents identically. Gate enforcement of the recorded evidence
   follows in the next ADR 0005 phase.
 
+- **Gate enforcement of `test-evidence.yml` (ADR 0005 §6/§7, PR-5).** `cdd-kit
+  gate` now validates recorded test evidence, not assistant claims. When
+  `specs/changes/<id>/test-evidence.yml` is present it is validated against
+  `test-evidence.schema.ts` and three cross-field rules the static schema cannot
+  express: every phase listed in `required-phases` must have at least one
+  *passing* run, no recorded run may be `failed` (a required failure blocks and
+  cannot be waived — the schema only catches this when `final-status` is
+  `passed`, so a `failed` final-status that passes the schema is still blocked
+  here), and `final-status` must be `passed`. Prohibited waiver fields
+  (`known-failures`, `pre-existing-failures`, `allowed-failures`,
+  `waived-failures`, `ignored-failures`) are rejected by name with an
+  ADR-traceable message, and malformed YAML / schema violations fail with a
+  precise reason. Missing evidence follows the same migration window as
+  `context-manifest.md`: a context-governed (`v1`) change — or any change under
+  `--strict` — errors, while a legacy change only warns, so existing changes are
+  not broken by the rollout. A change that is genuinely not an implementation
+  change opts out auditably with `test-evidence-not-applicable: "<reason>"` in
+  `tasks.yml` frontmatter (a new optional field, mirroring `tier-floor-override`),
+  which downgrades the error to a recorded warning. The check is deterministic
+  and reads only structured inputs — no free-form parsing, path guessing, or
+  inference about whether a change is "implementation". Agent, skill, and README
+  guidance for the evidence flow follows in the next ADR 0005 phase.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any

@@ -24,6 +24,7 @@ export const tasksSchema = {
       default: []
     },
     "tier-floor-override": { type: "string", minLength: 1 },
+    "test-evidence-not-applicable": { type: "string", minLength: 1 },
     "token-budget": { type: ["string", "number"] },
     created: { type: "string" },
     completed: { type: "string" },

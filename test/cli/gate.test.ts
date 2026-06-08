@@ -1345,3 +1345,206 @@ describe('cdd-kit classify-check', () => {
     expect(out.floorTier).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test evidence enforcement (ADR 0005 §6/§7, PR-5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Build a schema-valid `test-evidence.yml` body, overridable for the failure cases. */
+function buildEvidenceYaml(opts: {
+  changeId: string;
+  requiredPhases?: string[];
+  runs?: Array<{ phase: string; status: 'passed' | 'failed'; command?: string; summary?: string }>;
+  finalStatus?: 'passed' | 'failed';
+  extra?: Record<string, unknown>;
+}): string {
+  const runs = (opts.runs ?? [
+    { phase: 'collect', status: 'passed' as const },
+    { phase: 'targeted', status: 'passed' as const },
+    { phase: 'changed-area', status: 'passed' as const },
+    { phase: 'contract', status: 'passed' as const },
+  ]).map(r => ({
+    phase: r.phase,
+    status: r.status,
+    command: r.command ?? `python -m pytest -q ${r.phase}`,
+    summary: r.summary ?? `specs/changes/${opts.changeId}/test-runs/20260608-000000/summary.json`,
+  }));
+  const data: Record<string, unknown> = {
+    'change-id': opts.changeId,
+    'schema-version': '0.1.0',
+    'generated-by': 'cdd-kit test run',
+    'required-phases': opts.requiredPhases ?? ['collect', 'targeted', 'changed-area', 'contract'],
+    runs,
+    'final-status': opts.finalStatus ?? 'passed',
+  };
+  if (opts.extra) Object.assign(data, opts.extra);
+  return yaml.dump(data, { lineWidth: -1, noRefs: true });
+}
+
+describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-gate-evidence-repo-');
+    tmpHome = makeTempDir('cdd-gate-evidence-home-');
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    if (r.status !== 0) throw new Error(`Setup init failed: ${r.stderr}`);
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  const writeEvidence = (changeDir: string, body: string): void =>
+    writeFileSync(join(changeDir, 'test-evidence.yml'), body, 'utf8');
+
+  // ── missing evidence: migration window (mirrors context-manifest) ──────────
+
+  it('E1: a context-governed change missing test-evidence.yml fails', () => {
+    runCli(['new', 'ev-governed-missing'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-governed-missing');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir); // v1 tasks + context-manifest
+
+    const r = runCli(['gate', 'ev-governed-missing'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing required artifact: test-evidence\.yml/i);
+  });
+
+  it('E2: a legacy change missing test-evidence.yml only warns, but --strict fails', () => {
+    runCli(['new', 'ev-legacy-missing'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-legacy-missing');
+    writeValidChangeArtifacts(changeDir); // no context-governance ⇒ legacy
+
+    const normal = runCli(['gate', 'ev-legacy-missing'], { cwd: tmpRepo, home: tmpHome });
+    expect(normal.stdout + normal.stderr).toMatch(/missing test-evidence\.yml \(legacy change/i);
+    expect(normal.stdout + normal.stderr).not.toMatch(/missing required artifact: test-evidence\.yml/i);
+
+    const strict = runCli(['gate', 'ev-legacy-missing', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(strict.status).not.toBe(0);
+    expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: test-evidence\.yml/i);
+  });
+
+  it('E3: an auditable test-evidence-not-applicable opt-out downgrades to a warning (even --strict)', () => {
+    runCli(['new', 'ev-optout'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-optout');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir); // governed + manifest
+    // Re-write tasks.yml keeping governance but adding the opt-out reason.
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
+      changeId: 'ev-optout',
+      contextGovernance: 'v1',
+      extra: { 'test-evidence-not-applicable': 'docs-only change; no code paths are exercised' },
+    }), 'utf8');
+
+    const r = runCli(['gate', 'ev-optout', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/test evidence not applicable: docs-only change/i);
+    expect(r.stdout + r.stderr).not.toMatch(/missing required artifact: test-evidence\.yml/i);
+  });
+
+  it.skipIf(!hasPython())('E4: a context-governed change with valid evidence and contracts passes', () => {
+    runCli(['new', 'ev-pass'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-pass');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    writeValidContracts(tmpRepo);
+    writeEvidence(changeDir, buildEvidenceYaml({ changeId: 'ev-pass' }));
+
+    const r = runCli(['gate', 'ev-pass'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/gate passed for change: ev-pass/i);
+  });
+
+  // ── present evidence: validation (runs regardless of regime) ───────────────
+
+  it('E5: a prohibited waiver field in test-evidence.yml fails the gate by name', () => {
+    runCli(['new', 'ev-waiver'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-waiver');
+    writeValidChangeArtifacts(changeDir);
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-waiver',
+      extra: { 'known-failures': ['tests/foo_test.py::test_flaky'] },
+    }));
+
+    const r = runCli(['gate', 'ev-waiver'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/prohibited waiver field `known-failures`/i);
+  });
+
+  it('E6: final-status: failed fails the gate', () => {
+    runCli(['new', 'ev-final-failed'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-final-failed');
+    writeValidChangeArtifacts(changeDir);
+    writeEvidence(changeDir, buildEvidenceYaml({ changeId: 'ev-final-failed', finalStatus: 'failed' }));
+
+    const r = runCli(['gate', 'ev-final-failed'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/final-status is `failed`|is not green/i);
+  });
+
+  it('E7: a recorded failed run blocks the gate and names the phase', () => {
+    runCli(['new', 'ev-failed-run'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-failed-run');
+    writeValidChangeArtifacts(changeDir);
+    // final-status: failed keeps the file schema-valid while exercising the
+    // procedural "any failed run blocks" rule (the schema only blocks a failed
+    // run when final-status is `passed`).
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-failed-run',
+      finalStatus: 'failed',
+      runs: [
+        { phase: 'collect', status: 'passed' },
+        { phase: 'targeted', status: 'failed' },
+      ],
+    }));
+
+    const r = runCli(['gate', 'ev-failed-run'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/phase `targeted` has a failed run/i);
+  });
+
+  it('E8: a required phase with no passing run blocks the gate', () => {
+    runCli(['new', 'ev-missing-phase'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-missing-phase');
+    writeValidChangeArtifacts(changeDir);
+    // `full` is required but never run — schema can't catch this cross-field gap.
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-missing-phase',
+      requiredPhases: ['collect', 'targeted', 'changed-area', 'contract', 'full'],
+    }));
+
+    const r = runCli(['gate', 'ev-missing-phase'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/required phase\(s\) without a passing run: full/i);
+  });
+
+  it('E9: schema-invalid evidence (bad run status) fails the gate', () => {
+    runCli(['new', 'ev-bad-status'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-bad-status');
+    writeValidChangeArtifacts(changeDir);
+    writeEvidence(changeDir, yaml.dump({
+      'change-id': 'ev-bad-status',
+      'schema-version': '0.1.0',
+      'required-phases': ['collect'],
+      runs: [{ phase: 'collect', status: 'skipped', command: 'x', summary: 'y' }],
+      'final-status': 'passed',
+    }, { lineWidth: -1 }));
+
+    const r = runCli(['gate', 'ev-bad-status'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/\/runs\/0\/status.*expected one of: passed, failed/i);
+  });
+
+  it('E10: malformed YAML evidence fails the gate with an invalid-YAML error', () => {
+    runCli(['new', 'ev-bad-yaml'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-bad-yaml');
+    writeValidChangeArtifacts(changeDir);
+    writeEvidence(changeDir, 'change-id: ev-bad-yaml\nruns: [unclosed\nfinal-status: passed\n');
+
+    const r = runCli(['gate', 'ev-bad-yaml'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/test-evidence\.yml: invalid YAML/i);
+  });
+});
