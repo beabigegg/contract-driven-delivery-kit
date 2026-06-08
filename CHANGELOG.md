@@ -138,6 +138,26 @@
   Agent, skill, and README guidance for the evidence flow follows in the next ADR
   0005 phase.
 
+- **Agent, skill, and README guidance for the evidence flow (ADR 0005 §9, PR-6).**
+  Wired the bounded test ladder and `test-evidence.yml` into the workflow docs so
+  agents run tests the way the gate enforces them. `references/sdd-tdd-policy.md`
+  is now the single source of truth: the six-phase ladder (with `collect`,
+  `targeted`, `changed-area` as the always-required floor), the shared execution
+  rule (`cdd-kit test select` then `cdd-kit test run --phase ...`; full suite only
+  as a final bounded smoke), the no-waiver policy, and the opt-out. `test-strategist`
+  must emit bounded node IDs / file paths so `cdd-kit test select` stays
+  deterministic; `implementation-planner` references the required phases instead of
+  restating test strategy; `backend-engineer` and `frontend-engineer` gain a Test
+  execution section that runs the ladder before any broad command and treats a
+  required failure as blocking (never waived); `qa-reviewer` approves on
+  `test-evidence.yml` (required phases passed, no waiver fields, runs under the
+  change's `test-runs/`), not claims. `/cdd-new` shows where the ladder runs
+  (Step 3) and that the gate validates the evidence (Step 4); `/cdd-resume` reads
+  `test-evidence.yml` and surfaces its status so an interrupted change resumes by
+  finishing the ladder. The README adds the ladder overview, a `cdd-kit test`
+  reference, and the gate's test-evidence check. Docs only, no behavior change; the
+  optional test-runner hook is the final ADR 0005 phase.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any

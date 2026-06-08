@@ -76,6 +76,21 @@ test failure cannot be recorded as known, pre-existing, waived, allowed, or
 ignored; fix it, expand this change's scope to cover the fix, or open a separate
 tracked change.
 
+Implementation agents (backend/frontend/bug-fix) run the bounded ladder during
+Step 3 -- before the gate in Step 4: `cdd-kit test select <id> --json`, then
+`cdd-kit test run <id> --phase <phase> --command "<selected command>"` for the
+always-required floor (collect, targeted, changed-area), plus contract/quality
+when they apply (declared with `--required-phases` on the first run) and full
+only as a final/CI smoke. The gate validates the resulting `test-evidence.yml`:
+required phases passed, no waiver fields, each run under this change's
+`test-runs/`. A change with no testable code surface opts out with
+`test-evidence-not-applicable: "<reason>"` in `tasks.yml` frontmatter. When
+Tier 0 adds dedicated test engineers (`e2e-resilience-engineer`,
+`monkey-test-engineer`, `stress-soak-engineer`) after backend/frontend, re-run
+the affected ladder phases so `test-evidence.yml` covers the tests they added --
+the gate validates only the recorded evidence, not tests that exist but were
+never run. See `references/sdd-tdd-policy.md` for the exact sequence.
+
 ## Input
 
 The skill argument is the user's change description in natural language (e.g., "add JWT authentication to the API" or "redesign the dashboard homepage").
@@ -502,6 +517,15 @@ All agents from Tier 2??, plus insert these after `frontend-engineer` / `backend
 
 ## Step 4: Run the gate
 
+For implementation changes, first confirm `test-evidence.yml` exists with every
+required phase passed, `final-status: passed`, and no recorded run failed (even a
+non-required full smoke -- the gate blocks on any failed run); rerun or fix any
+missing/failing phase before gating. For a non-implementation change (e.g. a
+Tier 4 docs/prompts/config-only change where no implementation agent ran), YOU
+record `test-evidence-not-applicable: "<reason>"` in `tasks.yml` frontmatter so
+the gate does not error on missing evidence. The gate validates this; see "Test
+evidence for implementation changes" above.
+
 After all required agents have completed and all tasks.yml items for their sections are ticked:
 
 ```
@@ -525,6 +549,7 @@ matches one of them.
 | `tasks.yml: ?圳 (frontmatter / pending) | YOU (main Claude) ??direct edit | n/a ??fix `tasks.yml` yourself. Don't re-invoke an agent for a file you own. |
 | `dependency <id>: upstream change is not completed` | n/a ??STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
 | `validators returned non-zero` | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
+| `test-evidence.yml: ...` / `missing required artifact: test-evidence.yml` | the implementation agent (backend/frontend/bug-fix), or YOU for the opt-out | "TEST EVIDENCE FAILED GATE: <error>. Rerun the missing/failing phases with `cdd-kit test run <id> --phase ... --command ...` (combine a phase's targets into one command; declare conditional phases with `--required-phases` on the first run). For a non-implementation change, record `test-evidence-not-applicable: \"<reason>\"` in tasks.yml frontmatter. Do not waive a failure." |
 
 **Re-invocation prompt template** (always use this exact prefix when re-invoking an agent for fix-back):
 

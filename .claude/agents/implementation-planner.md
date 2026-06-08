@@ -49,6 +49,11 @@ report `blocked` and route back to `spec-architect`. Do not create or repair
 - State non-goals clearly so implementation agents do not opportunistically refactor.
 - Map every required change to an owner agent.
 - Map acceptance criteria to tests or verification commands.
+- Reference the required test phases for this change (always `collect`,
+  `targeted`, `changed-area`; add `contract`/`quality`/`full` when their trigger
+  applies). Do not restate full test strategy -- that lives in `test-plan.md`.
+  Implementation agents generate the evidence with `cdd-kit test run`; the gate
+  validates `test-evidence.yml`. See `references/sdd-tdd-policy.md`.
 - If the chosen approach is not clear from the artifacts, stop and report `blocked`.
 - If a bug fix lacks reproduction, root cause, or regression coverage and the classification says those are required, stop and report `blocked`.
 - Never write `design.md`; design decisions are owned by `spec-architect`.
@@ -98,6 +103,7 @@ Write `specs/changes/<change-id>/implementation-plan.md` with this structure:
 ## Test Execution Plan
 | acceptance criterion | test file / command | expected signal |
 |---|---|---|
+(`cdd-kit test select` falls back to this table when `test-plan.md` has no mapping; it reads the `test file / command` column and accepts only a bare target -- a node id, test file, or directory that exists -- or a pytest command, the same forms `test-plan.md` uses. Do not put a `cdd-kit test run ...` line there; the selector ignores it. Required floor: collect, targeted, changed-area; full ladder in test-plan.md / references/sdd-tdd-policy.md.)
 
 ## Handoff Constraints
 - Implementation agents must not infer missing requirements from chat history.

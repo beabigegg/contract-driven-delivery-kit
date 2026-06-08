@@ -41,6 +41,26 @@ See `references/code-map-protocol.md` for the full protocol.
 - Be aware of monkey-class bugs (double submit, rapid actions, navigation state, hidden tab); the actual preventive specs and tests are owned by monkey-test-engineer.
 - **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit and component tests BEFORE writing feature code. E2E, visual, and data-boundary tests are also your responsibility when UI behavior changes. Tasks.md items 3.1??.2 include frontend test scope.
 
+## Test execution
+
+Do not start with a broad test command (`npm test`, `pytest`, full suite). Run
+the bounded ladder so the work is recorded as evidence: select bounded commands
+with `cdd-kit test select <change-id> --json`, then run each phase with
+`cdd-kit test run <change-id> --phase <phase> --command "<selected command>"`
+(`--command` is currently required). Run the always-required floor (`collect`,
+`targeted`, `changed-area`); add `contract`/`quality` when they apply (declare
+them with `--required-phases` on the first run), and run `full` only as a
+final/CI smoke, not because `select` lists it. If `select` returns several
+targets for a phase, combine them into one command -- the runner keeps one run
+per phase, so separate runs would overwrite each other. `cdd-kit test run` caps visible output, writes
+artifacts under `specs/changes/<change-id>/test-runs/<run-id>/`, and updates
+`test-evidence.yml` (the gate validates that file, not your claims). On a
+failure, inspect only the first one; fix it if it belongs to this change,
+otherwise block. A required failure cannot be recorded as known, pre-existing,
+waived, allowed, or ignored -- fix it, expand this change's scope, or open a
+separate tracked change. See `references/sdd-tdd-policy.md` for the exact
+sequence.
+
 ## Common pitfalls
 
 - Hydration mismatch ??server-rendered markup must match the first client render; non-deterministic values (Date.now, random) cause warnings and broken interactivity.

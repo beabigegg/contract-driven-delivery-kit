@@ -27,6 +27,27 @@ Design tests before implementation. Prefer concrete test cases, inputs, expected
 - One assertion family per test ??testing 5 unrelated things in one test makes failures unreadable.
 - Property-based tests for invariants ??use fast-check / hypothesis for state machines and pure functions; saves writing many table cases.
 
+## Bounded test commands
+
+`cdd-kit test select` builds the bounded command for each ladder phase from the
+`## Acceptance Criteria → Test Mapping` table in `test-plan.md` (falling back to
+`implementation-plan.md`'s Test Execution Plan). Put something concrete in that
+table's `test file path` column for each criterion, and prefer a bare target: an
+exact test node ID (`tests/orders/test_filter.py::test_status_filter_options`), a
+test file, or a directory that exists on disk. A bare target is the only form the
+selector turns into a `collect` command; a full pytest command is trusted
+verbatim but feeds only the `targeted` phase, so a command-only row leaves the
+always-required `collect` phase with nothing to run. Use a full command only
+alongside at least one bare collectable target. That table is where selection
+reads; targets recorded only in the `## Test Execution Ladder` table are ignored
+by the selector. If a criterion has no bounded target yet, name the test file
+that must exist rather than leaving it blank, so selection stays deterministic
+instead of a repository search.
+
+See `references/sdd-tdd-policy.md` ("Bounded test execution ladder") for the
+phases, the shared execution rule, and the no-waiver policy. Do not record any
+failure as known, pre-existing, waived, allowed, or ignored.
+
 ## Output
 
 Write to `specs/changes/<change-id>/test-plan.md` using this structure:

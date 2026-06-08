@@ -44,6 +44,26 @@ See `references/code-map-protocol.md` for the full protocol.
 - **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.yml` items 3.1??.2 are your responsibility.
 - Update CI/CD workflows when required by `ci-gates.md`.
 
+## Test execution
+
+Do not start with a broad test command (`pytest`, `npm test`, full suite). Run
+the bounded ladder so the work is recorded as evidence: select bounded commands
+with `cdd-kit test select <change-id> --json`, then run each phase with
+`cdd-kit test run <change-id> --phase <phase> --command "<selected command>"`
+(`--command` is currently required). Run the always-required floor (`collect`,
+`targeted`, `changed-area`); add `contract`/`quality` when they apply (declare
+them with `--required-phases` on the first run), and run `full` only as a
+final/CI smoke, not because `select` lists it. If `select` returns several
+targets for a phase, combine them into one command -- the runner keeps one run
+per phase, so separate runs would overwrite each other. `cdd-kit test run` caps visible output, writes
+artifacts under `specs/changes/<change-id>/test-runs/<run-id>/`, and updates
+`test-evidence.yml` (the gate validates that file, not your claims). On a
+failure, inspect only the first one; fix it if it belongs to this change,
+otherwise block. A required failure cannot be recorded as known, pre-existing,
+waived, allowed, or ignored -- fix it, expand this change's scope, or open a
+separate tracked change. See `references/sdd-tdd-policy.md` for the exact
+sequence.
+
 ## Common pitfalls
 
 - N+1 queries ??fetch related rows in a single query or with explicit batching, not in a loop.
