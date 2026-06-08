@@ -27,6 +27,20 @@ Design tests before implementation. Prefer concrete test cases, inputs, expected
 - One assertion family per test ??testing 5 unrelated things in one test makes failures unreadable.
 - Property-based tests for invariants ??use fast-check / hypothesis for state machines and pure functions; saves writing many table cases.
 
+## Bounded test commands
+
+`cdd-kit test select` reads `test-plan.md` first to choose bounded commands for
+each ladder phase. Give it something concrete to map: an exact test node ID or
+test file path per acceptance criterion, and a runner command when the default
+is not obvious. Fill the `## Test Execution Ladder` table with concrete
+`collect` / `targeted` / `changed-area` targets so selection is deterministic
+instead of a repository search. If a criterion has no bounded target yet, name
+the test file that must exist rather than leaving it blank.
+
+See `references/sdd-tdd-policy.md` ("Bounded test execution ladder") for the
+phases, the shared execution rule, and the no-waiver policy. Do not record any
+failure as known, pre-existing, waived, allowed, or ignored.
+
 ## Output
 
 Write to `specs/changes/<change-id>/test-plan.md` using this structure:

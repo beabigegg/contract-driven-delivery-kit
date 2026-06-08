@@ -44,6 +44,7 @@ Read only these state files first:
 - `specs/changes/<change-id>/change-classification.md`
 - `specs/changes/<change-id>/design.md` if present
 - `specs/changes/<change-id>/implementation-plan.md` if present
+- `specs/changes/<change-id>/test-evidence.yml` if present
 
 Do not run broad repository search during resume. Do not read `src/`, `tests/`, or `contracts/` unless the current `context-manifest.md` authorizes that path or an approved expansion lists it.
 
@@ -59,6 +60,8 @@ Read `specs/changes/<change-id>/change-classification.md` to recall the tier and
 If `change-classification.md` requires `design.md` (`Architecture Review Required: yes`, Optional Artifacts `design.md: yes`, or Required Agents includes `spec-architect`) and `design.md` is missing or still a scaffold, resume from `spec-architect` before invoking `implementation-planner`.
 
 Read `specs/changes/<change-id>/implementation-plan.md` if it exists. If implementation tasks are still pending and the plan is missing or still a scaffold, resume from `implementation-planner` before invoking backend/frontend/test implementation agents.
+
+For implementation changes, check `specs/changes/<change-id>/test-evidence.yml`. If implementation tasks are done but evidence is missing, incomplete (required phases collect/targeted/changed-area not all passed), or failing, resume by running the bounded ladder (`cdd-kit test run <change-id> --phase ...`) before the gate -- unless `tasks.yml` frontmatter carries `test-evidence-not-applicable`. The gate validates this file; see `references/sdd-tdd-policy.md`.
 
 Read `specs/changes/<change-id>/context-manifest.md`:
 - Identify allowed paths and approved expansions.
@@ -83,6 +86,7 @@ Pending tasks: <list of status: pending items>
 Pending context expansions: <none | list request ids and paths>
 Allowed context: <short summary from context-manifest.md>
 Implementation plan: <ready | missing | scaffold | blocked>
+Test evidence: <none | required phases passed | incomplete | failing | n/a>
 
 Next agent to run: <agent-name> (based on tier flow and what's missing)
 ```
