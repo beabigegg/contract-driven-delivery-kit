@@ -56,8 +56,10 @@ each phase with
 `cdd-kit test run <change-id> --phase <phase> --command "<selected command>"`
 (`--command` is currently required). Run the always-required floor (`collect`,
 `targeted`, `changed-area`) -- the targeted/changed-area phases are where your
-regression test belongs -- and add `contract`/`quality`/`full` when they apply,
-declaring those conditional phases with `--required-phases` on the first run.
+regression test belongs -- add `contract`/`quality` when they apply (declared
+with `--required-phases` on the first run), and run `full` only as a final/CI
+smoke. If `select` returns several targets for a phase, combine them into one
+command, since the runner keeps one run per phase.
 `cdd-kit test run` writes artifacts under
 `specs/changes/<change-id>/test-runs/<run-id>/` and updates `test-evidence.yml`
 (the gate validates that file, not your claims). A required failure cannot be

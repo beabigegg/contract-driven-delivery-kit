@@ -78,30 +78,38 @@ their trigger applies.
 Do not start with a broad test command such as `pytest`, `npm test`, or a full
 suite. Run the bounded ladder so the work is recorded as evidence:
 
-1. `cdd-kit test select <change-id> --json` -- returns a bounded command for each
-   phase that applies (conditional phases appear only when their trigger is
-   present).
+1. `cdd-kit test select <change-id> --json` returns a bounded command for each
+   phase. It lists `contract`/`quality` only when their trigger is present, but
+   it always lists a `full` smoke -- presence in the output does not make `full`
+   required (see step 3).
 2. Run each phase, passing the command `select` returned. `cdd-kit test run`
    currently requires `--command` (selection is not auto-piped into the runner
-   yet):
+   yet). If `select` returns more than one entry for a phase, combine them into a
+   single command (e.g. pass every node id / file to one pytest call): the runner
+   stores one run per phase and a later run replaces the earlier one, so running
+   them separately drops coverage or overwrites a failure.
 
    ```bash
    cdd-kit test run <change-id> --phase collect --command "<collect command>" \
-     --required-phases collect,targeted,changed-area[,contract][,quality][,full]
+     --required-phases collect,targeted,changed-area[,contract][,quality]
    cdd-kit test run <change-id> --phase targeted --command "<targeted command>"
    cdd-kit test run <change-id> --phase changed-area --command "<changed-area command>"
-   # then contract / quality / full when select lists them, each with its --command
+   # contract / quality only when select lists them, each with its --command
    ```
 
-3. full suite only as a final bounded smoke or CI gate.
+3. Run `full` only as a final bounded smoke or CI gate when this change's policy
+   calls for it -- not just because `select` lists it (it always does). Declare
+   `full` in `--required-phases` only when it is a genuine required gate for the
+   change; otherwise an unrelated full-suite failure would block on a phase the
+   change never needed.
 
 `--required-phases` only takes effect on the first run -- the one that creates
 `test-evidence.yml`. The always-required floor (`collect`, `targeted`,
-`changed-area`) is merged in automatically, but any conditional phase that must
-block this change (`contract`, `quality`, `full`) has to be listed there too, or
-the gate will not require it. If a phase fails, inspect only the first failure.
-Fix it if it belongs to this change; otherwise block the gate. Do not broaden
-before the failing phase is green.
+`changed-area`) is merged in automatically; list any conditional phase that must
+block this change (`contract`, `quality`, and `full` only when it is a required
+gate) there too, or the gate will not require it. If a phase fails, inspect only
+the first failure. Fix it if it belongs to this change; otherwise block the gate.
+Do not broaden before the failing phase is green.
 
 ### No known-failure waivers
 

@@ -48,9 +48,11 @@ the bounded ladder so the work is recorded as evidence: select bounded commands
 with `cdd-kit test select <change-id> --json`, then run each phase with
 `cdd-kit test run <change-id> --phase <phase> --command "<selected command>"`
 (`--command` is currently required). Run the always-required floor (`collect`,
-`targeted`, `changed-area`); add `contract`/`quality`/`full` when they apply and
-declare those conditional phases with `--required-phases` on the first run, or
-the gate will not require them. `cdd-kit test run` caps visible output, writes
+`targeted`, `changed-area`); add `contract`/`quality` when they apply (declare
+them with `--required-phases` on the first run), and run `full` only as a
+final/CI smoke, not because `select` lists it. If `select` returns several
+targets for a phase, combine them into one command -- the runner keeps one run
+per phase, so separate runs would overwrite each other. `cdd-kit test run` caps visible output, writes
 artifacts under `specs/changes/<change-id>/test-runs/<run-id>/`, and updates
 `test-evidence.yml` (the gate validates that file, not your claims). On a
 failure, inspect only the first one; fix it if it belongs to this change,

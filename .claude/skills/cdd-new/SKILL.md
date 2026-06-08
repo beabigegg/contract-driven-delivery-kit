@@ -79,13 +79,17 @@ tracked change.
 Implementation agents (backend/frontend/bug-fix) run the bounded ladder during
 Step 3 -- before the gate in Step 4: `cdd-kit test select <id> --json`, then
 `cdd-kit test run <id> --phase <phase> --command "<selected command>"` for the
-always-required floor (collect, targeted, changed-area) plus any
-contract/quality/full the change needs (declare those with `--required-phases`
-on the first run). The gate validates the resulting `test-evidence.yml`:
+always-required floor (collect, targeted, changed-area), plus contract/quality
+when they apply (declared with `--required-phases` on the first run) and full
+only as a final/CI smoke. The gate validates the resulting `test-evidence.yml`:
 required phases passed, no waiver fields, each run under this change's
 `test-runs/`. A change with no testable code surface opts out with
-`test-evidence-not-applicable: "<reason>"` in `tasks.yml` frontmatter. See
-`references/sdd-tdd-policy.md` for the exact sequence.
+`test-evidence-not-applicable: "<reason>"` in `tasks.yml` frontmatter. When
+Tier 0 adds dedicated test engineers (`e2e-resilience-engineer`,
+`monkey-test-engineer`, `stress-soak-engineer`) after backend/frontend, re-run
+the affected ladder phases so `test-evidence.yml` covers the tests they added --
+the gate validates only the recorded evidence, not tests that exist but were
+never run. See `references/sdd-tdd-policy.md` for the exact sequence.
 
 ## Input
 

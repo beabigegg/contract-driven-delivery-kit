@@ -542,7 +542,7 @@ cdd-kit test select <change-id> --json     # machine-readable selection (or need
 cdd-kit test run <change-id> --phase collect --command "<collect cmd>" --required-phases collect,targeted,changed-area
 cdd-kit test run <change-id> --phase targeted --command "<targeted cmd>"
 cdd-kit test run <change-id> --phase changed-area --command "<changed-area cmd>"
-cdd-kit test run <change-id> --phase full --command "<full cmd>"
+cdd-kit test run <change-id> --phase full --command "<full cmd>"   # final/CI smoke — run when the change needs a full gate, not every time
 ```
 
 `test run` options: `--phase <phase>` (required), `--command <cmd>` (the command
