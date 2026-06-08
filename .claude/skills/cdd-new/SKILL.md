@@ -517,10 +517,14 @@ All agents from Tier 2??, plus insert these after `frontend-engineer` / `backend
 
 ## Step 4: Run the gate
 
-For implementation changes, first confirm `test-evidence.yml` exists with its
-required phases passed (generated during Step 3 by `cdd-kit test run`), or that
-`tasks.yml` frontmatter carries `test-evidence-not-applicable`. The gate
-validates this; see "Test evidence for implementation changes" above.
+For implementation changes, first confirm `test-evidence.yml` exists with every
+required phase passed, `final-status: passed`, and no recorded run failed (even a
+non-required full smoke -- the gate blocks on any failed run); rerun or fix any
+missing/failing phase before gating. For a non-implementation change (e.g. a
+Tier 4 docs/prompts/config-only change where no implementation agent ran), YOU
+record `test-evidence-not-applicable: "<reason>"` in `tasks.yml` frontmatter so
+the gate does not error on missing evidence. The gate validates this; see "Test
+evidence for implementation changes" above.
 
 After all required agents have completed and all tasks.yml items for their sections are ticked:
 
@@ -545,6 +549,7 @@ matches one of them.
 | `tasks.yml: ?圳 (frontmatter / pending) | YOU (main Claude) ??direct edit | n/a ??fix `tasks.yml` yourself. Don't re-invoke an agent for a file you own. |
 | `dependency <id>: upstream change is not completed` | n/a ??STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
 | `validators returned non-zero` | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
+| `test-evidence.yml: ...` / `missing required artifact: test-evidence.yml` | the implementation agent (backend/frontend/bug-fix), or YOU for the opt-out | "TEST EVIDENCE FAILED GATE: <error>. Rerun the missing/failing phases with `cdd-kit test run <id> --phase ... --command ...` (combine a phase's targets into one command; declare conditional phases with `--required-phases` on the first run). For a non-implementation change, record `test-evidence-not-applicable: \"<reason>\"` in tasks.yml frontmatter. Do not waive a failure." |
 
 **Re-invocation prompt template** (always use this exact prefix when re-invoking an agent for fix-back):
 
