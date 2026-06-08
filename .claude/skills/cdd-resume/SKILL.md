@@ -61,7 +61,7 @@ If `change-classification.md` requires `design.md` (`Architecture Review Require
 
 Read `specs/changes/<change-id>/implementation-plan.md` if it exists. If implementation tasks are still pending and the plan is missing or still a scaffold, resume from `implementation-planner` before invoking backend/frontend/test implementation agents.
 
-For implementation changes, check `specs/changes/<change-id>/test-evidence.yml`. If implementation tasks are done but evidence is missing, incomplete (required phases collect/targeted/changed-area not all passed), or failing, resume by running the bounded ladder (`cdd-kit test run <change-id> --phase ...`) before the gate -- unless `tasks.yml` frontmatter carries `test-evidence-not-applicable`. The gate validates this file; see `references/sdd-tdd-policy.md`.
+For implementation changes, check `specs/changes/<change-id>/test-evidence.yml`. Treat it as incomplete unless every phase the change requires has a passing run -- the always-required floor (collect, targeted, changed-area) plus any contract/quality/full the `test-plan.md` / `implementation-plan.md` calls for -- with `final-status: passed` and no run recorded as failed. If implementation tasks are done but evidence is missing, incomplete, or not green, resume by running the bounded ladder (`cdd-kit test run <change-id> --phase ...`) before the gate, unless `tasks.yml` frontmatter carries `test-evidence-not-applicable`. The gate validates this file; see `references/sdd-tdd-policy.md`.
 
 Read `specs/changes/<change-id>/context-manifest.md`:
 - Identify allowed paths and approved expansions.

@@ -103,7 +103,7 @@ Write `specs/changes/<change-id>/implementation-plan.md` with this structure:
 ## Test Execution Plan
 | acceptance criterion | test file / command | expected signal |
 |---|---|---|
-(Each row maps a criterion to a ladder phase run via `cdd-kit test run`. Required floor: collect, targeted, changed-area. Full ladder lives in test-plan.md / references/sdd-tdd-policy.md.)
+(`cdd-kit test select` falls back to this table when `test-plan.md` has no mapping; it reads the `test file / command` column and accepts only a bare target -- a node id, test file, or directory that exists -- or a pytest command, the same forms `test-plan.md` uses. Do not put a `cdd-kit test run ...` line there; the selector ignores it. Required floor: collect, targeted, changed-area; full ladder in test-plan.md / references/sdd-tdd-policy.md.)
 
 ## Handoff Constraints
 - Implementation agents must not infer missing requirements from chat history.
