@@ -154,6 +154,40 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
     expect(runHook('vitest run tests/orders/filter.test.ts', { strict: true }).status).toBe(0);
   });
 
+  // --- Codex review round 2 (PR-7): command-position + option-value edges. ---
+
+  it('recognizes a wrapped pytest at command position (env prefix / venv path)', () => {
+    expect(runHook('PYTHONPATH=. pytest', { strict: true }).status).toBe(2);
+    expect(runHook('.venv/bin/pytest', { strict: true }).status).toBe(2);
+    expect(runHook('PYTHONPATH=src .venv/bin/pytest', { strict: true }).status).toBe(2);
+    // ...but a wrapped pytest WITH a target stays bounded.
+    expect(runHook('PYTHONPATH=. .venv/bin/pytest tests/orders/test_filter.py', { strict: true }).status).toBe(0);
+  });
+
+  it('does NOT treat a path-valued config/report option as a test target', () => {
+    expect(runHook('vitest --config config/vitest.config.ts', { strict: true }).status).toBe(2);
+    expect(runHook('jest --config config/jest.config.js', { strict: true }).status).toBe(2);
+    expect(runHook('pytest --junitxml reports/junit.xml', { strict: true }).status).toBe(2);
+    // a real target alongside the config flag is still bounded.
+    expect(runHook('vitest --config config/vitest.config.ts tests/a.test.ts', { strict: true }).status).toBe(0);
+  });
+
+  it('flags whole-module `go test ./...` even with flags before the pattern', () => {
+    expect(runHook('go test -race ./...', { strict: true }).status).toBe(2);
+    expect(runHook('go test -count=1 ./...', { strict: true }).status).toBe(2);
+    // a specific package stays allowed.
+    expect(runHook('go test ./internal/orders', { strict: true }).status).toBe(0);
+  });
+
+  it('does NOT block a non-test command that merely mentions a runner', () => {
+    // The runner must be at command position; a mention is left untouched.
+    for (const cmd of ['echo python -m pytest', 'echo pytest && echo done', 'cat pytest.ini']) {
+      const r = runHook(cmd, { strict: true });
+      expect(r.status, cmd).toBe(0);
+      expect(r.stderr, cmd).toBe('');
+    }
+  });
+
   it('ALLOWS non-test commands (lint/typecheck/validate) untouched in strict mode', () => {
     for (const cmd of ['ruff check .', 'npm run typecheck', 'cdd-kit validate --contracts', 'ls tests/']) {
       const r = runHook(cmd, { strict: true });

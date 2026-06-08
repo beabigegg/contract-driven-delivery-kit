@@ -16,14 +16,18 @@
 # split into `&&`/`;`-separated segments and each is judged on its own, so a
 # leading `cd x &&` / `setup;` does not mask the test run and a trailing broad
 # run after a ladder command (`cdd-kit test select ... && pytest`) is still
-# caught. Detection is deliberately conservative — a bounded target (a path /
-# node id / test file), `cdd-kit test run ...`, and every non-test command (lint,
-# typecheck, build, `cdd-kit validate`, ...) are allowed untouched. A target is
-# recognized structurally (it looks like a path/file/node id), so an option VALUE
-# (the `1` in `--maxfail 1`) is not mistaken for one. False negatives are
-# preferred over blocking a legitimate command; this is advice, not a security
-# boundary. The runner is strongest for pytest (ADR 0005); other stacks match
-# only their unambiguous whole-suite forms.
+# caught. The runner is matched only at COMMAND POSITION (after leading
+# `VAR=value` env assignments and a path prefix, mirroring isPytestCommand in
+# src/commands/test-run.ts), so a wrapped `.venv/bin/pytest` is caught while a
+# mere mention (`echo python -m pytest`) is left untouched. Detection is otherwise
+# deliberately conservative — a bounded target (a path / node id / test file),
+# `cdd-kit test run ...`, and every non-test command (lint, typecheck, build,
+# `cdd-kit validate`, ...) are allowed untouched. A target is recognized
+# structurally, so neither an option VALUE (the `1` in `--maxfail 1`) nor a
+# config/report path (`--config x.config.ts`, `--junitxml junit.xml`) is mistaken
+# for one. False negatives are preferred over blocking a legitimate command; this
+# is advice, not a security boundary. The runner is strongest for pytest (ADR
+# 0005); other stacks match only their unambiguous whole-suite forms.
 #
 # Default mode is ADVISORY: it prints guidance to stderr and ALLOWS the command.
 # Set CDD_TEST_RUNNER_STRICT=1 to BLOCK the command instead (exit 2). The hook
@@ -75,19 +79,19 @@ has_positional() {
   return 1
 }
 
-# True (0) when $1 names an explicit test TARGET: a path (contains `/`), a pytest
-# node id (contains `::`), `.`, or a test source file (*.py/*.ts/*.js/...). Option
-# flags AND bare option VALUES (the `1` in `--maxfail 1`, the `short` in `--tb
-# short`) are NOT targets, so a flags-only broad run is not mistaken for a bounded
-# one and a runner subcommand like `vitest run` (no target) stays broad. Word-
-# splitting is intended; `set -f` keeps a glob like tests/*.py from expanding.
+# True (0) when $1 names an explicit test TARGET: a pytest node id (`::`), a path
+# (`/`), or a test source file (*.py/*.ts/*.js/...). Option flags AND bare option
+# VALUES (the `1` in `--maxfail 1`) are NOT targets, and config/report artifacts
+# handed to an option (`--config x.config.ts`, `--junitxml junit.xml`) are excluded
+# too — so neither a flags-only run nor a config-only run is mistaken for bounded.
+# Word-splitting is intended; `set -f` keeps a glob like tests/*.py from expanding.
 has_test_target() {
   for tok in $1; do
     case "$tok" in
-      -*) ;;                                              # option flag — skip
-      .|*/*|*::*) return 0 ;;                             # cwd / path / node id
-      *.py|*.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) return 0 ;; # a test source file
-      *) ;;                                               # bare word / opt value
+      -*) ;;                                                       # option flag — skip
+      *.config.*|*.cfg|*.ini|*.toml|*.xml|*.json|*.lcov|*.html) ;; # config/report artifact, not a target
+      *::*|*/*|*.py|*.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) return 0 ;; # node id / path / test file
+      *) ;;                                                        # bare word / option value
     esac
   done
   return 1
@@ -98,12 +102,36 @@ has_test_target() {
 # command, is not broad (returns 1 -> allowed).
 is_broad_test() {
   c=${1#"${1%%[![:space:]]*}"}   # strip leading whitespace
+
+  # Normalize to COMMAND POSITION (mirrors isPytestCommand in src/commands/
+  # test-run.ts): (a) drop leading `VAR=value ` env assignments, (b) reduce a
+  # leading path on the runner token to its basename. So `PYTHONPATH=.
+  # .venv/bin/pytest` is recognized as `pytest`, while a runner only MENTIONED
+  # later (`echo python -m pytest`) keeps `echo` as its head and is left untouched.
+  while :; do
+    first=${c%%[[:space:]]*}
+    case "$first" in
+      [A-Za-z_]*=*)
+        case "$first" in */*) break ;; esac   # a slash -> not a bare assignment
+        rest=${c#"$first"}
+        c=${rest#"${rest%%[![:space:]]*}"}
+        ;;
+      *) break ;;
+    esac
+  done
+  first=${c%%[[:space:]]*}
+  case "$first" in
+    */*) rest=${c#"$first"}; c=${first##*/}$rest ;;   # strip the runner's dir path
+  esac
+
   case "$c" in
     # pytest family — broad unless a path / node id / test file follows.
     pytest|pytest\ *|py.test|py.test\ *)
       if has_test_target "$(printf '%s' "$c" | sed -E 's/^(py\.test|pytest)//')"; then return 1; fi
       return 0 ;;
-    *python\ -m\ pytest*|*python3\ -m\ pytest*)
+    # `python[3.x]`/`py -m pytest` ONLY at command position (so a mention like
+    # `echo python -m pytest`, now headed by `echo`, is not matched).
+    python\ -m\ pytest|python\ -m\ pytest\ *|python[0-9]*\ -m\ pytest|python[0-9]*\ -m\ pytest\ *|py\ -m\ pytest|py\ -m\ pytest\ *)
       if has_test_target "$(printf '%s' "$c" | sed -E 's/^.*-m[[:space:]]+pytest//')"; then return 1; fi
       return 0 ;;
     # npm/yarn/pnpm whole-suite scripts — bounded only when the `-- <target>`
@@ -121,9 +149,10 @@ is_broad_test() {
     jest\ *|vitest\ *)
       if has_test_target "${c#* }"; then return 1; fi
       return 0 ;;
-    # Whole-module go test.
-    go\ test\ ./...|go\ test\ ./...\ *)
-      return 0 ;;
+    # go test across the whole module (`./...`), with or without leading flags.
+    go\ test|go\ test\ *)
+      case "$c" in *\ ./...|*\ ./...\ *) return 0 ;; esac
+      return 1 ;;
     *)
       return 1 ;;
   esac
