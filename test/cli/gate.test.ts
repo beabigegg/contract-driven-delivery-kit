@@ -1367,7 +1367,7 @@ function buildEvidenceYaml(opts: {
     phase: r.phase,
     status: r.status,
     command: r.command ?? `python -m pytest -q ${r.phase}`,
-    summary: r.summary ?? `specs/changes/${opts.changeId}/test-runs/20260608-000000/summary.json`,
+    summary: r.summary ?? `specs/changes/${opts.changeId}/test-runs/20260608-000000-${r.phase}/summary.json`,
   }));
   const data: Record<string, unknown> = {
     'change-id': opts.changeId,
@@ -1384,16 +1384,25 @@ function buildEvidenceYaml(opts: {
 /**
  * Create the run artifacts a piece of evidence references (repo-root-relative
  * summary/junit paths), so the gate's artifact-durability check sees real files
- * under the change's test-runs/ — the same files `cdd-kit test run` would write.
+ * under the change's test-runs/ — the same files `cdd-kit test run` would write,
+ * including each summary.json's own change_id/phase/status so the content match
+ * passes.
  */
 function materializeEvidenceArtifacts(repoRoot: string, evidenceBody: string): void {
-  const data = yaml.load(evidenceBody) as { runs?: Array<{ summary?: string; junit?: string }> };
+  const data = yaml.load(evidenceBody) as {
+    'change-id'?: string;
+    runs?: Array<{ phase?: string; status?: string; summary?: string; junit?: string }>;
+  };
   for (const run of data.runs ?? []) {
-    for (const p of [run.summary, run.junit]) {
-      if (!p) continue;
-      const abs = join(repoRoot, p);
+    if (run.summary) {
+      const abs = join(repoRoot, run.summary);
       mkdirSync(dirname(abs), { recursive: true });
-      writeFileSync(abs, '{}\n', 'utf8');
+      writeFileSync(abs, `${JSON.stringify({ change_id: data['change-id'], phase: run.phase, status: run.status })}\n`, 'utf8');
+    }
+    if (run.junit) {
+      const abs = join(repoRoot, run.junit);
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, '<testsuite/>\n', 'utf8');
     }
   }
 }
@@ -1585,11 +1594,16 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     runCli(['new', 'ev-outside'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-outside');
     writeValidChangeArtifacts(changeDir);
-    // change-request.md exists but is not a test-runs artifact — containment must reject it.
+    // change-request.md exists but is not a test-runs artifact — containment must
+    // reject it. The other floor phases pass so the gate reaches the artifact check.
     writeEvidence(changeDir, buildEvidenceYaml({
       changeId: 'ev-outside',
-      requiredPhases: ['collect'],
-      runs: [{ phase: 'collect', status: 'passed', summary: 'specs/changes/ev-outside/change-request.md' }],
+      requiredPhases: ['collect', 'targeted', 'changed-area'],
+      runs: [
+        { phase: 'collect', status: 'passed', summary: 'specs/changes/ev-outside/change-request.md' },
+        { phase: 'targeted', status: 'passed' },
+        { phase: 'changed-area', status: 'passed' },
+      ],
     }));
 
     const r = runCli(['gate', 'ev-outside'], { cwd: tmpRepo, home: tmpHome });
@@ -1621,5 +1635,46 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/tasks\.yml: invalid YAML/i);
     expect(r.stdout + r.stderr).not.toMatch(/missing required artifact: test-evidence\.yml/i);
+  });
+
+  it('E15: a single summary.json reused across phases fails the gate (content must match the run)', () => {
+    runCli(['new', 'ev-reuse'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-reuse');
+    writeValidChangeArtifacts(changeDir);
+    // One real collect summary, reused verbatim for every phase entry.
+    const summaryRel = 'specs/changes/ev-reuse/test-runs/r-collect/summary.json';
+    const summaryAbs = join(tmpRepo, summaryRel);
+    mkdirSync(dirname(summaryAbs), { recursive: true });
+    writeFileSync(summaryAbs, JSON.stringify({ change_id: 'ev-reuse', phase: 'collect', status: 'passed' }), 'utf8');
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-reuse',
+      requiredPhases: ['collect', 'targeted', 'changed-area'],
+      runs: [
+        { phase: 'collect', status: 'passed', summary: summaryRel },
+        { phase: 'targeted', status: 'passed', summary: summaryRel },
+        { phase: 'changed-area', status: 'passed', summary: summaryRel },
+      ],
+    }));
+
+    const r = runCli(['gate', 'ev-reuse'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records phase `collect`, not the declared `targeted`/i);
+  });
+
+  it('E16: evidence that drops targeted/changed-area from required-phases still fails the floor', () => {
+    runCli(['new', 'ev-weak'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-weak');
+    writeValidChangeArtifacts(changeDir);
+    // A weakened required-phases list with only a collect run — the always-required
+    // ladder floor (collect, targeted, changed-area) must still be enforced.
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-weak',
+      requiredPhases: ['collect'],
+      runs: [{ phase: 'collect', status: 'passed' }],
+    }));
+
+    const r = runCli(['gate', 'ev-weak'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/required phase\(s\) without a passing run: targeted, changed-area/i);
   });
 });

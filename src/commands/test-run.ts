@@ -4,6 +4,7 @@ import { spawn, spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
+import { DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
 
 // Bounded test execution and structured evidence (ADR 0005 §4-§6). This command
 // runs ONE phase of the test ladder for a tracked change, captures durable
@@ -17,7 +18,6 @@ export type Phase = (typeof PHASES)[number];
 
 const SCHEMA_VERSION = '0.1.0';
 const GENERATED_BY = 'cdd-kit test run';
-const DEFAULT_REQUIRED: Phase[] = ['collect', 'targeted', 'changed-area'];
 const OUTPUT_CAP_CHARS = 4000;
 const MAX_MESSAGE_CHARS = 500;
 // Full stdout/stderr stream to disk; only this much tail is held in memory for
@@ -268,7 +268,7 @@ export function classifyFailure(opts: {
 // ── evidence (ADR 0005 §6) ────────────────────────────────────────────────────
 
 function defaultRequired(requested?: string[]): string[] {
-  return requested && requested.length ? requested : [...DEFAULT_REQUIRED];
+  return requested && requested.length ? requested : [...DEFAULT_REQUIRED_PHASES];
 }
 
 function blankEvidence(changeId: string, requiredPhases?: string[]): EvidenceFile {

@@ -117,13 +117,19 @@
   change opts out auditably with `test-evidence-not-applicable: "<reason>"` in
   `tasks.yml` frontmatter (a new optional field, mirroring `tier-floor-override`),
   which downgrades the error to a recorded warning. Present evidence is also bound
-  to the change being gated: its `change-id` must match (a copied or renamed
-  evidence file is rejected), and an otherwise-green file must reference real run
-  artifacts under the change's own `test-runs/` directory — existence and
-  containment — so a hand-written file with invented `summary`/`junit` paths
-  cannot satisfy the gate. The opt-out is read from the `tasks.yml` the gate
-  already parsed, so a `tasks.yml` that fails to parse surfaces that error instead
-  of being silently treated as "no opt-out". The checks are deterministic and
+  to the change being gated and cannot be weakened by hand: its `change-id` must
+  match (a copied or renamed evidence file is rejected); an otherwise-green file
+  must reference real run artifacts under the change's own `test-runs/` directory
+  (existence + containment); each referenced `summary.json` must itself record the
+  declared run's `change_id`, `phase`, and `status` (so one real artifact cannot
+  be reused across phases or copied from another change); and the always-required
+  ladder floor (`collect`, `targeted`, `changed-area`) is merged into the file's
+  own `required-phases` so it cannot be trimmed to pass on fewer runs. That floor
+  is a single shared constant (`DEFAULT_REQUIRED_PHASES`) used both as `cdd-kit
+  test run`'s default and as the gate's floor, so the two cannot drift. The
+  opt-out is read from the `tasks.yml` the gate already parsed, so a `tasks.yml`
+  that fails to parse surfaces that error instead of being silently treated as
+  "no opt-out". The checks are deterministic and
   verbatim — they trust declared structured values and verify them (schema shape,
   `change-id` equality, artifact existence), with no free-form parsing, path
   guessing, or inference about whether a change is "implementation". Agent, skill,

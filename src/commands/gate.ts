@@ -6,7 +6,7 @@ import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
-import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS } from '../schemas/test-evidence.schema.js';
+import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import {
@@ -560,11 +560,16 @@ function enforceEvidenceSemantics(data: TestEvidenceFile, errors: string[]): voi
   }
 
   const passedPhases = new Set(runs.filter(r => r.status === 'passed').map(r => r.phase));
-  const missing = [...new Set((data['required-phases'] ?? []).filter(p => !passedPhases.has(p)))];
+  // A present file's own `required-phases` can be weakened by hand, so the
+  // always-required ladder floor is merged in: a change that records evidence at
+  // all cannot drop collect/targeted/changed-area to pass on fewer runs.
+  const required = [...new Set([...DEFAULT_REQUIRED_PHASES, ...(data['required-phases'] ?? [])])];
+  const missing = required.filter(p => !passedPhases.has(p));
   if (missing.length > 0) {
     errors.push(
       `test-evidence.yml: required phase(s) without a passing run: ${missing.join(', ')} — ` +
-      `run them with \`cdd-kit test run <change-id> --phase <phase>\` before the gate can pass.`,
+      `run them with \`cdd-kit test run <change-id> --phase <phase>\` before the gate can pass ` +
+      `(collect, targeted, and changed-area are always required).`,
     );
   }
 }
@@ -576,16 +581,41 @@ function isWithinDir(parentAbs: string, childAbs: string): boolean {
 }
 
 /**
- * ADR 0005 §6 durability — an otherwise-green evidence file must reference REAL
- * run artifacts under this change's own `test-runs/` directory. `cdd-kit test
- * run` writes summary.json (and junit.xml for pytest) before it records a run,
- * and the recorded paths are repo-root-relative, so legitimately generated
- * evidence always resolves; a hand-authored file with invented or out-of-tree
- * paths does not. This is a bounded existence + containment check on the declared
- * paths — no path guessing, no inference. Called only when the evidence is
- * otherwise green, so a failing file is not buried under additional path errors.
+ * Verify a referenced summary.json actually records THIS run. `cdd-kit test run`
+ * writes the run's own `change_id`, `phase`, and `status` into summary.json, so a
+ * real artifact cannot be reused across phases (or copied from another change)
+ * without those fields disagreeing with the declared run. Returns a mismatch
+ * detail, or null when the summary matches. A bounded, verbatim comparison of
+ * structured fields — no inference.
  */
-function enforceArtifactPresence(data: TestEvidenceFile, cwd: string, changeDir: string, errors: string[]): void {
+function summaryMismatch(summaryAbs: string, run: EvidenceRun, changeId: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(summaryAbs, 'utf8'));
+  } catch {
+    return 'is not a readable JSON run summary';
+  }
+  if (!parsed || typeof parsed !== 'object') return 'is not a valid run summary object';
+  const s = parsed as { change_id?: unknown; phase?: unknown; status?: unknown };
+  if (s.change_id !== changeId) return `was produced for change \`${String(s.change_id)}\`, not \`${changeId}\``;
+  if (s.phase !== run.phase) return `records phase \`${String(s.phase)}\`, not the declared \`${run.phase}\``;
+  if (s.status !== run.status) return `records status \`${String(s.status)}\`, not the declared \`${run.status}\``;
+  return null;
+}
+
+/**
+ * ADR 0005 §6 durability — an otherwise-green evidence file must reference REAL
+ * run artifacts under this change's own `test-runs/` directory, and each
+ * summary.json must actually record its declared run. `cdd-kit test run` writes
+ * summary.json (and junit.xml for pytest) before it records a run, with the run's
+ * own change_id/phase/status, and the recorded paths are repo-root-relative — so
+ * legitimately generated evidence always resolves and matches; a hand-authored
+ * file with invented, out-of-tree, or reused paths does not. Bounded existence +
+ * containment + structured-field checks — no path guessing, no inference. Called
+ * only when the evidence is otherwise green, so a failing file is not buried
+ * under additional artifact errors.
+ */
+function enforceArtifactPresence(data: TestEvidenceFile, cwd: string, changeDir: string, changeId: string, errors: string[]): void {
   const testRunsDir = resolve(changeDir, 'test-runs');
   for (const run of data.runs ?? []) {
     const refs: ReadonlyArray<readonly [string, string | undefined]> = [
@@ -609,6 +639,18 @@ function enforceArtifactPresence(data: TestEvidenceFile, cwd: string, changeDir:
           `record evidence with \`cdd-kit test run <change-id> --phase ${run.phase}\` so the run ` +
           `output is durable; do not hand-write evidence paths.`,
         );
+        continue;
+      }
+      // summary.json is our structured per-run record; confirm it is THIS run's,
+      // not a real artifact reused across phases or copied from another change.
+      if (field === 'summary') {
+        const mismatch = summaryMismatch(abs, run, changeId);
+        if (mismatch) {
+          errors.push(
+            `test-evidence.yml: phase \`${run.phase}\` summary artifact \`${value}\` ${mismatch} — ` +
+            `each run must reference its own summary.json from \`cdd-kit test run\`.`,
+          );
+        }
       }
     }
   }
@@ -685,7 +727,7 @@ function lintTestEvidence(
   }
   enforceEvidenceSemantics(data, errors);
   if (errors.length === before) {
-    enforceArtifactPresence(data, cwd, changeDir, errors);
+    enforceArtifactPresence(data, cwd, changeDir, changeId, errors);
   }
 }
 

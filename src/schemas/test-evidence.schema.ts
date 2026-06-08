@@ -22,6 +22,15 @@ export const PROHIBITED_WAIVER_FIELDS = [
   "ignored-failures",
 ];
 
+// The always-required phases of the test ladder (ADR 0005 §6 / test-plan.md):
+// collect, targeted, and changed-area are marked "yes" for every implementation
+// change. This is the single source of truth for that floor: `cdd-kit test run`
+// uses it as the default `required-phases`, and the gate merges it into a
+// present evidence file's own list so a hand-weakened `required-phases` cannot
+// drop the mandatory phases. (`contract`/`quality`/`full` are conditional and
+// stay opt-in per change.)
+export const DEFAULT_REQUIRED_PHASES = ["collect", "targeted", "changed-area"];
+
 const PHASES = ["collect", "targeted", "changed-area", "contract", "quality", "full"] as const;
 
 export const testEvidenceSchema = {
