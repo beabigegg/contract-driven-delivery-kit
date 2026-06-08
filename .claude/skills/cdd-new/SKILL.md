@@ -76,14 +76,16 @@ test failure cannot be recorded as known, pre-existing, waived, allowed, or
 ignored; fix it, expand this change's scope to cover the fix, or open a separate
 tracked change.
 
-Implementation agents (backend/frontend) run the bounded ladder during Step 3 --
-before the gate in Step 4 -- with `cdd-kit test select <id> --json`, then
-`cdd-kit test run <id> --phase collect|targeted|changed-area --json` (plus
-contract/quality/full when they apply). The gate validates the resulting
-`test-evidence.yml`: required phases passed, no waiver fields, each run under
-this change's `test-runs/`. A change with no testable code surface opts out with
+Implementation agents (backend/frontend/bug-fix) run the bounded ladder during
+Step 3 -- before the gate in Step 4: `cdd-kit test select <id> --json`, then
+`cdd-kit test run <id> --phase <phase> --command "<selected command>"` for the
+always-required floor (collect, targeted, changed-area) plus any
+contract/quality/full the change needs (declare those with `--required-phases`
+on the first run). The gate validates the resulting `test-evidence.yml`:
+required phases passed, no waiver fields, each run under this change's
+`test-runs/`. A change with no testable code surface opts out with
 `test-evidence-not-applicable: "<reason>"` in `tasks.yml` frontmatter. See
-`references/sdd-tdd-policy.md` for the full ladder.
+`references/sdd-tdd-policy.md` for the exact sequence.
 
 ## Input
 

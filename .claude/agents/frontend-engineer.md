@@ -44,21 +44,20 @@ See `references/code-map-protocol.md` for the full protocol.
 ## Test execution
 
 Do not start with a broad test command (`npm test`, `pytest`, full suite). Run
-the bounded ladder for this change and let it record evidence:
-
-1. `cdd-kit test select <change-id> --json`
-2. `cdd-kit test run <change-id> --phase collect --json`
-3. `cdd-kit test run <change-id> --phase targeted --json`
-4. `cdd-kit test run <change-id> --phase changed-area --json`
-5. required contract/quality gates, then full suite only as a final bounded smoke
-
-`cdd-kit test run` caps visible output, writes artifacts under
-`specs/changes/<change-id>/test-runs/<run-id>/`, and updates `test-evidence.yml`
-(the gate validates that file, not your claims). If a phase fails, inspect only
-the first failure; fix it if it belongs to this change, otherwise block. A
-required failure cannot be recorded as known, pre-existing, waived, allowed, or
-ignored -- fix it, expand this change's scope to cover the fix, or open a
-separate tracked change. See `references/sdd-tdd-policy.md`.
+the bounded ladder so the work is recorded as evidence: select bounded commands
+with `cdd-kit test select <change-id> --json`, then run each phase with
+`cdd-kit test run <change-id> --phase <phase> --command "<selected command>"`
+(`--command` is currently required). Run the always-required floor (`collect`,
+`targeted`, `changed-area`); add `contract`/`quality`/`full` when they apply and
+declare those conditional phases with `--required-phases` on the first run, or
+the gate will not require them. `cdd-kit test run` caps visible output, writes
+artifacts under `specs/changes/<change-id>/test-runs/<run-id>/`, and updates
+`test-evidence.yml` (the gate validates that file, not your claims). On a
+failure, inspect only the first one; fix it if it belongs to this change,
+otherwise block. A required failure cannot be recorded as known, pre-existing,
+waived, allowed, or ignored -- fix it, expand this change's scope, or open a
+separate tracked change. See `references/sdd-tdd-policy.md` for the exact
+sequence.
 
 ## Common pitfalls
 

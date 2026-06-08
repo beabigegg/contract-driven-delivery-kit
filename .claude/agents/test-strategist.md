@@ -29,13 +29,16 @@ Design tests before implementation. Prefer concrete test cases, inputs, expected
 
 ## Bounded test commands
 
-`cdd-kit test select` reads `test-plan.md` first to choose bounded commands for
-each ladder phase. Give it something concrete to map: an exact test node ID or
-test file path per acceptance criterion, and a runner command when the default
-is not obvious. Fill the `## Test Execution Ladder` table with concrete
-`collect` / `targeted` / `changed-area` targets so selection is deterministic
-instead of a repository search. If a criterion has no bounded target yet, name
-the test file that must exist rather than leaving it blank.
+`cdd-kit test select` builds the bounded command for each ladder phase from the
+`## Acceptance Criteria → Test Mapping` table in `test-plan.md` (falling back to
+`implementation-plan.md`'s Test Execution Plan). Put something concrete in that
+table's `test file path` column for each criterion: an exact test node ID
+(`tests/orders/test_filter.py::test_status_filter_options`), a test file, or a
+directory that exists on disk -- or a full pytest command, which the selector
+trusts verbatim. That table is where selection reads; targets recorded only in
+the `## Test Execution Ladder` table are ignored by the selector. If a criterion
+has no bounded target yet, name the test file that must exist rather than leaving
+it blank, so selection stays deterministic instead of a repository search.
 
 See `references/sdd-tdd-policy.md` ("Bounded test execution ladder") for the
 phases, the shared execution rule, and the no-waiver policy. Do not record any

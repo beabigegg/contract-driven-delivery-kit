@@ -46,6 +46,24 @@ For data/API symptoms, verify request parameters, response shape, empty/error ha
 - If the reported symptom cannot be reproduced, add instrumentation or a targeted diagnostic path only when it is low-risk and removable.
 - If multiple unrelated defects are discovered, fix only the one needed for the reported symptom and list the others as follow-up.
 
+## Test execution
+
+Like backend/frontend engineers, generate test evidence through the bounded
+ladder -- a bug-fix change still has to pass the gate's `test-evidence.yml`
+check. Don't start with a broad command (`pytest`, `npm test`, full suite):
+select bounded commands with `cdd-kit test select <change-id> --json`, then run
+each phase with
+`cdd-kit test run <change-id> --phase <phase> --command "<selected command>"`
+(`--command` is currently required). Run the always-required floor (`collect`,
+`targeted`, `changed-area`) -- the targeted/changed-area phases are where your
+regression test belongs -- and add `contract`/`quality`/`full` when they apply,
+declaring those conditional phases with `--required-phases` on the first run.
+`cdd-kit test run` writes artifacts under
+`specs/changes/<change-id>/test-runs/<run-id>/` and updates `test-evidence.yml`
+(the gate validates that file, not your claims). A required failure cannot be
+waived as known/pre-existing/allowed -- fix it, expand scope, or open a separate
+change. See `references/sdd-tdd-policy.md` for the exact sequence.
+
 ## Read scope
 
 Source of truth: `specs/changes/<change-id>/context-manifest.md` -> `## Allowed Paths`.

@@ -76,18 +76,32 @@ their trigger applies.
 ### Shared execution rule (all implementation agents)
 
 Do not start with a broad test command such as `pytest`, `npm test`, or a full
-suite. Use, in order:
+suite. Run the bounded ladder so the work is recorded as evidence:
 
-1. `cdd-kit test select <change-id> --json`
-2. `cdd-kit test run <change-id> --phase collect --json`
-3. `cdd-kit test run <change-id> --phase targeted --json`
-4. `cdd-kit test run <change-id> --phase changed-area --json`
-5. required contract/quality gates
-6. full suite only as a final bounded smoke or CI gate
+1. `cdd-kit test select <change-id> --json` -- returns a bounded command for each
+   phase that applies (conditional phases appear only when their trigger is
+   present).
+2. Run each phase, passing the command `select` returned. `cdd-kit test run`
+   currently requires `--command` (selection is not auto-piped into the runner
+   yet):
 
-If any phase fails, inspect only the first failure. Fix it if it belongs to this
-change; otherwise block the gate. Do not broaden before the failing phase is
-green.
+   ```bash
+   cdd-kit test run <change-id> --phase collect --command "<collect command>" \
+     --required-phases collect,targeted,changed-area[,contract][,quality][,full]
+   cdd-kit test run <change-id> --phase targeted --command "<targeted command>"
+   cdd-kit test run <change-id> --phase changed-area --command "<changed-area command>"
+   # then contract / quality / full when select lists them, each with its --command
+   ```
+
+3. full suite only as a final bounded smoke or CI gate.
+
+`--required-phases` only takes effect on the first run -- the one that creates
+`test-evidence.yml`. The always-required floor (`collect`, `targeted`,
+`changed-area`) is merged in automatically, but any conditional phase that must
+block this change (`contract`, `quality`, `full`) has to be listed there too, or
+the gate will not require it. If a phase fails, inspect only the first failure.
+Fix it if it belongs to this change; otherwise block the gate. Do not broaden
+before the failing phase is green.
 
 ### No known-failure waivers
 
