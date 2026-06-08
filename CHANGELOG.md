@@ -67,29 +67,29 @@
 
 - **Deterministic test selection: `cdd-kit test select <change-id>` (ADR 0005
   §3).** Plans the bounded command for each ladder phase from static inputs and
-  never executes tests. It first trusts explicit mappings in `test-plan.md`'s
+  never executes tests. It trusts explicit mappings in `test-plan.md`'s
   *Acceptance Criteria → Test Mapping* table (then `implementation-plan.md`'s
-  *Test Execution Plan*), emitting ADR-shaped `collect`
+  *Test Execution Plan*). A mapping cell is used in one of two deterministic
+  ways: a **bare target** (a `.py` file, `file::node`, or a directory) is accepted
+  only when it **exists on disk** — so the scaffold's `tests/unit/test_xxx.py`
+  placeholder is filtered by reality rather than by word-matching, and real
+  packages named `todo`/`example` are not — and becomes the ADR-shaped `collect`
   (`pytest --collect-only -q <target>`) and `targeted`
-  (`pytest <target> -q --maxfail=1 --tb=short -ra`) commands. A mapping cell may
-  be a bare target (file, `file::node`, or a directory with or without a trailing
-  slash) or a full pytest command (`python -m pytest <target> -q`) — the target
-  is extracted, stepping over the program prefix, value-option operands
-  (`--ignore <path>`), and quotes; parametrized node ids are shell-quoted for the
-  host platform, and `..` path-traversal targets are rejected. Unfilled scaffold
-  rows (`tests/unit/test_xxx.py`, `<id>`, `tests/example/...`) are recognised as
-  placeholders and ignored. `changed-area` is derived from the change's touched
-  test files and, via the code-map, the test files that import a touched source
-  (graph-impact, resolving relative imports, `from . import name` items, and
-  absolute package imports), falling back to the directory of the mapped targets
-  when there is no git/graph signal; the code-map is refreshed first when sources
-  changed (like `cdd index impact`, with `--no-refresh` to opt out). A `contract`
-  phase is added when contract files are touched or `implementation-plan.md`
-  declares contract updates (free-form or labelled bullets), running `cdd-kit
-  validate --contracts` plus `--env` / `--ci` for env / CI-contract families; a
-  `quality` phase is emitted from the runnable lint/typecheck/build
-  commands configured in the change's `ci-gates.md` (workflow-file references are
-  ignored); and a bounded `full` smoke is always included. When
+  (`pytest <target> -q --maxfail=1 --tb=short -ra`) commands; or a **full pytest
+  command** is trusted and emitted **verbatim** (same trust boundary as `cdd-kit
+  test run`), so option flags, quoting, and multiple targets are the author's
+  concern, not the selector's. `..` path-traversal targets are rejected and
+  parametrized node ids are shell-quoted for the host platform. `changed-area` is
+  derived from the change's touched files — a changed test file runs directly, a
+  changed `conftest.py` runs its directory — falling back to the directory of the
+  mapped targets when there is no git signal (code-map graph-impact is
+  intentionally deferred per ADR 0005 "Revisit when"). A `contract` phase is added
+  when contract files are touched or `implementation-plan.md` declares contract
+  updates (free-form or labelled bullets), running `cdd-kit validate --contracts`
+  plus `--env` / `--ci` for env / CI-contract families; a `quality` phase is
+  emitted from the runnable lint/typecheck/build commands configured in the
+  change's `ci-gates.md` (workflow-file references are ignored); and a bounded
+  `full` smoke is always included. When
   no targeted or changed-area target can be selected safely it returns
   `needs-test-plan-update` (exit 1) instead of searching the repo indefinitely;
   `selected` exits 0 and a usage error (bad id, missing change dir) exits 2.

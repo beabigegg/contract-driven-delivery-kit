@@ -622,10 +622,9 @@ test
   .command('select <change-id>')
   .description('Select bounded test commands for each ladder phase from test-plan.md (deterministic; emits needs-test-plan-update when no bounded target is safe)')
   .option('--json', 'print the selection as JSON', false)
-  .option('--no-refresh', 'do not auto-regenerate a stale/missing code-map before deriving changed-area tests')
-  .action(async (changeId: string, opts: { json?: boolean; refresh?: boolean }) => {
+  .action(async (changeId: string, opts: { json?: boolean }) => {
     const { testSelect } = await import('../commands/test-select.js');
-    const exit = await testSelect(changeId, { json: opts.json === true, refresh: opts.refresh !== false });
+    const exit = await testSelect(changeId, { json: opts.json === true });
     process.exit(exit);
   });
 
