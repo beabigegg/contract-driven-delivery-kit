@@ -267,8 +267,14 @@ export function classifyFailure(opts: {
 
 // ── evidence (ADR 0005 §6) ────────────────────────────────────────────────────
 
+// The always-required ladder floor is included even when the caller passes a
+// custom --required-phases (which only ADDS conditional phases like contract),
+// so the evidence this writes matches the floor the gate enforces — a custom
+// list can never silently drop collect/targeted/changed-area.
 function defaultRequired(requested?: string[]): string[] {
-  return requested && requested.length ? requested : [...DEFAULT_REQUIRED_PHASES];
+  return requested && requested.length
+    ? [...new Set([...DEFAULT_REQUIRED_PHASES, ...requested])]
+    : [...DEFAULT_REQUIRED_PHASES];
 }
 
 function blankEvidence(changeId: string, requiredPhases?: string[]): EvidenceFile {

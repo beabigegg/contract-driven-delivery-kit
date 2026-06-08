@@ -120,20 +120,23 @@
   to the change being gated and cannot be weakened by hand: its `change-id` must
   match (a copied or renamed evidence file is rejected); an otherwise-green file
   must reference real run artifacts under the change's own `test-runs/` directory
-  (existence + containment); each referenced `summary.json` must itself record the
-  declared run's `change_id`, `phase`, and `status` (so one real artifact cannot
-  be reused across phases or copied from another change); and the always-required
-  ladder floor (`collect`, `targeted`, `changed-area`) is merged into the file's
-  own `required-phases` so it cannot be trimmed to pass on fewer runs. That floor
-  is a single shared constant (`DEFAULT_REQUIRED_PHASES`) used both as `cdd-kit
-  test run`'s default and as the gate's floor, so the two cannot drift. The
-  opt-out is read from the `tasks.yml` the gate already parsed, so a `tasks.yml`
-  that fails to parse surfaces that error instead of being silently treated as
-  "no opt-out". The checks are deterministic and
+  (repo-root-relative only — absolute paths are rejected — plus existence and
+  containment); each referenced `summary.json` must itself record the declared
+  run's `change_id`, `phase`, `status`, and `command` (so one real artifact cannot
+  be reused across phases, copied from another change, or back a run whose command
+  was widened); and the always-required ladder floor (`collect`, `targeted`,
+  `changed-area`) is merged into the file's own `required-phases` so it cannot be
+  trimmed to pass on fewer runs. That floor is a single shared constant
+  (`DEFAULT_REQUIRED_PHASES`) that `cdd-kit test run` also merges into any custom
+  `--required-phases`, so kit-generated evidence always satisfies the gate floor
+  and the two cannot drift. The opt-out is read from the `tasks.yml` the gate
+  already parsed, so a `tasks.yml` that fails to parse surfaces that error instead
+  of being silently treated as "no opt-out". The checks are deterministic and
   verbatim — they trust declared structured values and verify them (schema shape,
-  `change-id` equality, artifact existence), with no free-form parsing, path
-  guessing, or inference about whether a change is "implementation". Agent, skill,
-  and README guidance for the evidence flow follows in the next ADR 0005 phase.
+  `change-id` equality, artifact existence and content), with no free-form
+  parsing, path guessing, or inference about whether a change is "implementation".
+  Agent, skill, and README guidance for the evidence flow follows in the next ADR
+  0005 phase.
 
 ### Changed
 

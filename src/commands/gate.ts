@@ -582,11 +582,12 @@ function isWithinDir(parentAbs: string, childAbs: string): boolean {
 
 /**
  * Verify a referenced summary.json actually records THIS run. `cdd-kit test run`
- * writes the run's own `change_id`, `phase`, and `status` into summary.json, so a
- * real artifact cannot be reused across phases (or copied from another change)
- * without those fields disagreeing with the declared run. Returns a mismatch
- * detail, or null when the summary matches. A bounded, verbatim comparison of
- * structured fields — no inference.
+ * writes the run's own `change_id`, `phase`, `status`, and `command` into
+ * summary.json, so a real artifact cannot be reused across phases, copied from
+ * another change, or back a run whose command was widened without those fields
+ * disagreeing with the declared run. Returns a mismatch detail, or null when the
+ * summary matches. A bounded, verbatim comparison of structured fields — no
+ * inference.
  */
 function summaryMismatch(summaryAbs: string, run: EvidenceRun, changeId: string): string | null {
   let parsed: unknown;
@@ -596,10 +597,11 @@ function summaryMismatch(summaryAbs: string, run: EvidenceRun, changeId: string)
     return 'is not a readable JSON run summary';
   }
   if (!parsed || typeof parsed !== 'object') return 'is not a valid run summary object';
-  const s = parsed as { change_id?: unknown; phase?: unknown; status?: unknown };
+  const s = parsed as { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
   if (s.change_id !== changeId) return `was produced for change \`${String(s.change_id)}\`, not \`${changeId}\``;
   if (s.phase !== run.phase) return `records phase \`${String(s.phase)}\`, not the declared \`${run.phase}\``;
   if (s.status !== run.status) return `records status \`${String(s.status)}\`, not the declared \`${run.status}\``;
+  if (s.command !== run.command) return `records command \`${String(s.command)}\`, not the declared \`${run.command}\``;
   return null;
 }
 
@@ -624,6 +626,14 @@ function enforceArtifactPresence(data: TestEvidenceFile, cwd: string, changeDir:
     ];
     for (const [field, value] of refs) {
       if (!value) continue; // summary is schema-required; junit is optional
+      if (isAbsolute(value)) {
+        errors.push(
+          `test-evidence.yml: phase \`${run.phase}\` ${field} path \`${value}\` is absolute — ` +
+          `evidence must record repo-root-relative paths (as \`cdd-kit test run\` does) so it ` +
+          `stays portable across checkouts.`,
+        );
+        continue;
+      }
       const abs = resolve(cwd, value);
       if (!isWithinDir(testRunsDir, abs)) {
         errors.push(

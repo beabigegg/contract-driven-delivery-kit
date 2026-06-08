@@ -1391,13 +1391,14 @@ function buildEvidenceYaml(opts: {
 function materializeEvidenceArtifacts(repoRoot: string, evidenceBody: string): void {
   const data = yaml.load(evidenceBody) as {
     'change-id'?: string;
-    runs?: Array<{ phase?: string; status?: string; summary?: string; junit?: string }>;
+    runs?: Array<{ phase?: string; status?: string; command?: string; summary?: string; junit?: string }>;
   };
   for (const run of data.runs ?? []) {
     if (run.summary) {
       const abs = join(repoRoot, run.summary);
       mkdirSync(dirname(abs), { recursive: true });
-      writeFileSync(abs, `${JSON.stringify({ change_id: data['change-id'], phase: run.phase, status: run.status })}\n`, 'utf8');
+      const summary = { change_id: data['change-id'], phase: run.phase, status: run.status, command: run.command };
+      writeFileSync(abs, `${JSON.stringify(summary)}\n`, 'utf8');
     }
     if (run.junit) {
       const abs = join(repoRoot, run.junit);
@@ -1645,7 +1646,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const summaryRel = 'specs/changes/ev-reuse/test-runs/r-collect/summary.json';
     const summaryAbs = join(tmpRepo, summaryRel);
     mkdirSync(dirname(summaryAbs), { recursive: true });
-    writeFileSync(summaryAbs, JSON.stringify({ change_id: 'ev-reuse', phase: 'collect', status: 'passed' }), 'utf8');
+    writeFileSync(summaryAbs, JSON.stringify({ change_id: 'ev-reuse', phase: 'collect', status: 'passed', command: 'python -m pytest -q collect' }), 'utf8');
     writeEvidence(changeDir, buildEvidenceYaml({
       changeId: 'ev-reuse',
       requiredPhases: ['collect', 'targeted', 'changed-area'],
@@ -1676,5 +1677,56 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'ev-weak'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/required phase\(s\) without a passing run: targeted, changed-area/i);
+  });
+
+  it('E17: an absolute artifact path is rejected even when it points inside test-runs/', () => {
+    runCli(['new', 'ev-abs'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-abs');
+    writeValidChangeArtifacts(changeDir);
+    // An absolute path that resolves inside this checkout's test-runs/ must still
+    // be rejected so evidence stays repo-root-relative and portable.
+    const absSummary = join(tmpRepo, 'specs', 'changes', 'ev-abs', 'test-runs', 'r1', 'summary.json');
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-abs',
+      requiredPhases: ['collect', 'targeted', 'changed-area'],
+      runs: [
+        { phase: 'collect', status: 'passed', summary: absSummary },
+        { phase: 'targeted', status: 'passed' },
+        { phase: 'changed-area', status: 'passed' },
+      ],
+    }));
+
+    const r = runCli(['gate', 'ev-abs'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/is absolute — evidence must record repo-root-relative/i);
+  });
+
+  it('E18: a summary.json whose command differs from the declared run fails the gate', () => {
+    runCli(['new', 'ev-cmd'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-cmd');
+    writeValidChangeArtifacts(changeDir);
+    const body = buildEvidenceYaml({
+      changeId: 'ev-cmd',
+      requiredPhases: ['collect', 'targeted', 'changed-area'],
+      runs: [
+        { phase: 'collect', status: 'passed' },
+        { phase: 'targeted', status: 'passed' },
+        { phase: 'changed-area', status: 'passed' },
+      ],
+    });
+    writeEvidence(changeDir, body);
+    materializeEvidenceArtifacts(tmpRepo, body); // all summaries initially match their runs
+    // Tamper with the collect summary so its recorded command no longer matches
+    // the declared run (a widened command riding on a narrow run's artifact).
+    const collectSummary = (yaml.load(body) as { runs: Array<{ summary: string }> }).runs[0].summary;
+    writeFileSync(
+      join(tmpRepo, collectSummary),
+      JSON.stringify({ change_id: 'ev-cmd', phase: 'collect', status: 'passed', command: 'python -m pytest tests/ -q  # widened' }),
+      'utf8',
+    );
+
+    const r = runCli(['gate', 'ev-cmd'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records command .* not the declared/i);
   });
 });
