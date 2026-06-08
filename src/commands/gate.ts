@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, relative, isAbsolute } from 'path';
 import yaml from 'js-yaml';
 import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
+import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import {
@@ -17,6 +18,7 @@ import {
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
 const validateTasks = ajv.compile(tasksSchema);
+const validateTestEvidence = ajv.compile(testEvidenceSchema);
 
 const TASKS_STATUS_ENUM = new Set([
   'in-progress', 'completed', 'complete', 'done',
@@ -61,6 +63,7 @@ interface TasksFile {
   'archive-tasks'?: string[];
   'depends-on'?: string[];
   'tier-floor-override'?: string;
+  'test-evidence-not-applicable'?: string;
   tasks: TaskItem[];
 }
 
@@ -496,6 +499,300 @@ function validateDependencies(cwd: string, changeId: string, changeDir: string):
   return errors;
 }
 
+// ── test evidence enforcement (ADR 0005 §6/§7) ───────────────────────────────
+
+// PROHIBITED_WAIVER_FIELDS (ADR 0005 §7) is owned by the schema module and
+// imported above: the schema rejects these fields, and the gate scans for them
+// by name so the operator gets an actionable, ADR-traceable message instead of a
+// generic "must NOT be valid".
+
+/**
+ * Shared guidance for a blocked required-test failure (ADR 0005 §7). A required
+ * failure cannot be waived; the operator's only valid moves are spelled out once
+ * here so every evidence error gives the same advice.
+ */
+const BLOCKED_FAILURE_GUIDANCE =
+  "fix it, expand this change's scope to cover the fix, or open a separate tracked change";
+
+interface EvidenceRun {
+  phase: string;
+  status: string;
+  command: string;
+  summary: string;
+  junit?: string;
+}
+
+interface TestEvidenceFile {
+  'change-id': string;
+  'schema-version': string;
+  'generated-by'?: string;
+  'required-phases': string[];
+  runs: EvidenceRun[];
+  'final-status': string;
+}
+
+/**
+ * Cross-field evidence semantics that static JSON Schema cannot express (the
+ * schema comment in test-evidence.schema.ts defers these to the gate):
+ *   1. Every declared required phase has at least one passing run.
+ *   2. No recorded run failed — a required failure blocks and cannot be waived
+ *      (the schema only enforces this when `final-status` is `passed`).
+ *   3. `final-status` must be `passed`.
+ * Runs only on a schema-valid file, so the shape is already trustworthy.
+ */
+function enforceEvidenceSemantics(data: TestEvidenceFile, errors: string[]): void {
+  const runs = data.runs ?? [];
+
+  for (const run of runs) {
+    if (run.status === 'failed') {
+      errors.push(
+        `test-evidence.yml: phase \`${run.phase}\` has a failed run (${run.command}) — ` +
+        `a required test failure blocks the gate and cannot be waived (${BLOCKED_FAILURE_GUIDANCE}).`,
+      );
+    }
+  }
+
+  if (data['final-status'] !== 'passed') {
+    errors.push(
+      `test-evidence.yml: final-status is \`${data['final-status']}\` — required test evidence ` +
+      `is not green; the gate cannot pass until every required phase has a passing run.`,
+    );
+  }
+
+  const passedPhases = new Set(runs.filter(r => r.status === 'passed').map(r => r.phase));
+  // A present file's own `required-phases` can be weakened by hand, so the
+  // always-required ladder floor is merged in: a change that records evidence at
+  // all cannot drop collect/targeted/changed-area to pass on fewer runs.
+  const required = [...new Set([...DEFAULT_REQUIRED_PHASES, ...(data['required-phases'] ?? [])])];
+  const missing = required.filter(p => !passedPhases.has(p));
+  if (missing.length > 0) {
+    errors.push(
+      `test-evidence.yml: required phase(s) without a passing run: ${missing.join(', ')} — ` +
+      `run them with \`cdd-kit test run <change-id> --phase <phase>\` before the gate can pass ` +
+      `(collect, targeted, and changed-area are always required).`,
+    );
+  }
+}
+
+/** True iff childAbs is a real descendant of parentAbs (no `..` escape, not equal). */
+function isWithinDir(parentAbs: string, childAbs: string): boolean {
+  const rel = relative(parentAbs, childAbs);
+  return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+/**
+ * Verify a referenced summary.json actually records THIS run. `cdd-kit test run`
+ * writes the run's own `change_id`, `phase`, `status`, and `command` into
+ * summary.json, so a real artifact cannot be reused across phases, copied from
+ * another change, or back a run whose command was widened without those fields
+ * disagreeing with the declared run. Returns a mismatch detail, or null when the
+ * summary matches. A bounded, verbatim comparison of structured fields — no
+ * inference.
+ */
+function summaryMismatch(summaryAbs: string, run: EvidenceRun, changeId: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(summaryAbs, 'utf8'));
+  } catch {
+    return 'is not a readable JSON run summary';
+  }
+  if (!parsed || typeof parsed !== 'object') return 'is not a valid run summary object';
+  const s = parsed as { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
+  if (s.change_id !== changeId) return `was produced for change \`${String(s.change_id)}\`, not \`${changeId}\``;
+  if (s.phase !== run.phase) return `records phase \`${String(s.phase)}\`, not the declared \`${run.phase}\``;
+  if (s.status !== run.status) return `records status \`${String(s.status)}\`, not the declared \`${run.status}\``;
+  if (s.command !== run.command) return `records command \`${String(s.command)}\`, not the declared \`${run.command}\``;
+  return null;
+}
+
+/**
+ * ADR 0005 §6 durability — an otherwise-green evidence file must reference REAL
+ * run artifacts under this change's own `test-runs/` directory, and each
+ * summary.json must actually record its declared run. `cdd-kit test run` writes
+ * summary.json (and junit.xml for pytest) before it records a run, with the run's
+ * own change_id/phase/status, and the recorded paths are repo-root-relative — so
+ * legitimately generated evidence always resolves and matches; a hand-authored
+ * file with invented, out-of-tree, or reused paths does not. Bounded existence +
+ * containment + structured-field checks — no path guessing, no inference. Called
+ * only when the evidence is otherwise green, so a failing file is not buried
+ * under additional artifact errors.
+ */
+function enforceArtifactPresence(data: TestEvidenceFile, cwd: string, changeDir: string, changeId: string, errors: string[]): void {
+  const testRunsDir = resolve(changeDir, 'test-runs');
+  for (const run of data.runs ?? []) {
+    const refs: ReadonlyArray<readonly [string, string | undefined]> = [
+      ['summary', run.summary],
+      ['junit', run.junit],
+    ];
+    for (const [field, value] of refs) {
+      if (!value) continue; // summary is schema-required; junit is optional
+      if (isAbsolute(value)) {
+        errors.push(
+          `test-evidence.yml: phase \`${run.phase}\` ${field} path \`${value}\` is absolute — ` +
+          `evidence must record repo-root-relative paths (as \`cdd-kit test run\` does) so it ` +
+          `stays portable across checkouts.`,
+        );
+        continue;
+      }
+      const abs = resolve(cwd, value);
+      if (!isWithinDir(testRunsDir, abs)) {
+        errors.push(
+          `test-evidence.yml: phase \`${run.phase}\` ${field} path \`${value}\` is not under this ` +
+          `change's test-runs/ directory — evidence must reference artifacts produced by ` +
+          `\`cdd-kit test run\`, not hand-written paths.`,
+        );
+        continue;
+      }
+      if (!existsSync(abs)) {
+        errors.push(
+          `test-evidence.yml: phase \`${run.phase}\` ${field} artifact \`${value}\` does not exist — ` +
+          `record evidence with \`cdd-kit test run <change-id> --phase ${run.phase}\` so the run ` +
+          `output is durable; do not hand-write evidence paths.`,
+        );
+        continue;
+      }
+      // summary.json is our structured per-run record; confirm it is THIS run's,
+      // not a real artifact reused across phases or copied from another change.
+      if (field === 'summary') {
+        const mismatch = summaryMismatch(abs, run, changeId);
+        if (mismatch) {
+          errors.push(
+            `test-evidence.yml: phase \`${run.phase}\` summary artifact \`${value}\` ${mismatch} — ` +
+            `each run must reference its own summary.json from \`cdd-kit test run\`.`,
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Validate a present `test-evidence.yml`: schema (incl. waiver-field rejection),
+ * then change-id binding and cross-field semantics, then — when the file is
+ * otherwise green — artifact durability.
+ */
+function lintTestEvidence(
+  evidencePath: string,
+  cwd: string,
+  changeDir: string,
+  changeId: string,
+  errors: string[],
+): void {
+  const { data, parseError } = loadYamlFile<TestEvidenceFile>(evidencePath);
+  if (parseError) {
+    errors.push(`test-evidence.yml: invalid YAML: ${parseError}`);
+    return;
+  }
+  if (!data || typeof data !== 'object') {
+    errors.push('test-evidence.yml: file is empty or not a YAML mapping');
+    return;
+  }
+
+  // ADR 0005 §7 — name any prohibited waiver field explicitly.
+  for (const field of PROHIBITED_WAIVER_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      errors.push(
+        `test-evidence.yml: prohibited waiver field \`${field}\` — ADR 0005 §7 forbids excluding ` +
+        `known or pre-existing failures. A required test failure blocks the gate: ${BLOCKED_FAILURE_GUIDANCE}.`,
+      );
+    }
+  }
+
+  const ok = validateTestEvidence(data);
+  if (!ok) {
+    for (const e of validateTestEvidence.errors ?? []) {
+      // The `not` clause and a waiver field's additionalProperties echo are both
+      // already reported above with a clearer message.
+      if (e.keyword === 'not') continue;
+      if (e.keyword === 'additionalProperties') {
+        const key = (e.params as { additionalProperty: string }).additionalProperty;
+        if (PROHIBITED_WAIVER_FIELDS.includes(key)) continue;
+        errors.push(`test-evidence.yml: unknown key \`${key}\``);
+        continue;
+      }
+      if (e.keyword === 'required') {
+        const miss = (e.params as { missingProperty: string }).missingProperty;
+        errors.push(`test-evidence.yml: missing required \`${miss}\``);
+        continue;
+      }
+      if (e.keyword === 'enum') {
+        const allowed = (e.params as { allowedValues: string[] }).allowedValues.join(', ');
+        errors.push(`test-evidence.yml: invalid value at ${e.instancePath || '/'} (expected one of: ${allowed})`);
+        continue;
+      }
+      errors.push(`test-evidence.yml: ${e.instancePath || '/'} ${e.message ?? 'invalid'}`);
+    }
+    return; // schema-invalid evidence can't be trusted for cross-field checks
+  }
+
+  // The evidence must belong to THIS change (a copied or renamed evidence file
+  // is rejected), and — when otherwise green — must reference real run artifacts.
+  // Both are bounded, verbatim checks on the already-validated structure.
+  const before = errors.length;
+  if (data['change-id'] !== changeId) {
+    errors.push(
+      `test-evidence.yml: change-id \`${data['change-id']}\` does not match the change being gated ` +
+      `(\`${changeId}\`) — this evidence was generated for (or copied from) a different change.`,
+    );
+  }
+  enforceEvidenceSemantics(data, errors);
+  if (errors.length === before) {
+    enforceArtifactPresence(data, cwd, changeDir, changeId, errors);
+  }
+}
+
+/**
+ * ADR 0005 §6 / PR-5 — the gate validates test evidence, not assistant claims.
+ *   - present → validate it (schema + cross-field + change-id + artifacts), always.
+ *   - missing → implementation changes must record evidence. Mirrors the
+ *     context-manifest migration window: a context-governed (v1) change, or any
+ *     change under --strict, errors; a legacy change only warns. A change that is
+ *     genuinely not an implementation change opts out auditably via
+ *     `test-evidence-not-applicable: "<reason>"` in tasks.yml frontmatter.
+ *
+ * The opt-out is read from the tasks.yml the gate already parsed (`tasksData`),
+ * not re-read here: a tasks.yml that failed to parse is already a gate error
+ * (lintTasksFile), so a broken config surfaces that error instead of being
+ * silently treated as "no opt-out".
+ */
+function enforceTestEvidence(
+  cwd: string,
+  changeDir: string,
+  changeId: string,
+  tasksData: TasksFile | null,
+  isNewChange: boolean,
+  strict: boolean,
+  errors: string[],
+  warnings: string[],
+): void {
+  const evidencePath = join(changeDir, 'test-evidence.yml');
+  if (existsSync(evidencePath)) {
+    lintTestEvidence(evidencePath, cwd, changeDir, changeId, errors);
+    return;
+  }
+
+  // No evidence file. The opt-out lives in tasks.yml; if tasks.yml itself failed
+  // to parse (tasksData === null) that is already reported, so don't pile on.
+  if (tasksData === null) return;
+
+  const rawOptOut = tasksData['test-evidence-not-applicable'];
+  const optOut = typeof rawOptOut === 'string' ? rawOptOut.trim() : '';
+  if (optOut) {
+    warnings.push(`test evidence not applicable: ${optOut} (declared in tasks.yml; no test-evidence.yml required).`);
+    return;
+  }
+
+  if (isNewChange || strict) {
+    errors.push(
+      'missing required artifact: test-evidence.yml (implementation changes must record bounded test ' +
+      'evidence — generate it with `cdd-kit test run`, or, for a non-implementation change, record ' +
+      '`test-evidence-not-applicable: "<reason>"` in tasks.yml frontmatter).',
+    );
+  } else {
+    warnings.push('missing test-evidence.yml (legacy change; run `cdd-kit test run` to record bounded test evidence)');
+  }
+}
+
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
   const strict = opts.strict ?? false;
   const cwd = process.cwd();
@@ -593,6 +890,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTierConsistency(changeDir, errors, warnings);
   enforceTierFloor(changeDir, errors, warnings);
   enforceContractSubstance(cwd, errors, warnings, strict);
+  enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
 
   for (const w of warnings) {
     log.warn(`  ${w}`);

@@ -49,9 +49,9 @@ describe('cdd-kit test run (integration)', () => {
   const evidence = (): Record<string, any> =>
     yaml.load(readFileSync(join(changeDir(), 'test-evidence.yml'), 'utf8')) as Record<string, any>;
 
-  it('records a passing run and writes schema-valid evidence', () => {
+  it('records passing runs across the required floor and writes schema-valid evidence', () => {
     const r = runCli(
-      ['test', 'run', 'demo', '--phase', 'targeted', '--command', NODE_PASS, '--required-phases', 'targeted', '--run-id', 'r1', '--json'],
+      ['test', 'run', 'demo', '--phase', 'collect', '--command', NODE_PASS, '--run-id', 'r1', '--json'],
       { cwd: repo, home },
     );
     expect(r.status, r.stderr).toBe(0);
@@ -66,11 +66,18 @@ describe('cdd-kit test run (integration)', () => {
       expect(existsSync(join(runDir, f)), `${f} missing`).toBe(true);
     }
 
+    // Green evidence requires the whole default floor (collect/targeted/changed-area).
+    for (const phase of ['targeted', 'changed-area'] as const) {
+      const x = runCli(['test', 'run', 'demo', '--phase', phase, '--command', NODE_PASS, '--run-id', `r-${phase}`], { cwd: repo, home });
+      expect(x.status, x.stderr).toBe(0);
+    }
+
     const ev = evidence();
     expect(validateEvidence(ev), JSON.stringify(validateEvidence.errors)).toBe(true);
+    expect(ev['required-phases']).toEqual(['collect', 'targeted', 'changed-area']);
     expect(ev['final-status']).toBe('passed');
-    expect(ev.runs).toHaveLength(1);
-    expect(ev.runs[0]).toMatchObject({ phase: 'targeted', status: 'passed' });
+    expect(ev.runs).toHaveLength(3);
+    expect(ev.runs.map((x: Record<string, unknown>) => x.phase)).toEqual(['collect', 'targeted', 'changed-area']);
   });
 
   it('records a failing run and blocks (exit 1, status failed)', () => {
@@ -141,7 +148,19 @@ describe('cdd-kit test run (integration)', () => {
     expect(targeted).toHaveLength(1);
     expect(targeted[0].status).toBe('passed');
     expect(targeted[0].summary).toContain('a2');
-    expect(ev['final-status']).toBe('passed');
+    // required-phases carries the floor (collect/targeted/changed-area), so a
+    // targeted-only evidence is not yet green — the upsert itself is the subject.
+    expect(ev['final-status']).toBe('failed');
+  });
+
+  it('merges the required-phase floor into a custom --required-phases list', () => {
+    runCli(['test', 'run', 'demo', '--phase', 'contract', '--command', NODE_PASS, '--run-id', 'c1', '--required-phases', 'contract'], { cwd: repo, home });
+
+    const ev = evidence();
+    // collect/targeted/changed-area stay required even when the caller only asks
+    // for a conditional phase, so kit-generated evidence matches the gate floor.
+    expect(ev['required-phases']).toEqual(['collect', 'targeted', 'changed-area', 'contract']);
+    expect(ev['final-status']).toBe('failed'); // floor phases have not run yet
   });
 
   it('rejects a change id that escapes specs/changes (path traversal)', () => {

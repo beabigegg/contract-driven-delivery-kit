@@ -98,6 +98,46 @@
   resolve dependents identically. Gate enforcement of the recorded evidence
   follows in the next ADR 0005 phase.
 
+- **Gate enforcement of `test-evidence.yml` (ADR 0005 §6/§7, PR-5).** `cdd-kit
+  gate` now validates recorded test evidence, not assistant claims. When
+  `specs/changes/<id>/test-evidence.yml` is present it is validated against
+  `test-evidence.schema.ts` and three cross-field rules the static schema cannot
+  express: every phase listed in `required-phases` must have at least one
+  *passing* run, no recorded run may be `failed` (a required failure blocks and
+  cannot be waived — the schema only catches this when `final-status` is
+  `passed`, so a `failed` final-status that passes the schema is still blocked
+  here), and `final-status` must be `passed`. Prohibited waiver fields
+  (`known-failures`, `pre-existing-failures`, `allowed-failures`,
+  `waived-failures`, `ignored-failures`) are rejected by name with an
+  ADR-traceable message, and malformed YAML / schema violations fail with a
+  precise reason. Missing evidence follows the same migration window as
+  `context-manifest.md`: a context-governed (`v1`) change — or any change under
+  `--strict` — errors, while a legacy change only warns, so existing changes are
+  not broken by the rollout. A change that is genuinely not an implementation
+  change opts out auditably with `test-evidence-not-applicable: "<reason>"` in
+  `tasks.yml` frontmatter (a new optional field, mirroring `tier-floor-override`),
+  which downgrades the error to a recorded warning. Present evidence is also bound
+  to the change being gated and cannot be weakened by hand: its `change-id` must
+  match (a copied or renamed evidence file is rejected); an otherwise-green file
+  must reference real run artifacts under the change's own `test-runs/` directory
+  (repo-root-relative only — absolute paths are rejected — plus existence and
+  containment); each referenced `summary.json` must itself record the declared
+  run's `change_id`, `phase`, `status`, and `command` (so one real artifact cannot
+  be reused across phases, copied from another change, or back a run whose command
+  was widened); and the always-required ladder floor (`collect`, `targeted`,
+  `changed-area`) is merged into the file's own `required-phases` so it cannot be
+  trimmed to pass on fewer runs. That floor is a single shared constant
+  (`DEFAULT_REQUIRED_PHASES`) that `cdd-kit test run` also merges into any custom
+  `--required-phases`, so kit-generated evidence always satisfies the gate floor
+  and the two cannot drift. The opt-out is read from the `tasks.yml` the gate
+  already parsed, so a `tasks.yml` that fails to parse surfaces that error instead
+  of being silently treated as "no opt-out". The checks are deterministic and
+  verbatim — they trust declared structured values and verify them (schema shape,
+  `change-id` equality, artifact existence and content), with no free-form
+  parsing, path guessing, or inference about whether a change is "implementation".
+  Agent, skill, and README guidance for the evidence flow follows in the next ADR
+  0005 phase.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any
