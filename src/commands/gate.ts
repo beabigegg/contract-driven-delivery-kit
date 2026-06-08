@@ -1,12 +1,12 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, relative, isAbsolute } from 'path';
 import yaml from 'js-yaml';
 import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
-import { testEvidenceSchema } from '../schemas/test-evidence.schema.js';
+import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS } from '../schemas/test-evidence.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import {
@@ -501,19 +501,18 @@ function validateDependencies(cwd: string, changeId: string, changeDir: string):
 
 // ── test evidence enforcement (ADR 0005 §6/§7) ───────────────────────────────
 
+// PROHIBITED_WAIVER_FIELDS (ADR 0005 §7) is owned by the schema module and
+// imported above: the schema rejects these fields, and the gate scans for them
+// by name so the operator gets an actionable, ADR-traceable message instead of a
+// generic "must NOT be valid".
+
 /**
- * Waiver fields ADR 0005 §7 forbids in `test-evidence.yml`. The schema's `not`
- * clause already rejects them, but the gate scans for them by name so the
- * operator gets an actionable, ADR-traceable message instead of a generic
- * "must NOT be valid". Keep in sync with src/schemas/test-evidence.schema.ts.
+ * Shared guidance for a blocked required-test failure (ADR 0005 §7). A required
+ * failure cannot be waived; the operator's only valid moves are spelled out once
+ * here so every evidence error gives the same advice.
  */
-const PROHIBITED_WAIVER_FIELDS = [
-  'known-failures',
-  'pre-existing-failures',
-  'allowed-failures',
-  'waived-failures',
-  'ignored-failures',
-];
+const BLOCKED_FAILURE_GUIDANCE =
+  "fix it, expand this change's scope to cover the fix, or open a separate tracked change";
 
 interface EvidenceRun {
   phase: string;
@@ -548,8 +547,7 @@ function enforceEvidenceSemantics(data: TestEvidenceFile, errors: string[]): voi
     if (run.status === 'failed') {
       errors.push(
         `test-evidence.yml: phase \`${run.phase}\` has a failed run (${run.command}) — ` +
-        `a required test failure blocks the gate and cannot be waived. Fix it, expand this ` +
-        `change's scope to cover the fix, or open a separate tracked change.`,
+        `a required test failure blocks the gate and cannot be waived (${BLOCKED_FAILURE_GUIDANCE}).`,
       );
     }
   }
@@ -571,8 +569,63 @@ function enforceEvidenceSemantics(data: TestEvidenceFile, errors: string[]): voi
   }
 }
 
-/** Validate a present `test-evidence.yml`: schema (incl. waiver-field rejection) then cross-field semantics. */
-function lintTestEvidence(evidencePath: string, errors: string[]): void {
+/** True iff childAbs is a real descendant of parentAbs (no `..` escape, not equal). */
+function isWithinDir(parentAbs: string, childAbs: string): boolean {
+  const rel = relative(parentAbs, childAbs);
+  return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+/**
+ * ADR 0005 §6 durability — an otherwise-green evidence file must reference REAL
+ * run artifacts under this change's own `test-runs/` directory. `cdd-kit test
+ * run` writes summary.json (and junit.xml for pytest) before it records a run,
+ * and the recorded paths are repo-root-relative, so legitimately generated
+ * evidence always resolves; a hand-authored file with invented or out-of-tree
+ * paths does not. This is a bounded existence + containment check on the declared
+ * paths — no path guessing, no inference. Called only when the evidence is
+ * otherwise green, so a failing file is not buried under additional path errors.
+ */
+function enforceArtifactPresence(data: TestEvidenceFile, cwd: string, changeDir: string, errors: string[]): void {
+  const testRunsDir = resolve(changeDir, 'test-runs');
+  for (const run of data.runs ?? []) {
+    const refs: ReadonlyArray<readonly [string, string | undefined]> = [
+      ['summary', run.summary],
+      ['junit', run.junit],
+    ];
+    for (const [field, value] of refs) {
+      if (!value) continue; // summary is schema-required; junit is optional
+      const abs = resolve(cwd, value);
+      if (!isWithinDir(testRunsDir, abs)) {
+        errors.push(
+          `test-evidence.yml: phase \`${run.phase}\` ${field} path \`${value}\` is not under this ` +
+          `change's test-runs/ directory — evidence must reference artifacts produced by ` +
+          `\`cdd-kit test run\`, not hand-written paths.`,
+        );
+        continue;
+      }
+      if (!existsSync(abs)) {
+        errors.push(
+          `test-evidence.yml: phase \`${run.phase}\` ${field} artifact \`${value}\` does not exist — ` +
+          `record evidence with \`cdd-kit test run <change-id> --phase ${run.phase}\` so the run ` +
+          `output is durable; do not hand-write evidence paths.`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Validate a present `test-evidence.yml`: schema (incl. waiver-field rejection),
+ * then change-id binding and cross-field semantics, then — when the file is
+ * otherwise green — artifact durability.
+ */
+function lintTestEvidence(
+  evidencePath: string,
+  cwd: string,
+  changeDir: string,
+  changeId: string,
+  errors: string[],
+): void {
   const { data, parseError } = loadYamlFile<TestEvidenceFile>(evidencePath);
   if (parseError) {
     errors.push(`test-evidence.yml: invalid YAML: ${parseError}`);
@@ -588,8 +641,7 @@ function lintTestEvidence(evidencePath: string, errors: string[]): void {
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       errors.push(
         `test-evidence.yml: prohibited waiver field \`${field}\` — ADR 0005 §7 forbids excluding ` +
-        `known or pre-existing failures. A required test failure blocks the gate: fix it, expand ` +
-        `this change's scope to cover the fix, or open a separate tracked change.`,
+        `known or pre-existing failures. A required test failure blocks the gate: ${BLOCKED_FAILURE_GUIDANCE}.`,
       );
     }
   }
@@ -621,27 +673,41 @@ function lintTestEvidence(evidencePath: string, errors: string[]): void {
     return; // schema-invalid evidence can't be trusted for cross-field checks
   }
 
+  // The evidence must belong to THIS change (a copied or renamed evidence file
+  // is rejected), and — when otherwise green — must reference real run artifacts.
+  // Both are bounded, verbatim checks on the already-validated structure.
+  const before = errors.length;
+  if (data['change-id'] !== changeId) {
+    errors.push(
+      `test-evidence.yml: change-id \`${data['change-id']}\` does not match the change being gated ` +
+      `(\`${changeId}\`) — this evidence was generated for (or copied from) a different change.`,
+    );
+  }
   enforceEvidenceSemantics(data, errors);
-}
-
-/** The auditable opt-out reason for a non-implementation change, if declared. */
-function readTestEvidenceOptOut(changeDir: string): string {
-  const { data } = loadYamlFile<TasksFile>(join(changeDir, 'tasks.yml'));
-  const o = data?.['test-evidence-not-applicable'];
-  return typeof o === 'string' ? o.trim() : '';
+  if (errors.length === before) {
+    enforceArtifactPresence(data, cwd, changeDir, errors);
+  }
 }
 
 /**
  * ADR 0005 §6 / PR-5 — the gate validates test evidence, not assistant claims.
- *   - present → validate it (schema + cross-field), always.
+ *   - present → validate it (schema + cross-field + change-id + artifacts), always.
  *   - missing → implementation changes must record evidence. Mirrors the
  *     context-manifest migration window: a context-governed (v1) change, or any
  *     change under --strict, errors; a legacy change only warns. A change that is
  *     genuinely not an implementation change opts out auditably via
  *     `test-evidence-not-applicable: "<reason>"` in tasks.yml frontmatter.
+ *
+ * The opt-out is read from the tasks.yml the gate already parsed (`tasksData`),
+ * not re-read here: a tasks.yml that failed to parse is already a gate error
+ * (lintTasksFile), so a broken config surfaces that error instead of being
+ * silently treated as "no opt-out".
  */
 function enforceTestEvidence(
+  cwd: string,
   changeDir: string,
+  changeId: string,
+  tasksData: TasksFile | null,
   isNewChange: boolean,
   strict: boolean,
   errors: string[],
@@ -649,11 +715,16 @@ function enforceTestEvidence(
 ): void {
   const evidencePath = join(changeDir, 'test-evidence.yml');
   if (existsSync(evidencePath)) {
-    lintTestEvidence(evidencePath, errors);
+    lintTestEvidence(evidencePath, cwd, changeDir, changeId, errors);
     return;
   }
 
-  const optOut = readTestEvidenceOptOut(changeDir);
+  // No evidence file. The opt-out lives in tasks.yml; if tasks.yml itself failed
+  // to parse (tasksData === null) that is already reported, so don't pile on.
+  if (tasksData === null) return;
+
+  const rawOptOut = tasksData['test-evidence-not-applicable'];
+  const optOut = typeof rawOptOut === 'string' ? rawOptOut.trim() : '';
   if (optOut) {
     warnings.push(`test evidence not applicable: ${optOut} (declared in tasks.yml; no test-evidence.yml required).`);
     return;
@@ -767,7 +838,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTierConsistency(changeDir, errors, warnings);
   enforceTierFloor(changeDir, errors, warnings);
   enforceContractSubstance(cwd, errors, warnings, strict);
-  enforceTestEvidence(changeDir, isNewChange, strict, errors, warnings);
+  enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
 
   for (const w of warnings) {
     log.warn(`  ${w}`);

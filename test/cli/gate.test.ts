@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
@@ -1381,6 +1381,23 @@ function buildEvidenceYaml(opts: {
   return yaml.dump(data, { lineWidth: -1, noRefs: true });
 }
 
+/**
+ * Create the run artifacts a piece of evidence references (repo-root-relative
+ * summary/junit paths), so the gate's artifact-durability check sees real files
+ * under the change's test-runs/ — the same files `cdd-kit test run` would write.
+ */
+function materializeEvidenceArtifacts(repoRoot: string, evidenceBody: string): void {
+  const data = yaml.load(evidenceBody) as { runs?: Array<{ summary?: string; junit?: string }> };
+  for (const run of data.runs ?? []) {
+    for (const p of [run.summary, run.junit]) {
+      if (!p) continue;
+      const abs = join(repoRoot, p);
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, '{}\n', 'utf8');
+    }
+  }
+}
+
 describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
   let tmpRepo: string;
   let tmpHome: string;
@@ -1450,7 +1467,9 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     writeValidChangeArtifacts(changeDir);
     writeContextGovernanceFiles(changeDir);
     writeValidContracts(tmpRepo);
-    writeEvidence(changeDir, buildEvidenceYaml({ changeId: 'ev-pass' }));
+    const body = buildEvidenceYaml({ changeId: 'ev-pass' });
+    writeEvidence(changeDir, body);
+    materializeEvidenceArtifacts(tmpRepo, body); // real test-runs/ artifacts so the durability check passes
 
     const r = runCli(['gate', 'ev-pass'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
@@ -1546,5 +1565,61 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'ev-bad-yaml'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/test-evidence\.yml: invalid YAML/i);
+  });
+
+  // ── present evidence: change-id binding + artifact durability ───────────────
+
+  it('E11: green evidence whose referenced run artifact is missing fails the gate', () => {
+    runCli(['new', 'ev-no-artifact'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-no-artifact');
+    writeValidChangeArtifacts(changeDir);
+    // schema-valid, otherwise-green evidence — but no test-runs/ artifacts on disk.
+    writeEvidence(changeDir, buildEvidenceYaml({ changeId: 'ev-no-artifact' }));
+
+    const r = runCli(['gate', 'ev-no-artifact'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/summary artifact .* does not exist/i);
+  });
+
+  it('E12: green evidence whose run artifact is outside the change test-runs/ dir fails the gate', () => {
+    runCli(['new', 'ev-outside'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-outside');
+    writeValidChangeArtifacts(changeDir);
+    // change-request.md exists but is not a test-runs artifact — containment must reject it.
+    writeEvidence(changeDir, buildEvidenceYaml({
+      changeId: 'ev-outside',
+      requiredPhases: ['collect'],
+      runs: [{ phase: 'collect', status: 'passed', summary: 'specs/changes/ev-outside/change-request.md' }],
+    }));
+
+    const r = runCli(['gate', 'ev-outside'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/is not under this change's test-runs\/ directory/i);
+  });
+
+  it('E13: evidence whose change-id is for a different change fails the gate', () => {
+    runCli(['new', 'ev-mine'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-mine');
+    writeValidChangeArtifacts(changeDir);
+    // green, schema-valid evidence — but generated for (or copied from) a different change.
+    writeEvidence(changeDir, buildEvidenceYaml({ changeId: 'some-other-change' }));
+
+    const r = runCli(['gate', 'ev-mine'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/change-id `some-other-change` does not match the change being gated/i);
+  });
+
+  it('E14: a malformed tasks.yml surfaces a YAML error, not a masked missing-opt-out', () => {
+    runCli(['new', 'ev-bad-tasks'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'ev-bad-tasks');
+    writeValidChangeArtifacts(changeDir);
+    // No test-evidence.yml, and a tasks.yml that cannot parse: the parse error
+    // must surface — a broken config must not be silently read as "no opt-out".
+    writeFileSync(join(changeDir, 'tasks.yml'), 'change-id: ev-bad-tasks\nstatus: [unclosed\n', 'utf8');
+
+    const r = runCli(['gate', 'ev-bad-tasks'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/tasks\.yml: invalid YAML/i);
+    expect(r.stdout + r.stderr).not.toMatch(/missing required artifact: test-evidence\.yml/i);
   });
 });

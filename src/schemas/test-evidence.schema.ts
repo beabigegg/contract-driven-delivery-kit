@@ -8,7 +8,20 @@
 // ignored-failures. `additionalProperties: false` already blocks any unlisted
 // key, so those fields cannot appear. The explicit `not` below names them so the
 // prohibition is intentional and traceable to the ADR, and so it survives even
-// if `additionalProperties` is ever relaxed. Keep both in sync with the ADR.
+// if `additionalProperties` is ever relaxed.
+//
+// This array is the single source of truth for the prohibited fields. The schema
+// builds its `not.anyOf` from it, and the gate (src/commands/gate.ts) imports it
+// to name the offending field in its error and to skip the duplicate
+// `additionalProperties` echo — so the two can never drift out of sync.
+export const PROHIBITED_WAIVER_FIELDS = [
+  "known-failures",
+  "pre-existing-failures",
+  "allowed-failures",
+  "waived-failures",
+  "ignored-failures",
+];
+
 const PHASES = ["collect", "targeted", "changed-area", "contract", "quality", "full"] as const;
 
 export const testEvidenceSchema = {
@@ -19,13 +32,7 @@ export const testEvidenceSchema = {
   additionalProperties: false,
   required: ["change-id", "schema-version", "required-phases", "runs", "final-status"],
   not: {
-    anyOf: [
-      { required: ["known-failures"] },
-      { required: ["pre-existing-failures"] },
-      { required: ["allowed-failures"] },
-      { required: ["waived-failures"] },
-      { required: ["ignored-failures"] },
-    ],
+    anyOf: PROHIBITED_WAIVER_FIELDS.map((field) => ({ required: [field] })),
   },
   properties: {
     "change-id": { type: "string", pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$" },

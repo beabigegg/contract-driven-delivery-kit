@@ -116,10 +116,18 @@
   not broken by the rollout. A change that is genuinely not an implementation
   change opts out auditably with `test-evidence-not-applicable: "<reason>"` in
   `tasks.yml` frontmatter (a new optional field, mirroring `tier-floor-override`),
-  which downgrades the error to a recorded warning. The check is deterministic
-  and reads only structured inputs — no free-form parsing, path guessing, or
-  inference about whether a change is "implementation". Agent, skill, and README
-  guidance for the evidence flow follows in the next ADR 0005 phase.
+  which downgrades the error to a recorded warning. Present evidence is also bound
+  to the change being gated: its `change-id` must match (a copied or renamed
+  evidence file is rejected), and an otherwise-green file must reference real run
+  artifacts under the change's own `test-runs/` directory — existence and
+  containment — so a hand-written file with invented `summary`/`junit` paths
+  cannot satisfy the gate. The opt-out is read from the `tasks.yml` the gate
+  already parsed, so a `tasks.yml` that fails to parse surfaces that error instead
+  of being silently treated as "no opt-out". The checks are deterministic and
+  verbatim — they trust declared structured values and verify them (schema shape,
+  `change-id` equality, artifact existence), with no free-form parsing, path
+  guessing, or inference about whether a change is "implementation". Agent, skill,
+  and README guidance for the evidence flow follows in the next ADR 0005 phase.
 
 ### Changed
 
