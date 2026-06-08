@@ -618,6 +618,16 @@ test
     process.exit(exit);
   });
 
+test
+  .command('select <change-id>')
+  .description('Select bounded test commands for each ladder phase from test-plan.md (deterministic; emits needs-test-plan-update when no bounded target is safe)')
+  .option('--json', 'print the selection as JSON', false)
+  .action(async (changeId: string, opts: { json?: boolean }) => {
+    const { testSelect } = await import('../commands/test-select.js');
+    const exit = await testSelect(changeId, { json: opts.json === true });
+    process.exit(exit);
+  });
+
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program
   .command('detect-stack')

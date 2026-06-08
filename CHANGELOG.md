@@ -65,6 +65,39 @@
   honours stream backpressure. Selection and gate enforcement follow in the next
   ADR 0005 phases.
 
+- **Deterministic test selection: `cdd-kit test select <change-id>` (ADR 0005
+  §3).** Plans the bounded command for each ladder phase from static inputs and
+  never executes tests. It trusts explicit mappings in `test-plan.md`'s
+  *Acceptance Criteria → Test Mapping* table (then `implementation-plan.md`'s
+  *Test Execution Plan*). A mapping cell is used in one of two deterministic
+  ways: a **bare target** (a `.py` file, `file::node`, or a directory) is accepted
+  only when it **exists on disk** — so the scaffold's `tests/unit/test_xxx.py`
+  placeholder is filtered by reality rather than by word-matching, and real
+  packages named `todo`/`example` are not — and becomes the ADR-shaped `collect`
+  (`pytest --collect-only -q <target>`) and `targeted`
+  (`pytest <target> -q --maxfail=1 --tb=short -ra`) commands; or a **full pytest
+  command** is trusted and emitted **verbatim** (same trust boundary as `cdd-kit
+  test run`), so option flags, quoting, and multiple targets are the author's
+  concern, not the selector's. `..` path-traversal targets are rejected and
+  parametrized node ids are shell-quoted for the host platform. `changed-area` is
+  derived from the change's touched files — a changed test file runs directly, a
+  changed `conftest.py` runs its directory — falling back to the directory of the
+  mapped targets when there is no git signal (code-map graph-impact is
+  intentionally deferred per ADR 0005 "Revisit when"). A `contract` phase is added
+  when contract files are touched or `implementation-plan.md` declares contract
+  updates (free-form or labelled bullets), running `cdd-kit validate --contracts`
+  plus `--env` / `--ci` for env / CI-contract families; a `quality` phase is
+  emitted from the runnable lint/typecheck/build commands configured in the
+  change's `ci-gates.md` (workflow-file references are ignored); and a bounded
+  `full` smoke is always included. When
+  no targeted or changed-area target can be selected safely it returns
+  `needs-test-plan-update` (exit 1) instead of searching the repo indefinitely;
+  `selected` exits 0 and a usage error (bad id, missing change dir) exits 2.
+  `--json` prints the machine-readable plan. The local-import resolver shared with
+  `cdd index impact` was extracted to `src/code-map/resolve.ts` so both commands
+  resolve dependents identically. Gate enforcement of the recorded evidence
+  follows in the next ADR 0005 phase.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any

@@ -1,9 +1,8 @@
 import { existsSync } from 'fs';
 import { posix } from 'path';
 import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader.js';
+import { isLocalImport, resolveLocalModule } from '../code-map/resolve.js';
 import type { FileEntry, ImportEntry } from '../code-map/types.js';
-
-const RESOLUTION_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue', '.py'] as const;
 
 export interface IndexImpactOptions {
   map: string;
@@ -167,57 +166,6 @@ function resolveImport(importerPath: string, imp: ImportEntry, pathSet: Set<stri
     line: imp.line,
     ...(resolved ? { resolved } : {}),
   };
-}
-
-function resolveLocalModule(importerPath: string, moduleName: string, pathSet: Set<string>): string | undefined {
-  if (!isLocalImport(moduleName)) return undefined;
-
-  const base = moduleName.startsWith('./') || moduleName.startsWith('../')
-    ? posix.normalize(posix.join(posix.dirname(importerPath), moduleName))
-    : resolvePythonRelativeImport(importerPath, moduleName);
-
-  for (const candidate of resolutionCandidates(base)) {
-    if (pathSet.has(candidate)) return candidate;
-  }
-  return undefined;
-}
-
-function resolvePythonRelativeImport(importerPath: string, moduleName: string): string {
-  const match = moduleName.match(/^(\.+)(.*)$/);
-  if (!match) return moduleName;
-  const upLevels = Math.max(0, match[1].length - 1);
-  let baseDir = posix.dirname(importerPath);
-  for (let i = 0; i < upLevels; i++) {
-    baseDir = posix.dirname(baseDir);
-  }
-  const rest = match[2].replace(/^\./, '').replace(/\./g, '/');
-  return rest ? posix.normalize(posix.join(baseDir, rest)) : baseDir;
-}
-
-function resolutionCandidates(base: string): string[] {
-  const ext = posix.extname(base);
-  const candidates: string[] = [];
-  if (ext) {
-    candidates.push(base);
-    const withoutExt = base.slice(0, -ext.length);
-    if (['.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
-      candidates.push(`${withoutExt}.ts`, `${withoutExt}.tsx`, `${withoutExt}.vue`);
-    }
-  } else {
-    for (const candidateExt of RESOLUTION_EXTENSIONS) {
-      candidates.push(`${base}${candidateExt}`);
-    }
-  }
-
-  for (const candidateExt of RESOLUTION_EXTENSIONS) {
-    candidates.push(posix.join(base, `index${candidateExt}`));
-  }
-  candidates.push(posix.join(base, '__init__.py'));
-  return [...new Set(candidates)];
-}
-
-function isLocalImport(moduleName: string): boolean {
-  return moduleName.startsWith('.');
 }
 
 function summarizeSymbols(entry: FileEntry): SymbolSummary[] {
