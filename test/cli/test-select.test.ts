@@ -138,7 +138,7 @@ describe('cdd-kit test select (integration)', () => {
     write('implementation-plan.md', '# Implementation Plan\n\n## Contract Updates\n\n- Env: add FEATURE_FLAG\n');
     const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
     const sel = JSON.parse(r.stdout);
-    expect(sel.phases.contract[0].command).toBe('cdd-kit validate --env');
+    expect(sel.phases.contract[0].command).toBe('cdd-kit validate --contracts --env');
   });
 
   it('emits the quality phase from configured ci-gates.md commands', () => {
@@ -224,7 +224,9 @@ describe('test-select helpers (unit)', () => {
     expect(isPlaceholderTarget('')).toBe(true);
     expect(isPlaceholderTarget('-')).toBe(true);
     expect(isPlaceholderTarget('n/a')).toBe(true);
+    expect(isPlaceholderTarget('TODO')).toBe(true); // whole-value marker
     expect(isPlaceholderTarget('tests/orders/test_filter.py::test_x')).toBe(false);
+    expect(isPlaceholderTarget('tests/todo/test_api.py')).toBe(false); // real `todo` package
   });
 
   it('isUsablePytestTarget accepts files, node ids, and dirs (slash or not) only', () => {
@@ -233,6 +235,7 @@ describe('test-select helpers (unit)', () => {
     expect(isUsablePytestTarget('tests/orders/test_filter.py::test_x[1-2]')).toBe(true);
     expect(isUsablePytestTarget('tests/orders/')).toBe(true);
     expect(isUsablePytestTarget('tests/orders')).toBe(true); // directory, no trailing slash
+    expect(isUsablePytestTarget('tests/todo/test_api.py')).toBe(true); // real `todo` package, not a placeholder
     expect(isUsablePytestTarget('tests/unit/test_xxx.py')).toBe(false); // placeholder
     expect(isUsablePytestTarget('npm test')).toBe(false);
     expect(isUsablePytestTarget('pytest && rm -rf /')).toBe(false);
@@ -247,6 +250,7 @@ describe('test-select helpers (unit)', () => {
     expect(cellToTarget('pytest -k expr tests/orders')).toBe('tests/orders');
     expect(cellToTarget("python -m pytest 'tests/x.py::test_y[case]' -q")).toBe('tests/x.py::test_y[case]');
     expect(cellToTarget('python -m pytest --ignore tests/slow tests/api')).toBe('tests/api');
+    expect(cellToTarget('`python -m pytest tests/x.py::test_y -q`')).toBe('tests/x.py::test_y'); // markdown inline code
     expect(cellToTarget('npm run build')).toBeNull();
     expect(cellToTarget('python -m pytest -q')).toBeNull(); // command, but no target token
   });
@@ -302,6 +306,17 @@ describe('test-select helpers (unit)', () => {
       '| lint | yes | ci.yml |',
     ].join('\n');
     expect(extractQualityGates(workflowOnly)).toEqual([]);
+
+    // a markdown inline-code command has its backticks stripped before emitting
+    const inlineCode = [
+      '## Required Gates',
+      '| gate | required | command |',
+      '|---|---|---|',
+      '| typecheck | yes | `npm run typecheck` |',
+    ].join('\n');
+    expect(extractQualityGates(inlineCode)).toEqual([
+      { reason: 'typecheck gate configured in ci-gates.md', command: 'npm run typecheck' },
+    ]);
   });
 
   it('detectContractAffected maps each contract family to the right validate command', () => {
@@ -309,13 +324,14 @@ describe('test-select helpers (unit)', () => {
       command: 'cdd-kit validate --contracts',
       reason: 'contract files changed',
     });
-    expect(detectContractAffected(['contracts/env/env-contract.md'], '')?.command).toBe('cdd-kit validate --env');
+    expect(detectContractAffected(['contracts/env/env-contract.md'], '')?.command).toBe('cdd-kit validate --contracts --env');
+    expect(detectContractAffected(['contracts/ci/ci-gate-contract.md'], '')?.command).toBe('cdd-kit validate --contracts --ci');
     expect(detectContractAffected([], '## Contract Updates\n- API: add field\n')).toMatchObject({
       command: 'cdd-kit validate --contracts',
       reason: 'implementation-plan.md declares contract updates',
     });
-    expect(detectContractAffected([], '## Contract Updates\n- Env: rotate key\n')?.command).toBe('cdd-kit validate --env');
-    expect(detectContractAffected([], '## Contract Updates\n- CI/CD: add nightly job\n')?.command).toBe('cdd-kit validate --ci');
+    expect(detectContractAffected([], '## Contract Updates\n- Env: rotate key\n')?.command).toBe('cdd-kit validate --contracts --env');
+    expect(detectContractAffected([], '## Contract Updates\n- CI/CD: add nightly job\n')?.command).toBe('cdd-kit validate --contracts --ci');
     expect(detectContractAffected([], '## Contract Updates\n- Add status to the API contract\n')?.command).toBe('cdd-kit validate --contracts');
     expect(detectContractAffected([], '## Contract Updates\n- API:\n- Env:\n')).toBeNull();
     expect(detectContractAffected([], 'no contract section')).toBeNull();
@@ -356,5 +372,14 @@ describe('test-select helpers (unit)', () => {
     expect(
       findTestDependents(srcLayout, 'src/orders/service.py', new Set(srcLayout.map((e) => e.path))),
     ).toEqual(['tests/test_orders.py']);
+
+    // top-level module in a src/ layout (`import orders` -> src/orders.py)
+    const topLevel: FileEntry[] = [
+      mk('tests/test_top.py', [['orders', []]]),
+      mk('src/orders.py', []),
+    ];
+    expect(
+      findTestDependents(topLevel, 'src/orders.py', new Set(topLevel.map((e) => e.path))),
+    ).toEqual(['tests/test_top.py']);
   });
 });

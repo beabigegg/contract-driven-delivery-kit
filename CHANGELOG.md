@@ -85,9 +85,9 @@
   when there is no git/graph signal; the code-map is refreshed first when sources
   changed (like `cdd index impact`, with `--no-refresh` to opt out). A `contract`
   phase is added when contract files are touched or `implementation-plan.md`
-  declares contract updates (free-form or labelled bullets), with the matching
-  validator flag — `--env` / `--ci` for env/CI-contract changes, `--contracts`
-  otherwise; a `quality` phase is emitted from the runnable lint/typecheck/build
+  declares contract updates (free-form or labelled bullets), running `cdd-kit
+  validate --contracts` plus `--env` / `--ci` for env / CI-contract families; a
+  `quality` phase is emitted from the runnable lint/typecheck/build
   commands configured in the change's `ci-gates.md` (workflow-file references are
   ignored); and a bounded `full` smoke is always included. When
   no targeted or changed-area target can be selected safely it returns

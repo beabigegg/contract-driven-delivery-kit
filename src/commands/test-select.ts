@@ -61,9 +61,13 @@ const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/;
  */
 export function isPlaceholderTarget(value: string): boolean {
   const v = value.trim();
-  if (!v || v === '-' || v === '—' || /^n\/?a$/i.test(v)) return true;
+  // Whole-value scaffold markers (so a real `tests/todo/...` path is not flagged
+  // just because it contains the word "todo").
+  if (!v || v === '-' || v === '—' || /^(n\/?a|tbd|todo)$/i.test(v)) return true;
   if (v.includes('<') || v.includes('>')) return true;
-  if (/xxx|\/example\/|^example\/|your[_-]|\btbd\b|\btodo\b/i.test(v)) return true;
+  // Template example tokens, matched as delimited path segments / names only so
+  // they don't trip on real paths that merely contain the substring.
+  if (/(^|[/_.])xxx([/_.]|$)/i.test(v) || /(^|\/)example\//i.test(v) || /your[_-]/i.test(v)) return true;
   return false;
 }
 
@@ -87,6 +91,12 @@ function stripQuotes(token: string): string {
     if ((q === '"' || q === "'") && token[token.length - 1] === q) return token.slice(1, -1);
   }
   return token;
+}
+
+/** Strip Markdown inline-code backticks (`` `cmd` ``) wrapping a whole cell. */
+function stripInlineCode(value: string): string {
+  const m = value.match(/^`+(.*?)`+$/);
+  return m ? m[1].trim() : value;
 }
 
 // pytest options that take a SEPARATE operand (`--opt value`); the operand is not
@@ -119,11 +129,12 @@ function pytestArgsStart(tokens: string[]): number {
  * dropped as unusable.
  */
 export function cellToTarget(value: string): string | null {
-  const bare = stripQuotes(value.trim());
+  const cleaned = stripInlineCode(value.trim());
+  const bare = stripQuotes(cleaned);
   if (isUsablePytestTarget(bare)) return bare;
-  if (!isPytestCommand(value)) return null;
+  if (!isPytestCommand(cleaned)) return null;
 
-  const tokens = value.trim().split(/\s+/);
+  const tokens = cleaned.split(/\s+/);
   for (let i = pytestArgsStart(tokens); i < tokens.length; i++) {
     const tok = tokens[i];
     if (tok.startsWith('-')) {
@@ -259,16 +270,15 @@ function dedupeByTarget(targets: MappedTarget[]): MappedTarget[] {
  * update.
  */
 export function detectContractAffected(touched: string[], implPlanText: string): { reason: string; command: string } | null {
-  const flags = new Set<string>();
+  const extra = new Set<string>(); // family validators beyond the base --contracts
   let touchedContracts = false;
   let planDeclares = false;
 
   for (const p of touched) {
     if (!/(^|\/)contracts\//.test(p)) continue;
     touchedContracts = true;
-    if (/(^|\/)contracts\/env\//.test(p) || /env-contract\.md$/.test(p)) flags.add('--env');
-    else if (/(^|\/)contracts\/ci\//.test(p)) flags.add('--ci');
-    else flags.add('--contracts');
+    if (/(^|\/)contracts\/env\//.test(p) || /env-contract\.md$/.test(p)) extra.add('--env');
+    else if (/(^|\/)contracts\/ci\//.test(p)) extra.add('--ci');
   }
 
   const section = implPlanText.match(/##\s*Contract Updates\s*\n([\s\S]*?)(?:\n#{1,6}\s|$)/i);
@@ -281,24 +291,26 @@ export function detectContractAffected(touched: string[], implPlanText: string):
         if (!labeled[2].trim()) continue; // unfilled template label, e.g. `- API:`
         planDeclares = true;
         const label = labeled[1].toLowerCase();
-        if (/env/.test(label)) flags.add('--env');
-        else if (/\bci\b|ci\/cd/.test(label)) flags.add('--ci');
-        else flags.add('--contracts');
+        if (/env/.test(label)) extra.add('--env');
+        else if (/\bci\b|ci\/cd/.test(label)) extra.add('--ci');
       } else if (bullet[1].trim()) {
         planDeclares = true; // free-form bullet with content
-        flags.add('--contracts');
       }
     }
   }
 
-  if (flags.size === 0) return null;
-  const command = `cdd-kit validate ${['--contracts', '--env', '--ci'].filter((f) => flags.has(f)).join(' ')}`;
+  if (!touchedContracts && !planDeclares) return null;
+
+  // --contracts is the base contract-file validator -- it also checks the env/CI
+  // contract *files* -- so it is always included; --env / --ci add the
+  // family-specific semantic validators on top.
+  const flags = ['--contracts', ...['--env', '--ci'].filter((f) => extra.has(f))];
   const reason = touchedContracts && planDeclares
     ? 'contract files changed; implementation-plan.md declares contract updates'
     : touchedContracts
       ? 'contract files changed'
       : 'implementation-plan.md declares contract updates';
-  return { reason, command };
+  return { reason, command: `cdd-kit validate ${flags.join(' ')}` };
 }
 
 // ── quality phase (configured gates) ──────────────────────────────────────────
@@ -332,7 +344,7 @@ export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
     const gate = (row[gi] ?? '').trim();
     if (!QUALITY_GATES.test(gate)) continue;
     if (ri >= 0 && /^no$/i.test((row[ri] ?? '').trim())) continue;
-    const command = (row[cmdi] ?? '').trim();
+    const command = stripInlineCode((row[cmdi] ?? '').trim());
     if (!command || isPlaceholderTarget(command) || WORKFLOW_REF.test(command) || seen.has(command)) continue;
     seen.add(command);
     out.push({ reason: `${gate} gate configured in ci-gates.md`, command });
@@ -347,9 +359,10 @@ function dottedMatchesSource(dotted: string, sourcePath: string): boolean {
   if (!dotted || dotted.startsWith('.')) return false;
   const p = dotted.replace(/\./g, '/');
   const candidates = [`${p}.py`, `${p}/__init__.py`];
-  // Exact match, or a suffix match for multi-segment modules so a `src/`-layout
-  // source (`src/orders/service.py`) is found from `from orders.service import x`.
-  return candidates.some((c) => sourcePath === c || (p.includes('/') && sourcePath.endsWith(`/${c}`)));
+  // Exact match, or a suffix match so a `src/`-layout source is found from an
+  // absolute import -- including a top-level module (`import orders` ->
+  // `src/orders.py`), where the matched suffix is a whole path component.
+  return candidates.some((c) => sourcePath === c || sourcePath.endsWith(`/${c}`));
 }
 
 /**
