@@ -71,15 +71,21 @@
   *Acceptance Criteria → Test Mapping* table (then `implementation-plan.md`'s
   *Test Execution Plan*), emitting ADR-shaped `collect`
   (`pytest --collect-only -q <target>`) and `targeted`
-  (`pytest <target> -q --maxfail=1 --tb=short -ra`) commands; unfilled scaffold
-  rows (`tests/unit/test_xxx.py`, `<id>`, `tests/example/...`) are recognised as
-  placeholders and ignored. `changed-area` is derived from the change's touched
-  test files and, via the code-map, the test files that import a touched source
-  (graph-impact), falling back to the directory of the mapped targets when there
-  is no git/graph signal. A `contract` phase (`cdd-kit validate --contracts`) is
-  added when contract files are touched or `implementation-plan.md` declares
-  contract updates, and a bounded `full` smoke is always included. When no
-  targeted or changed-area target can be selected safely it returns
+  (`pytest <target> -q --maxfail=1 --tb=short -ra`) commands. A mapping cell may
+  be a bare target (file, `file::node`, or a directory with or without a trailing
+  slash) or a full pytest command (`python -m pytest <target> -q`), whose target
+  is extracted; unfilled scaffold rows (`tests/unit/test_xxx.py`, `<id>`,
+  `tests/example/...`) are recognised as placeholders and ignored. `changed-area`
+  is derived from the change's touched test files and, via the code-map, the test
+  files that import a touched source (graph-impact, resolving both the import
+  module and `from . import name` items), falling back to the directory of the
+  mapped targets when there is no git/graph signal; the code-map is refreshed
+  first when sources changed (like `cdd index impact`, with `--no-refresh` to opt
+  out). A `contract` phase (`cdd-kit validate --contracts`) is added when contract
+  files are touched or `implementation-plan.md` declares contract updates; a
+  `quality` phase is emitted from the lint/typecheck/build commands configured in
+  the change's `ci-gates.md`; and a bounded `full` smoke is always included. When
+  no targeted or changed-area target can be selected safely it returns
   `needs-test-plan-update` (exit 1) instead of searching the repo indefinitely;
   `selected` exits 0 and a usage error (bad id, missing change dir) exits 2.
   `--json` prints the machine-readable plan. The local-import resolver shared with

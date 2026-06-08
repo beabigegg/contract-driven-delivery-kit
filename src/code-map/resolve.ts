@@ -31,36 +31,50 @@ export function resolveLocalModule(importerPath: string, moduleName: string, pat
   return undefined;
 }
 
+/** Convert a Python dotted submodule (`pkg.sub`) into a path fragment (`pkg/sub`). */
+function dottedModuleToPath(dotted: string): string {
+  return dotted.replace(/^\./, '').replace(/\./g, '/');
+}
+
 export function resolvePythonRelativeImport(importerPath: string, moduleName: string): string {
   const match = moduleName.match(/^(\.+)(.*)$/);
   if (!match) return moduleName;
+
   const upLevels = Math.max(0, match[1].length - 1);
   let baseDir = posix.dirname(importerPath);
   for (let i = 0; i < upLevels; i++) {
     baseDir = posix.dirname(baseDir);
   }
-  const rest = match[2].replace(/^\./, '').replace(/\./g, '/');
+
+  const rest = dottedModuleToPath(match[2]);
   return rest ? posix.normalize(posix.join(baseDir, rest)) : baseDir;
+}
+
+/** Candidates for a base WITH an extension (plus JS->TS/Vue fallbacks). */
+function baseWithExtCandidates(base: string, ext: string): string[] {
+  const candidates = [base];
+  const withoutExt = base.slice(0, -ext.length);
+  if (['.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
+    candidates.push(`${withoutExt}.ts`, `${withoutExt}.tsx`, `${withoutExt}.vue`);
+  }
+  return candidates;
+}
+
+/** Candidates for an extension-less base: try each known extension. */
+function baseWithoutExtCandidates(base: string): string[] {
+  return RESOLUTION_EXTENSIONS.map((ext) => `${base}${ext}`);
+}
+
+/** Directory-style fallbacks: `<base>/index.<ext>` and the Python `__init__.py`. */
+function indexAndInitCandidates(base: string): string[] {
+  return [
+    ...RESOLUTION_EXTENSIONS.map((ext) => posix.join(base, `index${ext}`)),
+    posix.join(base, '__init__.py'),
+  ];
 }
 
 export function resolutionCandidates(base: string): string[] {
   const ext = posix.extname(base);
-  const candidates: string[] = [];
-  if (ext) {
-    candidates.push(base);
-    const withoutExt = base.slice(0, -ext.length);
-    if (['.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
-      candidates.push(`${withoutExt}.ts`, `${withoutExt}.tsx`, `${withoutExt}.vue`);
-    }
-  } else {
-    for (const candidateExt of RESOLUTION_EXTENSIONS) {
-      candidates.push(`${base}${candidateExt}`);
-    }
-  }
-
-  for (const candidateExt of RESOLUTION_EXTENSIONS) {
-    candidates.push(posix.join(base, `index${candidateExt}`));
-  }
-  candidates.push(posix.join(base, '__init__.py'));
-  return [...new Set(candidates)];
+  const baseCandidates = ext ? baseWithExtCandidates(base, ext) : baseWithoutExtCandidates(base);
+  return [...baseCandidates, ...indexAndInitCandidates(base)];
 }

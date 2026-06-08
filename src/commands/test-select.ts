@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { getTouchedPaths } from '../utils/git-paths.js';
-import { loadCodeMapEntries } from '../code-map/index-reader.js';
+import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader.js';
 import { resolveLocalModule } from '../code-map/resolve.js';
+import { isPytestCommand } from './test-run.js';
 import type { FileEntry } from '../code-map/types.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select`
@@ -16,13 +17,15 @@ import type { FileEntry } from '../code-map/types.js';
 // Parity with test-run.ts / new-change.ts: rejects path-escape ids like `..`.
 const SAFE_CHANGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
-// pytest-first (ADR "Scope of initial implementation"): every emitted command is
-// a pytest invocation or `cdd-kit validate`. Other runners get adapters later.
+// pytest-first (ADR "Scope of initial implementation"): every emitted test
+// command is a pytest invocation; the `quality` phase passes through the
+// operator's configured commands verbatim. Other runners get adapters later.
 const PYTEST = 'python -m pytest';
 const PYTEST_TAIL = '-q --maxfail=1 --tb=short -ra';
+const CODE_MAP_PATH = '.cdd/code-map.yml';
 
-export type Phase = 'collect' | 'targeted' | 'changed-area' | 'contract' | 'full';
-const PHASE_ORDER: Phase[] = ['collect', 'targeted', 'changed-area', 'contract', 'full'];
+export type Phase = 'collect' | 'targeted' | 'changed-area' | 'contract' | 'quality' | 'full';
+const PHASE_ORDER: Phase[] = ['collect', 'targeted', 'changed-area', 'contract', 'quality', 'full'];
 
 export interface SelectionEntry {
   reason: string;
@@ -32,6 +35,7 @@ export interface SelectionEntry {
 
 export interface TestSelectOptions {
   json: boolean;
+  refresh: boolean;
 }
 
 interface MappedTarget {
@@ -43,8 +47,11 @@ interface MappedTarget {
 
 // A concrete pytest file/node id (optionally a parametrized [id]) ...
 const TARGET_FILE = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py(::[A-Za-z0-9_./[\]:=,+-]+)?$/;
-// ... or a directory target (trailing slash), e.g. `tests/orders/`.
-const TARGET_DIR = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\/$/;
+// ... or a safe path with a separator (a directory target, with or without a
+// trailing slash: `tests/orders` and `tests/orders/` are both valid pytest
+// targets). A bare word with no separator is rejected so a "test family" cell
+// like `unit` is never mistaken for a runnable target.
+const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/;
 
 /**
  * True when a cell is still a scaffold placeholder rather than a real target, so
@@ -60,11 +67,31 @@ export function isPlaceholderTarget(value: string): boolean {
   return false;
 }
 
-/** A real, bounded pytest target (file, node id, or directory) we can run. */
+/** A real, bounded pytest target: a file/node id, or a path-with-separator dir. */
 export function isUsablePytestTarget(value: string): boolean {
   const v = value.trim();
   if (isPlaceholderTarget(v)) return false;
-  return TARGET_FILE.test(v) || TARGET_DIR.test(v);
+  if (TARGET_FILE.test(v)) return true;
+  return SAFE_PATH.test(v) && v.includes('/'); // directory target (slash present)
+}
+
+/**
+ * Reduce a mapping cell to a bounded target. The cell may already be a bare
+ * target, or -- since the implementation-plan template names the column
+ * "test file / command" -- a full pytest command (`python -m pytest <target>
+ * -q`). In the command case the first positional pytest target is extracted so
+ * the row is selected instead of being dropped as unusable.
+ */
+export function cellToTarget(value: string): string | null {
+  const v = value.trim();
+  if (isUsablePytestTarget(v)) return v;
+  if (isPytestCommand(v)) {
+    for (const token of v.split(/\s+/)) {
+      if (token.startsWith('-')) continue; // flag (or its bare value) -- not a target
+      if (isUsablePytestTarget(token)) return token;
+    }
+  }
+  return null;
 }
 
 /**
@@ -142,8 +169,9 @@ const CRITERION_COLUMN = [/criterion/, /acceptance/, /\bac\b/, /^id$/];
 
 /**
  * Pull usable targets out of an acceptance->test mapping table, paired with the
- * criterion id (used only for the human-readable `reason`). Placeholder rows and
- * non-pytest cells are skipped; order and de-duplication are caller's concern.
+ * criterion id (used only for the human-readable `reason`). Cells may be bare
+ * targets or full pytest commands; placeholder rows and non-pytest cells are
+ * skipped. Order and de-duplication are the caller's concern.
  */
 export function extractMappedTargets(table: MarkdownTable | null, source: string): MappedTarget[] {
   if (!table) return [];
@@ -153,8 +181,8 @@ export function extractMappedTargets(table: MarkdownTable | null, source: string
 
   const out: MappedTarget[] = [];
   for (const row of table.rows) {
-    const target = (row[ti] ?? '').trim();
-    if (!isUsablePytestTarget(target)) continue;
+    const target = cellToTarget(row[ti] ?? '');
+    if (!target) continue;
     const criterion = ci >= 0 ? (row[ci] ?? '').trim() : '';
     out.push({ target, reason: `${criterion ? `${criterion} ` : ''}mapped in ${source}` });
   }
@@ -193,36 +221,78 @@ export function detectContractAffected(touched: string[], implPlanText: string):
   return null;
 }
 
+// ── quality phase (configured gates) ──────────────────────────────────────────
+
+// The lint/typecheck/build family from ADR 0005 §2 ("quality | if configured").
+const QUALITY_GATES = /^(lint|typecheck|type-check|build|format|fmt|style|mypy|ruff|eslint|tsc)$/i;
+
+/**
+ * Quality-phase commands sourced from the change's `ci-gates.md` Required Gates
+ * table (the ADR's named "command source" for the quality phase). A gate is
+ * selected when it names a lint/typecheck/build-family check, is not explicitly
+ * `required: no`, and has a non-empty command cell (the template ships those
+ * empty, so empty means "not configured").
+ */
+export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
+  const table = parseMarkdownTable(ciGatesText, /required gates/i);
+  if (!table) return [];
+  const gi = columnIndex(table.headers, [/^gate$/, /\bgate\b/]);
+  const cmdi = columnIndex(table.headers, [/command/, /workflow/]);
+  if (gi < 0 || cmdi < 0) return [];
+  const ri = columnIndex(table.headers, [/required/]);
+
+  const out: SelectionEntry[] = [];
+  const seen = new Set<string>();
+  for (const row of table.rows) {
+    const gate = (row[gi] ?? '').trim();
+    if (!QUALITY_GATES.test(gate)) continue;
+    if (ri >= 0 && /^no$/i.test((row[ri] ?? '').trim())) continue;
+    const command = (row[cmdi] ?? '').trim();
+    if (!command || isPlaceholderTarget(command) || seen.has(command)) continue;
+    seen.add(command);
+    out.push({ reason: `${gate} gate configured in ci-gates.md`, command });
+  }
+  return out;
+}
+
 // ── changed-area (changed-file + graph-impact heuristics) ─────────────────────
 
-/** Code-map test files whose local imports resolve to `sourcePath`. */
+/**
+ * Code-map test files whose local imports resolve to `sourcePath`. Both the
+ * import module and its imported names are considered, so a Python
+ * `from . import service` (recorded as module `.` with `service` in `items`)
+ * still resolves to `.../service.py`.
+ */
 export function findTestDependents(entries: FileEntry[], sourcePath: string, pathSet: Set<string>): string[] {
   const deps: string[] = [];
   for (const entry of entries) {
     if (entry.path === sourcePath || !isPytestTestFile(entry.path)) continue;
-    for (const imp of entry.imports) {
-      if (resolveLocalModule(entry.path, imp.module, pathSet) === sourcePath) {
-        deps.push(entry.path);
-        break;
-      }
-    }
+    const hit = entry.imports.some((imp) => {
+      if (resolveLocalModule(entry.path, imp.module, pathSet) === sourcePath) return true;
+      if (!imp.module.startsWith('.')) return false;
+      const sep = imp.module.endsWith('.') ? '' : '.';
+      return (imp.items ?? []).some(
+        (item) => resolveLocalModule(entry.path, `${imp.module}${sep}${item}`, pathSet) === sourcePath,
+      );
+    });
+    if (hit) deps.push(entry.path);
   }
   return deps;
 }
 
-function loadCodeMapSafe(cwd: string): FileEntry[] {
-  const mapPath = join(cwd, '.cdd', 'code-map.yml');
-  if (!existsSync(mapPath)) return [];
+function loadCodeMapSafe(): FileEntry[] {
+  if (!existsSync(CODE_MAP_PATH)) return [];
   try {
-    return loadCodeMapEntries(mapPath);
+    return loadCodeMapEntries(CODE_MAP_PATH);
   } catch {
     return []; // an unreadable map just means no graph-impact signal
   }
 }
 
-/** Parent directory (with trailing slash) of a file target, ignoring node ids. */
+/** Parent directory (trailing slash) of a target; a dir target maps to itself. */
 function targetDirectory(target: string): string | null {
   const file = target.split('::')[0];
+  if (!/\.py$/.test(file)) return file.endsWith('/') ? file : `${file}/`;
   const slash = file.lastIndexOf('/');
   return slash >= 0 ? file.slice(0, slash + 1) : null;
 }
@@ -233,35 +303,43 @@ function targetDirectory(target: string): string | null {
  * (graph-impact); otherwise fall back to the directories of the explicitly
  * mapped targets so the change's area is still exercised. Only the change's own
  * specs/ artifacts are excluded; results are sorted for deterministic output.
+ * When sources changed, the code-map is refreshed first (like `index impact`)
+ * so a mid-change add/edit is not missed -- unless `refresh` is false.
  */
-function deriveChangedArea(cwd: string, changeId: string, targeted: MappedTarget[]): SelectionEntry[] {
-  const touched = getTouchedPaths(cwd)
-    .map((p) => p.replace(/\\/g, '/'))
-    .filter((p) => !p.startsWith(`specs/changes/${changeId}/`));
-
+async function deriveChangedArea(
+  changeId: string,
+  targeted: MappedTarget[],
+  touched: string[],
+  refresh: boolean,
+): Promise<SelectionEntry[]> {
+  const inScope = touched.filter((p) => !p.startsWith(`specs/changes/${changeId}/`));
   const found = new Map<string, string>(); // target -> reason
 
-  for (const p of touched) {
-    if (isPytestTestFile(p) && existsSync(join(cwd, p))) {
-      if (!found.has(p)) found.set(p, 'changed test file');
-    }
+  for (const p of inScope) {
+    if (isPytestTestFile(p) && existsSync(p) && !found.has(p)) found.set(p, 'changed test file');
   }
 
-  const sources = touched.filter((p) => p.endsWith('.py') && !isPytestTestFile(p));
+  const sources = inScope.filter((p) => p.endsWith('.py') && !isPytestTestFile(p));
   if (sources.length) {
-    const entries = loadCodeMapSafe(cwd);
+    if (refresh) {
+      try {
+        await ensureCodeMapFresh(CODE_MAP_PATH, true);
+      } catch {
+        /* best-effort: a refresh failure just means we use the map as-is */
+      }
+    }
+    const entries = loadCodeMapSafe();
     if (entries.length) {
       const pathSet = new Set(entries.map((e) => e.path));
       for (const src of sources) {
         for (const dep of findTestDependents(entries, src, pathSet)) {
-          if (!found.has(dep)) found.set(dep, `imports changed source ${src} (code-map)`);
+          if (!found.has(dep) && existsSync(dep)) found.set(dep, `imports changed source ${src} (code-map)`);
         }
       }
     }
   }
 
   if (found.size === 0) {
-    // No git/graph signal: re-run the directory around each mapped file target.
     for (const t of targeted) {
       const dir = targetDirectory(t.target);
       if (dir && !found.has(dir)) found.set(dir, 'directory of test-plan targets');
@@ -292,7 +370,7 @@ function targetedEntry(t: MappedTarget): SelectionEntry {
   return { reason: t.reason, target: t.target, command: `${PYTEST} ${formatTarget(t.target)} ${PYTEST_TAIL}` };
 }
 
-function buildSelection(cwd: string, changeId: string, changeDir: string): Selection {
+async function buildSelection(cwd: string, changeId: string, changeDir: string, refresh: boolean): Promise<Selection> {
   const readIf = (name: string): string => {
     const p = join(changeDir, name);
     return existsSync(p) ? readFileSync(p, 'utf8') : '';
@@ -301,24 +379,19 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const testPlanExists = existsSync(join(changeDir, 'test-plan.md'));
   const testPlanText = readIf('test-plan.md');
   const implPlanText = readIf('implementation-plan.md');
+  const touched = getTouchedPaths(cwd).map((p) => p.replace(/\\/g, '/'));
 
   // Explicit mapping first: test-plan.md, then implementation-plan.md.
   let targeted = dedupeByTarget(
-    extractMappedTargets(
-      parseMarkdownTable(testPlanText, /acceptance criteria.*test mapping/i),
-      'test-plan.md',
-    ),
+    extractMappedTargets(parseMarkdownTable(testPlanText, /acceptance criteria.*test mapping/i), 'test-plan.md'),
   );
   if (targeted.length === 0) {
     targeted = dedupeByTarget(
-      extractMappedTargets(
-        parseMarkdownTable(implPlanText, /test execution plan/i),
-        'implementation-plan.md',
-      ),
+      extractMappedTargets(parseMarkdownTable(implPlanText, /test execution plan/i), 'implementation-plan.md'),
     );
   }
 
-  const changedArea = deriveChangedArea(cwd, changeId, targeted);
+  const changedArea = await deriveChangedArea(changeId, targeted, touched, refresh);
 
   if (targeted.length === 0 && changedArea.length === 0) {
     const reason = !testPlanExists
@@ -338,10 +411,13 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   if (targeted.length) phases.targeted = targeted.map(targetedEntry);
   if (changedArea.length) phases['changed-area'] = changedArea;
 
-  const contractReason = detectContractAffected(getTouchedPaths(cwd).map((p) => p.replace(/\\/g, '/')), implPlanText);
+  const contractReason = detectContractAffected(touched, implPlanText);
   if (contractReason) {
     phases.contract = [{ reason: contractReason, command: 'cdd-kit validate --contracts' }];
   }
+
+  const quality = extractQualityGates(readIf('ci-gates.md'));
+  if (quality.length) phases.quality = quality;
 
   phases.full = [{ reason: 'final bounded full-suite smoke', command: `${PYTEST} ${PYTEST_TAIL}` }];
 
@@ -392,7 +468,7 @@ export async function testSelect(changeId: string, opts: TestSelectOptions): Pro
     return 2;
   }
 
-  const selection = buildSelection(cwd, changeId, changeDir);
+  const selection = await buildSelection(cwd, changeId, changeDir, opts.refresh);
   emit(selection);
   return selection.status === 'selected' ? 0 : 1;
 }
