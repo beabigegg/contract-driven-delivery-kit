@@ -24,6 +24,16 @@ export interface InstallAgentHooksOptions {
 
 const SETTINGS_REL_PATH = '.claude/settings.json';
 
+/**
+ * Marker substrings identifying each cdd-kit PreToolUse handler. Exported as the
+ * single source of truth: the installer writes them (via `HookDef.marker`) and
+ * `doctor`'s chokepoint probes read them, so arming and detection can never drift
+ * apart (if they did, a live hook would read as dormant).
+ */
+export const GRAPH_FIRST_MARKER = 'pre-tool-use-graph-first';
+export const CONTRACT_WRITE_MARKER = 'pre-tool-use-contract-write';
+export const TEST_RUNNER_MARKER = 'pre-tool-use-test-runner';
+
 /** Static description of one agent PreToolUse hook the kit can arm. */
 interface HookDef {
   /** Stable short id shown in logs. */
@@ -44,7 +54,7 @@ const GRAPH_FIRST: HookDef = {
   id: 'graph-first',
   filename: 'pre-tool-use-graph-first.sh',
   matcher: 'Read',
-  marker: 'pre-tool-use-graph-first',
+  marker: GRAPH_FIRST_MARKER,
   strictEnv: 'CDD_GRAPH_FIRST_STRICT',
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: reminds agents to use `cdd-kit index query --with-source` before Read; does not block.'
@@ -56,7 +66,7 @@ const CONTRACT_WRITE: HookDef = {
   filename: 'pre-tool-use-contract-write.sh',
   // The agent's file-mutation tools; a human's editor is unaffected.
   matcher: 'Write|Edit|MultiEdit',
-  marker: 'pre-tool-use-contract-write',
+  marker: CONTRACT_WRITE_MARKER,
   strictEnv: 'CDD_CONTRACT_WRITE_STRICT',
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: reminds agents to use `cdd-kit contract set` before editing contracts/api/api-contract.md; does not block.'
@@ -68,7 +78,7 @@ const TEST_RUNNER: HookDef = {
   filename: 'pre-tool-use-test-runner.sh',
   // The agent's shell tool; broad test runs arrive as Bash commands.
   matcher: 'Bash',
-  marker: 'pre-tool-use-test-runner',
+  marker: TEST_RUNNER_MARKER,
   strictEnv: 'CDD_TEST_RUNNER_STRICT',
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: warns when a broad whole-suite test command (e.g. bare `pytest`/`npm test`) runs instead of the bounded ladder (`cdd-kit test run --phase ...`); does not block.'

@@ -113,6 +113,47 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
     expect(r.status).toBe(2);
   });
 
+  // --- Codex review hardening (PR-7): precise broad-vs-bounded edges. ---
+
+  it('flags pytest whose only positional is an option VALUE, not a target', () => {
+    // `--maxfail 1` / `--tb short`: the value is not a test target, so these stay
+    // whole-suite runs and must be flagged rather than read as bounded.
+    expect(runHook('pytest --maxfail 1', { strict: true }).status).toBe(2);
+    expect(runHook('pytest --tb short', { strict: true }).status).toBe(2);
+    expect(runHook('python -m pytest --maxfail 1', { strict: true }).status).toBe(2);
+  });
+
+  it('catches a broad run chained after a ladder command (`cdd-kit test select ... && pytest`)', () => {
+    expect(runHook('cdd-kit test select add-order-filter --json && pytest', { strict: true }).status).toBe(2);
+    expect(
+      runHook('cdd-kit test run x --phase targeted --command "pytest -q"; pytest', { strict: true }).status,
+    ).toBe(2);
+  });
+
+  it('still allows a ladder command alone, and a ladder command after a setup step', () => {
+    expect(runHook('cdd-kit test select add-order-filter --json', { strict: true }).status).toBe(0);
+    const r = runHook('cd packages/api && cdd-kit test run x --phase targeted --command "pytest -q"', { strict: true });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe('');
+  });
+
+  it('ALLOWS a bounded jest/vitest run even when flags precede the target (strict)', () => {
+    expect(runHook('jest --runInBand tests/orders/filter.test.ts', { strict: true }).status).toBe(0);
+    expect(runHook('vitest --config vitest.config.ts tests/orders/filter.test.ts', { strict: true }).status).toBe(0);
+  });
+
+  it('flags an npm `--` passthrough that carries only flags (no real target)', () => {
+    // npm-style is bounded only via `-- <target>`; flags after `--` still run all.
+    expect(runHook('npm test -- --runInBand', { strict: true }).status).toBe(2);
+    expect(runHook('npm test -- --watch=false', { strict: true }).status).toBe(2);
+  });
+
+  it('flags `vitest run` (no target) as broad but allows `vitest run <file>`', () => {
+    expect(runHook('vitest run', { strict: true }).status).toBe(2);
+    expect(runHook('vitest run --coverage', { strict: true }).status).toBe(2);
+    expect(runHook('vitest run tests/orders/filter.test.ts', { strict: true }).status).toBe(0);
+  });
+
   it('ALLOWS non-test commands (lint/typecheck/validate) untouched in strict mode', () => {
     for (const cmd of ['ruff check .', 'npm run typecheck', 'cdd-kit validate --contracts', 'ls tests/']) {
       const r = runHook(cmd, { strict: true });

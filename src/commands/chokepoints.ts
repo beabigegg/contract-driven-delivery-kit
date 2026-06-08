@@ -1,6 +1,11 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { spawnSync } from 'child_process';
+import {
+  GRAPH_FIRST_MARKER,
+  CONTRACT_WRITE_MARKER,
+  TEST_RUNNER_MARKER,
+} from './install-agent-hooks.js';
 
 /**
  * Chokepoint liveness probe for `cdd-kit doctor`.
@@ -26,12 +31,9 @@ export interface ChokepointStatus {
   detail: string;
 }
 
-/** Marker the install-agent-hooks command writes into settings.json commands. */
-const GRAPH_FIRST_MARKER = 'pre-tool-use-graph-first';
-/** Marker for the contract-write PreToolUse hook (ADR 0004 §6, Stage 2). */
-const CONTRACT_WRITE_MARKER = 'pre-tool-use-contract-write';
-/** Marker for the test-runner PreToolUse hook (ADR 0005 §10). */
-const TEST_RUNNER_MARKER = 'pre-tool-use-test-runner';
+// The three agent-hook markers (graph-first, contract-write, test-runner) are
+// imported from install-agent-hooks above — that command is their producer, so a
+// single definition keeps arming and this detection in lockstep.
 /** Marker the install-hooks command writes into .git/hooks/pre-commit. */
 const PRECOMMIT_MARKER = '# cdd-kit-managed-block-start';
 /** Substring identifying the OpenAPI sync gate in a script or CI step. */
