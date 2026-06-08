@@ -67,40 +67,86 @@ export function isPlaceholderTarget(value: string): boolean {
   return false;
 }
 
+/** Reject any path target that contains a `..` segment (escapes the repo area). */
+function hasTraversal(value: string): boolean {
+  return value.split('/').some((seg) => seg === '..');
+}
+
 /** A real, bounded pytest target: a file/node id, or a path-with-separator dir. */
 export function isUsablePytestTarget(value: string): boolean {
   const v = value.trim();
-  if (isPlaceholderTarget(v)) return false;
+  if (isPlaceholderTarget(v) || hasTraversal(v)) return false;
   if (TARGET_FILE.test(v)) return true;
   return SAFE_PATH.test(v) && v.includes('/'); // directory target (slash present)
+}
+
+/** Strip one layer of matching surrounding single/double quotes from a token. */
+function stripQuotes(token: string): string {
+  if (token.length >= 2) {
+    const q = token[0];
+    if ((q === '"' || q === "'") && token[token.length - 1] === q) return token.slice(1, -1);
+  }
+  return token;
+}
+
+// pytest options that take a SEPARATE operand (`--opt value`); the operand is not
+// a test target, so it must be skipped when scanning a command cell. The `--opt=value`
+// form is a single `-`-prefixed token and needs no special handling.
+const VALUE_OPTIONS = new Set([
+  '-c', '-p', '-o', '-k', '-m', '-n', '-W', '-r',
+  '--ignore', '--ignore-glob', '--deselect', '--rootdir', '--confcutdir', '--basetemp',
+  '--junitxml', '--junit-xml', '--resultlog', '--result-log', '--import-mode',
+  '--cache-dir', '--override-ini', '--maxfail', '--durations', '--tb', '--log-file',
+]);
+
+/** Index of the first argument after the `pytest` / `python -m pytest` program. */
+function pytestArgsStart(tokens: string[]): number {
+  let i = 0;
+  while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i += 1; // env assignments
+  const base = (tokens[i] ?? '').replace(/.*[/\\]/, '');
+  if (base === 'pytest' || base === 'py.test') return i + 1;
+  if (/^(python[0-9.]*|py)$/.test(base) && tokens[i + 1] === '-m' && tokens[i + 2] === 'pytest') return i + 3;
+  return i;
 }
 
 /**
  * Reduce a mapping cell to a bounded target. The cell may already be a bare
  * target, or -- since the implementation-plan template names the column
  * "test file / command" -- a full pytest command (`python -m pytest <target>
- * -q`). In the command case the first positional pytest target is extracted so
- * the row is selected instead of being dropped as unusable.
+ * -q`). In the command case the program prefix is skipped, value-option operands
+ * (e.g. `--ignore <path>`) are stepped over, and the first positional pytest
+ * target (quotes stripped) is returned, so the row is selected instead of being
+ * dropped as unusable.
  */
 export function cellToTarget(value: string): string | null {
-  const v = value.trim();
-  if (isUsablePytestTarget(v)) return v;
-  if (isPytestCommand(v)) {
-    for (const token of v.split(/\s+/)) {
-      if (token.startsWith('-')) continue; // flag (or its bare value) -- not a target
-      if (isUsablePytestTarget(token)) return token;
+  const bare = stripQuotes(value.trim());
+  if (isUsablePytestTarget(bare)) return bare;
+  if (!isPytestCommand(value)) return null;
+
+  const tokens = value.trim().split(/\s+/);
+  for (let i = pytestArgsStart(tokens); i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (tok.startsWith('-')) {
+      if (!tok.includes('=') && VALUE_OPTIONS.has(tok)) i += 1; // skip `--opt value` operand
+      continue;
     }
+    const candidate = stripQuotes(tok);
+    if (isUsablePytestTarget(candidate)) return candidate;
   }
   return null;
 }
 
 /**
  * Render a target into a command. A parametrized node id contains `[`/`]`, which
- * the shell would glob-expand, so quote those; everything else is restricted to
- * a shell-safe character set and emitted bare to match the ADR's examples.
+ * the shell would glob-expand, so quote those for the platform the runner will
+ * use (`cmd.exe` ignores single quotes); everything else is restricted to a
+ * shell-safe character set and emitted bare to match the ADR's examples.
  */
 export function formatTarget(value: string): string {
-  return /[[\]]/.test(value) ? `'${value.replace(/'/g, "'\\''")}'` : value;
+  if (!/[[\]]/.test(value)) return value;
+  return process.platform === 'win32'
+    ? `"${value.replace(/"/g, '""')}"`
+    : `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 /** A pytest test file by filename convention (`test_*.py` / `*_test.py`). */
@@ -203,41 +249,80 @@ function dedupeByTarget(targets: MappedTarget[]): MappedTarget[] {
 // ── contract phase trigger ────────────────────────────────────────────────────
 
 /**
- * Whether the change affects contracts, so the `contract` phase should run.
- * Triggers on a touched path under any `contracts/` directory, or on a non-empty
- * bullet in implementation-plan.md's `## Contract Updates` section (the template
- * ships those bullets empty, so empty means "not affected").
+ * Whether the change affects contracts, and the exact `cdd-kit validate` command
+ * to run. Triggers on a touched path under any `contracts/` directory, or on any
+ * non-empty bullet in implementation-plan.md's `## Contract Updates` section
+ * (the template ships those bullets empty, so empty means "not affected").
+ * Env-contract and CI/CD-contract changes add the matching validator flag
+ * (`--env` / `--ci`) so the env/CI checks are not skipped; everything else uses
+ * `--contracts`. Free-form bullets (no `Label:`) count as a generic contract
+ * update.
  */
-export function detectContractAffected(touched: string[], implPlanText: string): string | null {
-  if (touched.some((p) => /(^|\/)contracts\//.test(p))) return 'contract files changed';
+export function detectContractAffected(touched: string[], implPlanText: string): { reason: string; command: string } | null {
+  const flags = new Set<string>();
+  let touchedContracts = false;
+  let planDeclares = false;
+
+  for (const p of touched) {
+    if (!/(^|\/)contracts\//.test(p)) continue;
+    touchedContracts = true;
+    if (/(^|\/)contracts\/env\//.test(p) || /env-contract\.md$/.test(p)) flags.add('--env');
+    else if (/(^|\/)contracts\/ci\//.test(p)) flags.add('--ci');
+    else flags.add('--contracts');
+  }
 
   const section = implPlanText.match(/##\s*Contract Updates\s*\n([\s\S]*?)(?:\n#{1,6}\s|$)/i);
   if (section) {
-    for (const line of section[1].split('\n')) {
-      const m = line.match(/^\s*-\s*([A-Za-z/ ]+?)\s*:\s*(\S.*?)\s*$/);
-      if (m && m[2].trim()) return 'implementation-plan.md declares contract updates';
+    for (const raw of section[1].split('\n')) {
+      const bullet = raw.match(/^\s*-\s*(.+?)\s*$/);
+      if (!bullet) continue;
+      const labeled = bullet[1].match(/^([A-Za-z][\w/ -]*?):\s*(.*)$/);
+      if (labeled) {
+        if (!labeled[2].trim()) continue; // unfilled template label, e.g. `- API:`
+        planDeclares = true;
+        const label = labeled[1].toLowerCase();
+        if (/env/.test(label)) flags.add('--env');
+        else if (/\bci\b|ci\/cd/.test(label)) flags.add('--ci');
+        else flags.add('--contracts');
+      } else if (bullet[1].trim()) {
+        planDeclares = true; // free-form bullet with content
+        flags.add('--contracts');
+      }
     }
   }
-  return null;
+
+  if (flags.size === 0) return null;
+  const command = `cdd-kit validate ${['--contracts', '--env', '--ci'].filter((f) => flags.has(f)).join(' ')}`;
+  const reason = touchedContracts && planDeclares
+    ? 'contract files changed; implementation-plan.md declares contract updates'
+    : touchedContracts
+      ? 'contract files changed'
+      : 'implementation-plan.md declares contract updates';
+  return { reason, command };
 }
 
 // ── quality phase (configured gates) ──────────────────────────────────────────
 
 // The lint/typecheck/build family from ADR 0005 §2 ("quality | if configured").
 const QUALITY_GATES = /^(lint|typecheck|type-check|build|format|fmt|style|mypy|ruff|eslint|tsc)$/i;
+// A bare workflow-file reference (`ci.yml`, `.github/workflows/ci.yml`) is not a
+// runnable lint/build command, so it must not become a quality command.
+const WORKFLOW_REF = /(^|\/)[\w.-]+\.ya?ml$/i;
 
 /**
  * Quality-phase commands sourced from the change's `ci-gates.md` Required Gates
  * table (the ADR's named "command source" for the quality phase). A gate is
  * selected when it names a lint/typecheck/build-family check, is not explicitly
- * `required: no`, and has a non-empty command cell (the template ships those
- * empty, so empty means "not configured").
+ * `required: no`, and has a non-empty COMMAND cell that is an actual command
+ * (not an empty template cell or a workflow-file reference). A real `command`
+ * column is preferred over a `workflow`-only column.
  */
 export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
   const table = parseMarkdownTable(ciGatesText, /required gates/i);
   if (!table) return [];
   const gi = columnIndex(table.headers, [/^gate$/, /\bgate\b/]);
-  const cmdi = columnIndex(table.headers, [/command/, /workflow/]);
+  let cmdi = columnIndex(table.headers, [/command/]);
+  if (cmdi < 0) cmdi = columnIndex(table.headers, [/workflow/]);
   if (gi < 0 || cmdi < 0) return [];
   const ri = columnIndex(table.headers, [/required/]);
 
@@ -248,7 +333,7 @@ export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
     if (!QUALITY_GATES.test(gate)) continue;
     if (ri >= 0 && /^no$/i.test((row[ri] ?? '').trim())) continue;
     const command = (row[cmdi] ?? '').trim();
-    if (!command || isPlaceholderTarget(command) || seen.has(command)) continue;
+    if (!command || isPlaceholderTarget(command) || WORKFLOW_REF.test(command) || seen.has(command)) continue;
     seen.add(command);
     out.push({ reason: `${gate} gate configured in ci-gates.md`, command });
   }
@@ -257,22 +342,33 @@ export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
 
 // ── changed-area (changed-file + graph-impact heuristics) ─────────────────────
 
+/** Whether an absolute (non-relative) dotted module resolves to `sourcePath`. */
+function dottedMatchesSource(dotted: string, sourcePath: string): boolean {
+  if (!dotted || dotted.startsWith('.')) return false;
+  const p = dotted.replace(/\./g, '/');
+  const candidates = [`${p}.py`, `${p}/__init__.py`];
+  // Exact match, or a suffix match for multi-segment modules so a `src/`-layout
+  // source (`src/orders/service.py`) is found from `from orders.service import x`.
+  return candidates.some((c) => sourcePath === c || (p.includes('/') && sourcePath.endsWith(`/${c}`)));
+}
+
 /**
- * Code-map test files whose local imports resolve to `sourcePath`. Both the
- * import module and its imported names are considered, so a Python
- * `from . import service` (recorded as module `.` with `service` in `items`)
- * still resolves to `.../service.py`.
+ * Code-map test files whose imports resolve to `sourcePath`. Both the import
+ * module and its imported names are considered (so `from . import service` and
+ * `from pkg import service` resolve to `.../service.py`), and both relative
+ * imports (via the shared resolver) and absolute package imports (via dotted
+ * path match) are handled.
  */
 export function findTestDependents(entries: FileEntry[], sourcePath: string, pathSet: Set<string>): string[] {
   const deps: string[] = [];
   for (const entry of entries) {
     if (entry.path === sourcePath || !isPytestTestFile(entry.path)) continue;
     const hit = entry.imports.some((imp) => {
-      if (resolveLocalModule(entry.path, imp.module, pathSet) === sourcePath) return true;
-      if (!imp.module.startsWith('.')) return false;
-      const sep = imp.module.endsWith('.') ? '' : '.';
-      return (imp.items ?? []).some(
-        (item) => resolveLocalModule(entry.path, `${imp.module}${sep}${item}`, pathSet) === sourcePath,
+      const mods = [imp.module];
+      const sep = imp.module.startsWith('.') ? (imp.module.endsWith('.') ? '' : '.') : '.';
+      for (const item of imp.items ?? []) mods.push(`${imp.module}${sep}${item}`);
+      return mods.some(
+        (m) => resolveLocalModule(entry.path, m, pathSet) === sourcePath || dottedMatchesSource(m, sourcePath),
       );
     });
     if (hit) deps.push(entry.path);
@@ -411,10 +507,8 @@ async function buildSelection(cwd: string, changeId: string, changeDir: string, 
   if (targeted.length) phases.targeted = targeted.map(targetedEntry);
   if (changedArea.length) phases['changed-area'] = changedArea;
 
-  const contractReason = detectContractAffected(touched, implPlanText);
-  if (contractReason) {
-    phases.contract = [{ reason: contractReason, command: 'cdd-kit validate --contracts' }];
-  }
+  const contract = detectContractAffected(touched, implPlanText);
+  if (contract) phases.contract = [{ reason: contract.reason, command: contract.command }];
 
   const quality = extractQualityGates(readIf('ci-gates.md'));
   if (quality.length) phases.quality = quality;
