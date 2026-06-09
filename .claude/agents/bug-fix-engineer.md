@@ -135,12 +135,14 @@ Evidence rules:
 
 ADR 0006 promotes this evidence to a first-class, machine-validated `bug-fix:`
 block (symptom, expected/actual behavior, reproduction, hypotheses, root cause,
-fix, regression, residual risk): the agent-log schema gains the block in the
-schema phase (ADR 0006 PR 2) and the bug-fix gate enforces it in the gate phase
-(ADR 0006 PR 3). Until that schema lands, keep the evidence in the schema-valid
-`artifacts:` shape above — do not write a bare top-level `bug-fix:` /
-`schema-version:` log, which the current `additionalProperties: false` schema
-rejects and which hides `status:` from `/cdd-resume`.
+fix, regression, residual risk), defined in
+`src/schemas/bug-fix-evidence.schema.ts` (ADR 0006 PR 2). The agent-log schema
+now accepts it as an optional `bug-fix` property, so record it **nested inside
+the agent-log envelope** above — not as a bare top-level `bug-fix:` /
+`schema-version:` document, which the envelope's `additionalProperties: false`
+still rejects and which would hide `status:` from `/cdd-resume`. The typed
+`artifacts:` shape stays valid; the bug-fix gate begins requiring the `bug-fix:`
+block for `lane: bug-fix` changes in the gate phase (ADR 0006 PR 3).
 
 ## Fix discipline
 

@@ -149,9 +149,10 @@ When `## Lane` is `bug-fix`, ALSO emit these sections:
 ```
 
 `bug-fix-engineer` records this evidence in its
-`agent-log/bug-fix-engineer.yml` — as schema-valid typed `artifacts:` today, and
-as a first-class `bug-fix:` block once the ADR 0006 schema phase lands. The
-reproduction-status vocabulary and the full evidence shape are defined in
+`agent-log/bug-fix-engineer.yml` — as schema-valid typed `artifacts:` and/or the
+first-class `bug-fix:` block now defined by the ADR 0006 schema phase
+(`src/schemas/bug-fix-evidence.schema.ts`). The reproduction-status vocabulary
+and the full evidence shape are defined in
 `.claude/agents/bug-fix-engineer.md` — do not duplicate that table here; emit
 only the symptom type and the evidence checklist.
 

@@ -19,9 +19,21 @@
   evidence as typed `artifacts:`). `/cdd-new` routes the lane: `bug-fix-engineer`
   leads implementation,
   regression proof runs on the ADR 0005 bounded ladder, and diagnostic-only
-  changes open a follow-up. Prompt / classification only — the bug-fix evidence
-  schema, `cdd-kit gate` enforcement, and `cdd-kit bug suspects` land in later
-  ADR 0006 PRs.
+  changes open a follow-up. Prompt / classification only — `cdd-kit gate`
+  enforcement and `cdd-kit bug suspects` land in later ADR 0006 PRs.
+
+- **Bug-fix evidence schema (ADR 0006 — schema phase).** Adds
+  `src/schemas/bug-fix-evidence.schema.ts`: a first-class, machine-validated
+  `bug-fix:` block (symptom, expected/actual behavior, observed surface,
+  reproduction status, hypotheses, root cause, fix, regression, residual risk),
+  with the reproduction-status enum (`reproduced` / `test-reproduced` /
+  `visual-reproduced` / `intermittent` / `environment-blocked` /
+  `not-reproduced`) as its single source of truth. `agent-log.schema.ts` gains an
+  optional `bug-fix` property so the repair record nests inside the standard
+  agent-log envelope (keeping `status:` visible to `/cdd-resume`) rather than a
+  bare top-level document. A behavior-changing fix must carry a root cause and
+  regression proof; a `diagnostic_only` record is exempt. Schema and tests only —
+  `cdd-kit gate` enforcement when `lane: bug-fix` lands in the next ADR 0006 PR.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook

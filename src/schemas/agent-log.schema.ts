@@ -1,3 +1,5 @@
+import { bugFixEvidenceBlock } from "./bug-fix-evidence.schema.js";
+
 export const agentLogSchema = {
   $schema: "http://json-schema.org/draft-07/schema#",
   $id: "https://cdd-kit/schemas/agent-log.schema.json",
@@ -27,6 +29,11 @@ export const agentLogSchema = {
       }
     },
     "next-action": { type: "string", minLength: 1 },
-    notes: { type: "string" }
+    notes: { type: "string" },
+    // Optional first-class bug-fix evidence block (ADR 0006 §2). Only bug-fix-lane
+    // logs carry it; feature logs omit it, so this is backward-compatible. Defined
+    // in bug-fix-evidence.schema.ts; the gate begins requiring it for
+    // `lane: bug-fix` changes in the gate phase (ADR 0006 PR 3).
+    "bug-fix": bugFixEvidenceBlock
   }
 } as const;
