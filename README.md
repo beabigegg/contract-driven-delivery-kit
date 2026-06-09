@@ -396,6 +396,7 @@ npm install -g contract-driven-delivery   # get 2.2.0
 cdd-kit refresh --yes                      # sync agents/skills/templates/hooks/code-map
 cdd-kit install-hooks                      # arm the pre-commit gate
 cdd-kit install-agent-hooks --graph-first advisory   # arm the graph-first hook (or: strict)
+cdd-kit install-agent-hooks --test-runner advisory   # opt-in: steer broad test runs to the bounded ladder (ADR 0005 §10)
 cdd-kit doctor                             # confirm both chokepoints report "live"
 ```
 
@@ -801,22 +802,25 @@ Idempotent. Preserves existing hook content. Bypass with `--no-verify` is possib
 
 ### `cdd-kit install-agent-hooks`
 
-Installs Claude Code **agent hooks** into the project's `.claude/settings.json`, turning a hook from a documented file you wire by hand into an enforced harness chokepoint. Two hooks are available and armed independently:
+Installs Claude Code **agent hooks** into the project's `.claude/settings.json`, turning a hook from a documented file you wire by hand into an enforced harness chokepoint. Three hooks are available and armed independently:
 
 - the **graph-first** `PreToolUse` hook, which steers agents to `cdd-kit index query --with-source` before reading source files;
 - the **contract-write** `PreToolUse` hook (ADR 0004 §6), which routes the agent's `Edit`/`Write` of `contracts/api/api-contract.md` to `cdd-kit contract set` — a keyed, valid-by-construction mutation instead of a free-form edit.
+- the **test-runner** `PreToolUse` hook (ADR 0005 §10), which steers a broad whole-suite test command (a bare `pytest`, `npm test`, `jest`, `go test ./...`, …) to the bounded ladder `cdd-kit test run --phase …` so the run produces gate-checkable evidence instead of noisy multi-failure output.
 
 ```bash
 cdd-kit install-agent-hooks                                                # graph-first advisory (default)
 cdd-kit install-agent-hooks --graph-first strict                           # hard-block source Reads when a code-map exists
 cdd-kit install-agent-hooks --contract-write strict                        # hard-block agent edits of the API contract
-cdd-kit install-agent-hooks --graph-first advisory --contract-write strict # arm both at once
+cdd-kit install-agent-hooks --test-runner advisory                         # warn on broad whole-suite test runs (ship this first)
+cdd-kit install-agent-hooks --test-runner strict                           # hard-block broad whole-suite test runs
+cdd-kit install-agent-hooks --graph-first advisory --contract-write strict # arm several at once
 ```
 
 - **advisory**: reminds the agent to use the kit command first; does not block the tool call.
-- **strict**: writes the hook's `CDD_*_STRICT=1` flag so the hook blocks the tool call (`exit 2`) — graph-first blocks source `Read` when `.cdd/code-map.yml` exists; contract-write blocks `Edit`/`Write` of the API contract (a first-time scaffold, when the file does not exist yet, is always allowed).
+- **strict**: writes the hook's `CDD_*_STRICT=1` flag so the hook blocks the tool call (`exit 2`) — graph-first blocks source `Read` when `.cdd/code-map.yml` exists; contract-write blocks `Edit`/`Write` of the API contract (a first-time scaffold, when the file does not exist yet, is always allowed); test-runner blocks a broad whole-suite test `Bash` command (a bounded target, `cdd-kit test run`, and every non-test command are always allowed). Per ADR 0005 §10, ship the test-runner hook **advisory first** and only move to strict after it has settled in.
 
-Naming one flag arms only that hook and leaves the other untouched, so the two can be armed in separate runs; a bare `install-agent-hooks` arms graph-first advisory (unchanged). Both gate only the *agent's* tools — a human editing in their own editor is unaffected, and `contract set` stays available to humans who want validated edits. Writes the hook script(s) to `.claude/hooks/` and `PreToolUse` entries to `.claude/settings.json` (project-scoped, so they travel with the repo). Idempotent: re-running replaces only the cdd-kit entry for the named hook and switches its mode cleanly, preserving every other setting and hook. The contract-write hook is **opt-in** — `cdd-kit init` does not arm it.
+Naming one flag arms only that hook and leaves the others untouched, so they can be armed in separate runs; a bare `install-agent-hooks` arms graph-first advisory (unchanged). All three gate only the *agent's* tools — a human editing or running tests in their own terminal is unaffected. Writes the hook script(s) to `.claude/hooks/` and `PreToolUse` entries to `.claude/settings.json` (project-scoped, so they travel with the repo). Idempotent: re-running replaces only the cdd-kit entry for the named hook and switches its mode cleanly, preserving every other setting and hook. The contract-write and test-runner hooks are **opt-in** — `cdd-kit init` does not arm them.
 
 ---
 

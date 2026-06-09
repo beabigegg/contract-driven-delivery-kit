@@ -12,6 +12,8 @@ export interface InstallAgentHooksOptions {
   graphFirst?: HookMode;
   /** Arm the contract-write Edit/Write hook at this mode (ADR 0004 §6, Stage 2). */
   contractWrite?: HookMode;
+  /** Arm the test-runner Bash hook at this mode (ADR 0005 §10). */
+  testRunner?: HookMode;
   /**
    * When invoked from `cdd-kit init`, recoverable problems (missing asset,
    * malformed settings.json) warn and return instead of hard-exiting — arming
@@ -21,6 +23,16 @@ export interface InstallAgentHooksOptions {
 }
 
 const SETTINGS_REL_PATH = '.claude/settings.json';
+
+/**
+ * Marker substrings identifying each cdd-kit PreToolUse handler. Exported as the
+ * single source of truth: the installer writes them (via `HookDef.marker`) and
+ * `doctor`'s chokepoint probes read them, so arming and detection can never drift
+ * apart (if they did, a live hook would read as dormant).
+ */
+export const GRAPH_FIRST_MARKER = 'pre-tool-use-graph-first';
+export const CONTRACT_WRITE_MARKER = 'pre-tool-use-contract-write';
+export const TEST_RUNNER_MARKER = 'pre-tool-use-test-runner';
 
 /** Static description of one agent PreToolUse hook the kit can arm. */
 interface HookDef {
@@ -42,7 +54,7 @@ const GRAPH_FIRST: HookDef = {
   id: 'graph-first',
   filename: 'pre-tool-use-graph-first.sh',
   matcher: 'Read',
-  marker: 'pre-tool-use-graph-first',
+  marker: GRAPH_FIRST_MARKER,
   strictEnv: 'CDD_GRAPH_FIRST_STRICT',
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: reminds agents to use `cdd-kit index query --with-source` before Read; does not block.'
@@ -54,11 +66,23 @@ const CONTRACT_WRITE: HookDef = {
   filename: 'pre-tool-use-contract-write.sh',
   // The agent's file-mutation tools; a human's editor is unaffected.
   matcher: 'Write|Edit|MultiEdit',
-  marker: 'pre-tool-use-contract-write',
+  marker: CONTRACT_WRITE_MARKER,
   strictEnv: 'CDD_CONTRACT_WRITE_STRICT',
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: reminds agents to use `cdd-kit contract set` before editing contracts/api/api-contract.md; does not block.'
     : "strict mode: blocks the agent's Edit/Write of contracts/api/api-contract.md, routing to `cdd-kit contract set`.",
+};
+
+const TEST_RUNNER: HookDef = {
+  id: 'test-runner',
+  filename: 'pre-tool-use-test-runner.sh',
+  // The agent's shell tool; broad test runs arrive as Bash commands.
+  matcher: 'Bash',
+  marker: TEST_RUNNER_MARKER,
+  strictEnv: 'CDD_TEST_RUNNER_STRICT',
+  describe: (mode) => mode === 'advisory'
+    ? 'advisory mode: warns when a broad whole-suite test command (e.g. bare `pytest`/`npm test`) runs instead of the bounded ladder (`cdd-kit test run --phase ...`); does not block.'
+    : 'strict mode: blocks a broad whole-suite test command, routing to `cdd-kit test run` or an explicit bounded target.',
 };
 
 /** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
@@ -126,10 +150,12 @@ function withoutHandler(preTool: HookEntry[], def: HookDef): HookEntry[] {
  * `.claude/settings.json` so steering toward `cdd-kit` chokepoints becomes a
  * harness-enforced chokepoint rather than prose the agent can ignore.
  *
- * Two hooks are armed independently:
+ * Three hooks are armed independently:
  *  - graph-first (`Read`)  → steer to `cdd-kit index query --with-source`;
  *  - contract-write (`Edit`/`Write`) → route API-contract edits to
  *    `cdd-kit contract set` (ADR 0004 §6, Stage 2).
+ *  - test-runner (`Bash`) → steer broad whole-suite test runs to the bounded
+ *    ladder `cdd-kit test run --phase ...` (ADR 0005 §10).
  *
  * With no hook flag at all, defaults to graph-first advisory — the historical
  * behavior of a bare `install-agent-hooks` and of `init`'s arming step. Naming a
@@ -139,11 +165,12 @@ function withoutHandler(preTool: HookEntry[], def: HookDef): HookEntry[] {
  */
 export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Promise<void> {
   const requested: Array<{ def: HookDef; mode: HookMode }> = [];
-  if (opts.graphFirst === undefined && opts.contractWrite === undefined) {
+  if (opts.graphFirst === undefined && opts.contractWrite === undefined && opts.testRunner === undefined) {
     requested.push({ def: GRAPH_FIRST, mode: 'advisory' });
   } else {
     if (opts.graphFirst !== undefined) requested.push({ def: GRAPH_FIRST, mode: opts.graphFirst });
     if (opts.contractWrite !== undefined) requested.push({ def: CONTRACT_WRITE, mode: opts.contractWrite });
+    if (opts.testRunner !== undefined) requested.push({ def: TEST_RUNNER, mode: opts.testRunner });
   }
 
   for (const { def, mode } of requested) {

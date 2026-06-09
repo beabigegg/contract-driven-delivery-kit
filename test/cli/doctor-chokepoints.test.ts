@@ -119,4 +119,29 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout).toMatch(/chokepoint contract-write hook: live/);
   });
+
+  it('reports the test-runner hook as dormant on a fresh repo', () => {
+    setupRepo();
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint test-runner hook:.*install-agent-hooks/);
+    expect(r.stdout).toMatch(/chokepoint test-runner hook: dormant/);
+  });
+
+  it('leaves the test-runner hook dormant after a default armed init (opt-in)', () => {
+    // init arms graph-first + the pre-commit gate; the ADR 0005 §10 test-runner
+    // hook is opt-in and must NOT be auto-armed.
+    const r0 = runCli(['init', '--local-only'], { cwd, home });
+    expect(r0.status, r0.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint graph-first exploration hook: live/);
+    expect(r.stdout).toMatch(/chokepoint test-runner hook: dormant/);
+  });
+
+  it('flips the test-runner hook to live once it is installed', () => {
+    setupRepo();
+    const install = runCli(['install-agent-hooks', '--test-runner', 'advisory'], { cwd, home });
+    expect(install.status, install.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint test-runner hook: live/);
+  });
 });

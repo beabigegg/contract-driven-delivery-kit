@@ -472,13 +472,15 @@ program
 // ── cdd install-agent-hooks ───────────────────────────────────────────────────
 program
   .command('install-agent-hooks')
-  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration; contract-write routing)')
+  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration; contract-write routing; test-runner ladder)')
   .option('--graph-first <mode>', "Arm the graph-first PreToolUse hook: 'advisory' or 'strict' (default when no hook flag is given)")
   .option('--contract-write <mode>', "Arm the contract-write PreToolUse hook (ADR 0004 §6): 'advisory' or 'strict'")
-  .action(async (opts: { graphFirst?: string; contractWrite?: string }) => {
+  .option('--test-runner <mode>', "Arm the test-runner PreToolUse hook (ADR 0005 §10): 'advisory' or 'strict'")
+  .action(async (opts: { graphFirst?: string; contractWrite?: string; testRunner?: string }) => {
     await installAgentHooks({
       graphFirst: opts.graphFirst as 'advisory' | 'strict' | undefined,
       contractWrite: opts.contractWrite as 'advisory' | 'strict' | undefined,
+      testRunner: opts.testRunner as 'advisory' | 'strict' | undefined,
     });
   });
 

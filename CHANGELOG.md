@@ -158,6 +158,24 @@
   reference, and the gate's test-evidence check. Docs only, no behavior change; the
   optional test-runner hook is the final ADR 0005 phase.
 
+- **Optional test-runner PreToolUse hook (`cdd-kit install-agent-hooks
+  --test-runner <mode>`) — the final ADR 0005 phase (§10).** The runtime analog of
+  the bounded test ladder: an opt-in Claude Code hook that intercepts the agent's
+  `Bash` tool and steers a broad whole-suite test command (a bare `pytest`,
+  `npm test`, `jest`, `vitest`, `go test ./...`, …) to `cdd-kit test run --phase
+  …` so the run produces gate-checkable evidence instead of noisy multi-failure
+  output. Advisory by default (warns, allows the command); `--test-runner strict`
+  writes `CDD_TEST_RUNNER_STRICT=1` so the hook hard-blocks the command (exit 2),
+  feeding the routing reason back to the agent — ship advisory first, per the ADR.
+  Detection is deliberately conservative: a bounded target (a node id / file /
+  directory), the sanctioned `cdd-kit test run`, and every non-test command (lint,
+  typecheck, build, `cdd-kit validate`, …) are always allowed; it fires only inside
+  a CDD repo (a `.cdd/` directory exists) and prefers a missed nudge over blocking a
+  legitimate command. It gates only the *agent's* Bash tool — a human running tests
+  in their terminal is unaffected. `cdd-kit doctor`'s chokepoint dashboard reports
+  the new hook as `live`/`dormant`. Not armed by `cdd-kit init` — opt-in, shipped
+  only now that select + run + gate are proven green. Completes ADR 0005.
+
 ### Changed
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any

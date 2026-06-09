@@ -284,3 +284,84 @@ describe('cdd-kit install-agent-hooks --contract-write (ADR 0004 §6)', () => {
     }
   });
 });
+
+describe('cdd-kit install-agent-hooks --test-runner (ADR 0005 §10)', () => {
+  const TR_SCRIPT = './.claude/hooks/pre-tool-use-test-runner.sh';
+  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+
+  /** The PreToolUse entry whose nested command names the given hook script. */
+  function entryFor(marker: string): HookEntry | undefined {
+    return preTool().find(e => cmdOf(e)?.includes(marker));
+  }
+
+  it('installs the advisory test-runner hook on the Bash tool and copies the script', () => {
+    const r = runCli(['install-agent-hooks', '--test-runner', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-test-runner.sh'))).toBe(true);
+    const entry = entryFor('pre-tool-use-test-runner');
+    expect(entry).toBeDefined();
+    // Broad test runs arrive as Bash commands.
+    expect(entry?.matcher).toBe('Bash');
+    expect(entry?.command).toBeUndefined(); // nested handler shape, not top-level
+    expect(entry?.hooks?.[0]).toMatchObject({ type: 'command' });
+    expect(cmdOf(entry!)).toBe(TR_SCRIPT);
+    expect(cmdOf(entry!)).not.toContain('CDD_TEST_RUNNER_STRICT');
+  });
+
+  it('installs the strict test-runner hook with the CDD_TEST_RUNNER_STRICT flag', () => {
+    const r = runCli(['install-agent-hooks', '--test-runner', 'strict'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(cmdOf(entryFor('pre-tool-use-test-runner')!)).toBe(`CDD_TEST_RUNNER_STRICT=1 ${TR_SCRIPT}`);
+  });
+
+  it('a bare install-agent-hooks does NOT arm test-runner (opt-in)', () => {
+    const r = runCli(['install-agent-hooks'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(entryFor('pre-tool-use-test-runner')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-test-runner.sh'))).toBe(false);
+  });
+
+  it('arming test-runner does NOT install or disturb graph-first (opt-in, independent)', () => {
+    const r = runCli(['install-agent-hooks', '--test-runner', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(1);
+    expect(entryFor('pre-tool-use-graph-first')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-graph-first.sh'))).toBe(false);
+  });
+
+  it('arms all three hooks in a single invocation', () => {
+    const r = runCli(
+      ['install-agent-hooks', '--graph-first', 'strict', '--contract-write', 'advisory', '--test-runner', 'strict'],
+      { cwd: repo, home },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(3);
+    expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(`CDD_GRAPH_FIRST_STRICT=1 ${GF_SCRIPT}`);
+    expect(cmdOf(entryFor('pre-tool-use-test-runner')!)).toBe(`CDD_TEST_RUNNER_STRICT=1 ${TR_SCRIPT}`);
+  });
+
+  it('is idempotent and switches test-runner mode without duplicating entries', () => {
+    runCli(['install-agent-hooks', '--test-runner', 'advisory'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--test-runner', 'strict'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--test-runner', 'advisory'], { cwd: repo, home });
+
+    const ours = preTool().filter(e => cmdOf(e)?.includes('pre-tool-use-test-runner'));
+    expect(ours).toHaveLength(1); // replaced each time, never appended
+    expect(cmdOf(ours[0])).toBe(TR_SCRIPT);
+  });
+
+  it('rejects an invalid test-runner mode', () => {
+    const r = runCli(['install-agent-hooks', '--test-runner', 'bogus'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid.*mode/i);
+  });
+
+  it('writes an executable test-runner hook script', () => {
+    runCli(['install-agent-hooks', '--test-runner', 'advisory'], { cwd: repo, home });
+    const mode = statSync(join(repo, '.claude', 'hooks', 'pre-tool-use-test-runner.sh')).mode;
+    if (process.platform !== 'win32') {
+      expect(mode & 0o100).toBeTruthy();
+    }
+  });
+});
