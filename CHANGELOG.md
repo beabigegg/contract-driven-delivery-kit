@@ -42,12 +42,14 @@
   detects `lane: bug-fix` from `change-classification.md` and requires the
   bug-fix-engineer's `agent-log/bug-fix-engineer.yml` to carry a schema-valid
   `bug-fix:` block (ADR 0006 §7). Beyond the schema's structural checks the gate
-  adds the cross-field rules static schema cannot express: a reproduced symptom
-  must name a `confirmed` hypothesis, referenced run summaries must exist and be
-  repo-root-relative, the record's `change-id` must match the change being gated,
-  and the block's `diagnostic_only` must agree with the classifier's `##
-  Diagnostic Only`. Feature and legacy changes (no `## Lane: bug-fix`) are
-  unaffected.
+  adds the checks static schema cannot express: the log must be authored by
+  `bug-fix-engineer` and carry this change's `change-id`; a reproduced symptom
+  must name a `confirmed` hypothesis; referenced reproduction/regression summaries
+  must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
+  a JSON summary recording the matching `change_id`); and the diagnostic-only
+  exemption from root-cause/regression proof requires explicit classifier approval
+  (`## Diagnostic Only` `- yes`), not classifier silence. Feature and legacy
+  changes (no `## Lane: bug-fix`) are unaffected.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook

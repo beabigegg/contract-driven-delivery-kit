@@ -874,10 +874,23 @@ function enforceBugFixEvidence(
     );
     errors.push(...out.errors);
     warnings.push(...out.warnings);
-    return; // schema-invalid evidence can't be trusted for cross-field checks
+    // Only hard schema errors mean the shape can't be trusted. A warning-only
+    // result (e.g. an unknown extra key → additionalProperties) must NOT skip the
+    // required-block and cross-field checks below, or a log with the envelope and
+    // a stray key but no bug-fix evidence would pass the gate on a warning alone.
+    if (out.errors.length > 0) return;
   }
 
-  // The repair record must belong to THIS change (a copied/renamed log is rejected).
+  // The repair record must be authored by the bug-fix-engineer (ADR 0006 §2) and
+  // belong to THIS change — a copied/renamed/wrong-agent log is rejected. The
+  // generic agent-log schema accepts any non-empty `agent`, so the lane pins it.
+  const loggedAgent = (data as { agent?: unknown }).agent;
+  if (loggedAgent !== 'bug-fix-engineer') {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: agent is \`${String(loggedAgent)}\`, not \`bug-fix-engineer\` — ` +
+      'the bug-fix repair record must be authored by the bug-fix-engineer (ADR 0006 §2).',
+    );
+  }
   const loggedId = (data as { 'change-id'?: unknown })['change-id'];
   if (loggedId !== changeId) {
     errors.push(
@@ -910,8 +923,13 @@ function enforceBugFixEvidence(
     }
   }
 
-  // 2. Referenced run summaries must exist and be repo-root-relative (§7).
+  // 2. Referenced run summaries must be THIS change's real run artifacts (§7):
+  //    repo-root-relative, under this change's test-runs/, and a JSON summary
+  //    whose change_id matches — mirroring the test-evidence artifact check, so a
+  //    bare existing path (e.g. CHANGELOG.md) or a summary copied from another
+  //    change cannot stand in for a real reproduction/regression run.
   const regression = block.regression as { summary?: unknown } | undefined;
+  const testRunsDir = resolve(changeDir, 'test-runs');
   const refs: ReadonlyArray<readonly [string, unknown]> = [
     ['reproduction.summary', reproduction?.summary],
     ['regression.summary', regression?.summary],
@@ -925,22 +943,56 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    if (!existsSync(resolve(cwd, value))) {
+    const abs = resolve(cwd, value);
+    if (!isWithinDir(testRunsDir, abs)) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} path \`${value}\` is not under this change's ` +
+        'test-runs/ directory — reference a `cdd-kit test run` summary for this change (ADR 0006 §7).',
+      );
+      continue;
+    }
+    if (!existsSync(abs)) {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} artifact \`${value}\` does not exist — ` +
         'reference a real run summary produced by `cdd-kit test run` (ADR 0006 §7).',
       );
+      continue;
+    }
+    let summaryChangeId: unknown;
+    try {
+      summaryChangeId = (JSON.parse(readFileSync(abs, 'utf8')) as { change_id?: unknown }).change_id;
+    } catch {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is not a readable JSON run summary ` +
+        'produced by `cdd-kit test run` (ADR 0006 §7).',
+      );
+      continue;
+    }
+    if (summaryChangeId !== changeId) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records change ` +
+        `\`${String(summaryChangeId)}\`, not \`${changeId}\` — reference this change's own run summary (ADR 0006 §7).`,
+      );
     }
   }
 
-  // 3. The block's diagnostic_only must agree with the classifier's decision (§10).
+  // 3. The diagnostic-only exemption (no root-cause/regression proof) is valid
+  //    only with EXPLICIT classifier approval (§10): the block may claim
+  //    diagnostic_only only when change-classification.md sets `## Diagnostic
+  //    Only` to `yes`. Classifier silence is not approval — otherwise a behavior
+  //    bug could self-exempt by setting the flag the classifier never granted.
   const classifierDiag = readClassifierDiagnosticOnly(changeDir);
   const blockDiag = block.diagnostic_only === true;
-  if (classifierDiag !== null && classifierDiag !== blockDiag) {
+  if (blockDiag && classifierDiag !== true) {
     errors.push(
-      `agent-log/bug-fix-engineer.yml: bug-fix.diagnostic_only (${blockDiag}) disagrees with ` +
-      `change-classification.md ## Diagnostic Only (${classifierDiag ? 'yes' : 'no'}) — ` +
-      'a diagnostic-only change must be marked in both, and a behavior fix in neither.',
+      'agent-log/bug-fix-engineer.yml: bug-fix.diagnostic_only is true but change-classification.md does ' +
+      'not explicitly set `## Diagnostic Only` to `yes` — the diagnostic-only exemption from ' +
+      'root-cause/regression proof requires explicit classifier approval (ADR 0006 §10).',
+    );
+  } else if (!blockDiag && classifierDiag === true) {
+    errors.push(
+      'agent-log/bug-fix-engineer.yml: change-classification.md marks the change diagnostic-only ' +
+      '(`## Diagnostic Only` `- yes`) but bug-fix.diagnostic_only is not set — reconcile the two (ADR 0006 §10).',
     );
   }
 }

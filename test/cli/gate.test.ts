@@ -1775,10 +1775,15 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     };
   }
 
-  function writeBugFixLog(changeDir: string, changeId: string, block: Record<string, unknown> | null): void {
+  function writeBugFixLog(
+    changeDir: string,
+    changeId: string,
+    block: Record<string, unknown> | null,
+    agent = 'bug-fix-engineer',
+  ): void {
     const logData: Record<string, unknown> = {
       'change-id': changeId,
-      agent: 'bug-fix-engineer',
+      agent,
       timestamp: '2026-06-09T12:00:00Z',
       status: 'complete',
       artifacts: [{ type: 'root-cause', pointer: 'src/pages/Orders.tsx:42-68' }],
@@ -1875,7 +1880,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
 
     const r = runCli(['gate', 'bug-007'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/diagnostic_only \(false\) disagrees with change-classification\.md ## Diagnostic Only \(yes\)/i);
+    expect(r.stdout + r.stderr).toMatch(/marks the change diagnostic-only.*bug-fix\.diagnostic_only is not set/i);
   });
 
   it('BF8: a diagnostic-only change is exempt from root_cause/regression', () => {
@@ -1906,5 +1911,101 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
 
     const r = runCli(['gate', 'feat-bf'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml|lane: bug-fix requires/i);
+  });
+
+  it('BF10: diagnostic_only with no explicit classifier approval (## Diagnostic Only omitted) fails', () => {
+    runCli(['new', 'bug-010'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-010');
+    writeValidChangeArtifacts(changeDir);
+    const filler = 'This bug-fix change investigates an intermittent CI-only export failure with logging. '.repeat(4);
+    // lane: bug-fix but NO `## Diagnostic Only` section — the classifier is silent.
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification', '', '## Lane', '- bug-fix', '', '## Tier', '- 2', '', filler,
+    ].join('\n'), 'utf8');
+    writeBugFixLog(changeDir, 'bug-010', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as it does locally',
+      actual_behavior: 'Export fails ~1 in 10 CI runs with no error detail',
+      reproduction: { status: 'environment-blocked' },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'unconfirmed' }],
+    });
+
+    const r = runCli(['gate', 'bug-010'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/diagnostic_only is true but change-classification\.md does not explicitly set/i);
+  });
+
+  it('BF11: a summary path outside the change test-runs/ directory fails the gate', () => {
+    runCli(['new', 'bug-011'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-011');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    // change-request.md exists and is repo-relative, but is not a run summary.
+    writeBugFixLog(changeDir, 'bug-011', bugFixBlock({
+      regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-011/change-request.md' },
+    }));
+
+    const r = runCli(['gate', 'bug-011'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/regression\.summary path .* is not under this change's test-runs\/ directory/i);
+  });
+
+  it('BF12: a summary that records a different change_id fails the gate', () => {
+    runCli(['new', 'bug-012'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-012');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    const runDir = join(changeDir, 'test-runs', 'r1');
+    mkdirSync(runDir, { recursive: true });
+    // A real-looking summary.json under this change's test-runs/, but copied from
+    // another change (change_id mismatch).
+    writeFileSync(join(runDir, 'summary.json'), JSON.stringify({
+      change_id: 'other-change', phase: 'targeted', status: 'passed', command: 'pytest',
+    }), 'utf8');
+    writeBugFixLog(changeDir, 'bug-012', bugFixBlock({
+      regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-012/test-runs/r1/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-012'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records change `other-change`, not `bug-012`/i);
+  });
+
+  it('BF13: a bug-fix-engineer.yml authored by a different agent fails the gate', () => {
+    runCli(['new', 'bug-013'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-013');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixLog(changeDir, 'bug-013', bugFixBlock(), 'backend-engineer');
+
+    const r = runCli(['gate', 'bug-013'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/agent is `backend-engineer`, not `bug-fix-engineer`/i);
+  });
+
+  it('BF14: an unknown key (warning) does not let a log with no bug-fix block pass', () => {
+    runCli(['new', 'bug-014'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-014');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    const dir = join(changeDir, 'agent-log');
+    mkdirSync(dir, { recursive: true });
+    // Valid envelope + a stray unknown key (additionalProperties → warning), but
+    // NO bug-fix: block. The warning must not short-circuit the required-block check.
+    writeFileSync(join(dir, 'bug-fix-engineer.yml'), yaml.dump({
+      'change-id': 'bug-014',
+      agent: 'bug-fix-engineer',
+      timestamp: '2026-06-09T12:00:00Z',
+      status: 'complete',
+      artifacts: [{ type: 'note', pointer: 'x' }],
+      'next-action': 'none',
+      'totally-unknown': true,
+    }, { lineWidth: -1, noRefs: true }), 'utf8');
+
+    const r = runCli(['gate', 'bug-014'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/no `bug-fix:` evidence block is present/i);
   });
 });
