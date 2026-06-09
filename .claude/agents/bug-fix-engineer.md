@@ -81,69 +81,62 @@ point at the root cause.
 
 ### Structured repair record
 
-In the bug-fix lane, write a structured `bug-fix:` block to
-`specs/changes/<change-id>/agent-log/bug-fix-engineer.yml`. It is a concise
-machine-readable repair record, not a narrative report; reference
-`test-evidence.yml` run summaries rather than pasting test output.
+In the bug-fix lane, record the repair evidence in
+`specs/changes/<change-id>/agent-log/bug-fix-engineer.yml`. That file is a normal
+agent log and MUST stay valid against the current agent-log schema
+(`src/schemas/agent-log.schema.ts`: `additionalProperties: false`; required
+`change-id`, `timestamp`, `agent`, `status`, `artifacts`, `next-action`). The
+`status` field is what lets `/cdd-resume` skip an already-completed bug-fix
+engineer, so never drop it. Carry the bug-fix evidence as typed `artifacts:`
+entries and reference `test-evidence.yml` run summaries instead of pasting test
+output:
 
 ```yaml
-schema-version: 0.1.0
+change-id: add-order-filter
+timestamp: 2026-06-09T12:00:00Z
 agent: bug-fix-engineer
-
-bug-fix:
-  symptom: "Orders page filter options are empty"
-  expected_behavior: "Status filter shows available statuses"
-  actual_behavior: "Filter dropdown renders no options"
-  observed_surface: "Orders page filter panel"
-
-  reproduction:
-    status: test-reproduced          # one value from the Reproduction status table
-    command: "cdd-kit test run add-order-filter --phase targeted --command \"<selected>\""
-    failing_before_fix: true
-    summary: "specs/changes/add-order-filter/test-runs/<run-id>/summary.json"
-
-  hypotheses:
-    - id: H1
-      candidate: "src/pages/Orders.tsx::buildFilterOptions"
-      reason: "Graph query matched the Orders page and filter symbol"
-      result: confirmed
-    - id: H2
-      candidate: "src/api/orders.ts::fetchOrders"
-      reason: "API client may omit the status field"
-      result: rejected
-
-  root_cause:
-    pointer: "src/pages/Orders.tsx:42-68"
-    summary: "UI mapped status_label instead of the canonical status when building options"
-
-  fix:
-    files_changed:
-      - "src/pages/Orders.tsx"
-      - "test/orders-filter.test.ts"
-    summary: "Use the canonical status field and add a regression test"
-
-  regression:
-    status: passed
-    command: "cdd-kit test run add-order-filter --phase targeted --command \"<selected>\""
-    summary: "specs/changes/add-order-filter/test-runs/<run-id>/summary.json"
-
-  residual_risk: "none"
+status: complete
+files-read:
+  - specs/changes/add-order-filter/context-manifest.md
+  - src/pages/Orders.tsx
+artifacts:
+  - { type: symptom, pointer: "Orders filter options empty; expected status options, rendered none" }
+  - { type: reproduction, pointer: "test-reproduced; failing before fix; specs/changes/add-order-filter/test-runs/<run-id>/summary.json" }
+  - { type: hypothesis, pointer: "H1 src/pages/Orders.tsx::buildFilterOptions — confirmed (root cause)" }
+  - { type: hypothesis, pointer: "H2 src/api/orders.ts::fetchOrders — rejected" }
+  - { type: root-cause, pointer: "src/pages/Orders.tsx:42-68 mapped status_label instead of the canonical status" }
+  - { type: files-changed, pointer: "src/pages/Orders.tsx, test/orders-filter.test.ts" }
+  - { type: regression-evidence, pointer: "passed; same command now passes; specs/changes/add-order-filter/test-runs/<run-id>/summary.json" }
+  - { type: residual-risk, pointer: "none" }
+next-action: "qa-reviewer release-readiness review"
 ```
 
-Rules for the record:
+Evidence rules:
 
-- `root_cause.pointer` is required once code changes.
-- `regression.status: passed` is required once code changes — the same or an
-  equivalent command/evidence that failed before the fix must pass after it, and
-  changed code needs added or updated regression coverage.
+- Record exactly one `reproduction` status from the table above. A code change
+  that claims to fix the symptom needs `reproduced`, `test-reproduced`, or
+  `visual-reproduced`.
+- A `root-cause` artifact (a `file:line` pointer) is required once code changes.
+- For a **behavior-changing** fix, a `regression-evidence` artifact is required:
+  the same or an equivalent command that failed before the fix must pass after
+  it, and changed code needs added or updated regression coverage.
+- A **diagnostic-only** change does not produce that before/after fix proof — it
+  intentionally does not fix the symptom yet. Set the classifier's
+  `## Diagnostic Only` to `yes`, record the diagnostic reproduction status
+  (`environment-blocked`, `intermittent`, or `not-reproduced`), add passing tests
+  for the instrumentation itself, do not claim to fix the symptom, and open a
+  follow-up change for the actual fix.
 - A required test failure is never waivable as known / pre-existing / allowed —
   fix it, expand scope, or open a separate change.
-- Diagnostic-only changes set the classifier's `## Diagnostic Only` to `yes`,
-  must not claim to fix the symptom, and should open a follow-up change for the
-  actual fix.
 
-This evidence contract is defined by ADR 0006 (bug-fix lane); the bug-fix gate
-validates it once that phase lands. Produce it now so the repair record exists.
+ADR 0006 promotes this evidence to a first-class, machine-validated `bug-fix:`
+block (symptom, expected/actual behavior, reproduction, hypotheses, root cause,
+fix, regression, residual risk): the agent-log schema gains the block in the
+schema phase (ADR 0006 PR 2) and the bug-fix gate enforces it in the gate phase
+(ADR 0006 PR 3). Until that schema lands, keep the evidence in the schema-valid
+`artifacts:` shape above — do not write a bare top-level `bug-fix:` /
+`schema-version:` log, which the current `additionalProperties: false` schema
+rejects and which hides `status:` from `/cdd-resume`.
 
 ## Fix discipline
 
@@ -189,9 +182,10 @@ Report the reproduced symptom, root cause, files changed, tests/evidence, and an
 
 ## Optional Handoff Evidence
 
-In the bug-fix lane the structured `bug-fix:` block above is the required repair
-record; the `artifacts:` pointers below are an optional complement in the same
-`agent-log/bug-fix-engineer.yml` file, not a replacement for it.
+In the bug-fix lane the `agent-log/bug-fix-engineer.yml` repair record above (the
+schema-valid `artifacts:` evidence) is required; the artifact types listed below
+are the menu it draws from. Use that one file — do not split the record into a
+second log.
 
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
@@ -207,6 +201,8 @@ checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys -- tho
 Recommended `type` values for this agent when you emit an optional agent log:
 
 - `symptom`: user-visible defect being fixed
+- `reproduction`: status + evidence pointer (one value from the Reproduction status table)
+- `hypothesis`: candidate symbol + result (`confirmed` | `rejected` | `unconfirmed`)
 - `root-cause`: file/symbol and concise cause
 - `files-changed`: source/test files modified
 - `regression-evidence`: failing-then-passing test, screenshot, or reproduction command

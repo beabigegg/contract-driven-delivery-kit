@@ -13,10 +13,11 @@
   symptom-type agents. `bug-fix-engineer` gains the no-edit-before-diagnosis
   gate, the reproduction-status vocabulary (`reproduced` / `test-reproduced` /
   `visual-reproduced` / `intermittent` / `environment-blocked` /
-  `not-reproduced`), a hypothesis table, and the structured
-  `agent-log/bug-fix-engineer.yml` `bug-fix:` repair record (symptom, expected /
-  actual behavior, reproduction, hypotheses, root-cause pointer, regression
-  proof). `/cdd-new` routes the lane: `bug-fix-engineer` leads implementation,
+  `not-reproduced`), a hypothesis table, and a schema-valid
+  `agent-log/bug-fix-engineer.yml` repair record (the standard agent-log envelope
+  carrying symptom, reproduction, hypotheses, root-cause pointer, and regression
+  evidence as typed `artifacts:`). `/cdd-new` routes the lane: `bug-fix-engineer`
+  leads implementation,
   regression proof runs on the ADR 0005 bounded ladder, and diagnostic-only
   changes open a follow-up. Prompt / classification only — the bug-fix evidence
   schema, `cdd-kit gate` enforcement, and `cdd-kit bug suspects` land in later
