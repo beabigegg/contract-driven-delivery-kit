@@ -195,6 +195,23 @@ Use this structure:
 ## Lane
 - feature | bug-fix
 
+<!-- The next three sections are REQUIRED when ## Lane is bug-fix; omit them for
+     feature work. See "Bug-fix lane detection" above for symptom-type routing. -->
+## Bug Symptom Type
+- ui | visual | api | data | performance | crash | test-failure | ci-failure | unknown
+
+## Diagnostic Only
+- no            # yes only when the first correct step is instrumentation, not a behavior fix
+
+## Bug Evidence Required
+- symptom
+- expected behavior
+- actual behavior
+- reproduction status
+- hypotheses
+- root cause pointer
+- regression evidence
+
 ## Risk Level
 - low / medium / high / critical
 

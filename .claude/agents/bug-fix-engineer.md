@@ -42,12 +42,16 @@ For data/API symptoms, verify request parameters, response shape, empty/error ha
 ## Diagnose before you edit (bug-fix lane)
 
 When the change is classified `lane: bug-fix`, do **not** edit source until one
-of these holds:
+of these holds (each maps to a status in the Reproduction status table below):
 
-1. a failing automated test reproduces the symptom; or
-2. a visual/manual reproduction is captured (screenshot/browser evidence); or
-3. reproduction is explicitly blocked and the change is classified
-   diagnostic-only.
+1. a command, local step, or controlled input reproduces the symptom
+   (`reproduced`); or
+2. a failing automated test reproduces it (`test-reproduced`, preferred for
+   code-behavior bugs); or
+3. screenshot/browser evidence reproduces a visual symptom
+   (`visual-reproduced`); or
+4. reproduction is inconsistent or blocked and the change is classified
+   diagnostic-only (`intermittent` / `environment-blocked` / `not-reproduced`).
 
 Before any edit, produce the observable symptom, expected behavior, actual
 behavior, a reproduction attempt, 2-5 hypotheses with candidate files/symbols
