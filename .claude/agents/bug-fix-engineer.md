@@ -39,6 +39,112 @@ For UI symptoms, verify relevant states: default, loading, empty, error, long te
 
 For data/API symptoms, verify request parameters, response shape, empty/error handling, permissions, caching, and mapping from backend data to UI state.
 
+## Diagnose before you edit (bug-fix lane)
+
+When the change is classified `lane: bug-fix`, do **not** edit source until one
+of these holds:
+
+1. a failing automated test reproduces the symptom; or
+2. a visual/manual reproduction is captured (screenshot/browser evidence); or
+3. reproduction is explicitly blocked and the change is classified
+   diagnostic-only.
+
+Before any edit, produce the observable symptom, expected behavior, actual
+behavior, a reproduction attempt, 2-5 hypotheses with candidate files/symbols
+from graph/index, and narrow read ranges. This rule prevents speculative edits
+driven by intuition or broad search.
+
+### Reproduction status
+
+Record exactly one status. A code change that claims to fix a bug normally needs
+`reproduced`, `test-reproduced`, or `visual-reproduced`.
+
+| Status | Meaning | Implication |
+|---|---|---|
+| `reproduced` | Symptom reproduced by a command, local step, or controlled input | Can proceed to fix |
+| `test-reproduced` | A failing automated test reproduces the symptom | Preferred for code-behavior bugs |
+| `visual-reproduced` | Screenshot/browser evidence reproduces the visual symptom | Valid for visual/layout bugs |
+| `intermittent` | Symptom reproduces inconsistently | Proceed only with a diagnostic note and bounded evidence |
+| `environment-blocked` | Required external environment is unavailable | Blocks a behavior-changing fix unless classified diagnostic-only |
+| `not-reproduced` | Could not reproduce the symptom | Blocks a behavior-changing fix unless classified diagnostic-only |
+
+`not-reproduced` and `environment-blocked` are not passing states for a
+behavior-changing fix. They support only a diagnostic-only change (safe logging,
+a targeted test scaffold) when the classifier and QA agree.
+
+### Hypotheses
+
+Derive 2-5 hypotheses, each with a candidate symbol/path, the reason it is a
+candidate, and its result once checked (`confirmed` | `rejected` | `unconfirmed`).
+When reproduction succeeded, at least one hypothesis must end `confirmed` and
+point at the root cause.
+
+### Structured repair record
+
+In the bug-fix lane, write a structured `bug-fix:` block to
+`specs/changes/<change-id>/agent-log/bug-fix-engineer.yml`. It is a concise
+machine-readable repair record, not a narrative report; reference
+`test-evidence.yml` run summaries rather than pasting test output.
+
+```yaml
+schema-version: 0.1.0
+agent: bug-fix-engineer
+
+bug-fix:
+  symptom: "Orders page filter options are empty"
+  expected_behavior: "Status filter shows available statuses"
+  actual_behavior: "Filter dropdown renders no options"
+  observed_surface: "Orders page filter panel"
+
+  reproduction:
+    status: test-reproduced          # one value from the Reproduction status table
+    command: "cdd-kit test run add-order-filter --phase targeted --command \"<selected>\""
+    failing_before_fix: true
+    summary: "specs/changes/add-order-filter/test-runs/<run-id>/summary.json"
+
+  hypotheses:
+    - id: H1
+      candidate: "src/pages/Orders.tsx::buildFilterOptions"
+      reason: "Graph query matched the Orders page and filter symbol"
+      result: confirmed
+    - id: H2
+      candidate: "src/api/orders.ts::fetchOrders"
+      reason: "API client may omit the status field"
+      result: rejected
+
+  root_cause:
+    pointer: "src/pages/Orders.tsx:42-68"
+    summary: "UI mapped status_label instead of the canonical status when building options"
+
+  fix:
+    files_changed:
+      - "src/pages/Orders.tsx"
+      - "test/orders-filter.test.ts"
+    summary: "Use the canonical status field and add a regression test"
+
+  regression:
+    status: passed
+    command: "cdd-kit test run add-order-filter --phase targeted --command \"<selected>\""
+    summary: "specs/changes/add-order-filter/test-runs/<run-id>/summary.json"
+
+  residual_risk: "none"
+```
+
+Rules for the record:
+
+- `root_cause.pointer` is required once code changes.
+- `regression.status: passed` is required once code changes — the same or an
+  equivalent command/evidence that failed before the fix must pass after it, and
+  changed code needs added or updated regression coverage.
+- A required test failure is never waivable as known / pre-existing / allowed —
+  fix it, expand scope, or open a separate change.
+- Diagnostic-only changes set the classifier's `## Diagnostic Only` to `yes`,
+  must not claim to fix the symptom, and should open a follow-up change for the
+  actual fix.
+
+This evidence contract is defined by ADR 0006 (bug-fix lane); the bug-fix gate
+validates it once that phase lands. Produce it now so the repair record exists.
+
 ## Fix discipline
 
 - Do not rewrite nearby code only because it is untidy.
@@ -82,6 +188,10 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 Report the reproduced symptom, root cause, files changed, tests/evidence, and any residual risk in plain language suitable for a non-engineer.
 
 ## Optional Handoff Evidence
+
+In the bug-fix lane the structured `bug-fix:` block above is the required repair
+record; the `artifacts:` pointers below are an optional complement in the same
+`agent-log/bug-fix-engineer.yml` file, not a replacement for it.
 
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields

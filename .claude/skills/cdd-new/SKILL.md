@@ -416,6 +416,39 @@ user's visibility only — it does not change which model the runtime selects
 
 ---
 
+### Bug-fix lane routing
+
+If `change-classification.md` sets `## Lane` to `bug-fix`, the request is
+symptom-driven (existing behavior wrong/missing/broken, root cause unknown).
+Route it through the bug-fix lane on top of the normal tier flow — the lane does
+not replace the tier (a bug fix can be Tier 0-5):
+
+- **`bug-fix-engineer` is the first implementation agent**, used instead of
+  starting with `backend-engineer`/`frontend-engineer`. It queries the
+  graph/index, reproduces the symptom, finds the smallest root cause, fixes it,
+  and adds regression coverage; it may hand the final edit to backend/frontend
+  scope after graph-guided investigation. It must not edit source before
+  diagnosis (see `.claude/agents/bug-fix-engineer.md` → "Diagnose before you
+  edit").
+- It writes the structured repair record itself (write-capable):
+  `specs/changes/<change-id>/agent-log/bug-fix-engineer.yml` with the `bug-fix:`
+  block (symptom, expected/actual behavior, reproduction status, hypotheses,
+  root-cause pointer, regression proof). YOU do not author this file.
+- Always commission `test-strategist` and `qa-reviewer`. Add the symptom-type
+  agents the classifier listed in `## Required Agents` (keyed to its `## Bug
+  Symptom Type`): e.g. `frontend-engineer` + `visual-reviewer` for visual,
+  `backend-engineer` + `contract-reviewer` for api,
+  `e2e-resilience-engineer` / `stress-soak-engineer` for performance.
+- Regression proof uses the ADR 0005 bounded ladder (`cdd-kit test select`, then
+  `cdd-kit test run <id> --phase ... --command ...`): the reproduction command
+  fails before the fix and the same/equivalent command passes after it.
+- **Diagnostic-only** (classifier `## Diagnostic Only` = `yes`): the change adds
+  instrumentation, not a behavior fix. It must not claim to fix the symptom,
+  still needs tests for the diagnostic code, cannot pass with required test
+  failures, and should open a follow-up tracked change for the real fix.
+
+---
+
 ### Tier 4?? (low risk: docs, prompts, config-only, no behavior change)
 
 1. **`contract-reviewer`** (read-only) ??confirm no contracts are touched or all touched ones are already updated.

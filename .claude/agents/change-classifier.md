@@ -113,6 +113,73 @@ invocations of token cost. The fast-path bounds it to 2 read-only reviews. If
 unsure whether the fast-path applies, classify Tier 4 instead and proceed
 through the normal flow.
 
+### Bug-fix lane detection
+
+Feature work starts from a desired new behavior. Bug fixing starts from a
+**symptom**: an existing behavior is wrong, missing, or broken and the code
+location / root cause is unknown. When the request is symptom-driven, set
+`## Lane` to `bug-fix` (it is `feature` otherwise).
+
+Symptom-driven examples: "fix empty filter options", "the report times out",
+"button does nothing", "layout overlaps", "pytest fails on test_x", "API returns
+wrong status", "data disappears after refresh", "works locally but fails in CI".
+
+The lane is orthogonal to the risk tier — a bug fix can still be Tier 0-5 by
+affected surface. Auth, payments, migrations, concurrency, exports, queues,
+caches, and long-running production behavior still trigger their high-risk
+gates.
+
+When `## Lane` is `bug-fix`, ALSO emit these sections:
+
+```md
+## Bug Symptom Type
+- ui | visual | api | data | performance | crash | test-failure | ci-failure | unknown
+
+## Diagnostic Only
+- no            # yes only when the first correct step is instrumentation, not a behavior fix
+
+## Bug Evidence Required
+- symptom
+- expected behavior
+- actual behavior
+- reproduction status
+- hypotheses
+- root cause pointer
+- regression evidence
+```
+
+`bug-fix-engineer` produces this evidence as a structured
+`agent-log/bug-fix-engineer.yml` `bug-fix:` block. The reproduction-status
+vocabulary and the full evidence shape are defined in
+`.claude/agents/bug-fix-engineer.md` — do not duplicate that table here; emit
+only the symptom type and the evidence checklist.
+
+Always include these agents in `## Required Agents` for the bug-fix lane:
+`bug-fix-engineer`, `test-strategist`, `qa-reviewer`. Then add agents by symptom
+type:
+
+| Symptom type | Additional agents |
+|---|---|
+| `ui` | `frontend-engineer`, `ui-ux-reviewer` when interaction/copy/accessibility is affected |
+| `visual` | `frontend-engineer`, `visual-reviewer` |
+| `api` | `backend-engineer`, `contract-reviewer` |
+| `data` | `backend-engineer`, `test-strategist`, plus `contract-reviewer` when a data contract is touched |
+| `performance` | `e2e-resilience-engineer`, `stress-soak-engineer` when production-like risk is present |
+| `crash` | implementation owner + `qa-reviewer`; add resilience tests when the crash hits a user-visible flow |
+| `test-failure` | owner of the failing area + `test-strategist`; never record the failing test as a known/pre-existing failure |
+| `ci-failure` | `ci-cd-gatekeeper`, the relevant implementation owner |
+
+A `bug-fix` that turns out to need a contract change is no longer just a bug fix
+— promote it to `feature-enhancement` or `business-logic-change` so the contract
+path is forced (see Mixed and edge cases).
+
+**Diagnostic-only bug changes** (`## Diagnostic Only` = `yes`): the first correct
+step is instrumentation, not a behavior fix — safe logging around an intermittent
+failure, a reproduction scaffold, environment capture, or a minimal health check.
+A diagnostic-only change must not claim to fix the symptom, still needs tests for
+the diagnostic code, still cannot pass with required test failures, and should
+create a follow-up tracked change for the actual fix.
+
 ## Output
 
 Use this structure:
@@ -123,6 +190,9 @@ Use this structure:
 ## Change Types
 - primary:
 - secondary:
+
+## Lane
+- feature | bug-fix
 
 ## Risk Level
 - low / medium / high / critical
@@ -298,6 +368,6 @@ If a recommended `type` does not apply to your run, either omit it or use `point
 - Report/dashboard/data import/export change always requires data-shape boundary tests.
 - High-load, auto-refresh, queue, cache, report, or long-running job change requires stress or soak consideration.
 - Existing behavior changes require current behavior and regression scope.
-- Bug fixes require reproduction, root cause, failing test, and regression test whenever feasible. If the user describes only a symptom and the code location is unknown, include `bug-fix-engineer` in `## Required Agents`.
+- Bug fixes require reproduction, root cause, failing test, and regression test whenever feasible. When the request is symptom-driven (existing behavior wrong/missing/broken, code location unknown), set `## Lane` to `bug-fix` and follow `### Bug-fix lane detection` for the symptom type, required agents, and evidence.
 - Architecture review, non-obvious design decisions, module-boundary changes, data-flow changes, migration/rollback decisions, compatibility trade-offs, or operational-risk decisions require `spec-architect` to write `design.md` before `implementation-planner` runs.
 - Any implementation change requires `implementation-planner` before backend/frontend/test implementation agents. The planner turns decisions, contracts, and tests into the execution packet; implementation agents should not infer missing scope from chat history.
