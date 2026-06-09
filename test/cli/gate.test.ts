@@ -1729,4 +1729,182 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/records command .* not the declared/i);
   });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ADR 0006 PR 3 — bug-fix lane evidence enforcement (§7). Fires only when the
+  // classifier recorded `## Lane\n- bug-fix`; feature/legacy changes are untouched.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  function writeBugFixClassification(changeDir: string, diagnosticOnly: 'yes' | 'no' = 'no'): void {
+    const filler = 'This bug-fix change addresses a reproducible defect in the orders status filter panel. '.repeat(4);
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification',
+      '',
+      '## Lane',
+      '- bug-fix',
+      '',
+      '## Bug Symptom Type',
+      '- ui',
+      '',
+      '## Diagnostic Only',
+      `- ${diagnosticOnly}`,
+      '',
+      '## Tier',
+      '- 2',
+      '',
+      filler,
+    ].join('\n'), 'utf8');
+  }
+
+  function bugFixBlock(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      'schema-version': '0.1.0',
+      symptom: 'Orders filter options are empty',
+      expected_behavior: 'Status filter shows the available statuses',
+      actual_behavior: 'Filter dropdown renders no options',
+      observed_surface: 'Orders page filter panel',
+      reproduction: { status: 'test-reproduced', failing_before_fix: true },
+      hypotheses: [
+        { id: 'H1', candidate: 'src/pages/Orders.tsx::buildFilterOptions', reason: 'graph match', result: 'confirmed' },
+      ],
+      root_cause: { pointer: 'src/pages/Orders.tsx:42-68', summary: 'mapped status_label not status' },
+      fix: { files_changed: ['src/pages/Orders.tsx'], summary: 'use the canonical status field' },
+      regression: { status: 'passed', command: 'pytest tests/orders/test_filter.py' },
+      residual_risk: 'none',
+      ...overrides,
+    };
+  }
+
+  function writeBugFixLog(changeDir: string, changeId: string, block: Record<string, unknown> | null): void {
+    const logData: Record<string, unknown> = {
+      'change-id': changeId,
+      agent: 'bug-fix-engineer',
+      timestamp: '2026-06-09T12:00:00Z',
+      status: 'complete',
+      artifacts: [{ type: 'root-cause', pointer: 'src/pages/Orders.tsx:42-68' }],
+      'next-action': 'qa-reviewer release-readiness review',
+    };
+    if (block) logData['bug-fix'] = block;
+    const dir = join(changeDir, 'agent-log');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'bug-fix-engineer.yml'), yaml.dump(logData, { lineWidth: -1, noRefs: true }), 'utf8');
+  }
+
+  it('BF1: lane: bug-fix with no agent-log/bug-fix-engineer.yml fails the gate', () => {
+    runCli(['new', 'bug-001'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-001');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+
+    const r = runCli(['gate', 'bug-001'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/lane: bug-fix requires agent-log\/bug-fix-engineer\.yml/i);
+  });
+
+  it('BF2: lane: bug-fix with a complete valid bug-fix block emits no bug-fix evidence error', () => {
+    runCli(['new', 'bug-002'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-002');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixLog(changeDir, 'bug-002', bugFixBlock());
+
+    const r = runCli(['gate', 'bug-002'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml|lane: bug-fix requires/i);
+  });
+
+  it('BF3: a bug-fix block missing symptom fails the gate (schema)', () => {
+    runCli(['new', 'bug-003'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-003');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    const block = bugFixBlock();
+    delete block.symptom;
+    writeBugFixLog(changeDir, 'bug-003', block);
+
+    const r = runCli(['gate', 'bug-003'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/agent-log\/bug-fix-engineer\.yml.*missing required `symptom`/i);
+  });
+
+  it('BF4: a reproduced symptom with no confirmed hypothesis fails the gate', () => {
+    runCli(['new', 'bug-004'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-004');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixLog(changeDir, 'bug-004', bugFixBlock({
+      hypotheses: [{ id: 'H1', candidate: 'src/pages/Orders.tsx::x', reason: 'r', result: 'unconfirmed' }],
+    }));
+
+    const r = runCli(['gate', 'bug-004'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/reproduction succeeded.*no hypothesis is marked `result: confirmed`/i);
+  });
+
+  it('BF5: a referenced regression.summary that does not exist fails the gate', () => {
+    runCli(['new', 'bug-005'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-005');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixLog(changeDir, 'bug-005', bugFixBlock({
+      regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-005/test-runs/nope/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-005'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/regression\.summary artifact .* does not exist/i);
+  });
+
+  it('BF6: a non-diagnostic block with reproduction.status not-reproduced fails the gate (schema)', () => {
+    runCli(['new', 'bug-006'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-006');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'no');
+    writeBugFixLog(changeDir, 'bug-006', bugFixBlock({ reproduction: { status: 'not-reproduced' } }));
+
+    const r = runCli(['gate', 'bug-006'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/expected one of: reproduced, test-reproduced, visual-reproduced/i);
+  });
+
+  it('BF7: diagnostic_only mismatch (classifier yes, block behavior-fix) fails the gate', () => {
+    runCli(['new', 'bug-007'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-007');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'yes'); // classifier says diagnostic-only
+    writeBugFixLog(changeDir, 'bug-007', bugFixBlock()); // block omits diagnostic_only => behavior fix
+
+    const r = runCli(['gate', 'bug-007'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/diagnostic_only \(false\) disagrees with change-classification\.md ## Diagnostic Only \(yes\)/i);
+  });
+
+  it('BF8: a diagnostic-only change is exempt from root_cause/regression', () => {
+    runCli(['new', 'bug-008'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-008');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'yes');
+    writeBugFixLog(changeDir, 'bug-008', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as it does locally',
+      actual_behavior: 'Export fails ~1 in 10 CI runs with no error detail',
+      reproduction: { status: 'environment-blocked' },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'unconfirmed' }],
+    });
+
+    const r = runCli(['gate', 'bug-008'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml.*missing required|disagrees with/i);
+  });
+
+  it('BF9: feature lane (## Lane: feature) is not subject to bug-fix evidence enforcement', () => {
+    runCli(['new', 'feat-bf'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-bf');
+    writeValidChangeArtifacts(changeDir); // feature classification, no agent-log
+    const text = readFileSync(join(changeDir, 'change-classification.md'), 'utf8');
+    writeFileSync(join(changeDir, 'change-classification.md'), `${text}\n\n## Lane\n- feature\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-bf'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml|lane: bug-fix requires/i);
+  });
 });

@@ -141,8 +141,10 @@ now accepts it as an optional `bug-fix` property, so record it **nested inside
 the agent-log envelope** above — not as a bare top-level `bug-fix:` /
 `schema-version:` document, which the envelope's `additionalProperties: false`
 still rejects and which would hide `status:` from `/cdd-resume`. The typed
-`artifacts:` shape stays valid; the bug-fix gate begins requiring the `bug-fix:`
-block for `lane: bug-fix` changes in the gate phase (ADR 0006 PR 3).
+`artifacts:` shape stays valid alongside it; for a `lane: bug-fix` change
+`cdd-kit gate` now **requires** this schema-valid `bug-fix:` block, a `confirmed`
+hypothesis when the symptom was reproduced, and real run summaries (ADR 0006 §7,
+PR 3).
 
 ## Fix discipline
 

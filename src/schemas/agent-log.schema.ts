@@ -32,8 +32,8 @@ export const agentLogSchema = {
     notes: { type: "string" },
     // Optional first-class bug-fix evidence block (ADR 0006 §2). Only bug-fix-lane
     // logs carry it; feature logs omit it, so this is backward-compatible. Defined
-    // in bug-fix-evidence.schema.ts; the gate begins requiring it for
-    // `lane: bug-fix` changes in the gate phase (ADR 0006 PR 3).
+    // in bug-fix-evidence.schema.ts; the gate requires it for `lane: bug-fix`
+    // changes (ADR 0006 PR 3, src/commands/gate.ts).
     "bug-fix": bugFixEvidenceBlock
   }
 } as const;

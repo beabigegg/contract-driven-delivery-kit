@@ -19,8 +19,8 @@
   evidence as typed `artifacts:`). `/cdd-new` routes the lane: `bug-fix-engineer`
   leads implementation,
   regression proof runs on the ADR 0005 bounded ladder, and diagnostic-only
-  changes open a follow-up. Prompt / classification only — `cdd-kit gate`
-  enforcement and `cdd-kit bug suspects` land in later ADR 0006 PRs.
+  changes open a follow-up. Prompt / classification only — `cdd-kit bug suspects`
+  lands in a later ADR 0006 PR.
 
 - **Bug-fix evidence schema (ADR 0006 — schema phase).** Adds
   `src/schemas/bug-fix-evidence.schema.ts`: a first-class, machine-validated
@@ -35,8 +35,19 @@
   shape (observed surface, root cause, a files-changed fix, a **passing**
   regression, residual risk) and a behavior-fix reproduction status (`reproduced`
   / `test-reproduced` / `visual-reproduced`); a `diagnostic_only` record is
-  exempt. Schema and tests only — `cdd-kit gate` enforcement when `lane: bug-fix`
-  lands in the next ADR 0006 PR.
+  exempt. Schema and tests only — the gate-integration phase wires this schema
+  into `cdd-kit gate`.
+
+- **Bug-fix gate enforcement (ADR 0006 — gate integration).** `cdd-kit gate` now
+  detects `lane: bug-fix` from `change-classification.md` and requires the
+  bug-fix-engineer's `agent-log/bug-fix-engineer.yml` to carry a schema-valid
+  `bug-fix:` block (ADR 0006 §7). Beyond the schema's structural checks the gate
+  adds the cross-field rules static schema cannot express: a reproduced symptom
+  must name a `confirmed` hypothesis, referenced run summaries must exist and be
+  repo-root-relative, the record's `change-id` must match the change being gated,
+  and the block's `diagnostic_only` must agree with the classifier's `##
+  Diagnostic Only`. Feature and legacy changes (no `## Lane: bug-fix`) are
+  unaffected.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook

@@ -7,6 +7,8 @@ import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
+import { agentLogSchema } from '../schemas/agent-log.schema.js';
+import { BEHAVIOR_FIX_REPRODUCTION_STATUSES } from '../schemas/bug-fix-evidence.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import {
@@ -793,6 +795,156 @@ function enforceTestEvidence(
   }
 }
 
+// ── bug-fix lane evidence enforcement (ADR 0006 §7) ──────────────────────────
+
+// Validates the bug-fix-engineer repair log: the standard agent-log envelope
+// plus, when present, the nested `bug-fix:` evidence block (the schema makes the
+// block optional; enforceBugFixEvidence requires it for `lane: bug-fix`).
+const validateAgentLog = ajv.compile(agentLogSchema);
+
+/**
+ * The lane the classifier recorded in change-classification.md (ADR 0006 §1):
+ * structured `## Lane\n- bug-fix`, mirroring how resolveTier reads `## Tier`.
+ * Returns null when absent — a change with no explicit lane (legacy or feature
+ * work) is NOT subject to bug-fix evidence enforcement, so existing changes are
+ * unaffected.
+ */
+function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
+  const classifPath = join(changeDir, 'change-classification.md');
+  if (!existsSync(classifPath)) return null;
+  const m = readFileSync(classifPath, 'utf8').match(/^##\s+Lane\s*\n\s*-\s*(feature|bug-fix)\b/im);
+  return m ? (m[1] as 'feature' | 'bug-fix') : null;
+}
+
+/** The classifier's `## Diagnostic Only` decision (ADR 0006 §10), or null if absent. */
+function readClassifierDiagnosticOnly(changeDir: string): boolean | null {
+  const classifPath = join(changeDir, 'change-classification.md');
+  if (!existsSync(classifPath)) return null;
+  const m = readFileSync(classifPath, 'utf8').match(/^##\s+Diagnostic Only\s*\n\s*-\s*(yes|no)\b/im);
+  return m ? m[1].toLowerCase() === 'yes' : null;
+}
+
+/**
+ * ADR 0006 §7 — when the classifier set `lane: bug-fix`, the bug-fix-engineer's
+ * repair record (agent-log/bug-fix-engineer.yml) must exist and carry a valid
+ * `bug-fix:` evidence block. The schema (bug-fix-evidence.schema.ts, embedded in
+ * agent-log.schema.ts) already enforces the structural shape — symptom /
+ * expected / actual / reproduction status / hypotheses, and, for a behavior-
+ * changing fix, the full repair shape with a passing regression and a behavior-
+ * fix reproduction status. This adds the cross-field rules static schema cannot
+ * express:
+ *   - a reproduced symptom must have a `confirmed` hypothesis;
+ *   - referenced run summaries must actually exist;
+ *   - the block's `diagnostic_only` must agree with the classifier's decision.
+ * Fires only for `lane: bug-fix`; feature/legacy changes are untouched.
+ */
+function enforceBugFixEvidence(
+  changeDir: string,
+  changeId: string,
+  cwd: string,
+  errors: string[],
+  warnings: string[],
+): void {
+  if (readLane(changeDir) !== 'bug-fix') return;
+
+  const logPath = join(changeDir, 'agent-log', 'bug-fix-engineer.yml');
+  if (!existsSync(logPath)) {
+    errors.push(
+      'lane: bug-fix requires agent-log/bug-fix-engineer.yml with a `bug-fix:` evidence block ' +
+      '(ADR 0006 §7) — none found. The bug-fix-engineer records the repair evidence there.',
+    );
+    return;
+  }
+
+  const { data, parseError } = loadYamlFile<Record<string, unknown>>(logPath);
+  if (parseError) {
+    errors.push(`agent-log/bug-fix-engineer.yml: invalid YAML: ${parseError}`);
+    return;
+  }
+  if (!data || typeof data !== 'object') {
+    errors.push('agent-log/bug-fix-engineer.yml: file is empty or not a YAML mapping');
+    return;
+  }
+
+  if (!validateAgentLog(data)) {
+    const out = ajvErrorsToMessages(
+      validateAgentLog.errors,
+      'agent-log/bug-fix-engineer.yml',
+      Object.keys(agentLogSchema.properties),
+    );
+    errors.push(...out.errors);
+    warnings.push(...out.warnings);
+    return; // schema-invalid evidence can't be trusted for cross-field checks
+  }
+
+  // The repair record must belong to THIS change (a copied/renamed log is rejected).
+  const loggedId = (data as { 'change-id'?: unknown })['change-id'];
+  if (loggedId !== changeId) {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: change-id \`${String(loggedId)}\` does not match the change being ` +
+      `gated (\`${changeId}\`) — this repair record was generated for (or copied from) a different change.`,
+    );
+  }
+
+  const block = (data as { 'bug-fix'?: Record<string, unknown> })['bug-fix'];
+  if (!block || typeof block !== 'object') {
+    errors.push(
+      'agent-log/bug-fix-engineer.yml: lane is bug-fix but no `bug-fix:` evidence block is present ' +
+      '(ADR 0006 §2/§7) — record symptom, expected/actual behavior, reproduction, hypotheses, root ' +
+      'cause, and a passing regression as a nested `bug-fix:` block.',
+    );
+    return;
+  }
+
+  // 1. A reproduced symptom must name a confirmed root-cause hypothesis (§7).
+  const reproduction = block.reproduction as { status?: string; summary?: unknown } | undefined;
+  const status = reproduction?.status;
+  if (typeof status === 'string' && (BEHAVIOR_FIX_REPRODUCTION_STATUSES as readonly string[]).includes(status)) {
+    const hyps = Array.isArray(block.hypotheses) ? block.hypotheses : [];
+    const confirmed = hyps.some((h) => (h as { result?: unknown })?.result === 'confirmed');
+    if (!confirmed) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: reproduction succeeded (status: ${status}) but no hypothesis is ` +
+        'marked `result: confirmed` — a reproduced bug must name the confirmed root-cause hypothesis (ADR 0006 §7).',
+      );
+    }
+  }
+
+  // 2. Referenced run summaries must exist and be repo-root-relative (§7).
+  const regression = block.regression as { summary?: unknown } | undefined;
+  const refs: ReadonlyArray<readonly [string, unknown]> = [
+    ['reproduction.summary', reproduction?.summary],
+    ['regression.summary', regression?.summary],
+  ];
+  for (const [field, value] of refs) {
+    if (typeof value !== 'string' || value === '') continue;
+    if (isAbsolute(value)) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} path \`${value}\` is absolute — ` +
+        'record a repo-root-relative path so the evidence stays portable.',
+      );
+      continue;
+    }
+    if (!existsSync(resolve(cwd, value))) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} artifact \`${value}\` does not exist — ` +
+        'reference a real run summary produced by `cdd-kit test run` (ADR 0006 §7).',
+      );
+    }
+  }
+
+  // 3. The block's diagnostic_only must agree with the classifier's decision (§10).
+  const classifierDiag = readClassifierDiagnosticOnly(changeDir);
+  const blockDiag = block.diagnostic_only === true;
+  if (classifierDiag !== null && classifierDiag !== blockDiag) {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: bug-fix.diagnostic_only (${blockDiag}) disagrees with ` +
+      `change-classification.md ## Diagnostic Only (${classifierDiag ? 'yes' : 'no'}) — ` +
+      'a diagnostic-only change must be marked in both, and a behavior fix in neither.',
+    );
+  }
+}
+
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
   const strict = opts.strict ?? false;
   const cwd = process.cwd();
@@ -891,6 +1043,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTierFloor(changeDir, errors, warnings);
   enforceContractSubstance(cwd, errors, warnings, strict);
   enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
+  enforceBugFixEvidence(changeDir, changeId, cwd, errors, warnings);
 
   for (const w of warnings) {
     log.warn(`  ${w}`);
