@@ -188,6 +188,49 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
     }
   });
 
+  // --- Codex review round 3 (PR-7): bare dirs, npm config values, quoted --command, slashed env. ---
+
+  it('treats a bare top-level directory as a bounded pytest target', () => {
+    // pytest's positional is [file_or_dir], so `pytest tests` / `pytest src` is bounded.
+    expect(runHook('pytest tests', { strict: true }).status).toBe(0);
+    expect(runHook('pytest src', { strict: true }).status).toBe(0);
+    expect(runHook('pytest -q tests', { strict: true }).status).toBe(0);
+    // ...but a bare `--long` option VALUE is not a target, so these stay broad.
+    expect(runHook('pytest --maxfail 1', { strict: true }).status).toBe(2);
+    expect(runHook('pytest --rootdir tests', { strict: true }).status).toBe(2);
+  });
+
+  it('requires a real npm `-- <target>`, not a config/report option value', () => {
+    // npm forwards `-- --config x` to the runner, which still runs the whole suite.
+    expect(runHook('npm test -- --config config/jest.config.js', { strict: true }).status).toBe(2);
+    expect(runHook('npm test -- --reporters default', { strict: true }).status).toBe(2);
+    // a real target after `--` stays bounded.
+    expect(runHook('npm test -- tests/orders/filter.test.ts', { strict: true }).status).toBe(0);
+  });
+
+  it('does NOT split a ladder command on a `;`/`&&` inside its quoted --command value', () => {
+    // `cdd-kit test run` executes the --command value verbatim (test-run.ts), so a
+    // shell-composed value must not be mis-split and the inner runner mis-flagged.
+    for (const q of ['"setup; pytest -q"', "'setup; pytest -q'", '"a && pytest -q"']) {
+      const r = runHook(`cdd-kit test run x --phase targeted --command ${q}`, { strict: true });
+      expect(r.status, q).toBe(0);
+      expect(r.stderr, q).toBe('');
+    }
+    // ...but a broad run chained OUTSIDE the quotes is still caught.
+    expect(
+      runHook('cdd-kit test run x --phase targeted --command "pytest -q"; pytest', { strict: true }).status,
+    ).toBe(2);
+  });
+
+  it('recognizes a wrapped pytest whose env-assignment value contains a slash', () => {
+    // Mirrors isPytestCommand: the assignment KEY must be an identifier; its VALUE
+    // may hold slashes, so these are command-position pytest runs (broad).
+    expect(runHook('VIRTUAL_ENV=/tmp/venv pytest', { strict: true }).status).toBe(2);
+    expect(runHook('PYTHONPATH=src/foo pytest', { strict: true }).status).toBe(2);
+    // ...still bounded when a real target follows.
+    expect(runHook('PYTHONPATH=src/foo pytest tests/orders/test_filter.py', { strict: true }).status).toBe(0);
+  });
+
   it('ALLOWS non-test commands (lint/typecheck/validate) untouched in strict mode', () => {
     for (const cmd of ['ruff check .', 'npm run typecheck', 'cdd-kit validate --contracts', 'ls tests/']) {
       const r = runHook(cmd, { strict: true });
