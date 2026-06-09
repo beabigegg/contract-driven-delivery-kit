@@ -188,17 +188,7 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
     }
   });
 
-  // --- Codex review round 3 (PR-7): bare dirs, npm config values, quoted --command, slashed env. ---
-
-  it('treats a bare top-level directory as a bounded pytest target', () => {
-    // pytest's positional is [file_or_dir], so `pytest tests` / `pytest src` is bounded.
-    expect(runHook('pytest tests', { strict: true }).status).toBe(0);
-    expect(runHook('pytest src', { strict: true }).status).toBe(0);
-    expect(runHook('pytest -q tests', { strict: true }).status).toBe(0);
-    // ...but a bare `--long` option VALUE is not a target, so these stay broad.
-    expect(runHook('pytest --maxfail 1', { strict: true }).status).toBe(2);
-    expect(runHook('pytest --rootdir tests', { strict: true }).status).toBe(2);
-  });
+  // --- Codex review round 3 (PR-7): npm config values, quoted --command, slashed env. ---
 
   it('requires a real npm `-- <target>`, not a config/report option value', () => {
     // npm forwards `-- --config x` to the runner, which still runs the whole suite.
@@ -229,6 +219,41 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
     expect(runHook('PYTHONPATH=src/foo pytest', { strict: true }).status).toBe(2);
     // ...still bounded when a real target follows.
     expect(runHook('PYTHONPATH=src/foo pytest tests/orders/test_filter.py', { strict: true }).status).toBe(0);
+  });
+
+  // --- Codex review round 4 (PR-7): structural-target stop-loss + python interpreter opts. ---
+  // A bare word is never a target (it is structurally ambiguous: dir? option value?
+  // shell operator?), so detection is purely structural — a path, a `::` node id, or a
+  // test file. This reverts round 3's bare-directory acceptance; bound such a run with a
+  // path (`pytest tests/`). Prefers false negatives over an unbounded CLI option table.
+
+  it('treats a bare directory as broad — only a path/::/test-file is a bounded target', () => {
+    expect(runHook('pytest tests', { strict: true }).status).toBe(2);
+    expect(runHook('pytest src', { strict: true }).status).toBe(2);
+    expect(runHook('pytest -q tests', { strict: true }).status).toBe(2);
+    // ...a real path (trailing slash or a file) bounds it.
+    expect(runHook('pytest tests/', { strict: true }).status).toBe(0);
+    expect(runHook('pytest tests/orders/test_filter.py', { strict: true }).status).toBe(0);
+  });
+
+  it('keeps short-option values and shell operators from satisfying a pytest target', () => {
+    // `-p name` / `-W ignore` are option values, and `|`/`>`/`||` are shell operators —
+    // none is a [file_or_dir], so each leaves the run whole-suite (broad).
+    expect(runHook('pytest -p no:warnings', { strict: true }).status).toBe(2);
+    expect(runHook('pytest -W ignore', { strict: true }).status).toBe(2);
+    expect(runHook('pytest | tee log', { strict: true }).status).toBe(2);
+    expect(runHook('pytest > out.txt', { strict: true }).status).toBe(2);
+    expect(runHook('pytest || true', { strict: true }).status).toBe(2);
+  });
+
+  it('flags `python -m pytest` even behind interpreter options', () => {
+    // python --help: `[option] ... [-m mod]`, so -u/-I sit before `-m pytest`.
+    expect(runHook('python -u -m pytest', { strict: true }).status).toBe(2);
+    expect(runHook('python -I -m pytest', { strict: true }).status).toBe(2);
+    expect(runHook('python3 -u -m pytest', { strict: true }).status).toBe(2);
+    // ...still bounded with a real target, and a real script run is left untouched.
+    expect(runHook('python -u -m pytest tests/orders/test_filter.py', { strict: true }).status).toBe(0);
+    expect(runHook('python -u app.py', { strict: true }).status).toBe(0);
   });
 
   it('ALLOWS non-test commands (lint/typecheck/validate) untouched in strict mode', () => {

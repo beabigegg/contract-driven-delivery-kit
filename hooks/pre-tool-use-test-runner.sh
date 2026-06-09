@@ -20,13 +20,15 @@
 # `VAR=value` env assignments and a path prefix, mirroring isPytestCommand in
 # src/commands/test-run.ts), so a wrapped `.venv/bin/pytest` is caught while a
 # mere mention (`echo python -m pytest`) is left untouched. Detection is otherwise
-# deliberately conservative — a bounded target (a path / node id / test file, or a
-# bare directory for pytest), `cdd-kit test run ...`, and every non-test command
-# (lint, typecheck, build,
-# `cdd-kit validate`, ...) are allowed untouched. A target is recognized
-# structurally, so neither an option VALUE (the `1` in `--maxfail 1`) nor a
-# config/report path (`--config x.config.ts`, `--junitxml junit.xml`) is mistaken
-# for one. False negatives are preferred over blocking a legitimate command; this
+# deliberately conservative — a bounded target (a path, a `::` node id, or a test
+# file), `cdd-kit test run ...`, and every non-test command (lint, typecheck, build,
+# `cdd-kit validate`, ...) are allowed untouched. A target is recognized ONLY
+# structurally — a path, a `::` node id, or a test file — so a bare word is never
+# one: not an option VALUE (the `1` in `--maxfail 1`, the `no:warnings` in
+# `-p no:warnings`), not a config/report path (`--config x.config.ts`,
+# `--junitxml junit.xml`), not a bare directory, and not a shell operator (the `|`
+# in `pytest | tee log`). Add a trailing slash (`pytest tests/`) to bound a bare
+# directory. False negatives are preferred over blocking a legitimate command; this
 # is advice, not a security boundary. The runner is strongest for pytest (ADR
 # 0005); other stacks match only their unambiguous whole-suite forms.
 #
@@ -66,11 +68,16 @@ if [ -z "$cmd" ]; then
 fi
 [ -z "$cmd" ] && exit 0
 
-# True (0) when $1 names an explicit test TARGET: a pytest node id (`::`), a path
-# (`/`), or a test source file (*.py/*.ts/*.js/...). Option flags AND bare option
-# VALUES (the `1` in `--maxfail 1`) are NOT targets, and config/report artifacts
-# handed to an option (`--config x.config.ts`, `--junitxml junit.xml`) are excluded
-# too — so neither a flags-only run nor a config-only run is mistaken for bounded.
+# True (0) when $1 names an explicit test TARGET, recognized ONLY structurally: a
+# pytest node id (`::`), a path (`/`), or a test source file (*.py/*.ts/*.js/...).
+# A bare word is NEVER a target — not a bare directory, not an option VALUE (the `1`
+# in `--maxfail 1`, the `no:warnings` in `-p no:warnings`), not a subcommand keyword
+# (`vitest run`), not a shell operator (`pytest | tee log`) — because a bare word is
+# structurally ambiguous and telling these apart would need each runner's unbounded
+# option grammar. Config/report artifacts handed to an option (`--config x.config.ts`,
+# `--junitxml junit.xml`) are excluded too. So no flags-only / config-only / piped
+# run is mistaken for bounded. This is the single target predicate for every runner;
+# to bound a bare-directory run, give it a path (`pytest tests/`, not `pytest tests`).
 # Word-splitting is intended; `set -f` keeps a glob like tests/*.py from expanding.
 has_test_target() {
   for tok in $1; do
@@ -79,30 +86,6 @@ has_test_target() {
       *.config.*|*.cfg|*.ini|*.toml|*.xml|*.json|*.lcov|*.html) ;; # config/report artifact, not a target
       *::*|*/*|*.py|*.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) return 0 ;; # node id / path / test file
       *) ;;                                                        # bare word / option value
-    esac
-  done
-  return 1
-}
-
-# Like has_test_target, but ALSO accepts a bare directory/positional, because
-# pytest's positional argument is `[file_or_dir]` — so `pytest tests` / `pytest src`
-# is a bounded run, not whole-suite. A bare word is still NOT a target when it is a
-# `--long` option's VALUE (the `1` in `--maxfail 1`, `tests` in `--rootdir tests`),
-# which leaves the run whole-suite; config/report artifacts are excluded as above.
-# Only pytest uses this; jest/vitest keep the stricter has_test_target so a `vitest
-# run` subcommand keyword is not mistaken for a target.
-has_pytest_target() {
-  prev=""
-  for tok in $1; do
-    case "$tok" in
-      -*) prev="$tok" ;;                                                      # option flag — skip
-      *.config.*|*.cfg|*.ini|*.toml|*.xml|*.json|*.lcov|*.html) prev="$tok" ;; # config/report artifact
-      *::*|*/*|*.py|*.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) return 0 ;;            # node id / path / test file
-      *)                                                                      # bare word: a dir/positional target
-        case "$prev" in                                                       # ...unless it is a --long option's value
-          --*) prev="$tok" ;;
-          *) return 0 ;;
-        esac ;;
     esac
   done
   return 1
@@ -137,15 +120,35 @@ is_broad_test() {
     */*) rest=${c#"$first"}; c=${first##*/}$rest ;;   # strip the runner's dir path
   esac
 
+  # `python[3.x]`/`py` may carry interpreter options before the module flag
+  # (`python -u -m pytest`; python --help: `[option] ... [-m mod]`). Drop a leading
+  # run of `-*` options so `-m pytest` lands where the case below expects it. A
+  # non-option token (a real script, `python foo.py`) stops the skip, so only an
+  # actual `-m pytest` is reduced; `echo python -m pytest` (head `echo`) is untouched.
+  case "$c" in
+    python\ -*|python[0-9]*\ -*|py\ -*)
+      head=${c%%[[:space:]]*}
+      args=${c#"$head"}; args=${args#"${args%%[![:space:]]*}"}
+      while :; do
+        case "$args" in
+          -m|-m\ *) break ;;
+          -*) opt=${args%%[[:space:]]*}; args=${args#"$opt"}; args=${args#"${args%%[![:space:]]*}"} ;;
+          *) break ;;
+        esac
+      done
+      c="$head $args"
+      ;;
+  esac
+
   case "$c" in
     # pytest family — broad unless a path / node id / test file follows.
     pytest|pytest\ *|py.test|py.test\ *)
-      if has_pytest_target "$(printf '%s' "$c" | sed -E 's/^(py\.test|pytest)//')"; then return 1; fi
+      if has_test_target "$(printf '%s' "$c" | sed -E 's/^(py\.test|pytest)//')"; then return 1; fi
       return 0 ;;
     # `python[3.x]`/`py -m pytest` ONLY at command position (so a mention like
     # `echo python -m pytest`, now headed by `echo`, is not matched).
     python\ -m\ pytest|python\ -m\ pytest\ *|python[0-9]*\ -m\ pytest|python[0-9]*\ -m\ pytest\ *|py\ -m\ pytest|py\ -m\ pytest\ *)
-      if has_pytest_target "$(printf '%s' "$c" | sed -E 's/^.*-m[[:space:]]+pytest//')"; then return 1; fi
+      if has_test_target "$(printf '%s' "$c" | sed -E 's/^.*-m[[:space:]]+pytest//')"; then return 1; fi
       return 0 ;;
     # npm/yarn/pnpm whole-suite scripts — bounded only when the `-- <target>`
     # passthrough carries a real test target, not just runner flags or a
