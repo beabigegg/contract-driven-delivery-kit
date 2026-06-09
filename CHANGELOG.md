@@ -4,6 +4,25 @@
 
 ### Added
 
+- **Bug-fix lane: symptom-driven classification and diagnosis-before-edit
+  protocol (ADR 0006 — classification and prompts).** `change-classifier` now
+  sets a `## Lane` (`feature` | `bug-fix`) and, for symptom-driven requests,
+  records the bug symptom type (`ui` / `visual` / `api` / `data` /
+  `performance` / `crash` / `test-failure` / `ci-failure` / `unknown`), a
+  diagnostic-only flag, the required bug-evidence checklist, and routes
+  symptom-type agents. `bug-fix-engineer` gains the no-edit-before-diagnosis
+  gate, the reproduction-status vocabulary (`reproduced` / `test-reproduced` /
+  `visual-reproduced` / `intermittent` / `environment-blocked` /
+  `not-reproduced`), a hypothesis table, and a schema-valid
+  `agent-log/bug-fix-engineer.yml` repair record (the standard agent-log envelope
+  carrying symptom, reproduction, hypotheses, root-cause pointer, and regression
+  evidence as typed `artifacts:`). `/cdd-new` routes the lane: `bug-fix-engineer`
+  leads implementation,
+  regression proof runs on the ADR 0005 bounded ladder, and diagnostic-only
+  changes open a follow-up. Prompt / classification only — the bug-fix evidence
+  schema, `cdd-kit gate` enforcement, and `cdd-kit bug suspects` land in later
+  ADR 0006 PRs.
+
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
   (ADR 0004 §6): an opt-in Claude Code hook that intercepts the agent's

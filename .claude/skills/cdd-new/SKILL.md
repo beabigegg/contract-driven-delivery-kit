@@ -416,6 +416,53 @@ user's visibility only — it does not change which model the runtime selects
 
 ---
 
+### Bug-fix lane routing
+
+If `change-classification.md` sets `## Lane` to `bug-fix`, the request is
+symptom-driven (existing behavior wrong/missing/broken, root cause unknown).
+Route it through the bug-fix lane on top of the normal tier flow — the lane does
+not replace the tier (a bug fix can be Tier 0-5):
+
+- **`bug-fix-engineer` is the first implementation agent**, used instead of
+  starting with `backend-engineer`/`frontend-engineer`. In the bug-fix lane it
+  runs **before** any backend/frontend/symptom-type implementation owner — this
+  overrides the Tier "exact order" below, where those owners would otherwise run
+  first. They are commissioned only after bug-fix-engineer has reproduced the
+  symptom and handed off its diagnosis, so no implementation owner edits source
+  before diagnosis. It queries the graph/index, reproduces the symptom, finds the
+  smallest root cause, fixes it, and adds regression coverage; it may hand the
+  final edit to backend/frontend scope after graph-guided investigation. It must
+  not edit source before diagnosis (see `.claude/agents/bug-fix-engineer.md` →
+  "Diagnose before you edit").
+- It writes the structured repair record itself (write-capable) as a schema-valid
+  `specs/changes/<change-id>/agent-log/bug-fix-engineer.yml` — the standard
+  agent-log envelope (`change-id`, `timestamp`, `agent`, `status`, `artifacts`,
+  `next-action`) carrying the bug-fix evidence as typed `artifacts:` (symptom,
+  reproduction, hypotheses, root-cause pointer, files-changed, regression-evidence,
+  residual-risk). The first-class `bug-fix:` block and its schema land in a later
+  ADR 0006 PR; see `.claude/agents/bug-fix-engineer.md` → "Structured repair
+  record". YOU do not author this file.
+- Always commission `test-strategist` and `qa-reviewer`. Add the symptom-type
+  agents the classifier listed in `## Required Agents` (keyed to its `## Bug
+  Symptom Type`): e.g. `frontend-engineer` + `visual-reviewer` for visual,
+  `backend-engineer` + `contract-reviewer` for api,
+  `e2e-resilience-engineer` / `stress-soak-engineer` for performance.
+- **For a behavior-changing fix**, regression proof uses the ADR 0005 bounded
+  ladder (`cdd-kit test select`, then `cdd-kit test run <id> --phase ...
+  --command ...`): the reproduction command fails before the fix and the
+  same/equivalent command passes after it. This before/after proof applies only
+  to fixes that change behavior.
+- **Diagnostic-only** (classifier `## Diagnostic Only` = `yes`): the change adds
+  instrumentation, not a behavior fix, so the before/after fix proof above does
+  **not** apply — the symptom is intentionally not fixed yet and may be
+  `environment-blocked`, `intermittent`, or `not-reproduced`. It must not claim
+  to fix the symptom, records that diagnostic reproduction status, still needs
+  passing tests for the diagnostic/instrumentation code, still cannot pass with
+  required test failures, and should open a follow-up tracked change for the real
+  fix.
+
+---
+
 ### Tier 4?? (low risk: docs, prompts, config-only, no behavior change)
 
 1. **`contract-reviewer`** (read-only) ??confirm no contracts are touched or all touched ones are already updated.
@@ -458,6 +505,7 @@ user's visibility only — it does not change which model the runtime selects
    - Note: `tasks.yml` items 3.1??.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion ??failing tests first, implementation second. Items 3.3??.5 are written by dedicated test engineers (Tier 0?? only or when classifier explicitly requires them).
 
 6a. **`bug-fix-engineer`** (write-capable) ??for symptom-driven bug fixes where the user reports behavior but not the code location. Use this instead of backend/frontend as the first implementation agent when root cause is unknown; it may route the final implementation to backend/frontend scope after graph-guided investigation.
+   - For `lane: bug-fix`, 6a runs **before** steps 6 and 7: bug-fix-engineer reproduces and diagnoses first, then either makes the fix or hands the final edit to backend/frontend scope. Do not let backend/frontend (steps 6/7) edit before that handoff (see "Bug-fix lane routing").
 
 7. **`frontend-engineer`** (write-capable) ??if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.2`

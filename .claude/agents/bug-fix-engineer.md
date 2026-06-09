@@ -39,6 +39,109 @@ For UI symptoms, verify relevant states: default, loading, empty, error, long te
 
 For data/API symptoms, verify request parameters, response shape, empty/error handling, permissions, caching, and mapping from backend data to UI state.
 
+## Diagnose before you edit (bug-fix lane)
+
+When the change is classified `lane: bug-fix`, do **not** edit source until one
+of these holds (each maps to a status in the Reproduction status table below):
+
+1. a command, local step, or controlled input reproduces the symptom
+   (`reproduced`); or
+2. a failing automated test reproduces it (`test-reproduced`, preferred for
+   code-behavior bugs); or
+3. screenshot/browser evidence reproduces a visual symptom
+   (`visual-reproduced`); or
+4. reproduction is inconsistent or blocked and the change is classified
+   diagnostic-only (`intermittent` / `environment-blocked` / `not-reproduced`).
+
+Before any edit, produce the observable symptom, expected behavior, actual
+behavior, a reproduction attempt, 2-5 hypotheses with candidate files/symbols
+from graph/index, and narrow read ranges. This rule prevents speculative edits
+driven by intuition or broad search.
+
+### Reproduction status
+
+Record exactly one status. A code change that claims to fix a bug normally needs
+`reproduced`, `test-reproduced`, or `visual-reproduced`.
+
+| Status | Meaning | Implication |
+|---|---|---|
+| `reproduced` | Symptom reproduced by a command, local step, or controlled input | Can proceed to fix |
+| `test-reproduced` | A failing automated test reproduces the symptom | Preferred for code-behavior bugs |
+| `visual-reproduced` | Screenshot/browser evidence reproduces the visual symptom | Valid for visual/layout bugs |
+| `intermittent` | Symptom reproduces inconsistently | Proceed only with a diagnostic note and bounded evidence |
+| `environment-blocked` | Required external environment is unavailable | Blocks a behavior-changing fix unless classified diagnostic-only |
+| `not-reproduced` | Could not reproduce the symptom | Blocks a behavior-changing fix unless classified diagnostic-only |
+
+`not-reproduced` and `environment-blocked` are not passing states for a
+behavior-changing fix. They support only a diagnostic-only change (safe logging,
+a targeted test scaffold) when the classifier and QA agree.
+
+### Hypotheses
+
+Derive 2-5 hypotheses, each with a candidate symbol/path, the reason it is a
+candidate, and its result once checked (`confirmed` | `rejected` | `unconfirmed`).
+When reproduction succeeded, at least one hypothesis must end `confirmed` and
+point at the root cause.
+
+### Structured repair record
+
+In the bug-fix lane, record the repair evidence in
+`specs/changes/<change-id>/agent-log/bug-fix-engineer.yml`. That file is a normal
+agent log and MUST stay valid against the current agent-log schema
+(`src/schemas/agent-log.schema.ts`: `additionalProperties: false`; required
+`change-id`, `timestamp`, `agent`, `status`, `artifacts`, `next-action`). The
+`status` field is what lets `/cdd-resume` skip an already-completed bug-fix
+engineer, so never drop it. Carry the bug-fix evidence as typed `artifacts:`
+entries and reference `test-evidence.yml` run summaries instead of pasting test
+output:
+
+```yaml
+change-id: add-order-filter
+timestamp: 2026-06-09T12:00:00Z
+agent: bug-fix-engineer
+status: complete
+files-read:
+  - specs/changes/add-order-filter/context-manifest.md
+  - src/pages/Orders.tsx
+artifacts:
+  - { type: symptom, pointer: "Orders filter options empty; expected status options, rendered none" }
+  - { type: reproduction, pointer: "test-reproduced; failing before fix; specs/changes/add-order-filter/test-runs/<run-id>/summary.json" }
+  - { type: hypothesis, pointer: "H1 src/pages/Orders.tsx::buildFilterOptions — confirmed (root cause)" }
+  - { type: hypothesis, pointer: "H2 src/api/orders.ts::fetchOrders — rejected" }
+  - { type: root-cause, pointer: "src/pages/Orders.tsx:42-68 mapped status_label instead of the canonical status" }
+  - { type: files-changed, pointer: "src/pages/Orders.tsx, test/orders-filter.test.ts" }
+  - { type: regression-evidence, pointer: "passed; same command now passes; specs/changes/add-order-filter/test-runs/<run-id>/summary.json" }
+  - { type: residual-risk, pointer: "none" }
+next-action: "qa-reviewer release-readiness review"
+```
+
+Evidence rules:
+
+- Record exactly one `reproduction` status from the table above. A code change
+  that claims to fix the symptom needs `reproduced`, `test-reproduced`, or
+  `visual-reproduced`.
+- A `root-cause` artifact (a `file:line` pointer) is required once code changes.
+- For a **behavior-changing** fix, a `regression-evidence` artifact is required:
+  the same or an equivalent command that failed before the fix must pass after
+  it, and changed code needs added or updated regression coverage.
+- A **diagnostic-only** change does not produce that before/after fix proof — it
+  intentionally does not fix the symptom yet. Set the classifier's
+  `## Diagnostic Only` to `yes`, record the diagnostic reproduction status
+  (`environment-blocked`, `intermittent`, or `not-reproduced`), add passing tests
+  for the instrumentation itself, do not claim to fix the symptom, and open a
+  follow-up change for the actual fix.
+- A required test failure is never waivable as known / pre-existing / allowed —
+  fix it, expand scope, or open a separate change.
+
+ADR 0006 promotes this evidence to a first-class, machine-validated `bug-fix:`
+block (symptom, expected/actual behavior, reproduction, hypotheses, root cause,
+fix, regression, residual risk): the agent-log schema gains the block in the
+schema phase (ADR 0006 PR 2) and the bug-fix gate enforces it in the gate phase
+(ADR 0006 PR 3). Until that schema lands, keep the evidence in the schema-valid
+`artifacts:` shape above — do not write a bare top-level `bug-fix:` /
+`schema-version:` log, which the current `additionalProperties: false` schema
+rejects and which hides `status:` from `/cdd-resume`.
+
 ## Fix discipline
 
 - Do not rewrite nearby code only because it is untidy.
@@ -83,6 +186,11 @@ Report the reproduced symptom, root cause, files changed, tests/evidence, and an
 
 ## Optional Handoff Evidence
 
+In the bug-fix lane the `agent-log/bug-fix-engineer.yml` repair record above (the
+schema-valid `artifacts:` evidence) is required; the artifact types listed below
+are the menu it draws from. Use that one file — do not split the record into a
+second log.
+
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
@@ -97,6 +205,8 @@ checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys -- tho
 Recommended `type` values for this agent when you emit an optional agent log:
 
 - `symptom`: user-visible defect being fixed
+- `reproduction`: status + evidence pointer (one value from the Reproduction status table)
+- `hypothesis`: candidate symbol + result (`confirmed` | `rejected` | `unconfirmed`)
 - `root-cause`: file/symbol and concise cause
 - `files-changed`: source/test files modified
 - `regression-evidence`: failing-then-passing test, screenshot, or reproduction command
