@@ -136,6 +136,49 @@ describe('bug-fix-evidence.schema', () => {
     expect(validateBlock(doc)).toBe(false);
   });
 
+  it('requires observed_surface for a behavior-changing (non-diagnostic) fix', () => {
+    const doc = validBlock();
+    delete doc.observed_surface;
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('requires a files-changed fix for a behavior-changing (non-diagnostic) fix', () => {
+    const doc = validBlock();
+    delete doc.fix;
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('requires residual_risk for a behavior-changing (non-diagnostic) fix', () => {
+    const doc = validBlock();
+    delete doc.residual_risk;
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it.each(['not-reproduced', 'environment-blocked', 'intermittent'])(
+    'rejects a behavior-changing fix whose reproduction is a diagnostic-only status: %s',
+    (status) => {
+      const doc = validBlock();
+      (doc.reproduction as Record<string, unknown>).status = status;
+      expect(validateBlock(doc), `non-diagnostic must not accept ${status}`).toBe(false);
+    },
+  );
+
+  it('rejects a behavior-changing fix whose regression status is failed', () => {
+    const doc = validBlock();
+    (doc.regression as Record<string, unknown>).status = 'failed';
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('accepts a diagnostic-only record with any non-passing reproduction status', () => {
+    // Negative control: the statuses rejected for a real fix above are valid when
+    // the record is diagnostic-only (the then-branch does not apply).
+    for (const status of ['not-reproduced', 'environment-blocked', 'intermittent']) {
+      const doc = diagnosticBlock();
+      (doc.reproduction as Record<string, unknown>).status = status;
+      expect(validateBlock(doc), JSON.stringify(validateBlock.errors)).toBe(true);
+    }
+  });
+
   it('still requires root_cause + regression when diagnostic_only is explicitly false', () => {
     const doc = validBlock();
     doc.diagnostic_only = false;

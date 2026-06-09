@@ -31,9 +31,12 @@
   `not-reproduced`) as its single source of truth. `agent-log.schema.ts` gains an
   optional `bug-fix` property so the repair record nests inside the standard
   agent-log envelope (keeping `status:` visible to `/cdd-resume`) rather than a
-  bare top-level document. A behavior-changing fix must carry a root cause and
-  regression proof; a `diagnostic_only` record is exempt. Schema and tests only —
-  `cdd-kit gate` enforcement when `lane: bug-fix` lands in the next ADR 0006 PR.
+  bare top-level document. A behavior-changing fix must carry the full repair
+  shape (observed surface, root cause, a files-changed fix, a **passing**
+  regression, residual risk) and a behavior-fix reproduction status (`reproduced`
+  / `test-reproduced` / `visual-reproduced`); a `diagnostic_only` record is
+  exempt. Schema and tests only — `cdd-kit gate` enforcement when `lane: bug-fix`
+  lands in the next ADR 0006 PR.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook

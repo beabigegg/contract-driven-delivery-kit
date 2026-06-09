@@ -29,9 +29,9 @@ export const REPRODUCTION_STATUSES = [
 
 // The reproduction statuses that justify a behavior-changing fix (ADR 0006 §3).
 // The remaining three (`intermittent` / `environment-blocked` / `not-reproduced`)
-// support only a diagnostic-only change. Exported for the gate phase (ADR 0006
-// PR 3); the schema's diagnostic exemption keys off the `diagnostic_only` flag,
-// not this list, because static JSON Schema cannot tie "code changed" to status.
+// support only a diagnostic-only change. The block's non-diagnostic branch
+// constrains `reproduction.status` to this list (ADR 0006 §3, §7); the gate phase
+// (ADR 0006 PR 3) imports it for the same check on the `lane: bug-fix` evidence.
 export const BEHAVIOR_FIX_REPRODUCTION_STATUSES = [
   "reproduced",
   "test-reproduced",
@@ -127,12 +127,16 @@ export const bugFixEvidenceBlock = {
     },
     residual_risk: { type: "string", minLength: 1 },
   },
-  // A behavior-changing fix (diagnostic_only absent or false) must carry a root
-  // cause and regression proof. A diagnostic-only record is exempt -- it
-  // intentionally does not fix the symptom yet (ADR 0006 §10). The cross-field
-  // rules tied to "reproduction succeeded => a confirmed hypothesis exists" and to
-  // referenced-summary existence are procedural and land with the gate (ADR 0006
-  // PR 3), mirroring how test-evidence.schema defers required-phase coverage.
+  // A behavior-changing fix (diagnostic_only absent or false) must carry the full
+  // repair shape (ADR 0006 §2): observed surface, root cause, a files-changed fix,
+  // a PASSING regression, and a residual-risk statement -- and its reproduction
+  // must be a behavior-fix status (`reproduced` / `test-reproduced` /
+  // `visual-reproduced`), never a diagnostic-only state (ADR 0006 §3, §7). A
+  // diagnostic-only record is exempt -- it intentionally does not fix the symptom
+  // yet (§10). The remaining cross-field rules ("reproduction succeeded => a
+  // confirmed hypothesis exists" and referenced-summary existence) are procedural
+  // and land with the gate (ADR 0006 PR 3), mirroring how test-evidence.schema
+  // defers required-phase coverage.
   if: {
     not: {
       required: ["diagnostic_only"],
@@ -140,7 +144,17 @@ export const bugFixEvidenceBlock = {
     },
   },
   then: {
-    required: ["root_cause", "regression"],
+    required: ["observed_surface", "root_cause", "fix", "regression", "residual_risk"],
+    properties: {
+      reproduction: {
+        type: "object",
+        properties: { status: { enum: BEHAVIOR_FIX_REPRODUCTION_STATUSES } },
+      },
+      regression: {
+        type: "object",
+        properties: { status: { const: "passed" } },
+      },
+    },
   },
 } as const;
 
