@@ -439,8 +439,9 @@ not replace the tier (a bug fix can be Tier 0-5):
   agent-log envelope (`change-id`, `timestamp`, `agent`, `status`, `artifacts`,
   `next-action`) carrying the bug-fix evidence as typed `artifacts:` (symptom,
   reproduction, hypotheses, root-cause pointer, files-changed, regression-evidence,
-  residual-risk). The first-class `bug-fix:` block and its schema land in a later
-  ADR 0006 PR; see `.claude/agents/bug-fix-engineer.md` → "Structured repair
+  residual-risk) and/or the first-class `bug-fix:` block now defined by the ADR
+  0006 schema phase (`src/schemas/bug-fix-evidence.schema.ts`), nested in the same
+  envelope; see `.claude/agents/bug-fix-engineer.md` → "Structured repair
   record". YOU do not author this file.
 - Always commission `test-strategist` and `qa-reviewer`. Add the symptom-type
   agents the classifier listed in `## Required Agents` (keyed to its `## Bug
