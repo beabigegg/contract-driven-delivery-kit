@@ -256,6 +256,34 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
     expect(runHook('python -u app.py', { strict: true }).status).toBe(0);
   });
 
+  // --- Codex review round 5 (PR-7): the two remaining false positives. The 3
+  // false-negative findings (python `-W <val>` interp opt, quoted env-assignment with
+  // spaces, broad run hidden before a ladder cmd in an unsplit `||` segment) are
+  // accepted by design — advisory, structural-only, prefers false negatives.
+
+  it('does NOT mis-split a ladder --command= (equals form) value on its inner ;/&&', () => {
+    // Commander accepts `--command=<v>` as well as `--command <v>`; both carry the
+    // verbatim payload `cdd-kit test run` executes, so neither may be mis-split.
+    for (const q of ['"setup; pytest -q"', "'a && pytest -q'"]) {
+      const r = runHook(`cdd-kit test run x --phase targeted --command=${q}`, { strict: true });
+      expect(r.status, q).toBe(0);
+      expect(r.stderr, q).toBe('');
+    }
+    // ...a broad run chained OUTSIDE the equals-form value is still caught.
+    expect(
+      runHook('cdd-kit test run x --phase targeted --command="pytest -q"; pytest', { strict: true }).status,
+    ).toBe(2);
+  });
+
+  it('treats a go -run/-bench/-fuzz filter over ./... as bounded, not whole-suite', () => {
+    expect(runHook('go test ./... -run TestFoo', { strict: true }).status).toBe(0);
+    expect(runHook('go test -run=TestFoo ./...', { strict: true }).status).toBe(0);
+    expect(runHook('go test ./... -bench .', { strict: true }).status).toBe(0);
+    // ...but a non-selecting flag does NOT narrow it — still whole-suite (broad).
+    expect(runHook('go test -count=1 ./...', { strict: true }).status).toBe(2);
+    expect(runHook('go test -race ./...', { strict: true }).status).toBe(2);
+  });
+
   it('ALLOWS non-test commands (lint/typecheck/validate) untouched in strict mode', () => {
     for (const cmd of ['ruff check .', 'npm run typecheck', 'cdd-kit validate --contracts', 'ls tests/']) {
       const r = runHook(cmd, { strict: true });

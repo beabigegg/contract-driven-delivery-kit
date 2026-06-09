@@ -167,9 +167,17 @@ is_broad_test() {
     jest\ *|vitest\ *)
       if has_test_target "${c#* }"; then return 1; fi
       return 0 ;;
-    # go test across the whole module (`./...`), with or without leading flags.
+    # go test across the whole module (`./...`), with or without leading flags — but
+    # a test-selection filter (`-run`/`-bench`/`-fuzz`, space or `=` form) narrows it
+    # to specific tests (go help testflag), so that is bounded, not whole-suite.
     go\ test|go\ test\ *)
-      case "$c" in *\ ./...|*\ ./...\ *) return 0 ;; esac
+      case "$c" in
+        *\ ./...|*\ ./...\ *)
+          case " $c " in
+            *\ -run\ *|*\ -run=*|*\ -bench\ *|*\ -bench=*|*\ -fuzz\ *|*\ -fuzz=*) return 1 ;;
+            *) return 0 ;;
+          esac ;;
+      esac
       return 1 ;;
     *)
       return 1 ;;
@@ -190,10 +198,16 @@ is_broad_test() {
 # `cdd-kit test run ... --command "<...>"` (src/commands/test-run.ts runs it as-is),
 # so blank that quoted value before splitting — otherwise an inner `;`/`&&` would be
 # mis-split and the inner runner mis-flagged, blocking a ladder command the kit
-# explicitly allows. A broad run chained OUTSIDE the quotes
-# (`cdd-kit test select ... && pytest`) is untouched and still caught.
+# explicitly allows. Commander accepts both the space (`--command "<...>"`) and the
+# equals (`--command="<...>"`) forms, single- or double-quoted, so blank all four.
+# A broad run chained OUTSIDE the quotes (`cdd-kit test select ... && pytest`) is
+# untouched and still caught.
 sq=\'
-scan=$(printf '%s' "$cmd" | sed -E -e 's/--command[[:space:]]+"[^"]*"//g' -e "s/--command[[:space:]]+${sq}[^${sq}]*${sq}//g")
+scan=$(printf '%s' "$cmd" | sed -E \
+  -e 's/--command[[:space:]]+"[^"]*"//g' \
+  -e "s/--command[[:space:]]+${sq}[^${sq}]*${sq}//g" \
+  -e 's/--command="[^"]*"//g' \
+  -e "s/--command=${sq}[^${sq}]*${sq}//g")
 
 broad=1
 if printf '%s\n' "$scan" | tr '&;' '\n\n' | {
