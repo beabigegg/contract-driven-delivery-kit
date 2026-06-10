@@ -18,12 +18,25 @@ import { makeTempDir, cleanupDir } from '../helpers.js';
 
 let repo: string;
 
-/** Run git in the test repo with a deterministic identity for commits. */
+/**
+ * Run git in the test repo with a deterministic identity, FAILING LOUDLY when
+ * the command itself fails (P1-13). The previous `stdio: 'ignore'` + unchecked
+ * exit status let a host-environment failure masquerade as a product bug: on a
+ * machine whose global config enforced commit signing, `git commit` here failed
+ * silently, the subsequent `git mv` then renamed a never-committed index entry,
+ * and the rename tests reported "old path missing" — misdiagnosed as a git
+ * rename-detection difference. (test/setup-git-env.ts now isolates the suite
+ * from such config; this assert is the second line of defense that points at
+ * the real failing command if isolation ever regresses.)
+ */
 function git(...args: string[]): void {
-  spawnSync('git', ['-c', 'user.email=t@t.t', '-c', 'user.name=t', ...args], {
+  const r = spawnSync('git', ['-c', 'user.email=t@t.t', '-c', 'user.name=t', ...args], {
     cwd: repo,
-    stdio: 'ignore',
+    encoding: 'utf8',
   });
+  if (r.status !== 0) {
+    throw new Error(`test setup: \`git ${args.join(' ')}\` failed (exit ${r.status}): ${r.stderr}`);
+  }
 }
 
 beforeEach(() => {
