@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { makeTempDir, cleanupDir } from '../helpers.js';
@@ -165,6 +165,81 @@ describe('loadTierPolicy', () => {
       expect(computeTierFloor('please frobnicate the widget', p).floorTier).toBe(0);
       // a default pattern is no longer present
       expect(computeTierFloor('add jwt auth', p).floorTier).toBeNull();
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+});
+
+describe('loadTierPolicy validation warnings (P1-16)', () => {
+  /** Run fn with console.log captured; return the joined warning output. */
+  function capture(fn: () => void): string {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      fn();
+      return spy.mock.calls.map(c => String(c[0])).join('\n');
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  it('warns (no longer silently) when the JSON is malformed', () => {
+    const dir = makeTempDir('cdd-tierpol-');
+    try {
+      mkdirSync(join(dir, '.cdd'), { recursive: true });
+      writeFileSync(join(dir, '.cdd', 'tier-policy.json'), '{ not valid json', 'utf8');
+      const out = capture(() => loadTierPolicy(dir));
+      expect(out).toMatch(/tier-policy\.json.*could not be parsed/i);
+      expect(out).toMatch(/NOT in effect/i);
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+
+  it('warns and skips a rule with an out-of-range maxTier, keeping the valid rules', () => {
+    const dir = makeTempDir('cdd-tierpol-');
+    try {
+      mkdirSync(join(dir, '.cdd'), { recursive: true });
+      writeFileSync(join(dir, '.cdd', 'tier-policy.json'), JSON.stringify({
+        enabled: true,
+        rules: [
+          { maxTier: 9, label: 'bad', patterns: ['frobnicate'] },
+          { maxTier: 0, label: 'good', patterns: ['frobnicate'] },
+        ],
+      }), 'utf8');
+      let policy: ReturnType<typeof loadTierPolicy> | null = null;
+      const out = capture(() => { policy = loadTierPolicy(dir); });
+      expect(out).toMatch(/maxTier must be an integer 0-5/i);
+      expect(policy!.rules).toHaveLength(1);
+      expect(policy!.rules[0].maxTier).toBe(0);
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+
+  it('warns when `rules` is not an array and falls back to defaults', () => {
+    const dir = makeTempDir('cdd-tierpol-');
+    try {
+      mkdirSync(join(dir, '.cdd'), { recursive: true });
+      writeFileSync(join(dir, '.cdd', 'tier-policy.json'), JSON.stringify({ rules: 'oops' }), 'utf8');
+      let policy: ReturnType<typeof loadTierPolicy> | null = null;
+      const out = capture(() => { policy = loadTierPolicy(dir); });
+      expect(out).toMatch(/`rules` must be an array/i);
+      expect(policy!.rules.length).toBe(DEFAULT_TIER_POLICY.rules.length);
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+
+  it('does NOT warn for the absent-file or enabled:false cases', () => {
+    const dir = makeTempDir('cdd-tierpol-');
+    try {
+      // absent file
+      expect(capture(() => loadTierPolicy(dir))).toBe('');
+      // explicit disable
+      mkdirSync(join(dir, '.cdd'), { recursive: true });
+      writeFileSync(join(dir, '.cdd', 'tier-policy.json'), JSON.stringify({ enabled: false }), 'utf8');
+      expect(capture(() => loadTierPolicy(dir))).toBe('');
     } finally {
       cleanupDir(dir);
     }

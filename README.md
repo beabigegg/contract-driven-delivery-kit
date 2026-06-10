@@ -594,6 +594,12 @@ re-init. To customize or disable it, scaffold the policy with `cdd-kit upgrade
 `"enabled": false`. Bypass a single change with `tier-floor-override:
 "<reason>"` in its `tasks.yml` frontmatter (recorded as an audit warning).
 
+A malformed `.cdd/tier-policy.json` (invalid JSON, `rules` not an array, or a
+rule with a bad `maxTier`/`patterns`) no longer fails silently: each problem is
+warned with the offending field and the note that *your custom tier rules are
+NOT in effect* (the built-in defaults take over), so a typo can't leave you
+believing a custom policy is active when it is being ignored.
+
 If you do not want template overwrites, run the narrower path:
 
 ```bash

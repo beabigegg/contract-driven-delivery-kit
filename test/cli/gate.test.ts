@@ -574,6 +574,43 @@ describe('cdd-kit gate', () => {
     expect(r.stdout + r.stderr).not.toMatch(/monkey-test-engineer/i);
   });
 
+  it('14c: incidental prose risk words no longer satisfy the tier marker (P1-12)', () => {
+    runCli(['new', 'feat-014c'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-014c');
+    const filler = 'This is a meaningful description of the change. '.repeat(5);
+    // No tasks.yml tier, no `## Tier`, no `**Tier:**` — only incidental prose that
+    // mentions "critical" and "high". Pre-P1-12 the loose regex treated these as a
+    // marker and SILENTLY suppressed the missing-tier error.
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n${filler}\n\nThese changes touch critical systems and run under high load, but are additive only.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'change-request.md'),
+      `# Change Request\n\n${filler}\n\nMotivation: add the feature. Additive only, no breaking changes.\n`, 'utf8');
+    writeValidImplementationPlan(changeDir);
+    writeFileSync(join(changeDir, 'test-plan.md'),
+      `# Test Plan\n\n${filler}\n\nUnit tests cover the logic. Integration tests verify endpoints. E2E covers user flows.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'ci-gates.md'),
+      `# CI Gates\n\n${filler}\n\nAll CI gates must pass. Deploy gate requires approval. Rollback automatically on errors.\n`, 'utf8');
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({ changeId: 'feat-014c' }), 'utf8');
+
+    const r = runCli(['gate', 'feat-014c'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing tier( marker|\/risk marker)/i);
+  });
+
+  it('14d: conflicting structured + bold tier markers fail the gate (P1-12)', () => {
+    runCli(['new', 'feat-014d'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-014d');
+    writeValidChangeArtifacts(changeDir); // tasks.yml has no tier → classification decides
+    const filler = 'This is a meaningful description of the change. '.repeat(5);
+    // Two disagreeing markers in the same file and no frontmatter tiebreaker.
+    writeFileSync(join(changeDir, 'change-classification.md'),
+      `# Change Classification\n\n**Tier:** Tier 4\n\n## Tier\n- 2\n\n${filler}\n\nClassified, but the two tier markers disagree.\n`, 'utf8');
+
+    const r = runCli(['gate', 'feat-014d'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/conflicting tier markers/i);
+  });
+
   // ?????????????????????????????????????????????????????????????????????????
   // per-artifact minimum char counts
   // ?????????????????????????????????????????????????????????????????????????
@@ -789,6 +826,60 @@ describe('cdd-kit gate', () => {
     ].join('\n'), 'utf8');
 
     const r = runCli(['gate', 'feat-cg-pending'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/context-manifest\.md: has 1 pending context expansion request/i);
+  });
+
+  it('22b: pending CER count is robust to blank lines / varied indentation (P1-15)', () => {
+    runCli(['new', 'feat-cg-pending2'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-pending2');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    // Two requests (one pending, one approved) with blank lines between keys —
+    // valid YAML the old hand-rolled scan was sensitive to. yaml.load counts 1.
+    writeFileSync(join(changeDir, 'context-manifest.md'), [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '',
+      '- request-id: CER-001',
+      '',
+      '  requested_paths:',
+      '    - src/other/a.ts',
+      '',
+      '  status: pending',
+      '',
+      '- request-id: CER-002',
+      '  requested_paths:',
+      '    - src/other/b.ts',
+      '  status: approved',
+      '',
+      '## Approved Expansions',
+      '- src/other/b.ts',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-pending2'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).toMatch(/context-manifest\.md: has 1 pending context expansion request/i);
+  });
+
+  it('22c: a malformed (non-YAML) CER section still counts pending via fallback (P1-15)', () => {
+    runCli(['new', 'feat-cg-pending3'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-cg-pending3');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    // `reason: fix: the thing` is not valid YAML (nested mapping value); the
+    // tolerant line-scan fallback must still count the pending request.
+    writeFileSync(join(changeDir, 'context-manifest.md'), [
+      '# Context Manifest',
+      '',
+      '## Context Expansion Requests',
+      '- request-id: CER-001',
+      '  requested_paths:',
+      '    - src/other/a.ts',
+      '  reason: fix: the broken thing',
+      '  status: pending',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'feat-cg-pending3'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).toMatch(/context-manifest\.md: has 1 pending context expansion request/i);
   });
 
