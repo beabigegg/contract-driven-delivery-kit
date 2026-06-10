@@ -39,6 +39,8 @@
   "scripts": {
     "build": "node build.js",
     "typecheck": "tsc --noEmit",
+    "check:mojibake": "node tools/check-mojibake.mjs",
+    "pretest": "node build.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "node build.js && tsc --noEmit && vitest run",

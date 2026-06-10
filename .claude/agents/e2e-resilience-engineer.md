@@ -24,12 +24,12 @@ Before editing tests, read `specs/changes/<change-id>/implementation-plan.md` an
 
 ## Tooling and conventions
 
-- Playwright vs Cypress ??Playwright for multi-browser + parallel + trace viewer; Cypress for single-browser teams already invested. Do not mix in one repo.
-- Trace and video ??keep trace on first retry, video on failure only; storage cost is real.
-- Network strategy ??for critical-path E2E run against real backend on staging; for resilience injection (5xx, slow, abort) intercept at network layer.
-- Fixtures ??prefer factory functions over fixture files; data resets between tests via API, not via fixture rollback.
-- Stable selectors ??`data-testid`, role, accessible name; never CSS class selectors that change with redesigns.
-- Scope clarification ??this agent owns failure injection, real user journeys, network/auth resilience. Rapid UI clicks, double submits, fuzz inputs belong to `monkey-test-engineer`.
+- Playwright vs Cypress — Playwright for multi-browser + parallel + trace viewer; Cypress for single-browser teams already invested. Do not mix in one repo.
+- Trace and video — keep trace on first retry, video on failure only; storage cost is real.
+- Network strategy — for critical-path E2E run against real backend on staging; for resilience injection (5xx, slow, abort) intercept at network layer.
+- Fixtures — prefer factory functions over fixture files; data resets between tests via API, not via fixture rollback.
+- Stable selectors — `data-testid`, role, accessible name; never CSS class selectors that change with redesigns.
+- Scope clarification — this agent owns failure injection, real user journeys, network/auth resilience. Rapid UI clicks, double submits, fuzz inputs belong to `monkey-test-engineer`.
 
 ## Output
 
@@ -40,7 +40,7 @@ classification explicitly requires one or failures need durable prose.
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
@@ -52,13 +52,13 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 
