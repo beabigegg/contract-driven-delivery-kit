@@ -805,6 +805,8 @@ Active changes:
   old-experiment     [abandoned]
 ```
 
+`--json` prints `{ "changes": [{ "id", "status", "pendingTasks" }] }` for wrapper scripts.
+
 ---
 
 ### `cdd-kit archive <change-id>`
@@ -819,6 +821,8 @@ cdd-kit archive add-jwt-auth
 
 Warns (but does not block) if `tasks.yml` has pending items or `status: gate-blocked`. Use after `/cdd-close` — the skill runs this automatically at the end.
 
+`--json` prints `{ "changeId", "archivedTo", "year", "date", "warnings": [] }` on success, `{ "changeId", "error" }` with exit code 1 on failure.
+
 ---
 
 ### `cdd-kit abandon <change-id>`
@@ -829,6 +833,28 @@ Marks a change as abandoned. Updates `tasks.yml` status to `abandoned`, records 
 cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
 # ✓  Change add-jwt-auth marked as abandoned.
 ```
+
+`--json` prints `{ "changeId", "status": "abandoned", "reason", "date" }` on success, `{ "changeId", "error" }` with exit code 1 on failure.
+
+---
+
+### Machine-readable output (`--json`) and exit codes
+
+Every lifecycle and query command supports `--json` for wrapper scripts and CI:
+`doctor`, `list`, `gate`-adjacent checks (`classify-check`, `validate` on errors),
+`archive`, `abandon`, `index query`/`impact`, `graph query`/`impact`/`status`/`sync`/`context`,
+`contract query`, `test run`/`select`, `bug suspects`, `detect-stack`, and
+`context request`/`approve`/`reject`/`list`/`check`.
+
+Conventions, uniform across commands:
+
+- **stdout** carries exactly one JSON object (pretty-printed); human chatter is
+  suppressed in JSON mode. Failures that have a payload print `{ ..., "error" }`.
+- **Exit code 0** — the command did what was asked (including legitimately empty
+  results, e.g. zero changes / zero suspects).
+- **Exit code 1** — the command could not do what was asked: validation failed,
+  the gate failed, a referenced change/file does not exist, or inputs were
+  invalid. No other exit codes are used.
 
 ---
 
