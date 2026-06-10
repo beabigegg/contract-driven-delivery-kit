@@ -72,3 +72,41 @@ describe('cdd-kit init --hooks', () => {
     expect(hook).toMatch(/cdd-kit-code-map-block-start/);    // code-map block
   });
 });
+
+// ── P1-4: advisory test-runner hook is armed by default ──────────────────────
+
+/** Every nested PreToolUse command armed in .claude/settings.json. */
+function preToolUseCommands(repo: string): string {
+  const settingsPath = join(repo, '.claude', 'settings.json');
+  if (!existsSync(settingsPath)) return '';
+  const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  return (settings.hooks?.PreToolUse ?? [])
+    .flatMap((e: { hooks?: { command?: string }[] }) => e.hooks ?? [])
+    .map((h: { command?: string }) => h.command ?? '')
+    .join(' ');
+}
+
+describe('cdd-kit init — default-armed agent hooks (P1-4)', () => {
+  it('5: arms BOTH graph-first and test-runner advisory hooks by default', () => {
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const cmds = preToolUseCommands(tmpRepo);
+    expect(cmds).toMatch(/pre-tool-use-graph-first/);
+    expect(cmds).toMatch(/pre-tool-use-test-runner/);
+    // Advisory, not strict (no STRICT env prefix on the test-runner command).
+    expect(cmds).not.toMatch(/CDD_TEST_RUNNER_STRICT=1/);
+  });
+
+  it('6: --no-test-runner keeps graph-first but leaves the test-runner hook dormant', () => {
+    const r = runCli(['init', '--local-only', '--no-test-runner'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const cmds = preToolUseCommands(tmpRepo);
+    expect(cmds).toMatch(/pre-tool-use-graph-first/);
+    expect(cmds).not.toMatch(/pre-tool-use-test-runner/);
+  });
+
+  it('7: --no-arm leaves both hooks dormant (no settings.json)', () => {
+    runCli(['init', '--local-only', '--no-arm'], { cwd: tmpRepo, home: tmpHome });
+    expect(existsSync(join(tmpRepo, '.claude', 'settings.json'))).toBe(false);
+  });
+});

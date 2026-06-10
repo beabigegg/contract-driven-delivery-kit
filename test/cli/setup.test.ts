@@ -11,7 +11,7 @@
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { spawnSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
@@ -141,5 +141,26 @@ describe('cdd-kit setup — flags', () => {
     expect(r.stdout + r.stderr).toMatch(/Invalid provider: bogus/);
     // Nothing scaffolded on a rejected invocation.
     expect(existsSync(join(tmpRepo, '.cdd'))).toBe(false);
+  });
+});
+
+describe('cdd-kit setup — API conformance recommendation (P1-5)', () => {
+  it('9: recommends enabling drift detection when an API contract + code exist', () => {
+    // A detectable stack makes conformance applicable; setup scaffolds the API
+    // contract + a disabled conformance.json, so the tip should fire — but setup
+    // must only *recommend*, never silently enable it.
+    writeFileSync(join(tmpRepo, 'package.json'), JSON.stringify({ name: 'demo', version: '1.0.0' }));
+    const r = runCli(['setup', '--no-mcp'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/enable drift detection with `cdd-kit doctor --fix`/);
+    // Not silently enabled.
+    const cfg = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'conformance.json'), 'utf8'));
+    expect(cfg.enabled).toBe(false);
+  });
+
+  it('10: prints no conformance tip when the stack is undetectable (bare repo)', () => {
+    const r = runCli(['setup', '--no-mcp'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/enable drift detection with/);
   });
 });

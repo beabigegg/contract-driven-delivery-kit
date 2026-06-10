@@ -1,10 +1,12 @@
 /**
  * Tests for `cdd-kit doctor`'s MCP registration check.
  *
- * The check is informational (level 'ok') so it never fails `--strict` — not
- * every environment uses Claude Code. Its job is observability: surface whether
- * the cdd-kit MCP server is registered, because if it is not, agents never see
- * the graph/index tools and silently fall back to `Read`.
+ * Severity is tiered on certainty (P1-1): when `claude` is present and positively
+ * reports the cdd-kit server missing on a real cdd-kit project, that is a
+ * `warning` (it trips `--strict`) — we *know* agents are degraded to the slow
+ * `Read` path. When we cannot verify (no `claude` CLI, or `mcp list` errored) it
+ * stays informational so environments that don't use Claude Code are not
+ * penalised.
  *
  * The Claude CLI is stubbed via CDD_CLAUDE_BIN pointing at a small node script,
  * so all branches are deterministic without a real `claude` install.
@@ -66,22 +68,35 @@ describe('cdd-kit doctor — MCP registration', () => {
     expect(r.stdout).toContain('claude mcp add --scope user cdd-kit -- cdd-kit mcp');
   });
 
-  it('does not fail --strict when registration is missing (informational only)', () => {
+  /** Find the MCP finding in a `doctor --json` report. */
+  function mcpFinding(env: Record<string, string>): { level: string; message: string } | undefined {
+    setupRepo();
+    const r = runCli(['doctor', '--json'], { cwd, home, env });
+    const report = JSON.parse(r.stdout) as { findings: { level: string; message: string }[] };
+    return report.findings.find(f => /^MCP:/.test(f.message));
+  }
+
+  it('marks a confirmed-missing registration as a warning (level warning), not informational', () => {
+    const stub = writeClaudeStub(false);
+    const finding = mcpFinding({ CDD_CLAUDE_BIN: stub });
+    expect(finding?.message).toContain('cdd-kit not registered');
+    expect(finding?.level).toBe('warning');
+  });
+
+  it('fails --strict when registration is confirmed missing', () => {
     setupRepo();
     const stub = writeClaudeStub(false);
     const r = runCli(['doctor', '--strict'], { cwd, home, env: { CDD_CLAUDE_BIN: stub } });
-    // The MCP finding is level 'ok', so it must not be the cause of any failure.
     expect(r.stdout).toContain('cdd-kit not registered');
-    // doctor --strict may still fail on unrelated warnings (e.g. missing context
-    // indexes), but the MCP line itself is never an error/warning.
-    expect(r.stdout).not.toMatch(/MCP:.*not registered.*\n.*error/i);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/doctor failed in strict mode/i);
   });
 
-  it('degrades gracefully when the claude CLI is absent', () => {
-    setupRepo();
+  it('keeps the finding informational (level ok) when the claude CLI is absent', () => {
     const missing = join(cwd, 'no-such-claude-binary');
-    const r = runCli(['doctor'], { cwd, home, env: { CDD_CLAUDE_BIN: missing } });
-    expect(r.stdout).toContain('could not run `claude mcp list`');
+    const finding = mcpFinding({ CDD_CLAUDE_BIN: missing });
+    expect(finding?.message).toContain('could not run `claude mcp list`');
+    expect(finding?.level).toBe('ok');
   });
 
   it('emits no MCP finding for a non-cdd-kit repo (no .cdd marker)', () => {

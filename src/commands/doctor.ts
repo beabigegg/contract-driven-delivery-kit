@@ -1,9 +1,11 @@
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import { join, relative } from 'path';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
+import { detectStack } from '../utils/stack-detect.js';
+import { ASSET } from '../utils/paths.js';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
 import { detectChokepoints } from './chokepoints.js';
@@ -13,6 +15,12 @@ export interface DoctorOptions {
   provider?: ProviderOption;
   json?: boolean;
   fix?: boolean;
+  /**
+   * Render a plain-language ✅/⚠️ summary instead of the full technical finding
+   * list. For non-engineers who need "is this healthy or not, and what next?"
+   * rather than 15 lines of digests and chokepoint detail.
+   */
+  simple?: boolean;
 }
 
 interface Finding {
@@ -258,24 +266,50 @@ function checkCodeMap(cwd: string): Finding[] {
   return findings;
 }
 
+/**
+ * API conformance is *applicable* when there is an API contract AND real source
+ * code to drift from it. The most-needy users (non-engineers) are the least
+ * likely to flip `enabled: true` themselves, so when it applies and is off we
+ * route them to `cdd-kit doctor --fix`, which turns it on (P1-5). Detection
+ * stays read-only; enabling is never silent.
+ */
+function conformanceApplicable(cwd: string): boolean {
+  if (!existsSync(join(cwd, 'contracts', 'api', 'api-contract.md'))) return false;
+  try {
+    return detectStack(cwd).primary !== 'unknown';
+  } catch {
+    return false;
+  }
+}
+
 function checkApiConformance(cwd: string): Finding[] {
-  // Informational only (level 'ok') so it never trips `doctor --strict`. It
-  // surfaces whether the code-vs-contract API conformance net is actually armed.
+  // Informational only (level 'ok') so it never trips `doctor --strict` — leaving
+  // conformance off is a legitimate choice, and `--fix` (opt-in) is the on-ramp.
+  // It surfaces whether the code-vs-contract API conformance net is actually armed.
   const hasContract = existsSync(join(cwd, 'contracts', 'api', 'api-contract.md'));
   if (!hasContract) return [];
+  const applicable = conformanceApplicable(cwd);
   const configPath = join(cwd, '.cdd', 'conformance.json');
   if (!existsSync(configPath)) {
     return [{
       level: 'ok',
-      message: 'API conformance: not configured (add .cdd/conformance.json with "enabled": true to catch frontend/backend drift against the contract)',
+      message: applicable
+        ? 'API conformance: available but not configured — run `cdd-kit doctor --fix` to enable code-vs-contract drift checks'
+        : 'API conformance: not configured (add .cdd/conformance.json with "enabled": true to catch frontend/backend drift against the contract)',
     }];
   }
   try {
     const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
+    if (cfg.enabled) {
+      return [{
+        level: 'ok',
+        message: 'API conformance: enabled (cdd-kit validate --contracts checks code against the API contract)',
+      }];
+    }
     return [{
       level: 'ok',
-      message: cfg.enabled
-        ? 'API conformance: enabled (cdd-kit validate --contracts checks code against the API contract)'
+      message: applicable
+        ? 'API conformance: OFF — run `cdd-kit doctor --fix` to turn on code-vs-contract drift checks (or set "enabled": true in .cdd/conformance.json)'
         : 'API conformance: present but disabled (set "enabled": true in .cdd/conformance.json to enforce code-vs-contract checks)',
     }];
   } catch {
@@ -284,11 +318,16 @@ function checkApiConformance(cwd: string): Finding[] {
 }
 
 function checkMcpRegistration(cwd: string, provider: string): Finding[] {
-  // Informational only (level 'ok') so it never trips `doctor --strict` — not
-  // every environment uses Claude Code, and a missing `claude` CLI is not an
-  // error. The point is observability: if the cdd-kit MCP server is not
-  // registered, agents never see the graph/index tools and silently fall back
-  // to `Read`, defeating the `--with-source` exploration path.
+  // Observability for the silent-degradation failure mode: if the cdd-kit MCP
+  // server is not registered, agents never see the graph/index tools and
+  // silently fall back to `Read`, defeating the `--with-source` exploration path
+  // and making the whole kit feel "slow" for no visible reason.
+  //
+  // Severity is tiered on *certainty* (P1-1): when `claude` is present and
+  // positively reports the server missing on a real cdd-kit project, that is a
+  // `warning` (trips `--strict`) — we know agents are degraded. When we cannot
+  // verify (no `claude` CLI, `mcp list` errored), it stays informational (`ok`)
+  // so environments that don't use Claude Code are never penalised.
   if (provider !== 'claude' && provider !== 'both') return [];
 
   // Only nudge actual cdd-kit projects (inferProvider defaults to 'claude' even
@@ -327,9 +366,12 @@ function checkMcpRegistration(cwd: string, provider: string): Finding[] {
   if (/\bcdd-kit\b/.test(output)) {
     return [{ level: 'ok', message: 'MCP: cdd-kit server is registered with Claude Code' }];
   }
+  // Positive confirmation that the server is missing on a Claude project: this
+  // is the silent-slow-mode case, so warn (and fail --strict) rather than tuck
+  // it into informational output the user never reads.
   return [{
-    level: 'ok',
-    message: 'MCP: cdd-kit not registered — agents will fall back to Read instead of graph/index tools; run `claude mcp add --scope user cdd-kit -- cdd-kit mcp`',
+    level: 'warning',
+    message: 'MCP: cdd-kit not registered — agents will fall back to the slower Read path instead of the graph/index tools; run `claude mcp add --scope user cdd-kit -- cdd-kit mcp` (or `cdd-kit setup`)',
   }];
 }
 
@@ -394,9 +436,53 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   };
 }
 
+/**
+ * Turn on API conformance when it applies (contract + real source) and is
+ * currently off. This is the actionable half of P1-5: plain `doctor` only
+ * *surfaces* that drift detection is off (informational), and `--fix` flips the
+ * switch — the on-ramp the most-needy users won't take themselves. Reversible
+ * (set "enabled": false to undo) and gated on applicability so it never enables
+ * conformance on a contract-only repo with nothing to check.
+ */
+function enableConformanceIfApplicable(cwd: string): string | null {
+  if (!conformanceApplicable(cwd)) return null;
+  const configPath = join(cwd, '.cdd', 'conformance.json');
+  let cfg: Record<string, unknown>;
+  if (existsSync(configPath)) {
+    try {
+      cfg = JSON.parse(readFileSync(configPath, 'utf8'));
+    } catch {
+      return null; // malformed JSON is surfaced as its own warning; don't clobber it
+    }
+    if (cfg.enabled === true) return null; // already on
+  } else {
+    // No project config yet: seed from the shipped default so the user gets the
+    // full, documented schema rather than a bare { enabled: true }.
+    const assetPath = join(ASSET.cddConfig, 'conformance.json');
+    try {
+      cfg = JSON.parse(readFileSync(assetPath, 'utf8'));
+    } catch {
+      cfg = { enabled: false };
+    }
+  }
+  cfg.enabled = true;
+  try {
+    mkdirSync(join(cwd, '.cdd'), { recursive: true });
+    writeFileSync(configPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+    return 'enabled API conformance in .cdd/conformance.json (code-vs-contract drift checks now run in `cdd-kit validate --contracts`)';
+  } catch {
+    return null;
+  }
+}
+
 async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fixed: string[]; remaining: Finding[] }> {
   const fixed: string[] = [];
   const remaining: Finding[] = [];
+
+  // Conformance enablement is keyed off live repo state, not a warning-level
+  // finding (the conformance check is informational), so handle it up front.
+  const conformanceFix = enableConformanceIfApplicable(cwd);
+  if (conformanceFix) fixed.push(conformanceFix);
 
   for (const finding of report.findings) {
     if (finding.level !== 'warning') {
@@ -487,6 +573,38 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
   return { fixed, remaining };
 }
 
+/**
+ * Plain-language health view (P1-2). Collapses the passing checks into a single
+ * line and leads with a one-word verdict and a single "what to do next", so a
+ * non-engineer can answer "is this OK, and what now?" without parsing digests or
+ * chokepoint detail. The full technical list stays one `cdd-kit doctor` away.
+ */
+function renderSimpleReport(report: DoctorReport): void {
+  const passed = report.findings.filter(f => f.level === 'ok').length;
+  const warnings = report.findings.filter(f => f.level === 'warning');
+  const errors = report.findings.filter(f => f.level === 'error');
+
+  log.blank();
+  log.info('cdd-kit health — plain view');
+  log.blank();
+  if (passed > 0) log.ok(`${passed} check${passed === 1 ? '' : 's'} passed`);
+  for (const f of errors) log.error(f.message);
+  for (const f of warnings) log.warn(f.message);
+  log.blank();
+
+  if (errors.length > 0) {
+    log.error(`Result: there ${errors.length === 1 ? 'is 1 problem' : `are ${errors.length} problems`} to fix.`);
+    log.info('Next: ask Claude to resolve the item(s) above, then re-run `cdd-kit doctor --simple`.');
+  } else if (warnings.length > 0) {
+    log.warn(`Result: working, but ${warnings.length} thing${warnings.length === 1 ? '' : 's'} need${warnings.length === 1 ? 's' : ''} attention.`);
+    log.info('Next: run `cdd-kit doctor --fix` to auto-resolve what it can, then re-run `cdd-kit doctor --simple`.');
+  } else {
+    log.ok('Result: everything looks healthy.');
+    log.info('Next: open Claude Code here and run `/cdd-new <describe your change>` to start a task.');
+  }
+  log.blank();
+}
+
 export async function doctor(opts: DoctorOptions = {}): Promise<void> {
   const cwd = process.cwd();
   let report = await buildDoctorReport(cwd, opts);
@@ -506,6 +624,12 @@ export async function doctor(opts: DoctorOptions = {}): Promise<void> {
 
   if (opts.json) {
     console.log(JSON.stringify(report, null, 2));
+    if (!report.ok) process.exit(1);
+    return;
+  }
+
+  if (opts.simple) {
+    renderSimpleReport(report);
     if (!report.ok) process.exit(1);
     return;
   }

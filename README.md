@@ -478,16 +478,19 @@ cdd-kit init --provider codex # scaffold Codex-oriented project guidance
 cdd-kit init --provider both  # scaffold Claude Code + Codex guidance
 cdd-kit init --force          # overwrite existing project files
 cdd-kit init --no-arm         # scaffold without arming enforcement chokepoints
+cdd-kit init --no-test-runner # arm graph-first but leave the test-runner hook dormant
 ```
 
 By default `init` **arms** the enforcement chokepoints so a fresh repo enforces
-the workflow instead of carrying it dormant: the graph-first PreToolUse hook
-(Claude provider, advisory) and the pre-commit gate hook are wired in place. This
-matters most in a fully automated, no-human-reviewer workflow — dormant
-enforcement means the contracts only *look* like they prevent drift. Arming is
-best-effort (a missing `.git` becomes a warning, never a failed init); pass
-`--no-arm` to skip it, and `cdd-kit doctor` reports the live/dormant status of
-each chokepoint.
+the workflow instead of carrying it dormant: the graph-first and test-runner
+PreToolUse hooks (Claude provider, both advisory) and the pre-commit gate hook
+are wired in place. This matters most in a fully automated, no-human-reviewer
+workflow — dormant enforcement means the contracts only *look* like they prevent
+drift, and a non-engineer would never run `install-agent-hooks --test-runner`
+themselves. Arming is best-effort (a missing `.git` becomes a warning, never a
+failed init); pass `--no-arm` to skip all of it or `--no-test-runner` to keep
+graph-first but leave the test-runner hook dormant, and `cdd-kit doctor` reports
+the live/dormant status of each chokepoint.
 
 Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`, `AGENTS.md`, and/or `CODEX.md`), `hooks/`
 
@@ -608,17 +611,20 @@ Inspects repo-level cdd-kit health. Default mode is read-only; `--fix` applies o
 
 ```bash
 cdd-kit doctor
+cdd-kit doctor --simple
 cdd-kit doctor --strict
 cdd-kit doctor --fix
 cdd-kit doctor --json
 cdd-kit doctor --provider codex
 ```
 
-Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors. `--json` emits a machine-readable report for CI or wrapper scripts. `--fix` currently auto-runs `context-scan` for stale or missing indexes and backfills empty `.cdd/model-policy.json` role bindings, but deliberately does not run invasive repo upgrades for you.
+Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS.md`, `CODEX.md`), context indexes, stale `specs/context/*` outputs, and contract summary metadata gaps. `--strict` treats warnings as errors. `--json` emits a machine-readable report for CI or wrapper scripts. `--fix` auto-runs `context-scan` for stale or missing indexes, backfills empty `.cdd/model-policy.json` role bindings, regenerates a stale code-map, and **enables API conformance** when an API contract and real source code are present (see below) — but deliberately does not run invasive repo upgrades for you.
 
-For Claude projects, `doctor` also reports whether the **cdd-kit MCP server is registered** with Claude Code (it runs `claude mcp list`). If it is not registered, agents never see the graph/index tools and silently fall back to `Read`, so doctor surfaces the exact `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it. This check is **informational only** — it never fails `--strict`, never blocks on a slow or missing `claude` CLI (3s timeout, best-effort), and is skipped for non-Claude projects. Point `CDD_CLAUDE_BIN` at an alternate Claude CLI if needed.
+**`--simple`** is the non-engineer view: instead of the full technical list it collapses every passing check into one line and leads with a one-word verdict plus a single "what to do next" (e.g. *run `cdd-kit doctor --fix`*, or *you're ready — run `/cdd-new`*). It honours `--strict` and the same exit codes, so it is safe in scripts too.
 
-`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the contract-write hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. Like the MCP and conformance lines, it is **advisory only** and never fails `--strict`.
+For Claude projects, `doctor` also reports whether the **cdd-kit MCP server is registered** with Claude Code (it runs `claude mcp list`). If it is not registered, agents never see the graph/index tools and silently fall back to `Read`. Severity is tiered on certainty: when `claude` is present and positively reports the server missing, that is a **warning** (it fails `--strict`) — agents are demonstrably degraded to the slow path, and doctor surfaces the exact `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it. When the check *cannot verify* (no `claude` CLI on PATH, or `mcp list` errors — 3s timeout, best-effort) it stays **informational** so environments that don't use Claude Code are never penalised. The check is skipped entirely for non-Claude projects. Point `CDD_CLAUDE_BIN` at an alternate Claude CLI if needed.
+
+`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the contract-write hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. Like the conformance line, the chokepoint dashboard is **advisory only** and never fails `--strict` (the MCP line is the one exception — a confirmed-missing registration is a warning).
 
 ---
 
@@ -940,7 +946,10 @@ cdd-kit validate --versions     # contract frontmatter schema versions
 real backend routes and frontend call sites and fails on drift from
 `contracts/api/api-contract.md` (e.g. the frontend calling an endpoint the
 contract never declares). It is off until you enable it in `.cdd/conformance.json`
-(`"enabled": true`); `cdd-kit init` scaffolds a disabled config. See
+(`"enabled": true`); `cdd-kit init` scaffolds a disabled config. You don't have to
+edit JSON by hand: when an API contract and real source code are both present,
+`cdd-kit doctor` flags that drift detection is off and `cdd-kit doctor --fix` turns
+it on for you (and `cdd-kit setup` prints the same recommendation). See
 [docs/api-conformance.md](docs/api-conformance.md). This is the mechanical net
 for frontend/backend API drift in a workflow where no human reviews the contract
 by hand.
@@ -1018,7 +1027,7 @@ cdd-kit install-agent-hooks --graph-first advisory --contract-write strict # arm
 - **advisory**: reminds the agent to use the kit command first; does not block the tool call.
 - **strict**: writes the hook's `CDD_*_STRICT=1` flag so the hook blocks the tool call (`exit 2`) — graph-first blocks source `Read` when `.cdd/code-map.yml` exists; contract-write blocks `Edit`/`Write` of the API contract (a first-time scaffold, when the file does not exist yet, is always allowed); test-runner blocks a broad whole-suite test `Bash` command (a bounded target, `cdd-kit test run`, and every non-test command are always allowed). Per ADR 0005 §10, ship the test-runner hook **advisory first** and only move to strict after it has settled in.
 
-Naming one flag arms only that hook and leaves the others untouched, so they can be armed in separate runs; a bare `install-agent-hooks` arms graph-first advisory (unchanged). All three gate only the *agent's* tools — a human editing or running tests in their own terminal is unaffected. Writes the hook script(s) to `.claude/hooks/` and `PreToolUse` entries to `.claude/settings.json` (project-scoped, so they travel with the repo). Idempotent: re-running replaces only the cdd-kit entry for the named hook and switches its mode cleanly, preserving every other setting and hook. The contract-write and test-runner hooks are **opt-in** — `cdd-kit init` does not arm them.
+Naming one flag arms only that hook and leaves the others untouched, so they can be armed in separate runs; a bare `install-agent-hooks` arms graph-first advisory (unchanged). All three gate only the *agent's* tools — a human editing or running tests in their own terminal is unaffected. Writes the hook script(s) to `.claude/hooks/` and `PreToolUse` entries to `.claude/settings.json` (project-scoped, so they travel with the repo). Idempotent: re-running replaces only the cdd-kit entry for the named hook and switches its mode cleanly, preserving every other setting and hook. `cdd-kit init` (and `cdd-kit setup`) arm the **graph-first and test-runner** hooks advisory by default — `init --no-test-runner` keeps graph-first but leaves test-runner dormant. The **contract-write** hook remains opt-in (ADR 0004 §6) and is never auto-armed.
 
 ---
 

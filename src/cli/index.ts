@@ -37,6 +37,7 @@ program
   .option('--provider <provider>', 'Provider adapter to scaffold: claude, codex, or both', 'claude')
   .option('--hooks', 'Also install the pre-commit hook that auto-regenerates .cdd/code-map.yml', false)
   .option('--no-arm', 'Skip arming enforcement chokepoints (graph-first hook + pre-commit gate)')
+  .option('--no-test-runner', 'When arming agent hooks, skip the advisory test-runner hook (graph-first still armed)')
   .action((opts) =>
     init({
       globalOnly: opts.globalOnly,
@@ -45,6 +46,7 @@ program
       provider:   opts.provider,
       hooks:      opts.hooks,
       arm:        opts.arm !== false,
+      testRunner: opts.testRunner !== false,
     }),
   );
 
@@ -123,11 +125,12 @@ program
   .description('Inspect cdd-kit repo health, provider guidance, and context index freshness')
   .option('--strict', 'Treat warnings as errors', false)
   .option('--json', 'Print a machine-readable health report', false)
+  .option('--simple', 'Plain-language ✅/⚠️ summary with a single next step (for non-engineers)', false)
   .option('--provider <provider>', 'Provider adapter to inspect: auto, claude, codex, or both', 'auto')
-  .option('--fix', 'Auto-resolve safe warnings (stale context indexes, missing role bindings)', false)
-  .action(async (opts: { strict?: boolean; json?: boolean; provider?: ProviderOption; fix?: boolean }) => {
+  .option('--fix', 'Auto-resolve safe warnings (stale context indexes, missing role bindings, API conformance)', false)
+  .action(async (opts: { strict?: boolean; json?: boolean; simple?: boolean; provider?: ProviderOption; fix?: boolean }) => {
     const { doctor } = await import('../commands/doctor.js');
-    await doctor({ strict: opts.strict, json: opts.json, provider: opts.provider, fix: opts.fix });
+    await doctor({ strict: opts.strict, json: opts.json, simple: opts.simple, provider: opts.provider, fix: opts.fix });
   });
 
 program

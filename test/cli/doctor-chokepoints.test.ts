@@ -127,10 +127,19 @@ describe('cdd-kit doctor — chokepoint dashboard', () => {
     expect(r.stdout).toMatch(/chokepoint test-runner hook: dormant/);
   });
 
-  it('leaves the test-runner hook dormant after a default armed init (opt-in)', () => {
-    // init arms graph-first + the pre-commit gate; the ADR 0005 §10 test-runner
-    // hook is opt-in and must NOT be auto-armed.
+  it('arms the test-runner hook live after a default init (P1-4)', () => {
+    // init now arms graph-first AND the advisory test-runner hook by default
+    // (ADR 0005 §10 ships advisory-first; a non-engineer would never run
+    // install-agent-hooks --test-runner themselves).
     const r0 = runCli(['init', '--local-only'], { cwd, home });
+    expect(r0.status, r0.stderr).toBe(0);
+    const r = runCli(['doctor'], { cwd, home });
+    expect(r.stdout).toMatch(/chokepoint graph-first exploration hook: live/);
+    expect(r.stdout).toMatch(/chokepoint test-runner hook: live/);
+  });
+
+  it('leaves the test-runner hook dormant after init --no-test-runner', () => {
+    const r0 = runCli(['init', '--local-only', '--no-test-runner'], { cwd, home });
     expect(r0.status, r0.stderr).toBe(0);
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout).toMatch(/chokepoint graph-first exploration hook: live/);
