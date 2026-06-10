@@ -27,12 +27,19 @@ npm install -g contract-driven-delivery
 # 2. Go to your repo
 cd your-repo
 
-# 3. Deploy the kit
-cdd-kit init
+# 3. Deploy the kit (one command: scaffold + arm chokepoints + MCP + indexes)
+cdd-kit setup
 
 # 4. Open Claude Code in your repo and tell Claude:
 # "Use /cdd-new to set up the project. My system is a <brief description>."
 ```
+
+> `cdd-kit setup` is the one-command path: it scaffolds the project, arms the
+> enforcement chokepoints, registers the MCP server (best-effort), and builds the
+> context indexes, then prints what to do next. It is idempotent — re-run it any
+> time, including after `npm update`, and it upgrades in place. Prefer the
+> fine-grained commands (`init`, `refresh`, `install-hooks`, …) only when you
+> need to control a single step.
 
 ---
 
@@ -423,6 +430,42 @@ bug-fix:
 
 These are shell commands — not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
 
+### `cdd-kit setup`
+
+The one-command onboarding path. Takes a repo from zero to a fully wired,
+enforcement-armed cdd-kit project — and brings an existing project up to date —
+in a single idempotent run. This is the recommended way to start; the
+fine-grained commands below remain available for step-by-step control.
+
+```bash
+cdd-kit setup                 # fresh install or in-place upgrade (auto-detected)
+cdd-kit setup --provider both # scaffold Claude Code + Codex guidance
+cdd-kit setup --force         # fresh install: overwrite existing project files
+cdd-kit setup --no-arm        # skip arming the pre-commit gate and agent hooks
+cdd-kit setup --no-mcp        # skip the best-effort MCP registration
+```
+
+What it does, in order, with a per-step success/failure summary at the end:
+
+1. **Scaffold** — runs `init` on a fresh repo (no `.cdd/`) or `refresh --yes` on
+   an existing one, so you never have to choose between update/upgrade/refresh.
+2. **Detect stack** — reports the detected tech stack.
+3. **Arm chokepoints** — installs the pre-commit gate and the agent PreToolUse
+   hooks (graph-first + test-runner, both advisory). Skipped by `--no-arm`.
+4. **Register MCP** — best-effort `claude mcp add --scope user cdd-kit -- cdd-kit
+   mcp`. If the `claude` CLI is absent or the call fails, it prints the manual
+   command and continues — agents fall back to the slower CLI path. Skipped by
+   `--no-mcp`.
+5. **Context scan** — builds `specs/context/project-map.md`.
+6. **Code map** — builds `.cdd/code-map.yml`.
+
+Every step is best-effort: a missing git repo or `claude` CLI becomes a warning,
+never a failed run, so you always get a complete report. The run ends by telling
+you the one thing to do next — open Claude Code and run `/cdd-new <describe your
+change>`.
+
+---
+
 ### `cdd-kit init`
 
 Installs agents and skill into `~/.claude` and scaffolds project files.
@@ -486,7 +529,14 @@ Updating npm only replaces the `cdd-kit` CLI package. Existing repos and
 global Claude Code assets keep their previously copied agents, skills,
 templates, hooks, and `.cdd/model-policy.json` until you sync them.
 
-Recommended one-command sync after `npm update -g contract-driven-delivery`:
+Simplest path — one idempotent command that detects the upgrade and re-wires
+everything (scaffold, chokepoints, MCP, indexes):
+
+```bash
+cdd-kit setup            # auto-detects the existing project and upgrades in place
+```
+
+Or drive the steps yourself after `npm update -g contract-driven-delivery`:
 
 ```bash
 cdd-kit refresh          # dry-run preview
@@ -504,6 +554,7 @@ What gets updated:
 
 | command | updates | preserves |
 |---|---|---|
+| `cdd-kit setup` | everything below in one idempotent run, plus chokepoint arming, MCP registration, and context indexes | user source, contracts content, active change content |
 | `cdd-kit update --yes` | `~/.claude/agents/` and `~/.claude/skills/` for Claude provider projects | project files |
 | `cdd-kit upgrade --yes` | missing repo files only: contracts, templates, `.cdd/`, guidance, workflows | existing files and project guidance |
 | `cdd-kit refresh --yes` | global agents/skills, missing project files, kit-shipped templates with backup, model policy roles, hooks, `.cdd/code-map.yml` | user source, contracts content, active change content |

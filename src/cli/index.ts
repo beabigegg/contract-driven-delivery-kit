@@ -48,6 +48,31 @@ program
     }),
   );
 
+// ── cdd setup ─────────────────────────────────────────────────────────────────
+// One command from zero to a fully wired, enforcement-armed project. Detects
+// fresh vs upgrade, scaffolds, arms chokepoints, registers MCP (best-effort),
+// builds context indexes, and prints a per-step summary. See setup.ts.
+program
+  .command('setup')
+  .description('One-command onboarding: scaffold, arm chokepoints, register MCP, and build context indexes (idempotent; fresh or upgrade)')
+  .option('--provider <provider>', 'Provider adapter: claude, codex, or both (default: claude for fresh, detected for upgrade)')
+  .option('--force', 'Fresh install only: overwrite existing project files', false)
+  .option('--no-arm', 'Skip arming the pre-commit gate and agent hooks')
+  .option('--no-mcp', 'Skip the best-effort `claude mcp add` MCP registration')
+  .action(async (opts: { provider?: ProviderOption; force?: boolean; arm?: boolean; mcp?: boolean }) => {
+    if (opts.provider !== undefined && !['claude', 'codex', 'both'].includes(opts.provider)) {
+      console.error(`Invalid provider: ${opts.provider}. Use claude, codex, or both.`);
+      process.exit(1);
+    }
+    const { setup } = await import('../commands/setup.js');
+    await setup({
+      provider: opts.provider as 'claude' | 'codex' | 'both' | undefined,
+      force: opts.force,
+      noArm: opts.arm === false,
+      noMcp: opts.mcp === false,
+    });
+  });
+
 // ── cdd update ────────────────────────────────────────────────────────────────
 program
   .command('update')
