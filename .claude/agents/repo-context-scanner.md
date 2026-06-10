@@ -84,7 +84,8 @@ frontend / backend / fullstack / monorepo / library / tool
 
 ## Optional Handoff Evidence
 
-If a short handoff note is useful, end your response with an optional `Agent Log` YAML block`nfor main Claude to write to
+If a short handoff note is useful, end your response with an optional `Agent Log` YAML block
+for main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
 `references/agent-log-protocol.md` — do not duplicate them in this prompt.

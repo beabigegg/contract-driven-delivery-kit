@@ -8,9 +8,13 @@
  * meaning of `A -> B`, and private-use / control bytes waste tokens for worse
  * instruction-following. This guard fails CI if any shipped markdown reintroduces:
  *
- *   1. a literal `??` (the signature of a UTF-8 -> ASCII round-trip), or
+ *   1. a literal `??` (the signature of a UTF-8 -> ASCII round-trip),
  *   2. a private-use (U+E000-U+F8FF), C1-control (U+0080-U+009F), or
- *      lone-surrogate code point.
+ *      lone-surrogate code point, or
+ *   3. a literalized escape glued mid-text (word + backtick + n/t/r + word),
+ *      the signature of a PowerShell-style `n / `t / `r that was meant to be a
+ *      real newline/tab. A genuine inline code span is preceded by whitespace
+ *      or punctuation, so this adjacency does not match legitimate `code`.
  *
  * Markdown only: TypeScript/JavaScript `??` is the nullish-coalescing operator
  * and is intentionally not scanned.
@@ -20,7 +24,10 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.git']);
+// assets/ is gitignored build output: a copy of .claude/, templates, etc. that
+// build.js regenerates. Scanning the sources (below) covers it; scanning the
+// mirror only risks stale false alarms before a rebuild.
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'assets']);
 
 /** Recursively collect tracked-style `.md` files, skipping build/vendor dirs. */
 function collect(dir, out) {
@@ -34,6 +41,10 @@ function collect(dir, out) {
   return out;
 }
 
+// word + backtick + n/t/r + word: a literalized `n / `t / `r escape, never a
+// real inline code span (those are preceded by whitespace or punctuation).
+const ESCAPE_RE = /[A-Za-z0-9]`[ntr][A-Za-z0-9]/;
+
 const findings = [];
 for (const file of collect(ROOT, [])) {
   const rel = relative(ROOT, file);
@@ -42,6 +53,9 @@ for (const file of collect(ROOT, [])) {
     const ln = i + 1;
     if (line.includes('??')) {
       findings.push(`${rel}:${ln}: literal '??' (mojibake) -> ${line.trim().slice(0, 100)}`);
+    }
+    if (ESCAPE_RE.test(line)) {
+      findings.push(`${rel}:${ln}: literalized escape (\`n/\`t/\`r) in text -> ${line.trim().slice(0, 100)}`);
     }
     for (const ch of line) {
       const cp = ch.codePointAt(0);
