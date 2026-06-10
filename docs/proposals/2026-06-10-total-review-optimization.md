@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）於 PR #40 合併**；**P1-3（CER 去阻塞）+ P1-8（freshness mtime 修復）於 PR #41 合併**；**P1-11（gate.ts 拆分）於 PR #42 合併**；**P1-12 + P1-15 + P1-16（解析強化三項）於 PR #43 合併**；**P1-17（digest 共用模組）於 PR #44 合併**；**P1-14（`--json` 一致性）已實作**（本次 PR）；主題 C 其餘（P1-13）與 P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）於 PR #40 合併**；**P1-3（CER 去阻塞）+ P1-8（freshness mtime 修復）於 PR #41 合併**；**P1-11（gate.ts 拆分）於 PR #42 合併**；**P1-12 + P1-15 + P1-16（解析強化三項）於 PR #43 合併**；**P1-17（digest 共用模組）於 PR #44 合併**；**P1-14（`--json` 一致性）於 PR #45 合併**；**P1-13（rename 失敗調查 + helper 硬化）已完成**（本次 PR）——**至此 P0 與 P1 全數完成**；P2 待續
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -32,8 +32,9 @@
 | P1-15 CER 區段解析改用共用 markdown-section + `yaml.load` | ✅ 已完成 | 本次 PR |
 | P1-16 `tier-policy.json` 解析/結構失敗要警告（不再無聲 fallback） | ✅ 已完成 | PR #43 |
 | P1-17 doctor / context-scan 的 digest 邏輯抽共用模組 | ✅ 已完成 | PR #44 |
-| P1-14 `--json` 一致性（list / abandon / archive + 文件化 exit code 語意） | ✅ 已完成 | 本次 PR |
-| P1 其餘（主題 C：P1-13）/ P2 | ⬜ 待續 | — |
+| P1-14 `--json` 一致性（list / abandon / archive + 文件化 exit code 語意） | ✅ 已完成 | PR #45 |
+| P1-13 git-paths rename 失敗調查（根因：簽章環境，安全網無恙；helper 硬化） | ✅ 已完成 | 本次 PR |
+| **P1 全部完成**；P2 | ⬜ 待續 | — |
 
 > PR #36 額外收穫：P0-1 的 mojibake guard（`tools/check-mojibake.mjs`）在三輪高階 AI review 來回中，從「只擋 `??`」強化為涵蓋六類損壞（`??`、私有/控制/代理位元組、`` `n `` 字面跳脫、U+FFFD、孤立 CJK、Windows-1252 序列），掃描範圍鎖定對外英文 prompt 面（含 `specs/templates`、`tests/templates`、`contracts`），並排除可為非英文的 `specs/changes/` 工作文件。P0-3 的 git 隔離同步補上 `GIT_CONFIG_COUNT/KEY_*/VALUE_*`、`GIT_CONFIG`、`GIT_CONFIG_PARAMETERS` 覆寫清除。
 
@@ -139,7 +140,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 |---|---|---|---|
 | P1-11 ✅ | **拆分 `gate.ts`** 為 orchestrator（187 行）+ `gate-shared` / `gate-tier` / `gate-artifacts` / `gate-evidence` / `gate-dependencies` / `gate-contracts` 六模組（行為不變，887 測試全綠不變）。額外抽出 `gate-shared`（共用 Ajv 實例、`TasksFile` 型別、`loadYamlFile`、`ajvErrorsToMessages`）避免循環相依 | 原 1,455 行、32 函式單檔，是第二大檔（765 行）的兩倍；難以單測與安全擴充 | 3 天 |
 | P1-12 ✅ | **tier 偵測 regex 強化**：`gate-tier.ts` 抽出 `parseStructuredTier`/`parseBoldTier`（皆行首錨定 + 0–5 驗證）、`hasLooseRiskMarker`（風險字僅在 list item / 標籤值 / `Tier N` 位置才算 marker，prose「critical systems」「high load」不再誤觸）；structured 與 bold 並存且值不一致時改報 error（不再無聲挑一個） | loose pattern `/\b(tier\s*[0-5]|low|...)\b/i` 可被「tier-based」「critical systems」等措辭誤觸 | 1 天 |
-| P1-13 | **調查 `git-paths` rename 偵測失敗**：本次實測 2 個測試失敗（rename 出敏感目錄時只回傳新路徑，遺漏 `src/auth/middleware.ts` 舊路徑）——若為 git 版本相依的 `--name-status` 解析差異，會讓 tier-floor 的 rename-aware 防護在某些環境失效（安全網漏洞） | `test/cli/git-paths.test.ts:70,100` 於 git 2.x 新版環境失敗 | 1 天 |
+| P1-13 ✅ | **調查 `git-paths` rename 偵測失敗** — 結論：**生產端安全網從未壞過**，不是 git 版本的 `--name-status` 解析差異。實驗重現：host 全域 `commit.gpgsign=true`（即同批 10 個簽章失敗的根因）使測試 helper 的 `git commit` 默默失敗（`stdio:'ignore'` 吞錯），`git mv` 隨後作用在從未 commit 的 index entry，diff 自然只剩 `A <new>`——這正是「遺漏舊路徑」的全部成因。對照實驗：即使 `status.renames=false`/`diff.renames=false`，兩側路徑仍以 `D old` + `A new` 出現，parser 正確處理。P0-3 的 git 隔離已修復；本次補第二道防線：測試 `git()` helper 改為 assert exit status、失敗即指名出錯指令 | `test/cli/git-paths.test.ts:70,100` 於原審查環境失敗 | 1 天 |
 | P1-14 ✅ | **`--json` 一致性**：補 `list`、`abandon`、`archive`（`context list` 已於 P1-3 補）；README 新增「Machine-readable output (--json) and exit codes」段落，文件化各 payload 與 exit code 語意（實測全 codebase 僅 0/1，無 2——0 = 完成（含合法空結果）、1 = 無法完成；照實文件化） | 17 個指令有 `--json`，其餘混雜純文字，自動化 wrapper 難以解析 | 0.5 天 |
 | P1-15 ✅ | **CER 區段解析改用共用 markdown-section 工具 + `yaml.load`**：新增 `src/utils/markdown-section.ts`（`sectionBody`/`stripHtmlComments`），`context.ts` 與 `gate-artifacts.ts` 共用；gate 的 pending 計數改 `yaml.load`（CER 區段本就是 YAML 序列），無法解析時退回原 line-scan，永不少算 | `gate.ts:191-207` 對縮排/空行敏感，格式稍異即無聲漏算 pending | 1 天 |
 | P1-16 ✅ | **`tier-policy.json` 解析/結構失敗要警告**：`loadTierPolicy` 對 JSON 解析失敗、非物件、`rules` 非陣列、單條 rule shape 不符（`maxTier` 非 0–5 整數、`patterns` 非陣列）逐項 `log.warn`（指明「your custom tier rules are NOT in effect」）；檔案缺席與 `enabled:false` 維持靜默 | 使用者改壞 JSON 後以為自訂規則生效，實際全被忽略 | 0.25 天 |
