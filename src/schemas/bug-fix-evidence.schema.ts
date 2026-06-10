@@ -135,8 +135,8 @@ export const bugFixEvidenceBlock = {
   // diagnostic-only record is exempt -- it intentionally does not fix the symptom
   // yet (§10). The remaining cross-field rules ("reproduction succeeded => a
   // confirmed hypothesis exists" and referenced-summary existence) are procedural
-  // and land with the gate (ADR 0006 PR 3), mirroring how test-evidence.schema
-  // defers required-phase coverage.
+  // and enforced by the gate (ADR 0006 PR 3, src/commands/gate.ts), mirroring how
+  // test-evidence.schema defers required-phase coverage to the gate.
   if: {
     not: {
       required: ["diagnostic_only"],

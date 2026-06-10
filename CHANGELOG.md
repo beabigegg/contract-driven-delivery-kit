@@ -19,8 +19,8 @@
   evidence as typed `artifacts:`). `/cdd-new` routes the lane: `bug-fix-engineer`
   leads implementation,
   regression proof runs on the ADR 0005 bounded ladder, and diagnostic-only
-  changes open a follow-up. Prompt / classification only — `cdd-kit gate`
-  enforcement and `cdd-kit bug suspects` land in later ADR 0006 PRs.
+  changes open a follow-up. Prompt / classification only — `cdd-kit bug suspects`
+  lands in a later ADR 0006 PR.
 
 - **Bug-fix evidence schema (ADR 0006 — schema phase).** Adds
   `src/schemas/bug-fix-evidence.schema.ts`: a first-class, machine-validated
@@ -35,8 +35,30 @@
   shape (observed surface, root cause, a files-changed fix, a **passing**
   regression, residual risk) and a behavior-fix reproduction status (`reproduced`
   / `test-reproduced` / `visual-reproduced`); a `diagnostic_only` record is
-  exempt. Schema and tests only — `cdd-kit gate` enforcement when `lane: bug-fix`
-  lands in the next ADR 0006 PR.
+  exempt. Schema and tests only — the gate-integration phase wires this schema
+  into `cdd-kit gate`.
+
+- **Bug-fix gate enforcement (ADR 0006 — gate integration).** `cdd-kit gate` now
+  detects `lane: bug-fix` from `change-classification.md` (case-insensitively,
+  failing on an invalid `## Lane` value rather than skipping) and requires the
+  bug-fix-engineer's `agent-log/bug-fix-engineer.yml` to carry a
+  schema-valid `bug-fix:` block (ADR 0006 §7). Beyond the schema's structural
+  checks the gate adds the checks static schema cannot express: the log must be a
+  completed handoff (`status: complete`/`done`/`approved`) authored by
+  `bug-fix-engineer` and bound to this change's `change-id`; a reproduced symptom
+  must name a `confirmed` hypothesis; referenced reproduction/regression summaries
+  must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
+  an executed run — not collect-only — recording the matching `change_id`, status,
+  and command, tolerating only the runner's appended pytest flags; and a
+  test-reproduced/failing-before-fix reproduction must reference a failed-or-timeout
+  pre-fix run with its command); a behavior-changing fix must
+  carry a durable regression summary with its command plus a present
+  `test-evidence.yml` (the `test-evidence-not-applicable` opt-out does not apply);
+  the diagnostic-only exemption requires explicit classifier approval
+  (`## Diagnostic Only` `- yes`), not silence, and may not itself claim a fix or a
+  successful reproduction status; and
+  the log may not carry prohibited failure-waiver fields at any level. Feature and
+  legacy changes (no `## Lane: bug-fix`) are unaffected.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
