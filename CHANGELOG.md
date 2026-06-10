@@ -83,6 +83,24 @@
   fields and the escalation of high-risk production symptoms (timeouts, queues,
   caches, DB pools, long-running behavior) to the resilience / stress / soak agents.
 
+- **Bug-fix lane documentation and examples (ADR 0006 — docs and examples).**
+  Documents the now-shipped bug-fix lane in the README and adds examples under
+  `docs/examples/bug-fix/`. The README gains a `cdd-kit bug suspects` CLI reference
+  (both invocation forms, the `--json` / `--limit` / `--map` / `--refresh` flags,
+  exit codes — `0` even with zero candidates, `2` for no symptom / unknown
+  change-id / no code-intel — and a real `--json` payload) and a Bug-fix lane
+  section with four worked examples: a UI/visual fix (`visual-reproduced` +
+  `visual_evidence.before`), a pytest failure repair (`test-reproduced` with a
+  failing-before-fix reproduction summary and a passing regression), an API
+  response-shape bug (`data_evidence` request/response pointer), and an intermittent
+  diagnostic-only change (`## Diagnostic Only: yes` + `bug-fix.diagnostic_only:
+  true`, exempt from root-cause/regression but still requiring passing evidence or
+  an auditable `test-evidence-not-applicable` opt-out).
+  `docs/examples/bug-fix/bug-fix-engineer.sample.yml` is a complete, gate-passing
+  repair record (the standard agent-log envelope with a nested `bug-fix:` block),
+  and `docs/examples/bug-fix/gate-failure.txt` is real `cdd-kit gate` output
+  rejecting an incomplete one. Docs only — no behavior change. Completes ADR 0006.
+
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
   (ADR 0004 §6): an opt-in Claude Code hook that intercepts the agent's

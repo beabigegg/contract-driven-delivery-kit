@@ -1,0 +1,88 @@
+# Sample bug-fix-engineer repair record (ADR 0006 §2 / §7).
+#
+# This is the COMPLETE, gate-PASSING shape `cdd-kit gate` requires for a
+# `lane: bug-fix` change: the standard agent-log envelope (change-id, timestamp,
+# agent, status, artifacts, next-action) with a nested `bug-fix:` evidence block.
+# It is a worked version of the example in .claude/agents/bug-fix-engineer.md.
+#
+# Drop this file at specs/changes/<change-id>/agent-log/bug-fix-engineer.yml of a
+# real `lane: bug-fix` change (renaming `change-id` and the `specs/changes/<id>/`
+# paths to match) and `cdd-kit gate <change-id>` raises no bug-fix-engineer.yml
+# error. The gate does NOT trust the YAML alone — for it to pass end to end, the
+# referenced artifacts must actually exist on disk, produced by `cdd-kit test run`:
+#
+#   - reproduction.summary -> a FAILED (or timed-out) pre-fix run summary.json,
+#     under this change's test-runs/, whose change_id/phase/status/command match.
+#   - regression.summary    -> the post-fix PASSING run summary.json (same rules).
+#   - a present, passing test-evidence.yml (the ADR 0005 bounded ladder:
+#     collect + targeted + changed-area, recorded by `cdd-kit test run`).
+#   - data_evidence.pointer -> a committed, repo-relative request/response artifact.
+#
+# Because this is a `test-reproduced` (failing-before-fix) reproduction, both
+# reproduction.command and regression.command are required, and the pre-fix run
+# must record `failed` or `timeout` (never `passed`/`error`). A behavior fix also
+# requires root_cause.pointer, a regression with status: passed, residual_risk,
+# and a confirmed hypothesis (since the symptom was reproduced).
+
+change-id: add-order-filter
+timestamp: 2026-06-09T12:00:00Z
+agent: bug-fix-engineer
+status: complete
+files-read:
+  - specs/changes/add-order-filter/context-manifest.md
+  - src/pages/Orders.tsx
+  - src/api/orders.ts
+indexes-used:
+  - .cdd/code-graph.index.json
+artifacts:
+  - { type: symptom, pointer: "Orders page filter options are empty" }
+  - { type: root-cause, pointer: "src/pages/Orders.tsx:42-68 mapped status_label instead of status" }
+  - { type: files-changed, pointer: "src/pages/Orders.tsx, tests/orders/test_filter.py" }
+  - { type: regression-evidence, pointer: "pytest tests/orders/test_filter.py: pass" }
+  - { type: residual-risk, pointer: "none" }
+
+bug-fix:
+  schema-version: 0.1.0
+  symptom: "Orders page filter options are empty"
+  expected_behavior: "Status filter shows the available statuses"
+  actual_behavior: "Filter dropdown renders no options"
+  observed_surface: "Orders page filter panel"
+
+  reproduction:
+    status: test-reproduced
+    command: "pytest tests/orders/test_filter.py"
+    failing_before_fix: true
+    # A failed (or timed-out) pre-fix run recorded by `cdd-kit test run`.
+    summary: "specs/changes/add-order-filter/test-runs/20260609-101522-repro/summary.json"
+
+  hypotheses:
+    - { id: H1, candidate: "src/pages/Orders.tsx::buildFilterOptions", reason: "graph matched the Orders filter symbol", result: confirmed }
+    - { id: H2, candidate: "src/api/orders.ts::fetchOrders", reason: "API client might omit the status field", result: rejected }
+
+  root_cause:
+    pointer: "src/pages/Orders.tsx:42-68"
+    summary: "UI mapped status_label instead of the canonical status when building filter options"
+
+  fix:
+    files_changed:
+      - "src/pages/Orders.tsx"
+      - "tests/orders/test_filter.py"
+    summary: "Use the canonical status field and add regression coverage"
+
+  regression:
+    status: passed
+    command: "pytest tests/orders/test_filter.py"
+    # The post-fix passing run recorded by `cdd-kit test run`.
+    summary: "specs/changes/add-order-filter/test-runs/20260609-102034-reg/summary.json"
+
+  # Optional PR-5 typed evidence pointer for the API/data facet of this bug
+  # (durable, repo-relative, committed with the change). The gate verifies any
+  # present pointer exists and is not an absolute path.
+  data_evidence:
+    kind: request-response
+    pointer: "specs/changes/add-order-filter/evidence/orders-response.json"
+    summary: "GET /api/orders response carried canonical `status` the UI ignored"
+
+  residual_risk: "none"
+
+next-action: "qa-reviewer release-readiness review"

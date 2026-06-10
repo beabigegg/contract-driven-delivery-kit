@@ -1,0 +1,14 @@
+$ cdd-kit gate fix-orders-filter
+
+# Real `cdd-kit gate` output for a `lane: bug-fix` change whose
+# agent-log/bug-fix-engineer.yml is incomplete. The change is a UI/visual
+# behavior fix that claims a `visual-reproduced` reproduction but never committed
+# the pre-fix screenshot, and whose regression.summary points at a run that was
+# never recorded by `cdd-kit test run`. (Captured verbatim; repo-relative paths
+# left as-is.)
+
+⚠    missing test-evidence.yml (legacy change; run `cdd-kit test run` to record bounded test evidence)
+✗  gate failed for change: fix-orders-filter
+✗    agent-log/bug-fix-engineer.yml: bug-fix.regression.summary artifact `specs/changes/fix-orders-filter/test-runs/reg/summary.json` does not exist — reference a real run summary produced by `cdd-kit test run` (ADR 0006 §7).
+✗    agent-log/bug-fix-engineer.yml: reproduction.status is `visual-reproduced` but no bug-fix.visual_evidence.before pointer is recorded — a visual reproduction needs a durable pre-fix screenshot/browser artifact (ADR 0006 §6).
+✗    agent-log/bug-fix-engineer.yml: a behavior-changing bug-fix must record passing test-evidence.yml (the ADR 0005 bounded ladder) — none was found (ADR 0006 §6, §7).
