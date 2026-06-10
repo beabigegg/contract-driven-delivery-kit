@@ -20,7 +20,7 @@
  * instead of a mid-sequence abort. The fine-grained commands remain available as
  * the advanced interface.
  */
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { spawnSync } from 'child_process';
 import { log } from '../utils/logger.js';
@@ -78,6 +78,27 @@ function registerMcp(): StepResult {
   log.warn(`Automatic MCP registration failed (claude mcp add exited ${add.status ?? '?'}). Register manually:`);
   logRecommendedMcpSetup();
   return { label, status: 'warn', detail: 'claude mcp add failed; register manually' };
+}
+
+/**
+ * Is code-vs-contract API conformance relevant here (API contract + real source)
+ * yet still switched off? `setup` only *recommends* enabling it — never flips it
+ * silently on a fresh project — and points at the one-command enabler (P1-5).
+ */
+function conformanceOffButRelevant(cwd: string): boolean {
+  if (!existsSync(join(cwd, 'contracts', 'api', 'api-contract.md'))) return false;
+  try {
+    if (detectStack(cwd).primary === 'unknown') return false;
+  } catch {
+    return false;
+  }
+  const confPath = join(cwd, '.cdd', 'conformance.json');
+  if (!existsSync(confPath)) return true;
+  try {
+    return JSON.parse(readFileSync(confPath, 'utf8')).enabled !== true;
+  } catch {
+    return false; // malformed config is doctor's problem to report, not setup's
+  }
 }
 
 /** Echo one summary row through the logger so it carries the right colour/icon. */
@@ -233,6 +254,9 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
   log.ok('Setup complete.');
   log.info('Next: open Claude Code in this repo and run `/cdd-new <describe your change>` to start your first task.');
   log.dim('  e.g.  /cdd-new add JWT authentication to the login API');
+  if (conformanceOffButRelevant(cwd)) {
+    log.dim('  Tip: this repo has an API contract + code — enable drift detection with `cdd-kit doctor --fix`.');
+  }
   log.dim('  Advanced: cdd-kit doctor (health), cdd-kit refresh (re-sync), cdd-kit gate <id> (quality gate).');
   log.blank();
 }

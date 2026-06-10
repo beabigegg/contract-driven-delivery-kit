@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 見下方「實作進度」）；P1/P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）已實作**（本次 PR）；P1 其餘項與 P2 待續
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -16,8 +16,12 @@
 | P0-3 測試隔離環境 git 設定 | ✅ 已完成 | PR #36 |
 | P0-4 kit 自身 CI workflow（Node 18/20/22 + mojibake guard） | ✅ 已完成 | PR #36 |
 | P0-5 一鍵 `cdd-kit setup` | ✅ 已完成 | PR #37 |
-| P0-6 `gate --explain` 非工程師模式 | ✅ 已完成 | 本次 PR |
-| P1 / P2 | ⬜ 待續 | — |
+| P0-6 `gate --explain` 非工程師模式 | ✅ 已完成 | PR #38 |
+| P1-1 MCP 未註冊不得無聲降級 | ✅ 已完成 | 本次 PR |
+| P1-2 `cdd-kit doctor --simple` | ✅ 已完成 | 本次 PR |
+| P1-4 預設武裝 test-runner hook（advisory） | ✅ 已完成 | 本次 PR |
+| P1-5 conformance 檢查引導啟用 | ✅ 已完成 | 本次 PR |
+| P1 其餘（P1-3、主題 B、主題 C）/ P2 | ⬜ 待續 | — |
 
 > PR #36 額外收穫：P0-1 的 mojibake guard（`tools/check-mojibake.mjs`）在三輪高階 AI review 來回中，從「只擋 `??`」強化為涵蓋六類損壞（`??`、私有/控制/代理位元組、`` `n `` 字面跳脫、U+FFFD、孤立 CJK、Windows-1252 序列），掃描範圍鎖定對外英文 prompt 面（含 `specs/templates`、`tests/templates`、`contracts`），並排除可為非英文的 `specs/changes/` 工作文件。P0-3 的 git 隔離同步補上 `GIT_CONFIG_COUNT/KEY_*/VALUE_*`、`GIT_CONFIG`、`GIT_CONFIG_PARAMETERS` 覆寫清除。
 
@@ -101,11 +105,11 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 
 | # | 提案 | 現況與根據 | 工作量 |
 |---|---|---|---|
-| P1-1 | **MCP 未註冊不得無聲降級**：`init`/`setup` 直接嘗試 `claude mcp add`（互動詢問一次）；`doctor` 將 MCP 未註冊從 informational 提升為 warning，並說明後果（「agent 將以較慢的 CLI fallback 模式運作」） | `src/utils/mcp-hint.ts`；README line 568-569 明言該檢查 never fails strict —— agent 默默用慢速模式，使用者只覺得「kit 很慢」 | 1 天 |
-| P1-2 | **`cdd-kit doctor --simple`**：以 ✅/⚠️ 加白話文總結健康狀態（必要檔案、chokepoint live/dormant、MCP、contracts），結尾給「下一步」 | doctor 現有輸出 15+ 行技術細節，非工程師無法判斷「現在是好是壞」 | 1 天 |
+| P1-1 ✅ | **MCP 未註冊不得無聲降級**：`doctor` 將 MCP 未註冊依「確定性」分級——`claude` 在場且確認 cdd-kit 未註冊→**warning**（會讓 `--strict` 失敗），無法驗證（無 `claude` CLI／`mcp list` 出錯）→維持 informational | `src/utils/mcp-hint.ts`；README line 568-569 明言該檢查 never fails strict —— agent 默默用慢速模式，使用者只覺得「kit 很慢」 | 1 天 |
+| P1-2 ✅ | **`cdd-kit doctor --simple`**：白話健康視圖——把所有通過的檢查收合成一行，先給一字結論再給單一「下一步」，並遵守 `--strict`／退出碼 | doctor 現有輸出 15+ 行技術細節，非工程師無法判斷「現在是好是壞」 | 1 天 |
 | P1-3 | **Context Expansion Request 去阻塞**：(a) 實作 `.cdd/context-policy.json` 中已存在但從未被使用的 `autoApprovePatterns` 自動核准；(b) 新增 `cdd-kit context approve-interactive` 逐筆白話說明＋Y/N | CER `status: pending` 會讓 `/cdd-resume` 停住，非工程師面對一串技術路徑不知如何裁決，session 無聲卡死 | 1~2 天 |
-| P1-4 | **預設武裝 test-runner hook（advisory）**：init 時與 graph-first 一起裝，`--no-test-runner` 可關 | ADR 0005 §10 自己說「ship advisory first」，但現在連 advisory 都是 opt-in；非工程師永遠不會主動執行 `install-agent-hooks --test-runner` | 0.5 天 |
-| P1-5 | **conformance 檢查引導啟用**：當偵測到 API contract 與前後端碼存在時，`setup`/`doctor --fix` 主動詢問是否啟用 `.cdd/conformance.json`，而非永久 `"enabled": false` | README 自述這是「無人工審查時的機械防漂移網」，但預設關閉 —— 最需要它的人（非工程師）最不可能去開 | 0.5 天 |
+| P1-4 ✅ | **預設武裝 test-runner hook（advisory）**：`init`／`setup` 預設與 graph-first 一起裝（皆 advisory），`init --no-test-runner` 可只留 graph-first | ADR 0005 §10 自己說「ship advisory first」，但現在連 advisory 都是 opt-in；非工程師永遠不會主動執行 `install-agent-hooks --test-runner` | 0.5 天 |
+| P1-5 ✅ | **conformance 檢查引導啟用**：偵測到 API contract + 真實原始碼且仍關閉時，`doctor` 顯示提示、`doctor --fix` 直接開啟（從預設 asset seed），`setup` 印出同樣建議——絕不無聲開啟 | README 自述這是「無人工審查時的機械防漂移網」，但預設關閉 —— 最需要它的人（非工程師）最不可能去開 | 0.5 天 |
 
 ### 主題 B：Token 效率補洞
 

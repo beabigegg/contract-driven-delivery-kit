@@ -20,6 +20,14 @@ export interface InitOptions {
    * the machinery dormant. `--no-arm` opts out.
    */
   arm?: boolean;
+  /**
+   * When arming, also wire the advisory test-runner PreToolUse hook (default
+   * true). ADR 0005 §10 ships it advisory-first; arming it here makes the
+   * bounded-test ladder live out of the box for non-engineers who would never
+   * run `install-agent-hooks --test-runner` themselves. `--no-test-runner`
+   * keeps graph-first but leaves test-runner dormant.
+   */
+  testRunner?: boolean;
 }
 
 /**
@@ -359,7 +367,13 @@ export async function init(opts: InitOptions): Promise<void> {
         log.info('Arming enforcement chokepoints…');
         if (installClaude) {
           const { installAgentHooks } = await import('./install-agent-hooks.js');
-          await installAgentHooks({ graphFirst: 'advisory', fromInit: true });
+          await installAgentHooks({
+            graphFirst: 'advisory',
+            // Advisory test-runner is armed by default; --no-test-runner leaves
+            // it dormant (undefined → install-agent-hooks skips it).
+            testRunner: opts.testRunner === false ? undefined : 'advisory',
+            fromInit: true,
+          });
         }
         const { installHooks } = await import('./install-hooks.js');
         await installHooks({ fromInit: true });

@@ -32,7 +32,11 @@ describe('cdd-kit doctor', () => {
     const scan = runCli(['context-scan'], { cwd: tmpRepo, home: tmpHome });
     expect(scan.status, scan.stderr).toBe(0);
 
-    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
+    // Point the MCP check at an absent Claude CLI so it stays informational
+    // ('could not verify') regardless of whether `claude` is installed on the
+    // host — otherwise a real `claude` reporting cdd-kit unregistered would add
+    // a (legitimate) warning and mask the health-pass this test asserts.
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
   });
@@ -124,7 +128,9 @@ describe('cdd-kit doctor', () => {
       if (existsSync(p)) utimesSync(p, future, future);
     }
 
-    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
+    // Absent Claude CLI → MCP check stays informational, so this regression test
+    // for digest stability is not perturbed by MCP registration state.
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).not.toMatch(/inputs changed/i);
     expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
