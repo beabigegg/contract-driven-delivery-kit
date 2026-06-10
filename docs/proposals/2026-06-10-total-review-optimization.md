@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-4 已於 PR #36 實作並合併**（見下方「實作進度」）；P0-5、P0-6 及 P1/P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-5 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 見下方「實作進度」）；P0-6 及 P1/P2 待續
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -15,7 +15,7 @@
 | P0-2 `npm test` 乾淨環境可直接跑（pretest build） | ✅ 已完成 | PR #36 |
 | P0-3 測試隔離環境 git 設定 | ✅ 已完成 | PR #36 |
 | P0-4 kit 自身 CI workflow（Node 18/20/22 + mojibake guard） | ✅ 已完成 | PR #36 |
-| P0-5 一鍵 `cdd-kit setup` | ⬜ 待續 | — |
+| P0-5 一鍵 `cdd-kit setup` | ✅ 已完成 | 本次 PR |
 | P0-6 `gate --explain` 非工程師模式 | ⬜ 待續 | — |
 | P1 / P2 | ⬜ 待續 | — |
 
@@ -75,12 +75,13 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 - **做法**：新增 `.github/workflows/test.yml`：`npm ci → node build.js → tsc --noEmit → vitest run`，matrix 跑 Node 18/20/22；附帶 P0-1 的 mojibake guard 與 `cdd-kit code-map --check` 自我驗證。
 - **工作量**：0.5 天。
 
-### P0-5. 新增一鍵 `cdd-kit setup`（消除 onboarding 斷點）　⬜ 待續
+### P0-5. 新增一鍵 `cdd-kit setup`（消除 onboarding 斷點）　✅ 已完成（本次 PR）
 
 - **現況**：非工程師完成完整安裝需要跨多個 session 執行 7~10 條指令並理解其差異：`init` → `claude mcp add ...` → `install-hooks` → `install-agent-hooks --graph-first` → `install-agent-hooks --test-runner` → `context-scan` →（升級時再加 `refresh --yes` → `migrate --all` → `doctor --strict`）。README 中 update/upgrade/refresh/migrate 四個指令的語意差異連工程師都需要查表（README lines 503-510 自己就附了一張對照表）。
 - **為何重要**：這是「極致自動化」最大的單點違反。目標使用者不具備判斷「我需要 refresh 還是 upgrade 還是 migrate」的背景。
 - **做法**：新增冪等的 `cdd-kit setup`（fresh 與 upgrade 通用）：自動偵測現狀後依序執行 init/refresh、detect-stack、install-hooks、install-agent-hooks（graph-first advisory + test-runner advisory）、best-effort MCP 註冊（直接執行 `claude mcp add`，失敗只警告不阻斷）、context-scan、code-map，最後印出逐步成功/失敗摘要與「下一步：`/cdd-new <描述你的需求>`」。現有細粒度指令保留為進階介面。
 - **工作量**：2~3 天。
+- **實作（本次 PR）**：新增 `src/commands/setup.ts` 與 `cdd-kit setup` 指令。冪等：以 `.cdd/` 是否存在區分 fresh / upgrade，fresh 走 `init`（`arm:false`，由 setup 統一武裝），upgrade 走 `refresh --yes`。六步驟依序執行 scaffold → detect-stack → 武裝 chokepoints（pre-commit gate + graph-first/test-runner agent hooks，皆 advisory）→ best-effort MCP 註冊（偵測 `claude` CLI 不存在或 `claude mcp add` 失敗時只警告並印出手動指令，不阻斷）→ context-scan → code-map，最後印出逐步成功/失敗摘要與「下一步：`/cdd-new <describe your change>`」。每步皆 best-effort（缺 git repo 或 `claude` CLI 只降為警告），唯 scaffold 失敗才以非零退出。`--provider`、`--force`、`--no-arm`、`--no-mcp` 可微調；既有細粒度指令保留為進階介面。測試 `test/cli/setup.test.ts`（8 例）涵蓋 fresh、冪等 upgrade、best-effort MCP 跳過、各 flag 與非法 provider 拒絕；README Quick Start 與 CLI Reference 同步改以 `setup` 為建議入口。
 
 ### P0-6. Gate 失敗訊息的非工程師模式（`--explain`）　⬜ 待續
 
