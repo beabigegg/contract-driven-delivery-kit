@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）已於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）已實作**（本次 PR）；P1-3、P1-8、主題 C 與 P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）於 PR #40 合併**；**P1-3（CER 去阻塞）+ P1-8（freshness mtime 修復）已實作**（本次 PR）；主題 C 與 P2 待續
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -23,9 +23,11 @@
 | P1-5 conformance 檢查引導啟用 | ✅ 已完成 | PR #39 |
 | P1-6 graph-first 指示統一化（4 個高價值 agent） | ✅ 已完成 | 本次 PR |
 | P1-7 查詢截斷可見化（index/graph/MCP） | ✅ 已完成 | 本次 PR |
-| P1-9 graph-first hook 過時 map 不再導向 | ✅ 已完成 | 本次 PR |
-| P1-10 `AGENTS.template.md` 路由摘要擴充 | ✅ 已完成 | 本次 PR |
-| P1 其餘（P1-3、P1-8、主題 C）/ P2 | ⬜ 待續 | — |
+| P1-9 graph-first hook 過時 map 不再導向 | ✅ 已完成 | PR #40 |
+| P1-10 `AGENTS.template.md` 路由摘要擴充 | ✅ 已完成 | PR #40 |
+| P1-3 CER 去阻塞（auto-safe 自動核准 + approve-interactive） | ✅ 已完成 | 本次 PR |
+| P1-8 freshness digest 重算消除（mtime 修復） | ✅ 已完成 | 本次 PR |
+| P1 其餘（主題 C）/ P2 | ⬜ 待續 | — |
 
 > PR #36 額外收穫：P0-1 的 mojibake guard（`tools/check-mojibake.mjs`）在三輪高階 AI review 來回中，從「只擋 `??`」強化為涵蓋六類損壞（`??`、私有/控制/代理位元組、`` `n `` 字面跳脫、U+FFFD、孤立 CJK、Windows-1252 序列），掃描範圍鎖定對外英文 prompt 面（含 `specs/templates`、`tests/templates`、`contracts`），並排除可為非英文的 `specs/changes/` 工作文件。P0-3 的 git 隔離同步補上 `GIT_CONFIG_COUNT/KEY_*/VALUE_*`、`GIT_CONFIG`、`GIT_CONFIG_PARAMETERS` 覆寫清除。
 
@@ -111,7 +113,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 |---|---|---|---|
 | P1-1 ✅ | **MCP 未註冊不得無聲降級**：`doctor` 將 MCP 未註冊依「確定性」分級——`claude` 在場且確認 cdd-kit 未註冊→**warning**（會讓 `--strict` 失敗），無法驗證（無 `claude` CLI／`mcp list` 出錯）→維持 informational | `src/utils/mcp-hint.ts`；README line 568-569 明言該檢查 never fails strict —— agent 默默用慢速模式，使用者只覺得「kit 很慢」 | 1 天 |
 | P1-2 ✅ | **`cdd-kit doctor --simple`**：白話健康視圖——把所有通過的檢查收合成一行，先給一字結論再給單一「下一步」，並遵守 `--strict`／退出碼 | doctor 現有輸出 15+ 行技術細節，非工程師無法判斷「現在是好是壞」 | 1 天 |
-| P1-3 | **Context Expansion Request 去阻塞**：(a) 實作 `.cdd/context-policy.json` 中已存在但從未被使用的 `autoApprovePatterns` 自動核准；(b) 新增 `cdd-kit context approve-interactive` 逐筆白話說明＋Y/N | CER `status: pending` 會讓 `/cdd-resume` 停住，非工程師面對一串技術路徑不知如何裁決，session 無聲卡死 | 1~2 天 |
+| P1-3 ✅ | **Context Expansion Request 去阻塞**：(a) `loadContextPolicy` 現在讀取 `contextExpansion.{mode,autoApprovePatterns}`；`mode: "auto-safe"` 下，落在安全區（`src/**`、`tests/**`、`contracts/**`、`specs/changes/<current-change-id>/**`）且非 forbidden 的路徑在 `context request` 時直接核准、不留 pending；另加 `cdd-kit context auto-approve <id>` 處理既有 pending CER（全安全→approved，混合→裁剪保留待審）。(b) 新增 `cdd-kit context approve-interactive <id>` 逐筆白話標註（安全區／需審／policy 封鎖）＋ y/n/q，讀 stdin、EOF 乾淨停止不卡死。無 policy 檔或非 auto-safe 模式維持原 pending 行為 | CER `status: pending` 會讓 `/cdd-resume` 停住，非工程師面對一串技術路徑不知如何裁決，session 無聲卡死 | 1~2 天 |
 | P1-4 ✅ | **預設武裝 test-runner hook（advisory）**：`init`／`setup` 預設與 graph-first 一起裝（皆 advisory），`init --no-test-runner` 可只留 graph-first | ADR 0005 §10 自己說「ship advisory first」，但現在連 advisory 都是 opt-in；非工程師永遠不會主動執行 `install-agent-hooks --test-runner` | 0.5 天 |
 | P1-5 ✅ | **conformance 檢查引導啟用**：偵測到 API contract + 真實原始碼且仍關閉時，`doctor` 顯示提示、`doctor --fix` 直接開啟（從預設 asset seed），`setup` 印出同樣建議——絕不無聲開啟 | README 自述這是「無人工審查時的機械防漂移網」，但預設關閉 —— 最需要它的人（非工程師）最不可能去開 | 0.5 天 |
 
@@ -121,7 +123,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 |---|---|---|---|
 | P1-6 ✅ | **graph-first 指示統一化**：為 `implementation-planner`、`test-strategist`、`spec-architect`、`spec-drift-auditor` 補上 graph-first「Code map (READ FIRST)」段落（依各 agent 的 `tools` 分流：有 Bash 的 spec-drift-auditor 用 `cdd-kit index query --with-source` 命令式，其餘三個無 Bash 改用「先讀 `.cdd/code-map.yml` 再做 offset/limit 定點 Read」） | 缺指示的 agent 直接整檔 Read，graph-first 的省 token 效果只覆蓋少數角色 | 0.5 天 |
 | P1-7 ✅ | **查詢截斷可見化**：`index query`/`graph query`/MCP 回傳加 `total_matches`/`returned`/`truncated`；`index query` 另加每檔 `match_count`/`matches_truncated`；文字模式印 `results: N (of M; raise --limit …)`。per-file cap（原 `.slice(0, 8)`）抽為具名常數 `PER_FILE_MATCH_CAP` | `index-query.ts:169` 內部 `.slice(0, 8)`，agent 無從得知結果被截斷，導致漏讀（以為只有 8 個）或多讀（不會改用更精確的查詢詞） | 1 天 |
-| P1-8 | **freshness digest 快取 / `--no-refresh`**：session 內快取 `sourcesDigest`，或讓 MCP/CLI 查詢支援跳過驗證 | `freshness.ts:62-99` 每次查詢都可能走 stat 全樹 + SHA1 全量重算；大 repo 一個 session 5 次查詢就重算 5 次。**獨立 PR**：動到 gate/doctor 共用的 freshness 熱路徑，屬行為敏感項，與 P1-3 同樣單獨成 PR | 1 天 |
+| P1-8 ✅ | **freshness digest 重算消除（mtime 修復）**：當「mtime 說 stale 但 digest 確認內容未變」（典型為 git clone 後全樹 mtime 變新）時，查詢路徑 `ensureCodeMapFresh` 把 code-map 的 mtime 往前推（best-effort），讓下一次查詢走便宜的 mtime 快速路徑、跳過全樹 SHA 重算。`FreshnessResult` 新增 `verifiedByDigest` 旗標。**僅限查詢路徑**（`index`/`graph` 且 refresh 開啟）；`--no-refresh`、`doctor`、`gate` 一律不寫 map（doctor「不寫檔」契約不受影響，因其呼叫的是 `checkCodeMapFreshness` 而非 `ensureCodeMapFresh`） | `freshness.ts:62-99` 每次查詢都可能走 stat 全樹 + SHA1 全量重算；大 repo 一個 session 5 次查詢就重算 5 次 | 1 天 |
 | P1-9 ✅ | **graph-first hook 過時 map 不再導向**：當「即將被讀的檔」比 `.cdd/code-map.yml` 新時（單檔 `-nt` 比較，便宜），跳過 graph-first advisory、改印一行 `cdd-kit code-map` 刷新提示，且永不阻擋（strict 也放行）——避免把 agent 導向過時索引 | `hooks/pre-tool-use-graph-first.sh:54-66` 目前無條件輸出 | 0.5 天 |
 | P1-10 ✅ | **`AGENTS.template.md` 路由摘要擴充**：每個 agent 一行「何時選用／與相似 agent 如何區分」（如 ui-ux vs visual、bug-fix vs 一般 engineer），並補回漏列的 `bug-fix-engineer`、`dependency-security-reviewer`（原本 16 個，現 18 個齊全），維持 <500 tokens | 現在只有名字清單，主 agent 選錯 sub-agent 的成本遠高於這幾百 token | 0.25 天 |
 
