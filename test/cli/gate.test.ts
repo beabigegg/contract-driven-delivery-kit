@@ -1756,7 +1756,11 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     ].join('\n'), 'utf8');
   }
 
-  function bugFixBlock(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const REG_COMMAND = 'pytest tests/orders/test_filter.py';
+
+  // A complete behavior-changing block. The default regression.summary points at
+  // a run summary materialized by writeRegressionSummary(changeId).
+  function bugFixBlock(changeId: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       'schema-version': '0.1.0',
       symptom: 'Orders filter options are empty',
@@ -1769,10 +1773,24 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
       ],
       root_cause: { pointer: 'src/pages/Orders.tsx:42-68', summary: 'mapped status_label not status' },
       fix: { files_changed: ['src/pages/Orders.tsx'], summary: 'use the canonical status field' },
-      regression: { status: 'passed', command: 'pytest tests/orders/test_filter.py' },
+      regression: { status: 'passed', command: REG_COMMAND, summary: `specs/changes/${changeId}/test-runs/reg/summary.json` },
       residual_risk: 'none',
       ...overrides,
     };
+  }
+
+  // Materialize the run summary.json the default regression.summary points at, so
+  // the gate's summary validation (under test-runs/, matching change_id + status +
+  // command) finds a real `cdd-kit test run` artifact.
+  function writeRegressionSummary(changeId: string, opts: { status?: string; command?: string } = {}): void {
+    const abs = join(tmpRepo, 'specs', 'changes', changeId, 'test-runs', 'reg', 'summary.json');
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, JSON.stringify({
+      change_id: changeId,
+      phase: 'targeted',
+      status: opts.status ?? 'passed',
+      command: opts.command ?? REG_COMMAND,
+    }), 'utf8');
   }
 
   function writeBugFixLog(
@@ -1811,7 +1829,8 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-002');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir);
-    writeBugFixLog(changeDir, 'bug-002', bugFixBlock());
+    writeRegressionSummary('bug-002');
+    writeBugFixLog(changeDir, 'bug-002', bugFixBlock('bug-002'));
 
     const r = runCli(['gate', 'bug-002'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml|lane: bug-fix requires/i);
@@ -1822,7 +1841,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-003');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir);
-    const block = bugFixBlock();
+    const block = bugFixBlock('bug-003');
     delete block.symptom;
     writeBugFixLog(changeDir, 'bug-003', block);
 
@@ -1836,7 +1855,8 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-004');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir);
-    writeBugFixLog(changeDir, 'bug-004', bugFixBlock({
+    writeRegressionSummary('bug-004');
+    writeBugFixLog(changeDir, 'bug-004', bugFixBlock('bug-004', {
       hypotheses: [{ id: 'H1', candidate: 'src/pages/Orders.tsx::x', reason: 'r', result: 'unconfirmed' }],
     }));
 
@@ -1850,7 +1870,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-005');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir);
-    writeBugFixLog(changeDir, 'bug-005', bugFixBlock({
+    writeBugFixLog(changeDir, 'bug-005', bugFixBlock('bug-005', {
       regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-005/test-runs/nope/summary.json' },
     }));
 
@@ -1864,7 +1884,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-006');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir, 'no');
-    writeBugFixLog(changeDir, 'bug-006', bugFixBlock({ reproduction: { status: 'not-reproduced' } }));
+    writeBugFixLog(changeDir, 'bug-006', bugFixBlock('bug-006', { reproduction: { status: 'not-reproduced' } }));
 
     const r = runCli(['gate', 'bug-006'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
@@ -1876,7 +1896,8 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-007');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir, 'yes'); // classifier says diagnostic-only
-    writeBugFixLog(changeDir, 'bug-007', bugFixBlock()); // block omits diagnostic_only => behavior fix
+    writeRegressionSummary('bug-007');
+    writeBugFixLog(changeDir, 'bug-007', bugFixBlock('bug-007')); // block omits diagnostic_only => behavior fix
 
     const r = runCli(['gate', 'bug-007'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
@@ -1943,7 +1964,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir);
     // change-request.md exists and is repo-relative, but is not a run summary.
-    writeBugFixLog(changeDir, 'bug-011', bugFixBlock({
+    writeBugFixLog(changeDir, 'bug-011', bugFixBlock('bug-011', {
       regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-011/change-request.md' },
     }));
 
@@ -1964,7 +1985,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     writeFileSync(join(runDir, 'summary.json'), JSON.stringify({
       change_id: 'other-change', phase: 'targeted', status: 'passed', command: 'pytest',
     }), 'utf8');
-    writeBugFixLog(changeDir, 'bug-012', bugFixBlock({
+    writeBugFixLog(changeDir, 'bug-012', bugFixBlock('bug-012', {
       regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-012/test-runs/r1/summary.json' },
     }));
 
@@ -1978,7 +1999,8 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-013');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir);
-    writeBugFixLog(changeDir, 'bug-013', bugFixBlock(), 'backend-engineer');
+    writeRegressionSummary('bug-013');
+    writeBugFixLog(changeDir, 'bug-013', bugFixBlock('bug-013'), 'backend-engineer');
 
     const r = runCli(['gate', 'bug-013'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
@@ -2007,5 +2029,55 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-014'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/no `bug-fix:` evidence block is present/i);
+  });
+
+  it('BF15: a regression.summary recording a failed run (vs declared passed) fails the gate', () => {
+    runCli(['new', 'bug-015'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-015');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-015', { status: 'failed' }); // summary records a FAILED run
+    writeBugFixLog(changeDir, 'bug-015', bugFixBlock('bug-015')); // block claims regression passed
+
+    const r = runCli(['gate', 'bug-015'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records status `failed`, not the declared `passed`/i);
+  });
+
+  it('BF16: a diagnostic-only record that also claims a fix fails the gate', () => {
+    runCli(['new', 'bug-016'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-016');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'yes'); // classifier approves diagnostic-only
+    writeBugFixLog(changeDir, 'bug-016', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as it does locally',
+      actual_behavior: 'Export fails ~1 in 10 CI runs',
+      reproduction: { status: 'environment-blocked' },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'unconfirmed' }],
+      // contradiction: a diagnostic-only record claiming source files were fixed.
+      fix: { files_changed: ['src/export/worker.ts'], summary: 'patched the race' },
+    });
+
+    const r = runCli(['gate', 'bug-016'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/a diagnostic-only record must not claim a fix.*`fix`/i);
+  });
+
+  it('BF17: a behavior-changing fix with regression.status passed but no summary fails the gate', () => {
+    runCli(['new', 'bug-017'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-017');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    // status-only regression claim, no durable run summary.
+    writeBugFixLog(changeDir, 'bug-017', bugFixBlock('bug-017', {
+      regression: { status: 'passed', command: 'pytest' },
+    }));
+
+    const r = runCli(['gate', 'bug-017'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/must reference a durable regression run summary/i);
   });
 });

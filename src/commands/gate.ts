@@ -925,16 +925,18 @@ function enforceBugFixEvidence(
 
   // 2. Referenced run summaries must be THIS change's real run artifacts (§7):
   //    repo-root-relative, under this change's test-runs/, and a JSON summary
-  //    whose change_id matches — mirroring the test-evidence artifact check, so a
-  //    bare existing path (e.g. CHANGELOG.md) or a summary copied from another
-  //    change cannot stand in for a real reproduction/regression run.
-  const regression = block.regression as { summary?: unknown } | undefined;
+  //    whose change_id matches AND whose recorded status/command match what the
+  //    block declares — mirroring the test-evidence summaryMismatch check, so a
+  //    bare existing path (e.g. CHANGELOG.md), a summary copied from another
+  //    change, or a failed/unrelated run cannot stand in as reproduction/
+  //    regression proof.
+  const regression = block.regression as { status?: unknown; command?: unknown; summary?: unknown } | undefined;
   const testRunsDir = resolve(changeDir, 'test-runs');
-  const refs: ReadonlyArray<readonly [string, unknown]> = [
-    ['reproduction.summary', reproduction?.summary],
-    ['regression.summary', regression?.summary],
+  const refs: ReadonlyArray<{ field: string; value: unknown; status?: unknown; command?: unknown }> = [
+    { field: 'reproduction.summary', value: reproduction?.summary, command: (reproduction as { command?: unknown } | undefined)?.command },
+    { field: 'regression.summary', value: regression?.summary, status: regression?.status, command: regression?.command },
   ];
-  for (const [field, value] of refs) {
+  for (const { field, value, status: wantStatus, command: wantCommand } of refs) {
     if (typeof value !== 'string' || value === '') continue;
     if (isAbsolute(value)) {
       errors.push(
@@ -958,9 +960,9 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    let summaryChangeId: unknown;
+    let summary: { change_id?: unknown; status?: unknown; command?: unknown };
     try {
-      summaryChangeId = (JSON.parse(readFileSync(abs, 'utf8')) as { change_id?: unknown }).change_id;
+      summary = JSON.parse(readFileSync(abs, 'utf8')) as { change_id?: unknown; status?: unknown; command?: unknown };
     } catch {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is not a readable JSON run summary ` +
@@ -968,32 +970,72 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    if (summaryChangeId !== changeId) {
+    if (summary.change_id !== changeId) {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records change ` +
-        `\`${String(summaryChangeId)}\`, not \`${changeId}\` — reference this change's own run summary (ADR 0006 §7).`,
+        `\`${String(summary.change_id)}\`, not \`${changeId}\` — reference this change's own run summary (ADR 0006 §7).`,
+      );
+      continue;
+    }
+    if (wantStatus !== undefined && summary.status !== wantStatus) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records status \`${String(summary.status)}\`, ` +
+        `not the declared \`${String(wantStatus)}\` — the referenced run must actually prove the claimed result (ADR 0006 §7).`,
+      );
+      continue;
+    }
+    if (typeof wantCommand === 'string' && summary.command !== wantCommand) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records command \`${String(summary.command)}\`, ` +
+        `not the declared \`${wantCommand}\` (ADR 0006 §7).`,
       );
     }
   }
 
-  // 3. The diagnostic-only exemption (no root-cause/regression proof) is valid
-  //    only with EXPLICIT classifier approval (§10): the block may claim
-  //    diagnostic_only only when change-classification.md sets `## Diagnostic
-  //    Only` to `yes`. Classifier silence is not approval — otherwise a behavior
-  //    bug could self-exempt by setting the flag the classifier never granted.
+  // 3. Diagnostic-only consistency and the diagnostic vs behavior-fix boundary
+  //    (ADR 0006 §10).
   const classifierDiag = readClassifierDiagnosticOnly(changeDir);
   const blockDiag = block.diagnostic_only === true;
-  if (blockDiag && classifierDiag !== true) {
-    errors.push(
-      'agent-log/bug-fix-engineer.yml: bug-fix.diagnostic_only is true but change-classification.md does ' +
-      'not explicitly set `## Diagnostic Only` to `yes` — the diagnostic-only exemption from ' +
-      'root-cause/regression proof requires explicit classifier approval (ADR 0006 §10).',
-    );
-  } else if (!blockDiag && classifierDiag === true) {
-    errors.push(
-      'agent-log/bug-fix-engineer.yml: change-classification.md marks the change diagnostic-only ' +
-      '(`## Diagnostic Only` `- yes`) but bug-fix.diagnostic_only is not set — reconcile the two (ADR 0006 §10).',
-    );
+  if (blockDiag) {
+    // The exemption from root-cause/regression proof needs EXPLICIT classifier
+    // approval — classifier silence is not approval, or a behavior bug could
+    // self-exempt by setting a flag the classifier never granted.
+    if (classifierDiag !== true) {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: bug-fix.diagnostic_only is true but change-classification.md does ' +
+        'not explicitly set `## Diagnostic Only` to `yes` — the diagnostic-only exemption from ' +
+        'root-cause/regression proof requires explicit classifier approval (ADR 0006 §10).',
+      );
+    }
+    // A diagnostic-only record must not ALSO claim a fix — it does not fix the
+    // symptom yet; the fix and its root-cause/regression proof belong to a
+    // follow-up change, not this record (§10).
+    const claimed = (['root_cause', 'fix', 'regression'] as const).filter((k) => block[k] !== undefined);
+    if (claimed.length > 0) {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a diagnostic-only record must not claim a fix, but it carries ' +
+        `\`${claimed.join('`, `')}\` — diagnostic-only does not fix the symptom yet; record the fix and its ` +
+        'proof in a follow-up change (ADR 0006 §10).',
+      );
+    }
+  } else {
+    if (classifierDiag === true) {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: change-classification.md marks the change diagnostic-only ' +
+        '(`## Diagnostic Only` `- yes`) but bug-fix.diagnostic_only is not set — reconcile the two (ADR 0006 §10).',
+      );
+    }
+    // A behavior-changing fix must reference a durable regression run summary —
+    // `regression.status: passed` alone is not proof (ADR 0006 §6/§7); the loop
+    // above then verifies that summary records this change's passing run.
+    const regSummary = (block.regression as { summary?: unknown } | undefined)?.summary;
+    if (typeof regSummary !== 'string' || regSummary === '') {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a behavior-changing fix must reference a durable regression run ' +
+        'summary in bug-fix.regression.summary (a `cdd-kit test run` summary.json) — `regression.status: ' +
+        'passed` alone is not proof (ADR 0006 §6, §7).',
+      );
+    }
   }
 }
 

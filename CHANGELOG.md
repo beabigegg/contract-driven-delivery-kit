@@ -44,12 +44,14 @@
   `bug-fix:` block (ADR 0006 §7). Beyond the schema's structural checks the gate
   adds the checks static schema cannot express: the log must be authored by
   `bug-fix-engineer` and carry this change's `change-id`; a reproduced symptom
-  must name a `confirmed` hypothesis; referenced reproduction/regression summaries
+  must name a `confirmed` hypothesis; a behavior-changing fix must reference a
+  durable regression run summary, and referenced reproduction/regression summaries
   must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
-  a JSON summary recording the matching `change_id`); and the diagnostic-only
+  recording the matching `change_id`, status, and command); the diagnostic-only
   exemption from root-cause/regression proof requires explicit classifier approval
-  (`## Diagnostic Only` `- yes`), not classifier silence. Feature and legacy
-  changes (no `## Lane: bug-fix`) are unaffected.
+  (`## Diagnostic Only` `- yes`), not silence, and a diagnostic-only record may
+  not itself claim a fix. Feature and legacy changes (no `## Lane: bug-fix`) are
+  unaffected.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
