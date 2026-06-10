@@ -127,10 +127,10 @@ Could you confirm or fill in the missing pieces?
 
 Only proceed to Step 1 once all three are answered or the user explicitly says
 "proceed without success criterion". Record the user's clarifications verbatim
-in `change-request.md` 禮 Original Request.
+in `change-request.md` → `## Original Request`.
 
 The cost of this step: 1 short message round-trip. The cost of skipping it:
-one full classifier+contract-reviewer cycle, often 5-10? more tokens, plus an
+one full classifier+contract-reviewer cycle, often 5-10× more tokens, plus an
 inevitable re-classification when the agents discover the ambiguity.
 
 ---
@@ -279,7 +279,7 @@ Before writing any files, verify the classifier response contains:
 
 - `## Tier` followed by `- N` where N is a single digit 0-5 (NOT `0 / 1 / 2 / 3 / 4 / 5` — that is the unfilled placeholder).
 - `## Required Agents` with at least one agent name.
-- `## Inferred Acceptance Criteria` with at least one filled `AC-1: ?圳 line.
+- `## Inferred Acceptance Criteria` with at least one filled `AC-1: …` line.
 
 If any of these are missing or still hold the literal placeholder text, STOP. Re-prompt the classifier with the missing pieces named explicitly. Do NOT write classification.md — gate will reject it as a stub anyway and you will have wasted the round-trip.
 

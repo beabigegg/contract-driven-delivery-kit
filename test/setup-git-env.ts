@@ -20,6 +20,18 @@ writeFileSync(
   '[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n',
 );
 
+// Drop any inherited ad-hoc config injected via the environment. Git applies
+// GIT_CONFIG_KEY_<n>/GIT_CONFIG_VALUE_<n> (counted by GIT_CONFIG_COUNT) with
+// "command line" precedence, which overrides GIT_CONFIG_GLOBAL — so a parent
+// env could still force commit.gpgsign or a custom core.hooksPath. Clear them.
+const count = Number(process.env.GIT_CONFIG_COUNT ?? '0');
+for (let i = 0; i < count; i++) {
+  delete process.env[`GIT_CONFIG_KEY_${i}`];
+  delete process.env[`GIT_CONFIG_VALUE_${i}`];
+}
+delete process.env.GIT_CONFIG_COUNT;
+delete process.env.GIT_CONFIG; // single-file override, also higher precedence
+
 // Point global/system config at a known-empty file and skip system config.
 process.env.GIT_CONFIG_GLOBAL = emptyCfg;
 process.env.GIT_CONFIG_SYSTEM = emptyCfg;

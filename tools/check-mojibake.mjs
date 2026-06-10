@@ -18,25 +18,53 @@
  *
  * Markdown only: TypeScript/JavaScript `??` is the nullish-coalescing operator
  * and is intentionally not scanned.
+ *
+ * Scope: the shipped, English, LLM-facing surface (agent prompts, skills, ADRs,
+ * the README, and user-facing templates). Per-change working docs under
+ * `specs/` are intentionally excluded -- they may be authored in any language
+ * (the kit's own `specs/changes/.../plan.md` is Traditional Chinese), so a
+ * lone-CJK heuristic does not apply there.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-// assets/ is gitignored build output: a copy of .claude/, templates, etc. that
-// build.js regenerates. Scanning the sources (below) covers it; scanning the
-// mirror only risks stale false alarms before a rebuild.
+// assets/ is gitignored build output (a copy of the sources scanned below).
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'assets']);
 
-/** Recursively collect tracked-style `.md` files, skipping build/vendor dirs. */
-function collect(dir, out) {
+// Explicit shipped-prompt/doc roots (files or directories), relative to ROOT.
+const SCAN_TARGETS = [
+  '.claude/agents',
+  '.claude/skills',
+  'docs',
+  'README.md',
+  'AGENTS.template.md',
+  'CLAUDE.template.md',
+  'CODEX.template.md',
+];
+
+/** Recursively collect `.md` files under a directory, skipping build/vendor dirs. */
+function collectDir(dir, out) {
   for (const name of readdirSync(dir)) {
     if (SKIP_DIRS.has(name)) continue;
     const full = join(dir, name);
     const st = statSync(full);
-    if (st.isDirectory()) collect(full, out);
+    if (st.isDirectory()) collectDir(full, out);
     else if (name.endsWith('.md')) out.push(full);
+  }
+  return out;
+}
+
+/** Resolve SCAN_TARGETS (files + directories) into a flat `.md` file list. */
+function collectTargets() {
+  const out = [];
+  for (const target of SCAN_TARGETS) {
+    const full = join(ROOT, target);
+    if (!existsSync(full)) continue;
+    const st = statSync(full);
+    if (st.isDirectory()) collectDir(full, out);
+    else if (full.endsWith('.md')) out.push(full);
   }
   return out;
 }
@@ -45,8 +73,14 @@ function collect(dir, out) {
 // real inline code span (those are preceded by whitespace or punctuation).
 const ESCAPE_RE = /[A-Za-z0-9]`[ntr][A-Za-z0-9]/;
 
+// CJK / fullwidth ranges. Used only to flag a *lone* CJK char (mojibake), so a
+// real Chinese run is not penalized.
+const isCJK = (cp) =>
+  cp !== undefined &&
+  ((cp >= 0x3000 && cp <= 0x9fff) || (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0xff00 && cp <= 0xffef));
+
 const findings = [];
-for (const file of collect(ROOT, [])) {
+for (const file of collectTargets()) {
   const rel = relative(ROOT, file);
   const lines = readFileSync(file, 'utf8').split('\n');
   lines.forEach((line, i) => {
@@ -57,13 +91,18 @@ for (const file of collect(ROOT, [])) {
     if (ESCAPE_RE.test(line)) {
       findings.push(`${rel}:${ln}: literalized escape (\`n/\`t/\`r) in text -> ${line.trim().slice(0, 100)}`);
     }
-    for (const ch of line) {
-      const cp = ch.codePointAt(0);
+    const cps = [...line].map((c) => c.codePointAt(0));
+    for (let j = 0; j < cps.length; j++) {
+      const cp = cps[j];
       const garbage =
+        cp === 0xfffd || // UTF-8 replacement char (malformed-byte decode / `replace`)
         (cp >= 0x80 && cp <= 0x9f) || // C1 controls
         (cp >= 0xe000 && cp <= 0xf8ff) || // private use
         (cp >= 0xd800 && cp <= 0xdfff); // surrogates
-      if (garbage) {
+      // A lone CJK code point wedged into otherwise-Latin text is mojibake
+      // (e.g. `?圳`, `禮`). A genuine CJK run (future i18n) is left alone.
+      const loneCJK = isCJK(cp) && !isCJK(cps[j - 1]) && !isCJK(cps[j + 1]);
+      if (garbage || loneCJK) {
         findings.push(`${rel}:${ln}: corrupt code point U+${cp.toString(16).toUpperCase()} -> ${line.trim().slice(0, 100)}`);
         break;
       }
