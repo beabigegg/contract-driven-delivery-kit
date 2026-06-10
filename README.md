@@ -286,6 +286,139 @@ See the `cdd-kit test` reference below and `references/sdd-tdd-policy.md`.
 
 ---
 
+## Bug-fix lane (ADR 0006)
+
+Bug fixing starts from a *symptom* ("the filter is empty", "pytest fails", "the
+API returns the wrong shape"), not from a desired behavior. When the
+`change-classifier` detects a symptom-driven request it sets `## Lane\n- bug-fix`
+and a `## Bug Symptom Type` in `change-classification.md`. That activates the
+bug-fix lane: `bug-fix-engineer` must diagnose before editing
+(`cdd-kit bug suspects` → hypotheses → reproduce), and `cdd-kit gate` then
+requires a structured, machine-readable repair record at
+`specs/changes/<id>/agent-log/bug-fix-engineer.yml` — the standard agent-log
+envelope with a nested `bug-fix:` evidence block.
+
+A behavior-changing fix must carry: `symptom` / `expected_behavior` /
+`actual_behavior`, exactly one `reproduction.status`
+(`reproduced` / `test-reproduced` / `visual-reproduced` for a behavior fix), at
+least one `confirmed` hypothesis once reproduced, a `root_cause.pointer`, a `fix`,
+a `regression` with `status: passed`, `residual_risk`, **and** a passing
+`test-evidence.yml` (the bounded ladder above). Referenced reproduction/regression
+summaries must be this change's own real `cdd-kit test run` artifacts under its
+`test-runs/`. No failure may be waived.
+
+A complete, gate-passing record:
+[`docs/examples/bug-fix/bug-fix-engineer.sample.yml`](docs/examples/bug-fix/bug-fix-engineer.sample.yml).
+A real gate rejection of an incomplete one:
+[`docs/examples/bug-fix/gate-failure.txt`](docs/examples/bug-fix/gate-failure.txt).
+
+### Worked examples
+
+Each example shows the classifier markers and the salient `bug-fix:` block fields
+for that symptom class (including the ADR 0006 PR-5 typed evidence pointer it
+attaches). Full envelope omitted for brevity — see the sample above.
+
+**1. UI / visual bug** (a panel renders empty). Reproduce with a screenshot/browser
+capture; a `visual-reproduced` reproduction **requires** `visual_evidence.before`
+(a durable, repo-relative pre-fix artifact — the gate rejects an absolute or
+missing path).
+
+```md
+## Lane
+- bug-fix
+## Bug Symptom Type
+- visual
+```
+```yaml
+bug-fix:
+  reproduction: { status: visual-reproduced }
+  visual_evidence:
+    before: "specs/changes/<id>/evidence/before.png"   # required for visual-reproduced
+    after:  "specs/changes/<id>/evidence/after.png"      # optional
+  root_cause: { pointer: "src/pages/Orders.tsx:42-68" }
+  regression: { status: passed, command: "npm test -- orders-filter", summary: "specs/changes/<id>/test-runs/<reg>/summary.json" }
+```
+
+**2. pytest failure repair** (a test reproduces the defect). Use
+`test-reproduced` with `failing_before_fix: true`: the `reproduction.summary` must
+point at a run that **failed (or timed out) before the fix**, with its
+`reproduction.command`; the `regression` then references the post-fix **passing**
+run. Both summaries are real `cdd-kit test run` artifacts.
+
+```md
+## Lane
+- bug-fix
+## Bug Symptom Type
+- test-failure
+```
+```yaml
+bug-fix:
+  reproduction:
+    status: test-reproduced
+    command: "pytest tests/orders/test_filter.py"
+    failing_before_fix: true
+    summary: "specs/changes/<id>/test-runs/<repro>/summary.json"   # a FAILED pre-fix run
+  hypotheses:
+    - { id: H1, candidate: "src/pages/Orders.tsx::buildFilterOptions", reason: "graph match", result: confirmed }
+  root_cause: { pointer: "src/pages/Orders.tsx:42-68" }
+  regression:
+    status: passed
+    command: "pytest tests/orders/test_filter.py"
+    summary: "specs/changes/<id>/test-runs/<reg>/summary.json"     # the PASSING post-fix run
+```
+
+**3. API response-shape bug** (the endpoint returns the wrong shape). Record
+`data_evidence` — a `kind` plus a request/response or contract `pointer` (a
+durable, repo-relative artifact).
+
+```md
+## Lane
+- bug-fix
+## Bug Symptom Type
+- api
+```
+```yaml
+bug-fix:
+  reproduction: { status: test-reproduced, command: "pytest tests/api/test_orders.py", failing_before_fix: true, summary: "specs/changes/<id>/test-runs/<repro>/summary.json" }
+  data_evidence:
+    kind: request-response
+    pointer: "specs/changes/<id>/evidence/orders-response.json"
+    summary: "GET /api/orders omitted the canonical status field"
+  root_cause: { pointer: "src/api/orders.ts:88-104" }
+  regression: { status: passed, command: "pytest tests/api/test_orders.py", summary: "specs/changes/<id>/test-runs/<reg>/summary.json" }
+```
+
+**4. Intermittent, diagnostic-only change** (add instrumentation; do not claim a
+fix yet). Mark it diagnostic-only in **both** places — the classifier's
+`## Diagnostic Only\n- yes` and `bug-fix.diagnostic_only: true` (the gate requires
+the classifier's explicit `yes`, not silence). A diagnostic-only record uses a
+diagnostic reproduction status (`intermittent` / `environment-blocked` /
+`not-reproduced`) and is **exempt** from `root_cause` / `fix` / `regression` — in
+fact it must NOT carry them, nor a successful reproduction status. It still cannot
+pass with required test failures: either record a passing `test-evidence.yml` for
+the instrumentation, or, when no code path is exercised, set an auditable
+`test-evidence-not-applicable: "<reason>"` in `tasks.yml` (one of the two is
+required — it cannot pass with neither). Open a follow-up change for the real fix.
+
+```md
+## Lane
+- bug-fix
+## Bug Symptom Type
+- ci-failure
+## Diagnostic Only
+- yes
+```
+```yaml
+bug-fix:
+  diagnostic_only: true
+  reproduction: { status: intermittent }
+  hypotheses:
+    - { id: H1, candidate: "src/export/worker.ts::run", reason: "CI-only path", result: unconfirmed }
+  # no root_cause / fix / regression — this change does not fix the symptom yet
+```
+
+---
+
 ## CLI Reference
 
 These are shell commands ??not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
@@ -940,6 +1073,71 @@ hard-blocks source `Read`s when a code-map exists).
 Use `--engine native` for the built-in graph, `--engine codemap` for the older
 code-map-only fallback, `--engine codegraph` to require external CodeGraph, or
 `CDD_CODEGRAPH_BIN=/path/to/codegraph` to point at a custom binary.
+
+### `cdd-kit bug suspects`
+
+The bug-fix lane's symptom-to-suspects mapper (ADR 0006). It packages the
+graph/index layer above into a single symptom-driven query: given a defect
+description, it returns candidate source files with matched symbols, line ranges,
+a reason, and caller/dependent impact — the smallest useful read scope before you
+open any file. It is read-only and does not edit code.
+
+```bash
+cdd-kit bug suspects <change-id> --symptom "<text>"   # change-scoped
+cdd-kit bug suspects --text "<text>"                  # change-less (no tracked change yet)
+```
+
+Two invocation forms:
+
+- **change-scoped** — pass a tracked `<change-id>` plus `--symptom "<text>"`. The
+  query also folds in that change's `context-manifest.md` allowed paths (ranked
+  first; candidates outside the manifest are flagged), `test-plan.md` tests, and
+  staged files.
+- **change-less** — pass `--text "<text>"` with no change id, to explore before a
+  change exists.
+
+Flags:
+
+- `--json` — print the machine-readable payload (shown below) instead of the
+  human-readable list.
+- `--limit <n>` — cap the number of candidates (default `20`).
+- `--map <path>` — code-map to query (default `.cdd/code-map.yml`); the native
+  `.cdd/code-graph.index.json` beside it is preferred, with the code-map as the
+  fallback.
+- `--refresh` — regenerate a stale code-map before querying (off by default, so a
+  routine query never mutates the committed index).
+
+Exit codes: `0` on success — **including a zero-candidate result** (an empty
+`candidates` list is a valid answer, not an error); `2` for a usage/setup problem
+— no symptom text given, an unknown `<change-id>`, or no code intel
+(`.cdd/code-graph.index.json` / `.cdd/code-map.yml`) to query (run `cdd-kit
+code-map` first).
+
+`--json` payload (real output, abbreviated to two candidates):
+
+```json
+{
+  "change_id": null,
+  "symptom": "gate fails to validate bug-fix evidence",
+  "candidates": [
+    {
+      "path": "src/commands/gate.ts",
+      "symbols": ["gate", "GateOptions", "EvidenceRun", "TestEvidenceFile"],
+      "reason": "gate, gate.ts, GateOptions matched graph index",
+      "read_ranges": ["1288-1413", "116-118", "563-569", "571-578"],
+      "impact": { "callers": [], "dependents": [] }
+    },
+    {
+      "path": "src/commands/validate.ts",
+      "symbols": ["validate"],
+      "reason": "validate matched graph index",
+      "read_ranges": ["49-119"],
+      "impact": { "callers": ["src/commands/gate.ts"], "dependents": [] }
+    }
+  ],
+  "next_commands": ["cdd-kit graph query gate --with-source"]
+}
+```
 
 ### `cdd-kit mcp`
 
