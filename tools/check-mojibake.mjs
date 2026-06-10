@@ -38,6 +38,9 @@ const SCAN_TARGETS = [
   '.claude/agents',
   '.claude/skills',
   'docs',
+  'contracts',
+  'specs/templates', // scaffolds copied into every `cdd-kit new` change
+  'tests/templates',
   'README.md',
   'AGENTS.template.md',
   'CLAUDE.template.md',
@@ -73,6 +76,12 @@ function collectTargets() {
 // real inline code span (those are preceded by whitespace or punctuation).
 const ESCAPE_RE = /[A-Za-z0-9]`[ntr][A-Za-z0-9]/;
 
+// UTF-8-decoded-as-Windows-1252 mojibake: printable code points that no garbage
+// range covers. `â€` (U+00E2 U+20AC) precedes corrupted smart quotes/dashes;
+// `Ã`/`Â` + a Latin-1 continuation byte is the classic two-byte mis-decode.
+// None of these occur in legitimate English prompt text.
+const CP1252_RE = /\u00e2\u20ac|\u00c3[\u0080-\u00bf]|\u00c2[\u00a0-\u00bf]/;
+
 // CJK / fullwidth ranges. Used only to flag a *lone* CJK char (mojibake), so a
 // real Chinese run is not penalized.
 const isCJK = (cp) =>
@@ -90,6 +99,9 @@ for (const file of collectTargets()) {
     }
     if (ESCAPE_RE.test(line)) {
       findings.push(`${rel}:${ln}: literalized escape (\`n/\`t/\`r) in text -> ${line.trim().slice(0, 100)}`);
+    }
+    if (CP1252_RE.test(line)) {
+      findings.push(`${rel}:${ln}: Windows-1252 mojibake sequence -> ${line.trim().slice(0, 100)}`);
     }
     const cps = [...line].map((c) => c.codePointAt(0));
     for (let j = 0; j < cps.length; j++) {

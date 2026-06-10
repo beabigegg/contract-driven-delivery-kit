@@ -30,6 +30,7 @@ for (let i = 0; i < count; i++) {
   delete process.env[`GIT_CONFIG_VALUE_${i}`];
 }
 delete process.env.GIT_CONFIG_COUNT;
+delete process.env.GIT_CONFIG_PARAMETERS; // `git -c`-equivalent, command-line precedence
 delete process.env.GIT_CONFIG; // single-file override, also higher precedence
 
 // Point global/system config at a known-empty file and skip system config.
