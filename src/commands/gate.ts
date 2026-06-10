@@ -813,7 +813,10 @@ function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return null;
   const m = readFileSync(classifPath, 'utf8').match(/^##\s+Lane\s*\n\s*-\s*(feature|bug-fix)\b/im);
-  return m ? (m[1] as 'feature' | 'bug-fix') : null;
+  // Lowercase the match: the regex is case-insensitive, so `- Bug-Fix` matches —
+  // returning it verbatim would fail the `=== 'bug-fix'` comparison and silently
+  // skip the whole bug-fix gate for that change.
+  return m ? (m[1].toLowerCase() as 'feature' | 'bug-fix') : null;
 }
 
 /** The classifier's `## Diagnostic Only` decision (ADR 0006 §10), or null if absent. */
@@ -831,17 +834,21 @@ function readClassifierDiagnosticOnly(changeDir: string): boolean | null {
  * agent-log.schema.ts) already enforces the structural shape — symptom /
  * expected / actual / reproduction status / hypotheses, and, for a behavior-
  * changing fix, the full repair shape with a passing regression and a behavior-
- * fix reproduction status. This adds the cross-field rules static schema cannot
- * express:
- *   - a reproduced symptom must have a `confirmed` hypothesis;
- *   - referenced run summaries must actually exist;
- *   - the block's `diagnostic_only` must agree with the classifier's decision.
- * Fires only for `lane: bug-fix`; feature/legacy changes are untouched.
+ * fix reproduction status. This adds the checks static schema cannot express: the
+ * log is authored by bug-fix-engineer, complete, and bound to this change; a
+ * reproduced symptom names a `confirmed` hypothesis; referenced run summaries are
+ * this change's real `cdd-kit test run` artifacts (matching change_id, status, and
+ * command, with the reproduction run failing before the fix); a behavior fix
+ * carries durable, command-tied regression proof plus a present test-evidence.yml;
+ * and the diagnostic-only exemption is honored only with explicit classifier
+ * approval and never alongside a fix claim. Fires only for `lane: bug-fix`;
+ * feature/legacy changes are untouched.
  */
 function enforceBugFixEvidence(
   changeDir: string,
   changeId: string,
   cwd: string,
+  tasksData: TasksFile | null,
   errors: string[],
   warnings: string[],
 ): void {
@@ -898,6 +905,17 @@ function enforceBugFixEvidence(
       `gated (\`${changeId}\`) — this repair record was generated for (or copied from) a different change.`,
     );
   }
+  // The repair record must be a completed handoff — the schema's `status` enum
+  // also allows `blocked` / `needs-review`, which mean the bug-fix-engineer did
+  // not finish, so the lane must not pass on them (ADR 0006 §7).
+  const loggedStatus = (data as { status?: unknown }).status;
+  if (loggedStatus !== 'complete' && loggedStatus !== 'done' && loggedStatus !== 'approved') {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: status is \`${String(loggedStatus)}\` — a bug-fix lane change needs a ` +
+      'completed bug-fix-engineer repair record (status: complete / done / approved), not a blocked or ' +
+      'needs-review one (ADR 0006 §7).',
+    );
+  }
 
   const block = (data as { 'bug-fix'?: Record<string, unknown> })['bug-fix'];
   if (!block || typeof block !== 'object') {
@@ -910,7 +928,8 @@ function enforceBugFixEvidence(
   }
 
   // 1. A reproduced symptom must name a confirmed root-cause hypothesis (§7).
-  const reproduction = block.reproduction as { status?: string; summary?: unknown } | undefined;
+  const reproduction = block.reproduction as
+    { status?: string; command?: unknown; failing_before_fix?: unknown; summary?: unknown } | undefined;
   const status = reproduction?.status;
   if (typeof status === 'string' && (BEHAVIOR_FIX_REPRODUCTION_STATUSES as readonly string[]).includes(status)) {
     const hyps = Array.isArray(block.hypotheses) ? block.hypotheses : [];
@@ -933,7 +952,14 @@ function enforceBugFixEvidence(
   const regression = block.regression as { status?: unknown; command?: unknown; summary?: unknown } | undefined;
   const testRunsDir = resolve(changeDir, 'test-runs');
   const refs: ReadonlyArray<{ field: string; value: unknown; status?: unknown; command?: unknown }> = [
-    { field: 'reproduction.summary', value: reproduction?.summary, command: (reproduction as { command?: unknown } | undefined)?.command },
+    {
+      field: 'reproduction.summary',
+      value: reproduction?.summary,
+      // A failing-before-fix reproduction (ADR 0006 §6) must reference a FAILED
+      // run; otherwise the post-fix passing summary could be reused as the repro.
+      status: reproduction?.failing_before_fix === true ? 'failed' : undefined,
+      command: reproduction?.command,
+    },
     { field: 'regression.summary', value: regression?.summary, status: regression?.status, command: regression?.command },
   ];
   for (const { field, value, status: wantStatus, command: wantCommand } of refs) {
@@ -980,7 +1006,7 @@ function enforceBugFixEvidence(
     if (wantStatus !== undefined && summary.status !== wantStatus) {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records status \`${String(summary.status)}\`, ` +
-        `not the declared \`${String(wantStatus)}\` — the referenced run must actually prove the claimed result (ADR 0006 §7).`,
+        `but the referenced run must record \`${String(wantStatus)}\` to prove the claimed result (ADR 0006 §7).`,
       );
       continue;
     }
@@ -1025,15 +1051,39 @@ function enforceBugFixEvidence(
         '(`## Diagnostic Only` `- yes`) but bug-fix.diagnostic_only is not set — reconcile the two (ADR 0006 §10).',
       );
     }
-    // A behavior-changing fix must reference a durable regression run summary —
-    // `regression.status: passed` alone is not proof (ADR 0006 §6/§7); the loop
-    // above then verifies that summary records this change's passing run.
-    const regSummary = (block.regression as { summary?: unknown } | undefined)?.summary;
-    if (typeof regSummary !== 'string' || regSummary === '') {
+    // A behavior-changing fix must prove itself with durable, command-tied test
+    // evidence (ADR 0006 §6/§7): a regression run summary AND the command it ran
+    // (so the summary above is tied to the test that passed, not any same-change
+    // collect-only run), plus a present test-evidence.yml. `regression.status:
+    // passed` alone, or a summary with no declared command, is not proof.
+    const reg = block.regression as { summary?: unknown; command?: unknown } | undefined;
+    if (typeof reg?.summary !== 'string' || reg.summary === '') {
       errors.push(
         'agent-log/bug-fix-engineer.yml: a behavior-changing fix must reference a durable regression run ' +
         'summary in bug-fix.regression.summary (a `cdd-kit test run` summary.json) — `regression.status: ' +
         'passed` alone is not proof (ADR 0006 §6, §7).',
+      );
+    }
+    if (typeof reg?.command !== 'string' || reg.command === '') {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a behavior-changing fix must declare bug-fix.regression.command — ' +
+        'without it the referenced summary cannot be tied to the test that proves the fix, so any same-change ' +
+        'passing run (e.g. collect-only) would satisfy it (ADR 0006 §7).',
+      );
+    }
+    // The bug-fix lane uses the ADR 0005 test-evidence layer (ADR 0006 §6): a
+    // behavior fix must record test-evidence.yml (enforceTestEvidence then
+    // validates its required phases). The `test-evidence-not-applicable` opt-out
+    // and the legacy missing-evidence warning do not apply to a bug-fix behavior
+    // fix — only diagnostic-only records may skip it.
+    if (!existsSync(join(changeDir, 'test-evidence.yml'))) {
+      const optOutRaw = tasksData?.['test-evidence-not-applicable'];
+      const optOut = typeof optOutRaw === 'string' && optOutRaw.trim() !== '';
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a behavior-changing bug-fix must record passing test-evidence.yml ' +
+        '(the ADR 0005 bounded ladder) — ' +
+        (optOut ? 'the `test-evidence-not-applicable` opt-out does not apply to a bug-fix lane behavior fix' : 'none was found') +
+        ' (ADR 0006 §6, §7).',
       );
     }
   }
@@ -1137,7 +1187,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTierFloor(changeDir, errors, warnings);
   enforceContractSubstance(cwd, errors, warnings, strict);
   enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
-  enforceBugFixEvidence(changeDir, changeId, cwd, errors, warnings);
+  enforceBugFixEvidence(changeDir, changeId, cwd, tasksData, errors, warnings);
 
   for (const w of warnings) {
     log.warn(`  ${w}`);

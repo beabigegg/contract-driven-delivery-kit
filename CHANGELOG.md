@@ -39,19 +39,21 @@
   into `cdd-kit gate`.
 
 - **Bug-fix gate enforcement (ADR 0006 — gate integration).** `cdd-kit gate` now
-  detects `lane: bug-fix` from `change-classification.md` and requires the
-  bug-fix-engineer's `agent-log/bug-fix-engineer.yml` to carry a schema-valid
-  `bug-fix:` block (ADR 0006 §7). Beyond the schema's structural checks the gate
-  adds the checks static schema cannot express: the log must be authored by
-  `bug-fix-engineer` and carry this change's `change-id`; a reproduced symptom
-  must name a `confirmed` hypothesis; a behavior-changing fix must reference a
-  durable regression run summary, and referenced reproduction/regression summaries
+  detects `lane: bug-fix` from `change-classification.md` (case-insensitively) and
+  requires the bug-fix-engineer's `agent-log/bug-fix-engineer.yml` to carry a
+  schema-valid `bug-fix:` block (ADR 0006 §7). Beyond the schema's structural
+  checks the gate adds the checks static schema cannot express: the log must be a
+  completed handoff (`status: complete`/`done`/`approved`) authored by
+  `bug-fix-engineer` and bound to this change's `change-id`; a reproduced symptom
+  must name a `confirmed` hypothesis; referenced reproduction/regression summaries
   must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
-  recording the matching `change_id`, status, and command); the diagnostic-only
-  exemption from root-cause/regression proof requires explicit classifier approval
-  (`## Diagnostic Only` `- yes`), not silence, and a diagnostic-only record may
-  not itself claim a fix. Feature and legacy changes (no `## Lane: bug-fix`) are
-  unaffected.
+  recording the matching `change_id`, status, and command — and a
+  failing-before-fix reproduction must reference a failed run); a behavior-changing
+  fix must carry a durable regression summary with its command plus a present
+  `test-evidence.yml` (the `test-evidence-not-applicable` opt-out does not apply);
+  and the diagnostic-only exemption requires explicit classifier approval
+  (`## Diagnostic Only` `- yes`), not silence, and may not itself claim a fix.
+  Feature and legacy changes (no `## Lane: bug-fix`) are unaffected.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
