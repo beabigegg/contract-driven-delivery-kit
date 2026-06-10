@@ -60,6 +60,18 @@
   the log may not carry prohibited failure-waiver fields at any level. Feature and
   legacy changes (no `## Lane: bug-fix`) are unaffected.
 
+- **`cdd-kit bug suspects` (ADR 0006 — symptom-to-suspects mapping).** A
+  bug-facing wrapper over the existing code-graph / code-map index:
+  `cdd-kit bug suspects <change-id> --symptom "<text>"` (or `--text "<text>"` for
+  a change-less query) maps a symptom to candidate source files, reusing the
+  code-graph search/impact with the code-map index as a fallback. Each candidate
+  carries matched symbols, read ranges, a reason, and caller/dependent impact; a
+  change-scoped query also folds in `context-manifest.md` allowed paths (ranked
+  first, with out-of-manifest candidates flagged), `test-plan.md` tests, and
+  staged files, and suggests follow-up `next_commands`. Read-only by default
+  (pass `--refresh` to regenerate a stale map first); `--json` for machine output.
+  Adds `src/commands/bug-suspects.ts` and a `bug` CLI namespace.
+
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
   (ADR 0004 §6): an opt-in Claude Code hook that intercepts the agent's

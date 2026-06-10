@@ -630,6 +630,33 @@ test
     process.exit(exit);
   });
 
+// ── cdd bug suspects ──────────────────────────────────────────────────────────
+const bug = program
+  .command('bug')
+  .description('Bug-fix lane helpers (ADR 0006)');
+
+bug
+  .command('suspects [change-id]')
+  .description('Map a symptom to candidate source files using the code-graph / code-map index')
+  .option('--symptom <text>', 'Symptom text to map (use with a change-id)')
+  .option('--text <text>', 'Symptom text to map (text-only mode, no change-id required)')
+  .option('--limit <n>', 'Max candidates to return', '20')
+  .option('--map <path>', 'Path to code-map YAML (default: .cdd/code-map.yml)')
+  .option('--refresh', 'Regenerate the code-map if stale before querying (off by default)', false)
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string | undefined, opts: { symptom?: string; text?: string; limit: string; map?: string; refresh?: boolean; json?: boolean }) => {
+    const { bugSuspects } = await import('../commands/bug-suspects.js');
+    const exit = await bugSuspects(changeId, {
+      symptom: opts.symptom,
+      text: opts.text,
+      json: opts.json === true,
+      limit: parseInt(opts.limit, 10) || 20,
+      map: opts.map,
+      refresh: opts.refresh === true,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd detect-stack ──────────────────────────────────────────────────────────
 program
   .command('detect-stack')
