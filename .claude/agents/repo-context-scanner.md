@@ -23,15 +23,15 @@ Inspect the repository and produce a project profile before implementation or st
 - worker/cache/database/storage configuration
 
 **Do NOT read `specs/changes/` or `specs/archive/`.** Those are passive history records. Inspect only live sources: source code, package files, contracts/, tests/, CI workflows, and CLAUDE.md.
-Also do not read specs/templates/ ??those are scaffolding stubs, not live project state.
+Also do not read specs/templates/ — those are scaffolding stubs, not live project state.
 
 ## Detection extras
 
-- Monorepo / workspace ??check `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `go.work`, `pyproject.toml [tool.uv]` workspaces.
-- Containerization ??`Dockerfile`, `docker-compose.yml`, `compose.yaml`, `.devcontainer/`.
-- IaC ??`terraform/`, `*.tf`, `pulumi/`, CloudFormation `*.template.yaml`, `helm/`, `k8s/`.
-- Release flow ??`CHANGELOG.md`, `release-please-config.json`, `.changeset/`, `semantic-release` config in package.json.
-- Observability ??Sentry/Datadog/Honeycomb/OpenTelemetry config files; log shipper configs.
+- Monorepo / workspace — check `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `go.work`, `pyproject.toml [tool.uv]` workspaces.
+- Containerization — `Dockerfile`, `docker-compose.yml`, `compose.yaml`, `.devcontainer/`.
+- IaC — `terraform/`, `*.tf`, `pulumi/`, CloudFormation `*.template.yaml`, `helm/`, `k8s/`.
+- Release flow — `CHANGELOG.md`, `release-please-config.json`, `.changeset/`, `semantic-release` config in package.json.
+- Observability — Sentry/Datadog/Honeycomb/OpenTelemetry config files; log shipper configs.
 
 ## Output
 
@@ -87,13 +87,13 @@ frontend / backend / fullstack / monorepo / library / tool
 If a short handoff note is useful, end your response with an optional `Agent Log` YAML block`nfor main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 

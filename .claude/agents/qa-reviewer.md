@@ -49,11 +49,11 @@ Invoke `spec-drift-auditor` at the following points (do not wait for issues to s
 
 ## Evidence and decision thresholds
 
-- Evidence quality (lowest to highest) ??claim < screenshot < log excerpt < CI run URL < linked artifact bundle < reproducible repo / steps.
-- `approved` ??all required gates green, all required artifacts present, no unaddressed reviewer comments.
-- `approved-with-risk` ??only when (a) the residual risk is documented in qa-report.md, (b) an owner is assigned, (c) a follow-up issue exists with a date.
-- `blocked` ??any required gate failing, any contract claim unverified, any UI change without visual evidence.
-- Sign-off ??single reviewer for low/medium risk; two reviewers (qa-reviewer + spec-architect) for high/critical.
+- Evidence quality (lowest to highest) — claim < screenshot < log excerpt < CI run URL < linked artifact bundle < reproducible repo / steps.
+- `approved` — all required gates green, all required artifacts present, no unaddressed reviewer comments.
+- `approved-with-risk` — only when (a) the residual risk is documented in qa-report.md, (b) an owner is assigned, (c) a follow-up issue exists with a date.
+- `blocked` — any required gate failing, any contract claim unverified, any UI change without visual evidence.
+- Sign-off — single reviewer for low/medium risk; two reviewers (qa-reviewer + spec-architect) for high/critical.
 - Any required test failure blocks the gate. There is no known, pre-existing,
   waived, allowed, or ignored exception, and no failing required test may be
   excluded from a gate by documenting it. If a broad or full-suite run surfaces
@@ -93,7 +93,7 @@ approved / blocked / approved-with-risk
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
@@ -105,13 +105,13 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, end your response with an optional `Agent Log` YAML block`nfor main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 
@@ -119,7 +119,7 @@ Recommended `type` values for this agent when you emit an optional agent log:
 - `ci-run-url`: URL or "n/a (local-only)"
 - `evidence-quality`: lowest-evidence level seen (claim|screenshot|log|ci|repro)
 - `decision`: approved | blocked | approved-with-risk
-- `failure-routing`: list of `<failure-type> ??<agent>` or "none"
+- `failure-routing`: list of `<failure-type> → <agent>` or "none"
 
 If you emit a log, copy this shape and replace each `<pointer>` with a
 concrete pointer (path:line-range, test-id, URL, or pass/fail string):

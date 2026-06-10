@@ -38,7 +38,7 @@ cdd-kit init
 
 ## How to Direct Claude Code
 
-> All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills ??not shell commands.
+> All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills — not shell commands.
 
 ### Starting a new project (first time)
 
@@ -94,7 +94,7 @@ or
 3. The `change-classifier` agent (Opus) reads the request, classifies risk and tier, decides which agents are needed
 4. If the request is too broad, the classifier can return an atomic split proposal instead of forcing one Tier 0/1 monolith
 5. For Tier 0-1 work, Claude's narration uses stage badges so users can tell whether the flow is deciding, implementing, testing, or reviewing
-6. Agents run in order: contracts ??test plan ??`spec-architect` writes `design.md` if required ??CI/CD gates ??implementation plan ??backend engineer ??frontend engineer ??QA
+6. Agents run in order: contracts → test plan → `spec-architect` writes `design.md` if required → CI/CD gates → implementation plan → backend engineer → frontend engineer → QA
 7. `implementation-planner` reads the confirmed artifacts and writes `implementation-plan.md`, the concise execution packet implementation agents follow. It does not create `design.md`; missing required design routes back to `spec-architect`.
 8. Implementation agents write code/tests from that plan and optional concise handoff notes
 9. `cdd-kit gate <change-id>` runs automatically to confirm all artifacts are complete
@@ -169,7 +169,7 @@ truth.
 /cdd-new add Redis caching layer to the reporting queries
 ```
 
-The change-classifier will detect that these are architectural or contract-level changes, assign a higher risk tier (0??), and automatically require:
+The change-classifier will detect that these are architectural or contract-level changes, assign a higher risk tier (0–1), and automatically require:
 - Architecture review (`spec-architect` agent)
 - E2E, resilience, stress, and monkey tests
 - Updated contracts before any implementation begins
@@ -210,9 +210,9 @@ After the PR is merged:
 
 **What happens:**
 1. Runs `cdd-kit gate` to confirm the change still passes
-2. Synthesizes `archive.md` ??a permanent record of what changed, what tests were added, and what lessons were found
+2. Synthesizes `archive.md` — a permanent record of what changed, what tests were added, and what lessons were found
 3. Promotes only evidence-backed durable learnings to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`). General agents record evidence and findings only; durable learning promotion happens during `/cdd-close` Step 3.
-4. Runs `cdd-kit archive add-jwt-auth` ??moves the change from `specs/changes/` to `specs/archive/2026/`
+4. Runs `cdd-kit archive add-jwt-auth` — moves the change from `specs/changes/` to `specs/archive/2026/`
 5. Reduces the active context that future Claude sessions need to load
 
 ---
@@ -421,7 +421,7 @@ bug-fix:
 
 ## CLI Reference
 
-These are shell commands ??not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
+These are shell commands — not Claude Code skills. Run them directly in the terminal, or Claude Code will run them on your behalf.
 
 ### `cdd-kit init`
 
@@ -652,11 +652,11 @@ Checks:
 Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks`).
 
 ```
-?? gate passed for change: add-jwt-auth
+✓  gate passed for change: add-jwt-auth
 
-?? gate failed for change: feat-001
-??   change-classification.md: appears to be a stub (< 200 meaningful chars)
-??   1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
+✗  gate failed for change: feat-001
+✗    change-classification.md: appears to be a stub (< 200 meaningful chars)
+✗    1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
 ```
 
 ---
@@ -736,11 +736,11 @@ Physically moves a completed change from `specs/changes/` to `specs/archive/<yea
 
 ```bash
 cdd-kit archive add-jwt-auth
-# ?? Archived: specs/changes/add-jwt-auth ??specs/archive/2026/add-jwt-auth
-# ?? Index updated: specs/archive/INDEX.md
+# ✓  Archived: specs/changes/add-jwt-auth → specs/archive/2026/add-jwt-auth
+# ✓  Index updated: specs/archive/INDEX.md
 ```
 
-Warns (but does not block) if `tasks.yml` has pending items or `status: gate-blocked`. Use after `/cdd-close` ??the skill runs this automatically at the end.
+Warns (but does not block) if `tasks.yml` has pending items or `status: gate-blocked`. Use after `/cdd-close` — the skill runs this automatically at the end.
 
 ---
 
@@ -750,7 +750,7 @@ Marks a change as abandoned. Updates `tasks.yml` status to `abandoned`, records 
 
 ```bash
 cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
-# ?? Change add-jwt-auth marked as abandoned.
+# ✓  Change add-jwt-auth marked as abandoned.
 ```
 
 ---
@@ -926,7 +926,7 @@ Installs a pre-commit Git hook that auto-runs `cdd-kit gate --strict` on any sta
 
 ```bash
 cdd-kit install-hooks
-# ?? pre-commit hook installed at .git/hooks/pre-commit
+# ✓  pre-commit hook installed at .git/hooks/pre-commit
 ```
 
 Idempotent. Preserves existing hook content. Bypass with `--no-verify` is possible but defeats enforcement.
@@ -1241,31 +1241,31 @@ Then choose one path per active change:
 
 ```
 your-repo/
-??? contracts/
-??  ??? api/api-contract.md          ??what endpoints exist and how they behave
-??  ??? css/css-contract.md          ??design tokens, component states
-??  ??? data/data-shape-contract.md  ??schemas, types, nullability
-??  ??? env/env-contract.md          ??every env var, secret flags, defaults
-??  ??? business/business-rules.md   ??rules, edge cases, decision tables
-??  ??? ci/ci-gate-contract.md       ??gate tiers, promotion, rollback
-??? specs/
-??  ??? project-profile.md           ??overall system description
-??  ??? changes/                     ??active in-progress changes
-??  ??  ??? <change-id>/
-??  ??      ??? change-request.md    (required)
-??  ??      ??? change-classification.md (required)
-??  ??      ??? test-plan.md         (required)
-??  ??      ??? ci-gates.md          (required)
-??  ??      ??? tasks.yml            (required)
-??  ??      ??? agent-log/           optional handoff notes
-??  ??? archive/                     ??completed and abandoned changes
-??  ??  ??? INDEX.md
-??  ??  ??? 2026/<change-id>/
-??  ??? templates/
-??? tests/
-??? CLAUDE.md                        ??Claude's project guide (edit this)
-??? AGENTS.md                        ??agent roster (auto-managed)
-??? CODEX.md                         ??Codex project guide when initialized for Codex
+├── contracts/
+│   ├── api/api-contract.md          → what endpoints exist and how they behave
+│   ├── css/css-contract.md          → design tokens, component states
+│   ├── data/data-shape-contract.md  → schemas, types, nullability
+│   ├── env/env-contract.md          → every env var, secret flags, defaults
+│   ├── business/business-rules.md   → rules, edge cases, decision tables
+│   └── ci/ci-gate-contract.md       → gate tiers, promotion, rollback
+├── specs/
+│   ├── project-profile.md           → overall system description
+│   ├── changes/                     → active in-progress changes
+│   │   └── <change-id>/
+│   │       ├── change-request.md    (required)
+│   │       ├── change-classification.md (required)
+│   │       ├── test-plan.md         (required)
+│   │       ├── ci-gates.md          (required)
+│   │       ├── tasks.yml            (required)
+│   │       └── agent-log/           optional handoff notes
+│   ├── archive/                     → completed and abandoned changes
+│   │   ├── INDEX.md
+│   │   └── 2026/<change-id>/
+│   └── templates/
+├── tests/
+├── CLAUDE.md                        → Claude's project guide (edit this)
+├── AGENTS.md                        → agent roster (auto-managed)
+└── CODEX.md                         → Codex project guide when initialized for Codex
 ```
 
 ---
@@ -1274,9 +1274,9 @@ your-repo/
 
 | Tier | Risk level | Example changes | Extra agents |
 |---|---|---|---|
-| 0?? | High / critical | Auth, payments, migrations, concurrency | E2E + monkey + stress/soak |
-| 2?? | Medium | Feature with API change, bug fix with behavior change | Contract review + QA |
-| 4?? | Low | Docs, prompts, config only, no behavior change | Contract review + QA |
+| 0–1 | High / critical | Auth, payments, migrations, concurrency | E2E + monkey + stress/soak |
+| 2–3 | Medium | Feature with API change, bug fix with behavior change | Contract review + QA |
+| 4–5 | Low | Docs, prompts, config only, no behavior change | Contract review + QA |
 
 ---
 

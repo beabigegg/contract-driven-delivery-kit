@@ -33,7 +33,7 @@ proposed / accepted / superseded
 
 - A boundary moves (module split/merge, service extraction, data ownership change).
 - A persistence engine, queue, cache, or messaging substrate is added/removed/replaced.
-- A consistency or availability guarantee changes (CP?P, sync?sync, single-writer?ulti-writer).
+- A consistency or availability guarantee changes (CP→AP, sync→async, single-writer→multi-writer).
 - A trust or auth boundary changes (new SSO source, new public surface, new internal-vs-external split).
 - A non-obvious trade-off whose reversal would silently regress later (chosen indexing strategy, chosen pagination model, chosen serialization format).
 
@@ -62,7 +62,7 @@ Write to `specs/changes/<change-id>/design.md` using this structure:
 |---|---|---|
 
 ## Key Decisions
-- **Decision**: rationale ??rejected alternative: reason rejected
+- **Decision**: rationale → rejected alternative: reason rejected
 
 ## Migration / Rollback
 (Prose description. SQL and code go in migration files, not here.)
@@ -72,7 +72,7 @@ Write to `specs/changes/<change-id>/design.md` using this structure:
 
 ## Output discipline
 
-Your output goes into `specs/changes/<id>/design.md`. It must capture architectural decisions ??not implement them.
+Your output goes into `specs/changes/<id>/design.md`. It must capture architectural decisions — not implement them.
 
 - **DO** write: 1-paragraph architecture summary
 - **DO** write: affected components table (component | file path | nature of change)
@@ -83,11 +83,11 @@ Your output goes into `specs/changes/<id>/design.md`. It must capture architectu
 - **DO NOT** write: storage estimates, benchmark numbers, or detailed implementation steps
 
 Reference file paths instead of duplicating implementation content.
-Target: `design.md` ??150 lines.
+Target: `design.md` ≤ 150 lines.
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
@@ -99,13 +99,13 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 

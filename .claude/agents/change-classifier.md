@@ -25,10 +25,10 @@ Use `project-map.md` to identify candidate source/test paths and `contracts-inde
 
 | Risk Level | Impact Radius | Tier |
 |---|---|---|
-| critical or high | system-wide or cross-module | 0?? |
-| medium | cross-module or module-level | 2?? |
-| low | module-level or isolated | 3?? |
-| low | docs / prompts / config only, no behavior change | 4?? |
+| critical or high | system-wide or cross-module | 0–1 |
+| medium | cross-module or module-level | 2–3 |
+| low | module-level or isolated | 3–4 |
+| low | docs / prompts / config only, no behavior change | 4–5 |
 
 When in doubt, classify upward.
 
@@ -45,7 +45,7 @@ Before producing a single classification, check these triggers:
   request (e.g. `feature-add` + `migration` + `ui-redesign`).
 - **Cross-surface**: 3+ distinct surfaces touched (auth + UI + DB + email +
   export).
-- **Contract-heavy**: ??5 of the 6 contracts (api / css / env / data /
+- **Contract-heavy**: ≥5 of the 6 contracts (api / css / env / data /
   business / ci) need changes.
 - **Task-heavy**: estimated > 10 task-IDs across sections 3-4 of `tasks.yml`.
 
@@ -102,13 +102,13 @@ true, output Tier 5 and skip the heavy artifact list:
 - No public API behavior change.
 
 Tier 5 fast-path output minima:
-- `## Tier` ??`- 5`
-- `## Required Agents` ??`contract-reviewer` (read-only confirmation that no
+- `## Tier` → `- 5`
+- `## Required Agents` → `contract-reviewer` (read-only confirmation that no
   contracts are touched) and `qa-reviewer` (release readiness, ~1 paragraph).
-- `## Optional Artifacts` ??all `no`.
-- `## Required Tests` ??all blank.
+- `## Optional Artifacts` → all `no`.
+- `## Required Tests` → all blank.
 
-This exists because previously every doc-only change paid 8??2 agent
+This exists because previously every doc-only change paid 8–12 agent
 invocations of token cost. The fast-path bounds it to 2 read-only reviews. If
 unsure whether the fast-path applies, classify Tier 4 instead and proceed
 through the normal flow.
@@ -231,7 +231,7 @@ Use this structure:
 The following 7 artifacts are always required for implementation changes:
 `change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, `context-manifest.md`
 
-## Optional Artifacts (default: no ??set yes only with explicit reason)
+## Optional Artifacts (default: no — set yes only with explicit reason)
 
 | artifact | create? | reason |
 |---|---|---|
@@ -321,7 +321,7 @@ Design consistency rule:
   status: pending
 
 ## Inferred Acceptance Criteria
-(List 3-8 testable acceptance criteria derived from the change request. Format: `AC-N: <criterion>`. These will be used by test-strategist to populate the Acceptance Criteria ??Test Mapping table.)
+(List 3-8 testable acceptance criteria derived from the change request. Format: `AC-N: <criterion>`. These will be used by test-strategist to populate the Acceptance Criteria → Test Mapping table.)
 - AC-1:
 - AC-2:
 - AC-3:
@@ -339,13 +339,13 @@ Design consistency rule:
 If a short handoff note is useful, end your response with an optional `Agent Log` YAML block`nfor main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 
@@ -371,8 +371,8 @@ If a recommended `type` does not apply to your run, either omit it or use `point
 
 ## Mixed and edge cases
 
-- A single request can be both `ui-only-change` and `api-only-change` ??list both as primary; require both UI/UX-visual review AND contract tests.
-- `bug-fix` that requires a contract change is no longer just a bug-fix ??promote to `feature-enhancement` or `business-logic-change` to force the contract path.
+- A single request can be both `ui-only-change` and `api-only-change` — list both as primary; require both UI/UX-visual review AND contract tests.
+- `bug-fix` that requires a contract change is no longer just a bug-fix — promote to `feature-enhancement` or `business-logic-change` to force the contract path.
 - `refactor` that touches CI gates is also a `ci-cd-change`.
 - When uncertain, classify upward for risk and required agents, but keep optional
   artifacts minimal. The cost of a skipped required artifact is high; the cost

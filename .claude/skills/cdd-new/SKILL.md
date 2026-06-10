@@ -3,13 +3,13 @@ name: cdd-new
 description: Start a new tracked change. Scaffolds all required artifacts, classifies the change by risk tier, commissions the right agents in order, and runs cdd-kit gate. Args: <change description in natural language>
 ---
 
-# cdd-new ??New Change Request
+# cdd-new — New Change Request
 
 ## Mental model
 
-- `contracts/` = the single source of truth (live ??always reflects current system behaviour)
+- `contracts/` = the single source of truth (live — always reflects current system behaviour)
 - `tests/` = proof the contracts hold (live)
-- `specs/changes/<id>/` = why we decided this back then (passive archive ??read only when investigating history, never as input to planning)
+- `specs/changes/<id>/` = why we decided this back then (passive archive — read only when investigating history, never as input to planning)
 - `CLAUDE.md` = what this project is and how to start work
 
 ## Artifact ownership and deduplication
@@ -40,20 +40,20 @@ findings or approved-with-risk evidence that needs durable review prose.
 Every spec artifact answers **WHAT** and **WHY**, not HOW.
 
 Soft caps (guidance, not gate-enforced):
-- `spec.md` ??200 lines
-- `design.md` ??150 lines
-- `test-plan.md` ??100 lines
-- `ci-gates.md` ??80 lines
+- `spec.md` ≤ 200 lines
+- `design.md` ≤ 150 lines
+- `test-plan.md` ≤ 100 lines
+- `ci-gates.md` ≤ 80 lines
 
 **Forbidden in spec artifacts** (these belong in code/tests, not specs):
-- SQL DDL or migration code ??put in migrations/, reference the path
-- ORM model code (SQLAlchemy, Prisma, etc.) ??put in source, reference the module
-- Full test function bodies, mock setup, fixture data, expected JSON payloads ??put in tests/
+- SQL DDL or migration code — put in migrations/, reference the path
+- ORM model code (SQLAlchemy, Prisma, etc.) — put in source, reference the module
+- Full test function bodies, mock setup, fixture data, expected JSON payloads — put in tests/
 - Runnable code blocks > 10 lines belong in source files, not specs. Pseudocode and mapping tables are fine at any length.
 - Per-test input/output tables with more than 15 rows (data-boundary tests with up to 15 boundary cases are acceptable)
 
 **test-plan.md should contain:**
-- Acceptance criteria ??test family mapping (table)
+- Acceptance criteria → test family mapping (table)
 - Test file paths and test names (one line per test, no implementation detail)
 - Tier assignment per family
 - Out-of-scope list
@@ -120,7 +120,7 @@ Before I start a tracked change, I need to lock down three things:
 
   Affected surface:       <best guess from request, or empty>
   Desired behavior:       <best guess, or empty>
-  Success criterion:      <empty ??please fill>
+  Success criterion:      <empty — please fill>
 
 Could you confirm or fill in the missing pieces?
 ```
@@ -137,7 +137,7 @@ inevitable re-classification when the agents discover the ambiguity.
 
 ## Write Responsibilities
 
-**This distinction is critical ??follow it for every step:**
+**This distinction is critical — follow it for every step:**
 
 | Agent type | Who writes artifact files | Who writes optional handoff notes | Who updates tasks.yml |
 |------------|--------------------------|----------------------------------|----------------------|
@@ -174,7 +174,7 @@ yes`, or lists `spec-architect` in `## Required Agents`, invoke
 `spec-architect` before `implementation-planner`. If none of those triggers is
 present, mark task `1.3` as `skipped`.
 
-Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` ??it is not part of the classifier's opt-in surface.
+Note: `archive.md` is created during `/cdd-close`, not during `/cdd-new` — it is not part of the classifier's opt-in surface.
 
 If the classifier marks an artifact as `no` or leaves it blank, **do not create
 the file** just because an agent could contribute to it. Use an optional
@@ -212,7 +212,7 @@ cdd-kit context-scan
 Do not use broad search or ad hoc reads to classify the change before `context-scan` has completed.
 
 The generated scaffold contains the artifacts listed in the table below. **All
-templates are written from disk by `cdd-kit new` ??do not paste template bodies
+templates are written from disk by `cdd-kit new` — do not paste template bodies
 into this prompt.** The on-disk source of truth lives in `specs/templates/` of
 the kit and is bundled into every install.
 
@@ -250,7 +250,7 @@ The classifier must include a `## Context Manifest Draft` section with:
 - required tests
 - any context expansion requests that must be approved before implementation
 
-**change-classifier is read-only** ??it will return its output as text.
+**change-classifier is read-only** — it will return its output as text.
 
 ### If the classifier returns `## Atomic Split Proposal`
 
@@ -264,28 +264,28 @@ NOT proceed with the rest of `/cdd-new`. Instead:
    - For each row in the proposal table, run `cdd-kit new <change-id>` with
      the listed `--depends-on`.
    - Then say: "I created N change directories. Want me to run `/cdd-new`
-     against the first one now?" ??wait for confirmation; do not auto-loop.
+     against the first one now?" — wait for confirmation; do not auto-loop.
 4. If user picks "force monolithic":
    - Re-invoke change-classifier with `force-monolithic` appended to the
      change-request and proceed with whatever Tier the classifier returns.
 5. Delete the partially-scaffolded change directory you created in Step 1
    if the user picked "separate" and the originally-derived change-id is
-   not in the proposal ??it would otherwise sit empty and confuse `cdd-kit
+   not in the proposal — it would otherwise sit empty and confuse `cdd-kit
    list`.
 
 ### Classifier output lint (B8): refuse stub responses
 
 Before writing any files, verify the classifier response contains:
 
-- `## Tier` followed by `- N` where N is a single digit 0-5 (NOT `0 / 1 / 2 / 3 / 4 / 5` ??that is the unfilled placeholder).
+- `## Tier` followed by `- N` where N is a single digit 0-5 (NOT `0 / 1 / 2 / 3 / 4 / 5` — that is the unfilled placeholder).
 - `## Required Agents` with at least one agent name.
 - `## Inferred Acceptance Criteria` with at least one filled `AC-1: ?圳 line.
 
-If any of these are missing or still hold the literal placeholder text, STOP. Re-prompt the classifier with the missing pieces named explicitly. Do NOT write classification.md ??gate will reject it as a stub anyway and you will have wasted the round-trip.
+If any of these are missing or still hold the literal placeholder text, STOP. Re-prompt the classifier with the missing pieces named explicitly. Do NOT write classification.md — gate will reject it as a stub anyway and you will have wasted the round-trip.
 
 ### When the classifier output passes lint
 
-1. **YOU write** `specs/changes/<change-id>/change-classification.md` ??replace the blank template with the classifier's classification output.
+1. **YOU write** `specs/changes/<change-id>/change-classification.md` — replace the blank template with the classifier's classification output.
 2. Optional: write `specs/changes/<change-id>/agent-log/change-classifier.yml` only if the classifier returned useful handoff evidence.
 3. **YOU update** `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft`.
 4. **YOU update** `tasks.yml` frontmatter: set `tier: <N>` to the classifier's tier digit. This is now the authoritative source for quality-gate tier checks (the classification.md `## Tier` section is fallback only).
@@ -307,9 +307,9 @@ blocking findings / approved-with-risk evidence that needs durable prose. Otherw
 write at most a short optional handoff note, then tick relevant `tasks.yml`
 item(s).
 
-**For each write-capable agent**: wait for it to confirm completion ??YOU tick relevant tasks.yml item(s).
+**For each write-capable agent**: wait for it to confirm completion — YOU tick relevant tasks.yml item(s).
 
-If any agent reports `blocked`, halt immediately and surface its concrete next action to the user ??do not proceed to subsequent agents.
+If any agent reports `blocked`, halt immediately and surface its concrete next action to the user — do not proceed to subsequent agents.
 
 **When invoking any agent, always begin the prompt with:**
 ```
@@ -357,32 +357,32 @@ the defaults.
 
 | Stage | Agent | Badge |
 |---|---|---|
-| Decision | `change-classifier` | ? `[classifier]` |
-| Decision | `spec-architect` | ? `[architect]` |
-| Decision | `implementation-planner` | ? `[plan]` |
-| Implementation | `backend-engineer` | ? `[backend]` |
-| Implementation | `bug-fix-engineer` | ? `[bug-fix]` |
-| Implementation | `frontend-engineer` | ? `[frontend]` |
-| Implementation | `ci-cd-gatekeeper` | ? `[ci-cd]` |
-| Implementation | `test-strategist` | ? `[test-plan]` |
-| Heavy testing (Tier 0?? only) | `e2e-resilience-engineer` | ?? `[e2e]` |
-| Heavy testing (Tier 0?? only) | `monkey-test-engineer` | ?? `[monkey]` |
-| Heavy testing (Tier 0?? only) | `stress-soak-engineer` | ?? `[stress]` |
-| Review | `contract-reviewer` | ? `[contracts]` |
-| Review | `qa-reviewer` | ? `[qa]` |
-| Review | `ui-ux-reviewer` | ? `[ui-ux]` |
-| Review | `visual-reviewer` | ? `[visual]` |
-| Review | `dependency-security-reviewer` | ? `[deps-sec]` |
-| Audit | `spec-drift-auditor` | ??`[drift]` |
-| Audit | `repo-context-scanner` | ??`[repo-scan]` |
+| Decision | `change-classifier` | 🟣 `[classifier]` |
+| Decision | `spec-architect` | 🟣 `[architect]` |
+| Decision | `implementation-planner` | 🟣 `[plan]` |
+| Implementation | `backend-engineer` | 🔵 `[backend]` |
+| Implementation | `bug-fix-engineer` | 🔵 `[bug-fix]` |
+| Implementation | `frontend-engineer` | 🔵 `[frontend]` |
+| Implementation | `ci-cd-gatekeeper` | 🔵 `[ci-cd]` |
+| Implementation | `test-strategist` | 🟡 `[test-plan]` |
+| Heavy testing (Tier 0–1 only) | `e2e-resilience-engineer` | 🟠 `[e2e]` |
+| Heavy testing (Tier 0–1 only) | `monkey-test-engineer` | 🟠 `[monkey]` |
+| Heavy testing (Tier 0–1 only) | `stress-soak-engineer` | 🟠 `[stress]` |
+| Review | `contract-reviewer` | 🟢 `[contracts]` |
+| Review | `qa-reviewer` | 🟢 `[qa]` |
+| Review | `ui-ux-reviewer` | 🟢 `[ui-ux]` |
+| Review | `visual-reviewer` | 🟢 `[visual]` |
+| Review | `dependency-security-reviewer` | 🟢 `[deps-sec]` |
+| Audit | `spec-drift-auditor` | ⚪ `[drift]` |
+| Audit | `repo-context-scanner` | ⚪ `[repo-scan]` |
 
 Color semantics:
-- ? purple: deciding what we will do (heavy model, `opus`)
-- ? blue: writing code (`sonnet` implementation)
-- ? yellow: planning tests (`sonnet`)
-- ?? orange: heavy testing ??only appears for Tier 0??, signals high-risk scope
-- ? green: reviewing what was done (no code writes; just verdicts)
-- ??neutral: audits and scans (read-only background work)
+- 🟣 purple: deciding what we will do (heavy model, `opus`)
+- 🔵 blue: writing code (`sonnet` implementation)
+- 🟡 yellow: planning tests (`sonnet`)
+- 🟠 orange: heavy testing — only appears for Tier 0–1, signals high-risk scope
+- 🟢 green: reviewing what was done (no code writes; just verdicts)
+- ⚪ neutral: audits and scans (read-only background work)
 
 Format: emoji is followed by a single space, then the bracket-tag with the
 model class appended as `[role · model]`, then a single space, then the
@@ -394,10 +394,11 @@ ui-ux / deps-sec = `sonnet`; visual / repo-scan = `haiku`).
 Examples:
 
 ```
-? [classifier] Reading the request and project map??? [contracts] Confirming the API contract is unchanged. (read-only)
-? [backend] Implementing the JWT issuance endpoint and writing failing
+🟣 [classifier] Reading the request and project map…
+🟢 [contracts] Confirming the API contract is unchanged. (read-only)
+🔵 [backend] Implementing the JWT issuance endpoint and writing failing
             tests first per TDD policy.
-?? [stress] Tier 1 high-risk change ??running soak test for 30 min.
+🟠 [stress] Tier 1 high-risk change — running soak test for 30 min.
 ```
 
 Model-labeled examples (the model class sits inside the bracket tag):
@@ -464,85 +465,85 @@ not replace the tier (a bug fix can be Tier 0-5):
 
 ---
 
-### Tier 4?? (low risk: docs, prompts, config-only, no behavior change)
+### Tier 4–5 (low risk: docs, prompts, config-only, no behavior change)
 
-1. **`contract-reviewer`** (read-only) ??confirm no contracts are touched or all touched ones are already updated.
+1. **`contract-reviewer`** (read-only) — confirm no contracts are touched or all touched ones are already updated.
    - Optional handoff note: `agent-log/contract-reviewer.yml`
    - YOU tick: `1.2`, applicable items in section 2
 
-2. **`qa-reviewer`** (read-only) ??confirm release readiness.
+2. **`qa-reviewer`** (read-only) — confirm release readiness.
    - Optional handoff note: `agent-log/qa-reviewer.yml`
    - YOU tick: `5.4`
 
 ---
 
-### Tier 2?? (normal: feature, enhancement, bug fix with behavior change)
+### Tier 2–3 (normal: feature, enhancement, bug fix with behavior change)
 
-1. **`contract-reviewer`** (read-only) ??update or create contracts in `contracts/` before any implementation starts.
+1. **`contract-reviewer`** (read-only) — update or create contracts in `contracts/` before any implementation starts.
    - Optional handoff note: `agent-log/contract-reviewer.yml`
    - YOU tick: `1.2`, applicable items in section 2
 
-2. **`test-strategist`** (write-capable) ??writes `specs/changes/<change-id>/test-plan.md` directly.
+2. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
    - YOU tick: applicable items in section 3 based on what test families were planned
-   - Provide the classifier's `## Inferred Acceptance Criteria` list to test-strategist. These become the `criterion id` column in the Acceptance Criteria ??Test Mapping table.
+   - Provide the classifier's `## Inferred Acceptance Criteria` list to test-strategist. These become the `criterion id` column in the Acceptance Criteria → Test Mapping table.
 
-3. **`spec-architect`** (write-capable) ??only if `change-classification.md` contains `Architecture Review Required: yes`, marks `design.md` as `yes`, or lists `spec-architect` in `## Required Agents`.
+3. **`spec-architect`** (write-capable) — only if `change-classification.md` contains `Architecture Review Required: yes`, marks `design.md` as `yes`, or lists `spec-architect` in `## Required Agents`.
    - Writes `specs/changes/<change-id>/design.md` directly. This is the design/architecture decision record consumed by `implementation-planner`.
    - YOU tick: `1.3`
    - If the classifier did not require design, YOU mark `1.3` as `skipped` before continuing.
 
-4. **`ci-cd-gatekeeper`** (write-capable) ??writes `specs/changes/<change-id>/ci-gates.md` directly before implementation planning.
+4. **`ci-cd-gatekeeper`** (write-capable) — writes `specs/changes/<change-id>/ci-gates.md` directly before implementation planning.
    - YOU tick: `1.4`, `4.4`, applicable items in section 6
 
-5. **`implementation-planner`** (write-capable) ??writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, required design, and CI gate plan are available.
+5. **`implementation-planner`** (write-capable) — writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, required design, and CI gate plan are available.
    - This is the handoff packet for implementation agents. It should contain execution scope, non-goals, required changes, file-level plan, contract updates, test execution plan, and constraints.
    - It must reference `test-plan.md`, `ci-gates.md`, contracts, and `design.md` by path/section/id instead of copying their full content.
    - It must not create or repair `design.md`. If required design is missing, route back to `spec-architect`.
    - If it reports `blocked`, halt and surface the missing decision/context to the user.
    - YOU tick: `1.5`
 
-6. **`backend-engineer`** (write-capable) ??if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
+6. **`backend-engineer`** (write-capable) — if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.1` and/or `4.3` based on scope
-   - Note: `tasks.yml` items 3.1??.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion ??failing tests first, implementation second. Items 3.3??.5 are written by dedicated test engineers (Tier 0?? only or when classifier explicitly requires them).
+   - Note: `tasks.yml` items 3.1–3.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion — failing tests first, implementation second. Items 3.3–3.5 are written by dedicated test engineers (Tier 0–1 only or when classifier explicitly requires them).
 
-6a. **`bug-fix-engineer`** (write-capable) ??for symptom-driven bug fixes where the user reports behavior but not the code location. Use this instead of backend/frontend as the first implementation agent when root cause is unknown; it may route the final implementation to backend/frontend scope after graph-guided investigation.
+6a. **`bug-fix-engineer`** (write-capable) — for symptom-driven bug fixes where the user reports behavior but not the code location. Use this instead of backend/frontend as the first implementation agent when root cause is unknown; it may route the final implementation to backend/frontend scope after graph-guided investigation.
    - For `lane: bug-fix`, 6a runs **before** steps 6 and 7: bug-fix-engineer reproduces and diagnoses first, then either makes the fix or hands the final edit to backend/frontend scope. Do not let backend/frontend (steps 6/7) edit before that handoff (see "Bug-fix lane routing").
 
-7. **`frontend-engineer`** (write-capable) ??if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
+7. **`frontend-engineer`** (write-capable) — if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.2`
 
-8. **`dependency-security-reviewer`** (read-only) ??if the change touches lockfiles, package manifests, or DB migrations.
+8. **`dependency-security-reviewer`** (read-only) — if the change touches lockfiles, package manifests, or DB migrations.
    - **Only invoke if** `change-classification.md` lists lockfiles, package manifests, or DB migrations as affected.
    - Optional handoff note: `agent-log/dependency-security-reviewer.yml`
    - YOU tick: applicable security-related items
 
-9. **`ui-ux-reviewer`** (read-only) ??if any UI change (run alongside or after frontend-engineer).
+9. **`ui-ux-reviewer`** (read-only) — if any UI change (run alongside or after frontend-engineer).
    - **Only invoke if** classifier marks UI/CSS as affected.
    - Optional handoff note: `agent-log/ui-ux-reviewer.yml`
    - YOU tick: `5.1`
 
-10. **`visual-reviewer`** (read-only) ??if any UI change (run after ui-ux-reviewer).
+10. **`visual-reviewer`** (read-only) — if any UI change (run after ui-ux-reviewer).
    - **Only invoke if** classifier marks UI/CSS as affected.
    - Optional handoff note: `agent-log/visual-reviewer.yml`
    - YOU tick: `5.2`
 
-11. **`qa-reviewer`** (read-only) ??release readiness decision (always last).
+11. **`qa-reviewer`** (read-only) — release readiness decision (always last).
     - Optional handoff note: `agent-log/qa-reviewer.yml`
     - YOU tick: `5.4`
 
 ---
 
-### Tier 0?? (high risk: production data, concurrency, queues, large queries, auth, payments, exports)
+### Tier 0–1 (high risk: production data, concurrency, queues, large queries, auth, payments, exports)
 
-All agents from Tier 2??, plus insert these after `frontend-engineer` / `backend-engineer` and before `dependency-security-reviewer`:
+All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backend-engineer` and before `dependency-security-reviewer`:
 
-- **`e2e-resilience-engineer`** (write-capable) ??E2E, failure-injection, data-boundary tests. May write an optional handoff note.
+- **`e2e-resilience-engineer`** (write-capable) — E2E, failure-injection, data-boundary tests. May write an optional handoff note.
   - YOU tick: `3.3`
 
-- **`monkey-test-engineer`** (write-capable) ??adversarial input, fuzz, rapid-UI-action tests. May write an optional handoff note.
+- **`monkey-test-engineer`** (write-capable) — adversarial input, fuzz, rapid-UI-action tests. May write an optional handoff note.
   - YOU tick: `3.4`
 
-- **`stress-soak-engineer`** (write-capable) ??load, soak, and long-running stability tests. May write an optional handoff note.
+- **`stress-soak-engineer`** (write-capable) — load, soak, and long-running stability tests. May write an optional handoff note.
   - YOU tick: `3.5`
 
 ---
@@ -585,18 +586,18 @@ cdd-kit gate <change-id>
 - YOU tick: `tasks.yml` item `6.1`
 - Proceed to Step 5.
 
-**If gate fails ??structured fix-back routing**:
+**If gate fails — structured fix-back routing**:
 
 Capture gate's full stderr verbatim. Parse error lines and route each to the
-right owner. The patterns below are exhaustive ??every gate error message
+right owner. The patterns below are exhaustive — every gate error message
 matches one of them.
 
 | Error pattern | Route to | Re-invocation prompt seed |
 |---|---|---|
-| `change-classification.md: ?圳 | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit only the failing section." |
-| `context-manifest.md: ?圳 | `change-classifier` | "PREVIOUS MANIFEST FAILED GATE: <error>. Re-emit `## Context Manifest Draft`." |
-| `tasks.yml: ?圳 (frontmatter / pending) | YOU (main Claude) ??direct edit | n/a ??fix `tasks.yml` yourself. Don't re-invoke an agent for a file you own. |
-| `dependency <id>: upstream change is not completed` | n/a ??STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
+| `change-classification.md: …` | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit only the failing section." |
+| `context-manifest.md: …` | `change-classifier` | "PREVIOUS MANIFEST FAILED GATE: <error>. Re-emit `## Context Manifest Draft`." |
+| `tasks.yml: …` (frontmatter / pending) | YOU (main Claude) — direct edit | n/a — fix `tasks.yml` yourself. Don't re-invoke an agent for a file you own. |
+| `dependency <id>: upstream change is not completed` | n/a — STOP | Tell user: "Upstream change `<id>` must complete before this change can gate. Run `/cdd-new <id>` first or run `cdd-kit archive <id>` if it's already done." |
 | `validators returned non-zero` | `contract-reviewer` | "PREVIOUS CONTRACT VALIDATION FAILED: <last 10 lines of validator stderr>. Reconcile contracts." |
 | `test-evidence.yml: ...` / `missing required artifact: test-evidence.yml` | the implementation agent (backend/frontend/bug-fix), or YOU for the opt-out | "TEST EVIDENCE FAILED GATE: <error>. Rerun the missing/failing phases with `cdd-kit test run <id> --phase ... --command ...` (combine a phase's targets into one command; declare conditional phases with `--required-phases` on the first run). For a non-implementation change, record `test-evidence-not-applicable: \"<reason>\"` in tasks.yml frontmatter. Do not waive a failure." |
 
@@ -621,7 +622,7 @@ section that changed plus any updated handoff note, if useful.
 ```
 
 After re-invoking, re-run `cdd-kit gate <change-id>`. Repeat up to **3 times**. Each
-iteration must be on a strictly smaller error set ??if the same error returns
+iteration must be on a strictly smaller error set — if the same error returns
 twice, halt and surface to user (an agent stuck in a loop is more expensive
 than a human read).
 
@@ -657,7 +658,7 @@ Next step:
 If gate did not pass after 3 iterations:
 
 ```
-## /cdd-new ??gate blocked
+## /cdd-new — gate blocked
 
 Change ID: <change-id>
 Gate failed after 3 attempts.
@@ -673,18 +674,18 @@ Please review the above items and re-run: cdd-kit gate <change-id>
 
 ## Rules
 
-- Never start implementation (backend/frontend-engineer) before `contract-reviewer` has completed for Tier 0?? changes
+- Never start implementation (backend/frontend-engineer) before `contract-reviewer` has completed for Tier 0–1 changes
 - Never start implementation (backend/frontend-engineer or dedicated test engineers) before `implementation-plan.md` exists and `tasks.yml` item `1.5` is done
-- Never skip `test-plan.md` for Tier 0?? changes
+- Never skip `test-plan.md` for Tier 0–1 changes
 - Never skip `ci-gates.md` for any implementation change
 - Agent logs are optional; do not create them just to satisfy a gate.
-- Tick the relevant `tasks.yml` checkbox immediately after each agent completes ??do not batch
+- Tick the relevant `tasks.yml` checkbox immediately after each agent completes — do not batch
 - `qa-reviewer` always runs last and makes the release-readiness decision
 
 ---
 
 ## After Completion
 
-The `/cdd-new` workflow is now complete. **Return to normal assistant mode immediately.** Answer any question the user asks ??including questions unrelated to this change, new feature discussions, debugging help, or general conversation ??without requiring them to use a specific command. The git commit shown in the report is a suggestion, not a required next step; do not wait for it before resuming normal behavior.
+The `/cdd-new` workflow is now complete. **Return to normal assistant mode immediately.** Answer any question the user asks — including questions unrelated to this change, new feature discussions, debugging help, or general conversation — without requiring them to use a specific command. The git commit shown in the report is a suggestion, not a required next step; do not wait for it before resuming normal behavior.
 
 When the change is merged and ready to close, run `/cdd-close <change-id>` to promote durable learnings to `contracts/` or project guidance (`CLAUDE.md`/`CODEX.md`) and archive the change directory.

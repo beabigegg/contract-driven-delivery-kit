@@ -31,12 +31,12 @@ full test strategy or implementation plan.
 
 ## Operational knowledge
 
-- Secrets and OIDC ??prefer GitHub OIDC + cloud trust to long-lived secrets in repo settings.
-- Caching ??use built-in cache where possible (`actions/setup-node` `cache: npm`, `actions/setup-python` `cache: pip`); fall back to `actions/cache` for build artifacts.
-- Concurrency ??set `concurrency: { group: ${{ github.ref }}, cancel-in-progress: true }` on PR workflows to free runners.
-- Flaky tests ??quarantine into a separate informational job rather than disabling; require an owner and an exit date.
-- Artifact retention ??set `retention-days` explicitly; default 90 days is wasteful for hot artifacts.
-- Required-check gating ??a job must produce a `name` (not job id) for branch protection rules to bind to it.
+- Secrets and OIDC — prefer GitHub OIDC + cloud trust to long-lived secrets in repo settings.
+- Caching — use built-in cache where possible (`actions/setup-node` `cache: npm`, `actions/setup-python` `cache: pip`); fall back to `actions/cache` for build artifacts.
+- Concurrency — set `concurrency: { group: ${{ github.ref }}, cancel-in-progress: true }` on PR workflows to free runners.
+- Flaky tests — quarantine into a separate informational job rather than disabling; require an owner and an exit date.
+- Artifact retention — set `retention-days` explicitly; default 90 days is wasteful for hot artifacts.
+- Required-check gating — a job must produce a `name` (not job id) for branch protection rules to bind to it.
 
 ## Output
 
@@ -62,7 +62,7 @@ mergeable / blocked / informational-risk
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 This agent commonly needs CI contracts and workflow definitions, for example
@@ -82,13 +82,13 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 
@@ -103,7 +103,7 @@ concrete pointer (path:line-range, test-id, URL, or pass/fail string):
 ```yaml
 artifacts:
   - { type: tiers-modified, pointer: "1, 3" }
-  - { type: gate-promotions, pointer: "e2e: 3 ??1" }
+  - { type: gate-promotions, pointer: "e2e: 3 → 1" }
   - { type: workflow-files-changed, pointer: ".github/workflows/ci.yml" }
   - { type: required-status-checks, pointer: "lint, unit-tests, contract-tests" }
 ```

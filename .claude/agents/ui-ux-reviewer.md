@@ -24,9 +24,9 @@ Review the intended interaction, not just whether code compiles.
 ## Heuristics
 
 - Use Nielsen's 10 usability heuristics as default frame: visibility of system status, match between system and real world, user control and freedom, consistency, error prevention, recognition over recall, flexibility/efficiency, aesthetic and minimalist design, help users recognize/recover from errors, help and documentation.
-- Match the design system in use (Material 3, HIG, Fluent, custom tokens) ??do not invent affordances that contradict the system.
-- Copy ??clear > clever; verbs in CTAs; error messages must say what to do, not just what failed.
-- Information hierarchy ??one primary action per screen; group related controls; align labels with content language.
+- Match the design system in use (Material 3, HIG, Fluent, custom tokens) — do not invent affordances that contradict the system.
+- Copy — clear > clever; verbs in CTAs; error messages must say what to do, not just what failed.
+- Information hierarchy — one primary action per screen; group related controls; align labels with content language.
 
 ## Output
 
@@ -58,7 +58,7 @@ approved / changes-required
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 This agent's natural reads include UI source under `src/` (components, pages, layouts), `contracts/ui/` for design tokens, and screenshot/video paths under `specs/changes/<change-id>/`. Make sure the manifest's Allowed Paths includes them, or file a `## Context Expansion Requests` entry.
@@ -72,13 +72,13 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, end your response with an optional `Agent Log` YAML block`nfor main Claude to write to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 

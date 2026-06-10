@@ -1,0 +1,43 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: build + typecheck + test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: node build.js
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npx vitest run
+
+  guards:
+    name: mojibake guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check shipped markdown for encoding corruption
+        run: node tools/check-mojibake.mjs

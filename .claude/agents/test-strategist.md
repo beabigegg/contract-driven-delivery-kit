@@ -21,11 +21,11 @@ Design tests before implementation. Prefer concrete test cases, inputs, expected
 
 ## Strategy guardrails
 
-- Test pyramid ??most tests at unit level, fewer at integration, fewest at E2E; prefer pushing tests downward when behavior is provable at a lower level.
-- Mock boundary ??mock at network or process boundary (HTTP clients, queue clients), not at internal class boundary; mocking your own services produces tests that drift from reality.
-- Tier mapping ??Tier 0 unit/lint < 30s; Tier 1 contract+critical-path < 10min; Tier 3 nightly real-infra; Tier 4 weekly soak.
-- One assertion family per test ??testing 5 unrelated things in one test makes failures unreadable.
-- Property-based tests for invariants ??use fast-check / hypothesis for state machines and pure functions; saves writing many table cases.
+- Test pyramid — most tests at unit level, fewer at integration, fewest at E2E; prefer pushing tests downward when behavior is provable at a lower level.
+- Mock boundary — mock at network or process boundary (HTTP clients, queue clients), not at internal class boundary; mocking your own services produces tests that drift from reality.
+- Tier mapping — Tier 0 unit/lint < 30s; Tier 1 contract+critical-path < 10min; Tier 3 nightly real-infra; Tier 4 weekly soak.
+- One assertion family per test — testing 5 unrelated things in one test makes failures unreadable.
+- Property-based tests for invariants — use fast-check / hypothesis for state machines and pure functions; saves writing many table cases.
 
 ## Bounded test commands
 
@@ -55,7 +55,7 @@ Write to `specs/changes/<change-id>/test-plan.md` using this structure:
 ```markdown
 # Test Plan: <change-id>
 
-## Acceptance Criteria ??Test Mapping
+## Acceptance Criteria → Test Mapping
 | criterion id | test family | test file path | tier |
 |---|---|---|---|
 
@@ -72,9 +72,9 @@ Write to `specs/changes/<change-id>/test-plan.md` using this structure:
 
 ## Output discipline
 
-Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to test and WHY ??not HOW to implement the tests.
+Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to test and WHY — not HOW to implement the tests.
 
-- **DO** write: acceptance criteria ??test family mapping (table)
+- **DO** write: acceptance criteria → test family mapping (table)
 - **DO** write: test file paths and test function names (one line each, no body)
 - **DO** write: tier assignment per test family
 - **DO NOT** write: full test function bodies
@@ -84,11 +84,11 @@ Your output goes into `specs/changes/<id>/test-plan.md`. It must answer WHAT to 
 - **DO NOT** duplicate CI gate policy or implementation-plan execution steps; reference the relevant gate names and acceptance criteria instead.
 
 Implementation detail belongs in the test files, not in test-plan.md.
-Target: `test-plan.md` ??100 lines.
+Target: `test-plan.md` ≤ 100 lines.
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
@@ -100,18 +100,18 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 
 - `test-plan-path`: path to written test plan
-- `tdd-pairs`: list of `<test-file> ??<impl-file>` mappings
+- `tdd-pairs`: list of `<test-file> → <impl-file>` mappings
 - `coverage-tiers`: test families covered (unit, contract, e2e, etc.)
 - `mapping-completeness`: requirements coverage statement
 
@@ -121,7 +121,7 @@ concrete pointer (path:line-range, test-id, URL, or pass/fail string):
 ```yaml
 artifacts:
   - { type: test-plan-path, pointer: "specs/changes/<id>/test-plan.md" }
-  - { type: tdd-pairs, pointer: "tests/api/users.test.ts ??src/api/users.ts" }
+  - { type: tdd-pairs, pointer: "tests/api/users.test.ts → src/api/users.ts" }
   - { type: coverage-tiers, pointer: "unit, contract, e2e" }
   - { type: mapping-completeness, pointer: "all requirements covered" }
 ```

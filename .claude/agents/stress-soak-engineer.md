@@ -28,10 +28,10 @@ Before editing tests or load profiles, read `specs/changes/<change-id>/implement
 
 ## Tooling
 
-- k6 ??JS scenarios, good for HTTP and WebSocket; integrates with Grafana Cloud.
-- Locust ??Python, good for shaped traffic and complex user behavior.
-- Artillery / Vegeta / JMeter ??situational; pick one per repo.
-- Baseline first ??run 1x expected load until green; then 5x stress; then 24h soak. Skipping the 1x step hides setup bugs.
+- k6 — JS scenarios, good for HTTP and WebSocket; integrates with Grafana Cloud.
+- Locust — Python, good for shaped traffic and complex user behavior.
+- Artillery / Vegeta / JMeter — situational; pick one per repo.
+- Baseline first — run 1x expected load until green; then 5x stress; then 24h soak. Skipping the 1x step hides setup bugs.
 - Stress finds breaking points (scale-up question); soak finds slow leaks (memory, fd, temp file, connection pool exhaustion).
 - Always co-deploy a metrics dashboard; load tests without metrics produce no actionable result.
 
@@ -73,7 +73,7 @@ evidence, or when the run is blocked/failed.
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` ??`## Allowed Paths`.
+Source of truth: `specs/changes/<change-id>/context-manifest.md` → `## Allowed Paths`.
 Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it lists or paths under `## Approved Expansions`. Use this boundary as pre-read discipline, not as post-run paperwork.
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
@@ -85,13 +85,13 @@ Forbidden by default (enforced by `.cdd/context-policy.json`): `specs/archive/`,
 If a short handoff note is useful, write or append to
 `specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
 and field rules are defined once in
-`references/agent-log-protocol.md` ??do not duplicate them in this prompt.
+`references/agent-log-protocol.md` — do not duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 
 `artifacts` is a YAML array of `{type, pointer}` items in your agent log
 (see `references/agent-log-protocol.md` for the full schema and self-validation
-checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys ??those are `type` values, not log keys.
+checklist). Do NOT write top-level `files-changed:` / `tests-added:` keys — those are `type` values, not log keys.
 
 Recommended `type` values for this agent when you emit an optional agent log:
 
