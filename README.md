@@ -1139,10 +1139,23 @@ than preceding it — making the kit tool strictly cheaper than the built-in
 `Read`. `--source-budget <n>` caps total lines returned; truncated ranges are
 flagged so you can `Read` only those.
 
+**Truncation is always visible.** Both `cdd-kit index query` and
+`cdd-kit graph query` (and the MCP tools that wrap them) report `total_matches`,
+`returned`, and `truncated` in their JSON, and print `results: N (of M; raise
+--limit …)` in text — so an agent knows the `--limit` hid matches instead of
+assuming it saw everything. `index query` additionally flags per-file
+truncation: when one file has more matches than the per-file cap, its result
+carries `match_count` and `matches_truncated: true` (narrow the query to surface
+the rest).
+
 To make graph-first exploration a real chokepoint instead of a prompt
 preference, wire the shipped `hooks/pre-tool-use-graph-first.sh` as a
 `PreToolUse` hook on `Read` (advisory by default; `CDD_GRAPH_FIRST_STRICT=1`
-hard-blocks source `Read`s when a code-map exists).
+hard-blocks source `Read`s when a code-map exists). The hook has a **staleness
+guard**: if the file about to be read is newer than `.cdd/code-map.yml`, the
+index cannot describe it yet, so the hook skips the graph-first advisory, prints
+a one-line `cdd-kit code-map` refresh nudge instead, and always allows the read
+— even under strict mode — rather than steering the agent to a stale index.
 
 Use `--engine native` for the built-in graph, `--engine codemap` for the older
 code-map-only fallback, `--engine codegraph` to require external CodeGraph, or

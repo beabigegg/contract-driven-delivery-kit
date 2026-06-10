@@ -5,6 +5,13 @@ import type { FileEntry } from '../code-map/types.js';
 /** Default cap on total source lines emitted by --with-source per query. */
 export const DEFAULT_SOURCE_BUDGET = 400;
 
+/**
+ * Max matches kept per file. Beyond this the file's lower-scoring matches are
+ * dropped; the result carries `matches_truncated` so the caller knows to narrow
+ * the query rather than assume it saw everything.
+ */
+export const PER_FILE_MATCH_CAP = 8;
+
 /** Coerce a possibly-NaN/invalid budget to a safe positive integer. */
 export function resolveSourceBudget(budget: number | undefined): number {
   return Number.isFinite(budget) && (budget as number) > 0
@@ -45,12 +52,22 @@ export interface QueryResult {
   total_lines: number;
   score: number;
   matches: QueryMatch[];
+  /** Total matches for this file before the per-file cap, when it was exceeded. */
+  match_count?: number;
+  /** True when this file had more matches than `matches` shows (per-file cap hit). */
+  matches_truncated?: boolean;
 }
 
 export interface QueryPayload {
   index: string;
   query: string;
   refreshed: boolean;
+  /** Total files that matched, before `--limit` was applied. */
+  total_matches: number;
+  /** Files actually returned (after `--limit`). */
+  returned: number;
+  /** True when `--limit` dropped some matching files (total_matches > returned). */
+  truncated: boolean;
   results: QueryResult[];
 }
 
@@ -76,7 +93,8 @@ export async function indexQuery(term: string, opts: IndexQueryOptions): Promise
     return printFailure(`${mapPath} is not readable YAML: ${(err as Error).message}`, opts.json);
   }
 
-  const results = queryEntries(entries, term).slice(0, limit);
+  const allResults = queryEntries(entries, term);
+  const results = allResults.slice(0, limit);
   if (opts.withSource) {
     attachSource(results, resolveSourceBudget(opts.sourceBudget), surfaceRootFor(mapPath));
   }
@@ -84,6 +102,9 @@ export async function indexQuery(term: string, opts: IndexQueryOptions): Promise
     index: mapPath,
     query: term,
     refreshed,
+    total_matches: allResults.length,
+    returned: results.length,
+    truncated: allResults.length > results.length,
     results,
   };
 
@@ -163,16 +184,18 @@ export function queryEntries(entries: FileEntry[], term: string): QueryResult[] 
       );
     }
 
-    const kept = matches
+    const ranked = matches
       .filter(m => m.score > 0)
-      .sort((a, b) => b.score - a.score || compareMatch(a, b))
-      .slice(0, 8);
+      .sort((a, b) => b.score - a.score || compareMatch(a, b));
+    const kept = ranked.slice(0, PER_FILE_MATCH_CAP);
     if (kept.length > 0) {
       results.push({
         path: entry.path,
         total_lines: entry.total_lines,
         score: kept.reduce((sum, m) => sum + m.score, 0),
         matches: kept,
+        match_count: ranked.length,
+        matches_truncated: ranked.length > kept.length,
       });
     }
   }
@@ -301,7 +324,7 @@ function printText(payload: QueryPayload): void {
 
   console.log(`index: ${payload.index}${payload.refreshed ? ' (refreshed)' : ''}`);
   console.log(`query: ${payload.query}`);
-  console.log(`results: ${payload.results.length}`);
+  console.log(`results: ${payload.returned}${payload.truncated ? ` (of ${payload.total_matches}; raise --limit to see the rest)` : ''}`);
   for (const result of payload.results) {
     console.log(`- ${result.path} (${result.total_lines} lines)`);
     for (const match of result.matches) {
@@ -316,6 +339,9 @@ function printText(payload: QueryPayload): void {
       } else if (match.source_truncated) {
         console.log('      (source budget reached; Read this range directly)');
       }
+    }
+    if (result.matches_truncated) {
+      console.log(`  - … ${(result.match_count ?? result.matches.length) - result.matches.length} more match(es) in this file; narrow the query to surface them`);
     }
   }
   console.log(payload.results.some(r => r.matches.some(m => m.source !== undefined))

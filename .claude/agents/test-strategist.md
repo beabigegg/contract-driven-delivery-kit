@@ -11,6 +11,14 @@ Your only write target is `specs/changes/<id>/test-plan.md`. Do not modify imple
 
 Design tests before implementation. Prefer concrete test cases, inputs, expected outputs, and commands.
 
+## Code map (READ FIRST)
+
+Before reading source to map acceptance criteria onto tests, read `.cdd/code-map.yml` — the index of every file's symbols with their `lines: A-B` ranges and a `<path>:  # N lines` size header. Use it to find the units under test and their existing test files, then read only the relevant ranges (`Read <path> offset:A limit:(B-A+1)`) rather than whole files. This grounds your `## Test Families Required` mapping in the real code surface at low token cost and helps you extend existing tests instead of duplicating them.
+
+If `.cdd/code-map.yml` is missing or stale, note it and ask the user to run `cdd-kit code-map`; avoid broad source reads meanwhile. Stay within the paths your `## Read scope` allows.
+
+See `references/code-map-protocol.md` for the full protocol.
+
 ## Required thinking
 
 - What behavior must be proven?

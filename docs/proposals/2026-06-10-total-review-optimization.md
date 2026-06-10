@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）已實作**（本次 PR）；P1 其餘項與 P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）已於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）已實作**（本次 PR）；P1-3、P1-8、主題 C 與 P2 待續
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -20,8 +20,12 @@
 | P1-1 MCP 未註冊不得無聲降級 | ✅ 已完成 | 本次 PR |
 | P1-2 `cdd-kit doctor --simple` | ✅ 已完成 | 本次 PR |
 | P1-4 預設武裝 test-runner hook（advisory） | ✅ 已完成 | 本次 PR |
-| P1-5 conformance 檢查引導啟用 | ✅ 已完成 | 本次 PR |
-| P1 其餘（P1-3、主題 B、主題 C）/ P2 | ⬜ 待續 | — |
+| P1-5 conformance 檢查引導啟用 | ✅ 已完成 | PR #39 |
+| P1-6 graph-first 指示統一化（4 個高價值 agent） | ✅ 已完成 | 本次 PR |
+| P1-7 查詢截斷可見化（index/graph/MCP） | ✅ 已完成 | 本次 PR |
+| P1-9 graph-first hook 過時 map 不再導向 | ✅ 已完成 | 本次 PR |
+| P1-10 `AGENTS.template.md` 路由摘要擴充 | ✅ 已完成 | 本次 PR |
+| P1 其餘（P1-3、P1-8、主題 C）/ P2 | ⬜ 待續 | — |
 
 > PR #36 額外收穫：P0-1 的 mojibake guard（`tools/check-mojibake.mjs`）在三輪高階 AI review 來回中，從「只擋 `??`」強化為涵蓋六類損壞（`??`、私有/控制/代理位元組、`` `n `` 字面跳脫、U+FFFD、孤立 CJK、Windows-1252 序列），掃描範圍鎖定對外英文 prompt 面（含 `specs/templates`、`tests/templates`、`contracts`），並排除可為非英文的 `specs/changes/` 工作文件。P0-3 的 git 隔離同步補上 `GIT_CONFIG_COUNT/KEY_*/VALUE_*`、`GIT_CONFIG`、`GIT_CONFIG_PARAMETERS` 覆寫清除。
 
@@ -115,11 +119,11 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 
 | # | 提案 | 現況與根據 | 工作量 |
 |---|---|---|---|
-| P1-6 | **graph-first 指示統一化**：為 `implementation-planner`、`test-strategist`、`spec-architect`、`spec-drift-auditor` 等補上 index/graph 優先指示（18 個 agent 目前只有 4 個有） | 缺指示的 agent 直接整檔 Read，graph-first 的省 token 效果只覆蓋少數角色 | 0.5 天 |
-| P1-7 | **查詢截斷可見化**：`index query`/`graph query`/MCP 回傳加 `total_matches` 與 `truncated: true` 欄位 | `index-query.ts:169` 內部 `.slice(0, 8)`，agent 無從得知結果被截斷，導致漏讀（以為只有 8 個）或多讀（不會改用更精確的查詢詞） | 1 天 |
-| P1-8 | **freshness digest 快取 / `--no-refresh`**：session 內快取 `sourcesDigest`，或讓 MCP/CLI 查詢支援跳過驗證 | `freshness.ts:62-99` 每次查詢都可能走 stat 全樹 + SHA1 全量重算；大 repo 一個 session 5 次查詢就重算 5 次 | 1 天 |
-| P1-9 | **graph-first hook 先檢查 map 新鮮度**：map 不存在或已過期時不輸出 advisory（避免 nag 噪音讓 agent 學會忽略它），並提示 `cdd-kit code-map` | `hooks/pre-tool-use-graph-first.sh:54-66` 目前無條件輸出 | 0.5 天 |
-| P1-10 | **`AGENTS.template.md` 擴充每個 agent 1~2 行職責摘要**（維持 <500 tokens） | 現在只有名字清單（22 行），主 agent 選錯 sub-agent 的成本遠高於這幾百 token | 0.25 天 |
+| P1-6 ✅ | **graph-first 指示統一化**：為 `implementation-planner`、`test-strategist`、`spec-architect`、`spec-drift-auditor` 補上 graph-first「Code map (READ FIRST)」段落（依各 agent 的 `tools` 分流：有 Bash 的 spec-drift-auditor 用 `cdd-kit index query --with-source` 命令式，其餘三個無 Bash 改用「先讀 `.cdd/code-map.yml` 再做 offset/limit 定點 Read」） | 缺指示的 agent 直接整檔 Read，graph-first 的省 token 效果只覆蓋少數角色 | 0.5 天 |
+| P1-7 ✅ | **查詢截斷可見化**：`index query`/`graph query`/MCP 回傳加 `total_matches`/`returned`/`truncated`；`index query` 另加每檔 `match_count`/`matches_truncated`；文字模式印 `results: N (of M; raise --limit …)`。per-file cap（原 `.slice(0, 8)`）抽為具名常數 `PER_FILE_MATCH_CAP` | `index-query.ts:169` 內部 `.slice(0, 8)`，agent 無從得知結果被截斷，導致漏讀（以為只有 8 個）或多讀（不會改用更精確的查詢詞） | 1 天 |
+| P1-8 | **freshness digest 快取 / `--no-refresh`**：session 內快取 `sourcesDigest`，或讓 MCP/CLI 查詢支援跳過驗證 | `freshness.ts:62-99` 每次查詢都可能走 stat 全樹 + SHA1 全量重算；大 repo 一個 session 5 次查詢就重算 5 次。**獨立 PR**：動到 gate/doctor 共用的 freshness 熱路徑，屬行為敏感項，與 P1-3 同樣單獨成 PR | 1 天 |
+| P1-9 ✅ | **graph-first hook 過時 map 不再導向**：當「即將被讀的檔」比 `.cdd/code-map.yml` 新時（單檔 `-nt` 比較，便宜），跳過 graph-first advisory、改印一行 `cdd-kit code-map` 刷新提示，且永不阻擋（strict 也放行）——避免把 agent 導向過時索引 | `hooks/pre-tool-use-graph-first.sh:54-66` 目前無條件輸出 | 0.5 天 |
+| P1-10 ✅ | **`AGENTS.template.md` 路由摘要擴充**：每個 agent 一行「何時選用／與相似 agent 如何區分」（如 ui-ux vs visual、bug-fix vs 一般 engineer），並補回漏列的 `bug-fix-engineer`、`dependency-security-reviewer`（原本 16 個，現 18 個齊全），維持 <500 tokens | 現在只有名字清單，主 agent 選錯 sub-agent 的成本遠高於這幾百 token | 0.25 天 |
 
 ### 主題 C：可靠性與一致性
 

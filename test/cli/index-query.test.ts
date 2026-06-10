@@ -122,4 +122,53 @@ describe('cdd-kit index query', () => {
     expect(r.stderr).toContain('.cdd/code-map.yml is missing');
     expect(existsSync(join(tmpRepo, '.cdd', 'code-map.yml'))).toBe(false);
   });
+
+  it('reports top-level truncation when --limit hides matching files (P1-7)', () => {
+    // Two files both match "alpha"; --limit 1 must report that one was hidden so
+    // the agent knows to raise --limit instead of assuming it saw everything.
+    writeFileSync(join(tmpRepo, 'a.ts'), 'export function alpha() { return 1; }\n', 'utf8');
+    writeFileSync(join(tmpRepo, 'b.ts'), 'export function alphaTwo() { return 2; }\n', 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+
+    const r = runCli(['index', 'query', 'alpha', '--limit', '1', '--json', '--no-refresh'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout) as { total_matches: number; returned: number; truncated: boolean; results: unknown[] };
+    expect(payload.total_matches).toBeGreaterThanOrEqual(2);
+    expect(payload.returned).toBe(1);
+    expect(payload.truncated).toBe(true);
+    expect(payload.results.length).toBe(1);
+
+    const text = runCli(['index', 'query', 'alpha', '--limit', '1', '--no-refresh'], { cwd: tmpRepo, home: tmpHome });
+    expect(text.stdout).toMatch(/results: 1 \(of \d+; raise --limit/);
+  });
+
+  it('marks a full result set as not truncated and exposes the count fields (P1-7)', () => {
+    writeFileSync(join(tmpRepo, 'solo.ts'), 'export function loneSymbol() { return 1; }\n', 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+
+    const r = runCli(['index', 'query', 'loneSymbol', '--json', '--no-refresh'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout) as { total_matches: number; returned: number; truncated: boolean };
+    expect(payload.truncated).toBe(false);
+    expect(payload.total_matches).toBe(payload.returned);
+  });
+
+  it('flags per-file match truncation when a file exceeds the per-file cap (P1-7)', () => {
+    // 10 functions all match "handler"; the per-file cap keeps 8 and the result
+    // must say so (matches_truncated + match_count) rather than silently drop 2.
+    const fns = Array.from({ length: 10 }, (_, i) => `export function handler${i}() { return ${i}; }`).join('\n');
+    writeFileSync(join(tmpRepo, 'h.ts'), `${fns}\n`, 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+
+    const r = runCli(['index', 'query', 'handler', '--json', '--no-refresh'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout) as {
+      results: Array<{ path: string; matches: unknown[]; match_count?: number; matches_truncated?: boolean }>;
+    };
+    const file = payload.results.find(res => res.path === 'h.ts');
+    expect(file).toBeDefined();
+    expect(file!.matches.length).toBe(8);
+    expect(file!.matches_truncated).toBe(true);
+    expect(file!.match_count).toBeGreaterThanOrEqual(10);
+  });
 });

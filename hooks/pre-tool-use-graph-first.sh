@@ -53,6 +53,17 @@ case "$path_value" in
   *.cdd/code-map.yml) exit 0 ;;
 esac
 
+# Staleness guard: if the file about to be read is newer than the code-map, the
+# map (and any index/graph query over it) cannot describe this file yet.
+# Steering to a stale index would point the agent at wrong or missing data, and
+# repeating the graph-first advisory here is exactly the kind of noise that
+# trains agents to ignore the hook. So skip the advisory, nudge a one-line map
+# refresh instead, and ALWAYS allow the Read (even under strict mode).
+if [ -e "$path_value" ] && [ "$path_value" -nt ".cdd/code-map.yml" ]; then
+  printf '%s\n' "cdd-kit: .cdd/code-map.yml is older than $path_value — run \`cdd-kit code-map\` to refresh the index before relying on graph/index queries for it." 1>&2
+  exit 0
+fi
+
 msg="cdd-kit: prefer \`cdd-kit index query \"<symbol-or-file>\" --with-source\` (or \`cdd-kit graph query ... --with-source\`) before Read — it returns the code inline and keeps token use low. Read directly only for ranges the query did not return."
 
 if [ "${CDD_GRAPH_FIRST_STRICT:-0}" = "1" ]; then
