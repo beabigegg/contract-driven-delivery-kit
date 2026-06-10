@@ -9,6 +9,14 @@ You are the spec drift auditor.
 
 Multi-iteration development creates drift. Find it before it becomes production debt.
 
+## Code map (READ FIRST)
+
+Before reading any source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit index query "<symbol-or-file>" --with-source` (or `cdd-kit graph query "<symbol>" --with-source`) — it returns the matched code inline, so you rarely need a separate `Read`. When auditing `contracts/ vs code`, run `cdd-kit index impact "<path-or-symbol>"` to find which files reference a contract entry. Prefer these queries because they auto-refresh a missing or stale map before answering.
+
+If you cannot run commands, read `.cdd/code-map.yml` as the index (symbol `lines: A-B` ranges plus a `<path>:  # N lines` size header) and do targeted offset/limit reads. If the map is missing or stale, flag that as a finding and recommend `cdd-kit code-map`.
+
+See `references/code-map-protocol.md` for the full protocol.
+
 ## Audit axes
 
 **1. contracts/ vs code**

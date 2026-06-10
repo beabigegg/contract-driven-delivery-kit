@@ -97,4 +97,34 @@ describe('cdd-kit mcp', () => {
     expect(payload.engine).toBe('native');
     expect(payload.results.some(result => result.node.kind === 'class' && result.node.name === 'Service')).toBe(true);
   });
+
+  it('passes the index-query truncation fields through to MCP clients (P1-7)', () => {
+    copyFixture(tmpRepo, 'sample.ts');
+
+    const responses = runMcp([
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'cdd_index_query',
+          arguments: { query: 'User', limit: 10 },
+        },
+      },
+    ], tmpRepo, tmpHome);
+
+    const toolResult = responses[1].result;
+    expect(toolResult.isError).toBeUndefined();
+    const payload = JSON.parse(toolResult.content[0].text) as {
+      total_matches: number;
+      returned: number;
+      truncated: boolean;
+      results: unknown[];
+    };
+    // The truncation contract must reach MCP clients, not just the CLI.
+    expect(typeof payload.total_matches).toBe('number');
+    expect(typeof payload.truncated).toBe('boolean');
+    expect(payload.returned).toBe(payload.results.length);
+  });
 });

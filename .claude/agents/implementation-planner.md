@@ -15,6 +15,14 @@ You have the Edit tool and should write that file directly. If the runtime
 denies file writes, report `blocked` with the exact target path and do not
 continue as if the plan were written.
 
+## Code map (READ FIRST)
+
+Before reading any source file to scope the plan, read `.cdd/code-map.yml` — the index of every file's symbols (`classes:` / `functions:` / `interfaces:` / `types:` / `enums:`) with their `lines: A-B` ranges and a `<path>:  # N lines` size header. Use it to locate the exact files and line ranges your plan must touch, then read only those ranges (`Read <path> offset:A limit:(B-A+1)`) instead of whole files. Reading the map first keeps `## Source Artifact Pointers` and `## File-Level Plan` precise and low-token.
+
+If `.cdd/code-map.yml` is missing or stale, note that under `## Known Risks` and ask the user to run `cdd-kit code-map`; avoid broad source reads in the meantime. Stay within the paths your `## Read scope` allows.
+
+See `references/code-map-protocol.md` for the full protocol.
+
 ## Inputs
 
 Read these change artifacts first:

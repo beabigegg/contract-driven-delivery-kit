@@ -74,6 +74,30 @@ describe('cdd-kit graph', () => {
     expect(payload.results.some(r => r.node.kind === 'class' && r.node.name === 'Service')).toBe(true);
   });
 
+  it('reports native-query truncation so --limit cannot silently hide matches (P1-7)', () => {
+    copyFixture(tmpRepo, 'sample.ts');
+
+    // Full set first: total_matches must equal what is returned, untruncated.
+    const all = JSON.parse(
+      runCli(['graph', 'query', 'User', '--limit', '50', '--json'], { cwd: tmpRepo, home: tmpHome }).stdout,
+    ) as { total_matches: number; returned: number; truncated: boolean; results: unknown[] };
+    expect(all.total_matches).toBeGreaterThanOrEqual(2);
+    expect(all.truncated).toBe(false);
+    expect(all.returned).toBe(all.results.length);
+
+    // Same query, limit 1: must surface that the rest were hidden.
+    const r = runCli(['graph', 'query', 'User', '--limit', '1', '--json'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const lim = JSON.parse(r.stdout) as { total_matches: number; returned: number; truncated: boolean; results: unknown[] };
+    expect(lim.returned).toBe(1);
+    expect(lim.results.length).toBe(1);
+    expect(lim.total_matches).toBe(all.total_matches);
+    expect(lim.truncated).toBe(true);
+
+    const text = runCli(['graph', 'query', 'User', '--limit', '1'], { cwd: tmpRepo, home: tmpHome });
+    expect(text.stdout).toMatch(/results: 1 \(of \d+; raise --limit/);
+  });
+
   it('native impact follows call edges', () => {
     writeFileSync(join(tmpRepo, 'a.ts'), `
 import { target } from './b';

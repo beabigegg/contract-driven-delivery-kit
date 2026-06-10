@@ -241,7 +241,13 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
     if (ensured.error) return printEngineError(ensured.error, opts.json, selected.probe);
     try {
       const graph = loadCodeGraph(ensured.graphPath);
-      const results = searchGraph(graph, term, opts.limit);
+      // searchGraph maps over every node regardless of limit, so ranking the
+      // full set then slicing costs no more than the old direct-limit call but
+      // lets us report how many matches the --limit hid.
+      const ranked = searchGraph(graph, term, Number.MAX_SAFE_INTEGER);
+      const results = ranked.slice(0, opts.limit);
+      const totalMatches = ranked.length;
+      const truncated = totalMatches > results.length;
       const sources = opts.withSource
         ? collectNodeSources(results.map(r => r.node), resolveSourceBudget(opts.sourceBudget), surfaceRootFor(mapPath))
         : new Map<string, { source: string; truncated: boolean }>();
@@ -249,11 +255,11 @@ export async function graphQuery(term: string, opts: GraphQueryOptions): Promise
         const withSrc = opts.withSource
           ? results.map(r => ({ ...r, source: sources.get(r.node.id)?.source, source_truncated: sources.get(r.node.id)?.truncated }))
           : results;
-        writeJson({ engine: 'native', graph: ensured.graphPath, query: term, refreshed: ensured.refreshed, results: withSrc });
+        writeJson({ engine: 'native', graph: ensured.graphPath, query: term, refreshed: ensured.refreshed, total_matches: totalMatches, returned: results.length, truncated, results: withSrc });
       } else {
         console.log(`graph: ${ensured.graphPath}${ensured.refreshed ? ' (refreshed)' : ''}`);
         console.log(`query: ${term}`);
-        console.log(`results: ${results.length}`);
+        console.log(`results: ${results.length}${truncated ? ` (of ${totalMatches}; raise --limit to see the rest)` : ''}`);
         for (const result of results) {
           const n = result.node;
           console.log(`- ${n.kind}: ${n.qualified_name} lines ${n.start_line}-${n.end_line}`);
