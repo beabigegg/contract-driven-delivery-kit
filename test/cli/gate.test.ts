@@ -1928,6 +1928,12 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-008');
     writeValidChangeArtifacts(changeDir);
     writeBugFixClassification(changeDir, 'yes');
+    // environment-blocked diagnostic note: no code changed, so test-evidence is
+    // not feasible — record the auditable opt-out (ADR 0006 §10).
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
+      changeId: 'bug-008',
+      extra: { 'test-evidence-not-applicable': 'environment-blocked diagnostic note; no code paths exercised' },
+    }), 'utf8');
     writeBugFixLog(changeDir, 'bug-008', {
       'schema-version': '0.1.0',
       diagnostic_only: true,
@@ -2479,5 +2485,52 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
 
     const r = runCli(['gate', 'bug-039'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml/i);
+  });
+
+  it('BF40: a diagnostic-only change with neither test-evidence nor an opt-out fails the gate', () => {
+    runCli(['new', 'bug-040'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-040');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'yes'); // classifier approves diagnostic-only
+    // No test-evidence.yml and no opt-out: a diagnostic-only change that ships
+    // diagnostic code cannot silently pass with neither (ADR 0006 §10).
+    writeBugFixLog(changeDir, 'bug-040', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as locally',
+      actual_behavior: 'Export fails ~1 in 10 runs',
+      reproduction: { status: 'intermittent' },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'unconfirmed' }],
+    });
+
+    const r = runCli(['gate', 'bug-040'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/diagnostic-only bug-fix change must record passing test-evidence\.yml.*or set an auditable .*opt-out/i);
+  });
+
+  it('BF41: a diagnostic-only change may skip test-evidence with an auditable opt-out', () => {
+    runCli(['new', 'bug-041'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-041');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'yes'); // classifier approves diagnostic-only
+    // The "where feasible" escape: no code changed, so an auditable opt-out lets
+    // the diagnostic-only change pass without test-evidence (ADR 0006 §10).
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
+      changeId: 'bug-041',
+      extra: { 'test-evidence-not-applicable': 'diagnostic-only note; no code paths exercised' },
+    }), 'utf8');
+    writeBugFixLog(changeDir, 'bug-041', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as locally',
+      actual_behavior: 'Export fails ~1 in 10 runs',
+      reproduction: { status: 'intermittent' },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'unconfirmed' }],
+    });
+
+    const r = runCli(['gate', 'bug-041'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/diagnostic-only bug-fix change must record passing test-evidence/i);
   });
 });

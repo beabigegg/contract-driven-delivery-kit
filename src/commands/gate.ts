@@ -1203,6 +1203,24 @@ function enforceBugFixEvidence(
         'proof; diagnostic-only is for intermittent / environment-blocked / not-reproduced (ADR 0006 §10).',
       );
     }
+    // ADR 0006 §10 — a diagnostic-only change still needs test-evidence for its
+    // diagnostic code "where feasible" and cannot pass with required test
+    // failures. Require a present test-evidence.yml (enforceTestEvidence then
+    // validates its required phases) UNLESS tasks.yml carries an auditable
+    // `test-evidence-not-applicable` opt-out — the "no code / not feasible"
+    // declaration. So a diagnostic-only record cannot silently pass with neither
+    // evidence nor an opt-out. (A behavior fix, below, may not opt out at all.)
+    if (!existsSync(join(changeDir, 'test-evidence.yml'))) {
+      const optOutRaw = tasksData?.['test-evidence-not-applicable'];
+      const optOut = typeof optOutRaw === 'string' && optOutRaw.trim() !== '';
+      if (!optOut) {
+        errors.push(
+          'agent-log/bug-fix-engineer.yml: a diagnostic-only bug-fix change must record passing test-evidence.yml ' +
+          'for its diagnostic code, or set an auditable `test-evidence-not-applicable` opt-out in tasks.yml when no ' +
+          'code changed — it cannot pass with neither (ADR 0006 §10).',
+        );
+      }
+    }
   } else {
     if (classifierDiag === true) {
       errors.push(
