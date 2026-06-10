@@ -52,6 +52,37 @@ const RUNNER_ADDED_PYTEST_FLAGS = new Set(['-q', '--maxfail=1', '--tb=short', '-
 // run` phase except `collect` (PHASES, src/commands/test-run.ts).
 const EXECUTED_PHASES: readonly string[] = PHASES.filter((p) => p !== 'collect');
 
+/**
+ * Split a command suffix into tokens on whitespace, keeping single/double-quoted
+ * spans intact. `cdd-kit test run` shell-quotes the appended `--junitxml=<path>`
+ * (shellQuote, src/commands/test-run.ts), so a repo path containing spaces yields
+ * a `--junitxml='/a b/junit.xml'` token that a naive whitespace split would tear
+ * into bogus extra tokens and wrongly reject as a non-runner flag.
+ */
+function splitPreservingQuotes(s: string): string[] {
+  const tokens: string[] = [];
+  let cur = '';
+  let quote: string | null = null;
+  let inToken = false;
+  for (const ch of s) {
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === "'" || ch === '"') {
+      quote = ch;
+      cur += ch;
+      inToken = true;
+    } else if (/\s/.test(ch)) {
+      if (inToken) { tokens.push(cur); cur = ''; inToken = false; }
+    } else {
+      cur += ch;
+      inToken = true;
+    }
+  }
+  if (inToken) tokens.push(cur);
+  return tokens;
+}
+
 const MIN_CHARS: Record<string, number> = {
   'change-classification.md': 200,
   'implementation-plan.md': 200,
@@ -859,7 +890,10 @@ function collectWaiverFields(value: unknown, found: Set<string>): void {
 function readClassifierDiagnosticOnly(changeDir: string): boolean | null {
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return null;
-  const m = readFileSync(classifPath, 'utf8').match(/^##\s+Diagnostic Only\s*\n\s*-\s*(yes|no)\b/im);
+  // Anchor the value to end-of-line (like readLane): a yes-like-but-invalid value
+  // (the `- yes | no` stub, `- yes-ish`) must NOT count as an explicit `yes` and
+  // grant the diagnostic-only exemption — treat it as no recorded decision (null).
+  const m = readFileSync(classifPath, 'utf8').match(/^##\s+Diagnostic Only\s*\n\s*-\s*(yes|no)\s*$/im);
   return m ? m[1].toLowerCase() === 'yes' : null;
 }
 
@@ -1119,7 +1153,7 @@ function enforceBugFixEvidence(
       if (!commandOk && isPytestCommand(wantCommand) && !hasShellControl(wantCommand) &&
           recorded.startsWith(`${wantCommand} `)) {
         const suffix = recorded.slice(wantCommand.length + 1);
-        commandOk = suffix.split(/\s+/).filter(Boolean).every(
+        commandOk = splitPreservingQuotes(suffix).every(
           (tok) => tok.startsWith('--junitxml=') || RUNNER_ADDED_PYTEST_FLAGS.has(tok),
         );
       }

@@ -1735,7 +1735,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
   // classifier recorded `## Lane\n- bug-fix`; feature/legacy changes are untouched.
   // ───────────────────────────────────────────────────────────────────────────
 
-  function writeBugFixClassification(changeDir: string, diagnosticOnly: 'yes' | 'no' = 'no'): void {
+  function writeBugFixClassification(changeDir: string, diagnosticOnly: string = 'no'): void {
     const filler = 'This bug-fix change addresses a reproducible defect in the orders status filter panel. '.repeat(4);
     writeFileSync(join(changeDir, 'change-classification.md'), [
       '# Change Classification',
@@ -2442,5 +2442,42 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-037'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/records command .* which is neither the declared .* nor that command with only runner-added flags/i);
+  });
+
+  it('BF38: a yes-like-but-invalid `## Diagnostic Only` value does not grant the exemption', () => {
+    runCli(['new', 'bug-038'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-038');
+    writeValidChangeArtifacts(changeDir);
+    // The unfilled `- yes | no` stub is not an explicit `yes` decision, so a log
+    // that sets diagnostic_only must not get the root-cause/regression exemption.
+    writeBugFixClassification(changeDir, 'yes | no');
+    writeBugFixLog(changeDir, 'bug-038', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as locally',
+      actual_behavior: 'Export fails ~1 in 10 runs',
+      reproduction: { status: 'intermittent' },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'unconfirmed' }],
+    });
+
+    const r = runCli(['gate', 'bug-038'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/diagnostic-only exemption from .* requires explicit classifier approval/i);
+  });
+
+  it('BF39: a runner-quoted junit path with spaces is accepted (quote-preserving match)', () => {
+    runCli(['new', 'bug-039'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-039');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-039');
+    // `cdd-kit test run` shell-quotes the appended --junitxml path; when the repo
+    // path has spaces, the quoted token must not be torn apart and rejected.
+    writeRunSummary('bug-039', 'reg', { status: 'passed', command: `${REG_COMMAND} --junitxml='/tmp/my repo/test-runs/reg/junit.xml' -q --maxfail=1 --tb=short -ra` });
+    writeBugFixLog(changeDir, 'bug-039', bugFixBlock('bug-039')); // regression.command = REG_COMMAND (clean)
+
+    const r = runCli(['gate', 'bug-039'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml/i);
   });
 });
