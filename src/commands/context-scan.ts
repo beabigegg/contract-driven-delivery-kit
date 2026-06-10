@@ -1,30 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
-import { createHash } from 'crypto';
 import { basename, dirname, join, relative } from 'path';
 import { log } from '../utils/logger.js';
 
-// Hash uses line-ending normalization — see src/utils/digest.ts for rationale.
-import { sha256OfFileNormalized as sha256OfFile } from '../utils/digest.js';
-
-/**
- * Compute a stable digest of a list of input files. Each entry is rendered as
- * `<repo-relative-path>:<sha256-of-content>`, sorted, joined with newlines,
- * then hashed.
- *
- * Repo-relative path matters: if we used the absolute path, the digest would
- * differ between every clone (different `cwd`) even when content is identical
- * — making `cdd-kit doctor` permanently report "inputs changed" after any
- * fresh clone. Fixed in 2.0.10.
- */
-function inputsDigest(paths: string[], cwd: string): string {
-  const combined = paths.slice().sort()
-    .map(p => {
-      const rel = relative(cwd, p).replace(/\\/g, '/');
-      return `${rel}:${sha256OfFile(p)}`;
-    })
-    .join('\n');
-  return createHash('sha256').update(combined).digest('hex');
-}
+// The inputs-digest stamped into the generated indexes is recomputed verbatim
+// by `cdd-kit doctor`; the digest algorithm and the input-file selection are
+// shared modules (P1-17) so the writer and the checker cannot drift.
+import { inputsDigest } from '../utils/digest.js';
+import { findContractFiles, projectMapInputs } from '../utils/context-inputs.js';
 
 const DEFAULT_FORBIDDEN = [
   '.claude',
@@ -214,16 +196,6 @@ function parseContractMetadata(content: string): { title?: string; summary?: str
   return { title: firstHeading(content), summary, metadata };
 }
 
-function findContractFiles(dir: string, found: string[] = []): string[] {
-  if (!existsSync(dir)) return found;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) findContractFiles(fullPath, found);
-    else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md' && entry.name !== 'CHANGELOG.md') found.push(fullPath);
-  }
-  return found;
-}
-
 export interface ContextScanOptions {
   surface?: string;
 }
@@ -251,8 +223,6 @@ export async function contextScan(opts: ContextScanOptions = {}): Promise<void> 
 
   const treeStats: TreeStats = { dirs: 0, files: 0, omittedDirs: 0, truncatedDirs: 0 };
   const tree = buildTree(scanRoot, cwd, forbidden, treeStats);
-  const policyPath = join(cwd, '.cdd', 'context-policy.json');
-  const projectMapInputs = [policyPath].filter(existsSync);
   writeFileSync(
     join(specsContextDir, 'project-map.md'),
     [
@@ -266,7 +236,7 @@ export async function contextScan(opts: ContextScanOptions = {}): Promise<void> 
       `visible-files: ${treeStats.files}`,
       `omitted-dirs: ${treeStats.omittedDirs}`,
       `truncated-dirs: ${treeStats.truncatedDirs}`,
-      `inputs-digest: ${inputsDigest(projectMapInputs, cwd)}`,
+      `inputs-digest: ${inputsDigest(projectMapInputs(cwd), cwd)}`,
       '---',
       '',
       '# Project Map',

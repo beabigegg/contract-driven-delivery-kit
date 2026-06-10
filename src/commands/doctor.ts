@@ -1,7 +1,6 @@
-import { existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
-import { createHash } from 'crypto';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { spawnSync } from 'child_process';
-import { join, relative } from 'path';
+import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
 import { detectStack } from '../utils/stack-detect.js';
@@ -41,32 +40,11 @@ function fileExists(cwd: string, relPath: string): boolean {
   return existsSync(join(cwd, relPath));
 }
 
-function findFiles(dir: string, predicate: (name: string) => boolean, found: string[] = []): string[] {
-  if (!existsSync(dir)) return found;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) findFiles(fullPath, predicate, found);
-    else if (entry.isFile() && predicate(entry.name)) found.push(fullPath);
-  }
-  return found;
-}
-
-// Hash uses line-ending normalization — see src/utils/digest.ts for rationale.
-import { sha256OfFileNormalized as sha256OfFile } from '../utils/digest.js';
-
-function inputDigest(paths: string[], cwd: string): string {
-  // Use repo-relative paths so the digest is portable across clones.
-  // (See context-scan.ts inputsDigest for the same fix; the two MUST stay in
-  // lockstep — doctor compares its computed digest against the one stamped
-  // in `specs/context/*.md` by context-scan.)
-  const combined = paths.slice().sort()
-    .map(p => {
-      const rel = relative(cwd, p).replace(/\\/g, '/');
-      return `${rel}:${sha256OfFile(p)}`;
-    })
-    .join('\n');
-  return createHash('sha256').update(combined).digest('hex');
-}
+// Doctor recomputes the same inputs-digest that context-scan stamped into the
+// index frontmatter; both the digest algorithm and the input-file selection are
+// shared modules (P1-17) so the writer and the checker cannot drift.
+import { inputsDigest } from '../utils/digest.js';
+import { findContractFiles, projectMapInputs } from '../utils/context-inputs.js';
 
 function readContextIndexMetadata(filePath: string): { inputsDigest?: string; missingSummary?: number } {
   if (!existsSync(filePath)) return {};
@@ -83,12 +61,7 @@ function checkContextFreshness(cwd: string): Finding[] {
   const findings: Finding[] = [];
   const projectMap = join(cwd, 'specs', 'context', 'project-map.md');
   const contractsIndex = join(cwd, 'specs', 'context', 'contracts-index.md');
-  const contextPolicy = join(cwd, '.cdd', 'context-policy.json');
-  // Mirror the file filter used by context-scan so digests align.
-  const contractFiles = findFiles(
-    join(cwd, 'contracts'),
-    name => name.endsWith('.md') && name !== 'INDEX.md' && name !== 'CHANGELOG.md',
-  );
+  const contractFiles = findContractFiles(join(cwd, 'contracts'));
 
   if (!existsSync(projectMap) || !existsSync(contractsIndex)) {
     findings.push({
@@ -103,7 +76,7 @@ function checkContextFreshness(cwd: string): Finding[] {
   const projectMapMeta = readContextIndexMetadata(projectMap);
   const contractsIndexMeta = readContextIndexMetadata(contractsIndex);
 
-  const projectInputDigest = inputDigest([contextPolicy].filter(existsSync), cwd);
+  const projectInputDigest = inputsDigest(projectMapInputs(cwd), cwd);
   if (projectMapMeta.inputsDigest === undefined) {
     findings.push({
       level: 'warning',
@@ -116,7 +89,7 @@ function checkContextFreshness(cwd: string): Finding[] {
     });
   }
 
-  const contractsInputDigest = inputDigest(contractFiles, cwd);
+  const contractsInputDigest = inputsDigest(contractFiles, cwd);
   if (contractsIndexMeta.inputsDigest === undefined) {
     findings.push({
       level: 'warning',
