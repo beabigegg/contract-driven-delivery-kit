@@ -875,6 +875,16 @@ cdd-kit context request add-jwt-auth CER-001 --path src/server/users.ts tests/us
 
 Use this when an agent needs more context than its current work packet allows.
 
+**Auto-safe approval.** When `.cdd/context-policy.json` sets
+`contextExpansion.mode: "auto-safe"`, paths that fall inside its
+`autoApprovePatterns` (e.g. `src/**`, `tests/**`, `contracts/**`,
+`specs/changes/<current-change-id>/**`) and are not forbidden are approved
+immediately instead of being parked as pending — so a request that is entirely
+inside the safe zones never stalls the session. Only the leftover (out-of-zone)
+paths are recorded as a pending CER for human review. The forbidden baseline
+always wins, and a repo with no policy file (or `mode` other than `auto-safe`)
+keeps the manual pending-CER behavior.
+
 ---
 
 ### `cdd-kit context check <change-id>`
@@ -904,6 +914,35 @@ cdd-kit context approve add-jwt-auth --all-pending   # bulk approve every pendin
 ```
 
 This keeps expansion history explicit while avoiding manual manifest editing.
+
+---
+
+### `cdd-kit context auto-approve <change-id>`
+
+Resolves *already-pending* CERs against the auto-safe policy: paths inside the
+safe zones move to `## Approved Expansions`, a request whose every path is safe
+is marked `approved`, and a mixed request stays pending trimmed to just the
+paths that still need a human. This is the unblock `/cdd-resume` runs before it
+would otherwise stop on a pending CER. No-op unless the policy mode is
+`auto-safe`.
+
+```bash
+cdd-kit context auto-approve add-jwt-auth
+```
+
+---
+
+### `cdd-kit context approve-interactive <change-id>`
+
+Walks each pending CER one at a time with a plain-language tag per path (inside
+an auto-safe zone / outside the usual safe zones / blocked by policy) and a
+`[y]es / [n]o-skip / [q]uit` prompt — so a non-engineer can adjudicate without
+hand-editing the manifest. Reads answers from stdin and stops cleanly on EOF
+(it never hangs a non-interactive session).
+
+```bash
+cdd-kit context approve-interactive add-jwt-auth
+```
 
 ---
 
@@ -1116,6 +1155,14 @@ already scanned in its own subprocess.
 A JSON sidecar (`.cdd/code-map.<...>.index.json`) is written next to each map and
 gitignored automatically; `cdd-kit index` reads it to skip re-parsing the YAML on
 large maps, and falls back to the YAML whenever the sidecar is absent or stale.
+
+After a `git clone` or checkout every source file gets a fresh mtime, so a map
+that is actually current looks stale by mtime and each query pays a full-tree
+content-digest recompute to prove otherwise. Once a refreshing query confirms
+freshness that way, it bumps the map's mtime forward, so the *next* query passes
+the cheap mtime check and skips the recompute. This only happens on the query
+path (`cdd-kit index`/`graph` with refresh on, the default); `--no-refresh`,
+`cdd-kit doctor`, and `cdd-kit gate` never write to the map.
 
 ### `cdd-kit graph`
 

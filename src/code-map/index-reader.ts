@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, utimesSync } from 'fs';
 import yaml from 'js-yaml';
 import { checkCodeMapFreshness } from './freshness.js';
 import type { FileEntry } from './types.js';
@@ -39,6 +39,20 @@ export async function ensureCodeMapFresh(mapPath: string, refresh: boolean): Pro
       };
     }
     return { refreshed: true };
+  }
+
+  // P1-8: the map is fresh, but if that verdict required the full-tree digest
+  // (mtime claimed stale after a clone/checkout while content was unchanged),
+  // bump the map's mtime forward so the next query passes the cheap mtime check
+  // and skips the expensive recompute. Best-effort; never fails the query.
+  if (freshness.status === 'ok' && freshness.verifiedByDigest) {
+    try {
+      const now = new Date();
+      utimesSync(freshness.mapPath, now, now);
+    } catch {
+      // read-only fs or vanished map — the recompute on the next query is the
+      // correct, if slower, fallback.
+    }
   }
 
   return { refreshed: false };

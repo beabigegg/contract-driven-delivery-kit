@@ -11,6 +11,13 @@ export interface FreshnessResult {
   mapPath: string;
   /** Populated only when status === 'config-error'. */
   configError?: string;
+  /**
+   * True when the `ok` verdict came from the expensive content-digest path
+   * (mtime claimed stale but the hash matched) rather than the cheap mtime
+   * check. The query path uses this to repair the map's mtime so subsequent
+   * queries skip the full-tree digest recompute. See P1-8.
+   */
+  verifiedByDigest?: boolean;
 }
 
 /**
@@ -87,7 +94,7 @@ export function checkCodeMapFreshness(
   if (declaredDigest !== null) {
     const actualDigest = computeSourcesDigest(sourceFiles, cwd);
     if (actualDigest === declaredDigest) {
-      return { status: 'ok', staleFiles: [], staleCount: 0, mapPath };
+      return { status: 'ok', staleFiles: [], staleCount: 0, mapPath, verifiedByDigest: true };
     }
   }
 

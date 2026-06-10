@@ -773,6 +773,22 @@ context
   });
 
 context
+  .command('auto-approve <change-id>')
+  .description('Resolve pending Context Expansion Requests against the auto-safe policy (unblocks safe-zone reads without manual review)')
+  .action(async (changeId: string) => {
+    const { autoApproveContextExpansions } = await import('../commands/context.js');
+    await autoApproveContextExpansions(changeId);
+  });
+
+context
+  .command('approve-interactive <change-id>')
+  .description('Walk each pending Context Expansion Request with a plain-language explanation and a y/n prompt')
+  .action(async (changeId: string) => {
+    const { approveContextExpansionsInteractive } = await import('../commands/context.js');
+    await approveContextExpansionsInteractive(changeId);
+  });
+
+context
   .command('list <change-id>')
   .description('List Context Expansion Requests for a change')
   .option('--json', 'Print machine-readable JSON', false)
