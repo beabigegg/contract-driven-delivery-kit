@@ -5,6 +5,7 @@ import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
+import { PHASES } from './test-run.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
 import { agentLogSchema } from '../schemas/agent-log.schema.js';
@@ -38,6 +39,18 @@ const REQUIRED_FILES = [
 ];
 
 const TIER_PATTERN = /\b(tier\s*[0-5]|low|medium|high|critical)\b/i;
+
+// `cdd-kit test run` augments a simple pytest command by APPENDING only this
+// fixed flag vocabulary (augmentPytestCommand, src/commands/test-run.ts), plus a
+// leading `--junitxml=<path>` token. A bug-fix reproduction/regression summary may
+// record the declared command followed ONLY by these tokens; any other suffix
+// token (e.g. a user-selected `-k`) means a different command actually ran.
+const RUNNER_ADDED_PYTEST_FLAGS = new Set(['-q', '--maxfail=1', '--tb=short', '-ra']);
+
+// Proving a reproduction or regression needs an EXECUTED run; the collect-only
+// phase never executes tests. The valid executed phases are every `cdd-kit test
+// run` phase except `collect` (PHASES, src/commands/test-run.ts).
+const EXECUTED_PHASES: readonly string[] = PHASES.filter((p) => p !== 'collect');
 
 const MIN_CHARS: Record<string, number> = {
   'change-classification.md': 200,
@@ -1040,9 +1053,9 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    let summary: { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
+    let parsed: unknown;
     try {
-      summary = JSON.parse(readFileSync(abs, 'utf8')) as { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
+      parsed = JSON.parse(readFileSync(abs, 'utf8'));
     } catch {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is not a readable JSON run summary ` +
@@ -1050,6 +1063,17 @@ function enforceBugFixEvidence(
       );
       continue;
     }
+    // A well-formed JSON file can still parse to null or a non-object (e.g. the
+    // literal `null`), which would crash the field reads below — reject it as an
+    // invalid summary, mirroring the test-evidence summary guard.
+    if (parsed === null || typeof parsed !== 'object') {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is not a valid run summary object ` +
+        'produced by `cdd-kit test run` (ADR 0006 §7).',
+      );
+      continue;
+    }
+    const summary = parsed as { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
     if (summary.change_id !== changeId) {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records change ` +
@@ -1057,10 +1081,11 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    if (summary.phase === 'collect') {
+    if (typeof summary.phase !== 'string' || !EXECUTED_PHASES.includes(summary.phase)) {
       errors.push(
-        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is a collect-only run (phase: collect) — ` +
-        'a collect run does not execute tests, so it cannot prove a reproduction or regression (ADR 0006 §6).',
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records phase \`${String(summary.phase)}\`, ` +
+        'but a reproduction or regression proof must reference an executed run — one of ' +
+        `${EXECUTED_PHASES.join(', ')} (a collect-only run never executes tests) (ADR 0006 §6).`,
       );
       continue;
     }
@@ -1081,13 +1106,20 @@ function enforceBugFixEvidence(
     }
     // `cdd-kit test run` only APPENDS flags to a simple pytest command
     // (augmentPytestCommand), so accept an exact match, or the declared command
-    // followed by runner-added flags — the suffix after it must start with `-`,
-    // not an extra test target. Otherwise a bare `pytest` would match any pytest
-    // run under this change.
+    // followed ONLY by the runner-added flag vocabulary. Every suffix token must
+    // be a `--junitxml=<path>` token or one of RUNNER_ADDED_PYTEST_FLAGS — a
+    // user-selected flag (e.g. `-k other`) or an extra test target present in the
+    // run but not the declared command means a different command actually ran.
     if (typeof wantCommand === 'string') {
       const recorded = typeof summary.command === 'string' ? summary.command : '';
-      const augmented = recorded.startsWith(`${wantCommand} `) && recorded.slice(wantCommand.length + 1).startsWith('-');
-      if (recorded !== wantCommand && !augmented) {
+      let commandOk = recorded === wantCommand;
+      if (!commandOk && recorded.startsWith(`${wantCommand} `)) {
+        const suffix = recorded.slice(wantCommand.length + 1);
+        commandOk = suffix.split(/\s+/).filter(Boolean).every(
+          (tok) => tok.startsWith('--junitxml=') || RUNNER_ADDED_PYTEST_FLAGS.has(tok),
+        );
+      }
+      if (!commandOk) {
         errors.push(
           `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records command \`${String(summary.command)}\`, ` +
           `which is neither the declared \`${wantCommand}\` nor that command with only runner-added flags (ADR 0006 §7).`,

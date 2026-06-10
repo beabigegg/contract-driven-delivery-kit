@@ -2319,7 +2319,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
 
     const r = runCli(['gate', 'bug-030'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/regression\.summary .* is a collect-only run \(phase: collect\)/i);
+    expect(r.stdout + r.stderr).toMatch(/regression\.summary .* records phase `collect`, but .* must reference an executed run/i);
   });
 
   it('BF31: a pytest-augmented summary command (prefix of the declared command) is accepted', () => {
@@ -2372,5 +2372,56 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-033'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/records command .* which is neither the declared `pytest` nor that command with only runner-added flags/i);
+  });
+
+  it('BF34: a summary suffix adding a user-selected flag (not a runner flag) fails the gate', () => {
+    runCli(['new', 'bug-034'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-034');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-034');
+    // The declared command is a clean prefix, but the run also passed `-k other`
+    // — a user-selected flag the runner never appends, so a different selection
+    // ran. The flag-only tolerance must reject it.
+    writeRunSummary('bug-034', 'reg', { status: 'passed', command: `${REG_COMMAND} -k other --junitxml=junit.xml -q` });
+    writeBugFixLog(changeDir, 'bug-034', bugFixBlock('bug-034')); // regression.command = REG_COMMAND (clean)
+
+    const r = runCli(['gate', 'bug-034'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/which is neither the declared .* nor that command with only runner-added flags/i);
+  });
+
+  it('BF35: a run summary that parses to null (not an object) fails without crashing the gate', () => {
+    runCli(['new', 'bug-035'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-035');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-035');
+    // A well-formed JSON file whose top-level value is `null`: JSON.parse succeeds,
+    // but the field reads would crash unless the non-object guard rejects it first.
+    const abs = join(changeDir, 'test-runs', 'reg', 'summary.json');
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, 'null', 'utf8');
+    writeBugFixLog(changeDir, 'bug-035', bugFixBlock('bug-035'));
+
+    const r = runCli(['gate', 'bug-035'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/is not a valid run summary object/i);
+  });
+
+  it('BF36: a run summary with a non-executed (foreign) phase fails the gate', () => {
+    runCli(['new', 'bug-036'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-036');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-036');
+    // Right change id / status / command, but a phase that is not a real executed
+    // `cdd-kit test run` phase must not count as a reproduction/regression proof.
+    writeRunSummary('bug-036', 'reg', { status: 'passed', phase: 'made-up', command: REG_COMMAND });
+    writeBugFixLog(changeDir, 'bug-036', bugFixBlock('bug-036'));
+
+    const r = runCli(['gate', 'bug-036'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/must reference an executed run/i);
   });
 });
