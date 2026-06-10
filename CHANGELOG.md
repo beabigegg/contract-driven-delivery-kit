@@ -48,13 +48,15 @@
   `bug-fix-engineer` and bound to this change's `change-id`; a reproduced symptom
   must name a `confirmed` hypothesis; referenced reproduction/regression summaries
   must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
-  recording the matching `change_id`, status, and command — and a
+  an executed run — not collect-only — recording the matching `change_id`, status,
+  and command, tolerating the runner's pytest augmentation; and a
   test-reproduced/failing-before-fix reproduction must reference a failed-or-timeout
   pre-fix run with its command); a behavior-changing fix must
   carry a durable regression summary with its command plus a present
   `test-evidence.yml` (the `test-evidence-not-applicable` opt-out does not apply);
   the diagnostic-only exemption requires explicit classifier approval
-  (`## Diagnostic Only` `- yes`), not silence, and may not itself claim a fix; and
+  (`## Diagnostic Only` `- yes`), not silence, and may not itself claim a fix or a
+  successful reproduction status; and
   the log may not carry prohibited failure-waiver fields at any level. Feature and
   legacy changes (no `## Lane: bug-fix`) are unaffected.
 

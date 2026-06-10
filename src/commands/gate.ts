@@ -1040,9 +1040,9 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    let summary: { change_id?: unknown; status?: unknown; command?: unknown };
+    let summary: { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
     try {
-      summary = JSON.parse(readFileSync(abs, 'utf8')) as { change_id?: unknown; status?: unknown; command?: unknown };
+      summary = JSON.parse(readFileSync(abs, 'utf8')) as { change_id?: unknown; phase?: unknown; status?: unknown; command?: unknown };
     } catch {
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is not a readable JSON run summary ` +
@@ -1054,6 +1054,13 @@ function enforceBugFixEvidence(
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records change ` +
         `\`${String(summary.change_id)}\`, not \`${changeId}\` — reference this change's own run summary (ADR 0006 §7).`,
+      );
+      continue;
+    }
+    if (summary.phase === 'collect') {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` is a collect-only run (phase: collect) — ` +
+        'a collect run does not execute tests, so it cannot prove a reproduction or regression (ADR 0006 §6).',
       );
       continue;
     }
@@ -1072,11 +1079,18 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    if (typeof wantCommand === 'string' && summary.command !== wantCommand) {
-      errors.push(
-        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records command \`${String(summary.command)}\`, ` +
-        `not the declared \`${wantCommand}\` (ADR 0006 §7).`,
-      );
+    // `cdd-kit test run` rewrites a simple pytest command before recording it
+    // (augmentPytestCommand appends --junitxml/-q/--maxfail/… so the declared
+    // command is a prefix of the recorded one). Accept an exact match or that
+    // prefix; reject an unrelated command.
+    if (typeof wantCommand === 'string') {
+      const recorded = typeof summary.command === 'string' ? summary.command : '';
+      if (recorded !== wantCommand && !recorded.startsWith(`${wantCommand} `)) {
+        errors.push(
+          `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records command \`${String(summary.command)}\`, ` +
+          `which is neither the declared \`${wantCommand}\` nor a \`cdd-kit test run\` augmentation of it (ADR 0006 §7).`,
+        );
+      }
     }
   }
 
@@ -1104,6 +1118,17 @@ function enforceBugFixEvidence(
         'agent-log/bug-fix-engineer.yml: a diagnostic-only record must not claim a fix, but it carries ' +
         `\`${claimed.join('`, `')}\` — diagnostic-only does not fix the symptom yet; record the fix and its ` +
         'proof in a follow-up change (ADR 0006 §10).',
+      );
+    }
+    // Nor may it claim a SUCCESSFUL reproduction — a reproduced symptom is the
+    // behavior-fix path, not diagnostic-only (which is for intermittent /
+    // environment-blocked / not-reproduced) (ADR 0006 §10).
+    if (typeof reproduction?.status === 'string' &&
+        (BEHAVIOR_FIX_REPRODUCTION_STATUSES as readonly string[]).includes(reproduction.status)) {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a diagnostic-only record must not use a successful reproduction status ' +
+        `(\`${reproduction.status}\`) — a reproduced symptom needs a behavior fix with root-cause/regression ` +
+        'proof; diagnostic-only is for intermittent / environment-blocked / not-reproduced (ADR 0006 §10).',
       );
     }
   } else {

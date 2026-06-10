@@ -1786,12 +1786,12 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
   // Materialize a run summary.json under this change's test-runs/<subdir>/, so the
   // gate's summary validation (under test-runs/, matching change_id + status +
   // command) finds a real `cdd-kit test run` artifact.
-  function writeRunSummary(changeId: string, subdir: string, opts: { status?: string; command?: string } = {}): void {
+  function writeRunSummary(changeId: string, subdir: string, opts: { status?: string; command?: string; phase?: string } = {}): void {
     const abs = join(tmpRepo, 'specs', 'changes', changeId, 'test-runs', subdir, 'summary.json');
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, JSON.stringify({
       change_id: changeId,
-      phase: 'targeted',
+      phase: opts.phase ?? 'targeted',
       status: opts.status ?? 'passed',
       command: opts.command ?? REG_COMMAND,
     }), 'utf8');
@@ -2305,5 +2305,54 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-029'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/`## Lane` has an unrecognized value/i);
+  });
+
+  it('BF30: a collect-only run as regression proof fails the gate', () => {
+    runCli(['new', 'bug-030'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-030');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-030');
+    // regression.summary points at a collect-only run (no test execution).
+    writeRunSummary('bug-030', 'reg', { phase: 'collect', status: 'passed' });
+    writeBugFixLog(changeDir, 'bug-030', bugFixBlock('bug-030'));
+
+    const r = runCli(['gate', 'bug-030'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/regression\.summary .* is a collect-only run \(phase: collect\)/i);
+  });
+
+  it('BF31: a pytest-augmented summary command (prefix of the declared command) is accepted', () => {
+    runCli(['new', 'bug-031'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-031');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-031');
+    // The runner augments a simple pytest command; the block declares the clean one.
+    writeRunSummary('bug-031', 'reg', { status: 'passed', command: `${REG_COMMAND} --junitxml=junit.xml -q --maxfail=1 --tb=short -ra` });
+    writeBugFixLog(changeDir, 'bug-031', bugFixBlock('bug-031')); // regression.command = REG_COMMAND (clean)
+
+    const r = runCli(['gate', 'bug-031'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/bug-fix-engineer\.yml/i);
+  });
+
+  it('BF32: a diagnostic-only record using a successful reproduction status fails the gate', () => {
+    runCli(['new', 'bug-032'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-032');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir, 'yes'); // classifier approves diagnostic-only
+    writeBugFixLog(changeDir, 'bug-032', {
+      'schema-version': '0.1.0',
+      diagnostic_only: true,
+      symptom: 'Export intermittently fails in CI only',
+      expected_behavior: 'Export completes in CI as locally',
+      actual_behavior: 'Export fails ~1 in 10 runs',
+      reproduction: { status: 'test-reproduced', failing_before_fix: true },
+      hypotheses: [{ id: 'H1', candidate: 'src/export/worker.ts::run', reason: 'CI-only path', result: 'confirmed' }],
+    });
+
+    const r = runCli(['gate', 'bug-032'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/diagnostic-only record must not use a successful reproduction status/i);
   });
 });
