@@ -873,6 +873,19 @@ function enforceBugFixEvidence(
     return;
   }
 
+  // ADR 0006 §7 — a repair record may not waive failures. The agent-log's
+  // additionalProperties:false downgrades unknown keys to warnings, so the
+  // prohibited waiver fields are scanned explicitly (as the test-evidence path
+  // does) and rejected outright.
+  for (const field of PROHIBITED_WAIVER_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: prohibited waiver field \`${field}\` — a bug-fix repair record may ` +
+        `not exclude known or pre-existing failures (ADR 0006 §7): ${BLOCKED_FAILURE_GUIDANCE}.`,
+      );
+    }
+  }
+
   if (!validateAgentLog(data)) {
     const out = ajvErrorsToMessages(
       validateAgentLog.errors,
@@ -880,7 +893,9 @@ function enforceBugFixEvidence(
       Object.keys(agentLogSchema.properties),
     );
     errors.push(...out.errors);
-    warnings.push(...out.warnings);
+    // A waiver field is already reported as an error above; don't also echo its
+    // additionalProperties downgrade as a warning.
+    warnings.push(...out.warnings.filter((w) => !PROHIBITED_WAIVER_FIELDS.some((f) => w.includes(`\`${f}\``))));
     // Only hard schema errors mean the shape can't be trusted. A warning-only
     // result (e.g. an unknown extra key → additionalProperties) must NOT skip the
     // required-block and cross-field checks below, or a log with the envelope and
@@ -951,19 +966,21 @@ function enforceBugFixEvidence(
   //    regression proof.
   const regression = block.regression as { status?: unknown; command?: unknown; summary?: unknown } | undefined;
   const testRunsDir = resolve(changeDir, 'test-runs');
-  const refs: ReadonlyArray<{ field: string; value: unknown; status?: unknown; command?: unknown }> = [
+  const reproAutomated = reproduction?.failing_before_fix === true || reproduction?.status === 'test-reproduced';
+  const refs: ReadonlyArray<{ field: string; value: unknown; status?: unknown; notStatus?: string; command?: unknown }> = [
     {
       field: 'reproduction.summary',
       value: reproduction?.summary,
       // A test-reproduced / failing-before-fix reproduction (ADR 0006 §6) must
-      // reference a FAILED run; otherwise the post-fix passing summary could be
-      // reused as the repro.
-      status: reproduction?.failing_before_fix === true || reproduction?.status === 'test-reproduced' ? 'failed' : undefined,
+      // reference a NON-passing pre-fix run — failed, or `timeout` for a
+      // performance bug (the runner records that, src/commands/test-run.ts) — so
+      // the post-fix passing summary cannot be reused as the repro.
+      notStatus: reproAutomated ? 'passed' : undefined,
       command: reproduction?.command,
     },
     { field: 'regression.summary', value: regression?.summary, status: regression?.status, command: regression?.command },
   ];
-  for (const { field, value, status: wantStatus, command: wantCommand } of refs) {
+  for (const { field, value, status: wantStatus, notStatus, command: wantCommand } of refs) {
     if (typeof value !== 'string' || value === '') continue;
     if (isAbsolute(value)) {
       errors.push(
@@ -1008,6 +1025,14 @@ function enforceBugFixEvidence(
       errors.push(
         `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records status \`${String(summary.status)}\`, ` +
         `but the referenced run must record \`${String(wantStatus)}\` to prove the claimed result (ADR 0006 §7).`,
+      );
+      continue;
+    }
+    if (notStatus !== undefined && summary.status === notStatus) {
+      errors.push(
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records a passing run, but a ` +
+        'test-reproduced / failing-before-fix reproduction must reference a non-passing pre-fix run ' +
+        '(a failed or timed-out run) that proves the symptom (ADR 0006 §6).',
       );
       continue;
     }
@@ -1073,17 +1098,22 @@ function enforceBugFixEvidence(
       );
     }
     // A test-reproduced / failing-before-fix reproduction must itself reference a
-    // durable FAILED pre-fix run (ADR 0006 §6): the summary loop above only checks
-    // the run when the summary is present, so omitting it would skip that proof and
-    // let a regression summary alone stand in for the reproduction.
-    if (
-      (reproduction?.status === 'test-reproduced' || reproduction?.failing_before_fix === true) &&
-      (typeof reproduction?.summary !== 'string' || reproduction.summary === '')
-    ) {
+    // durable failing pre-fix run with its command (ADR 0006 §6): the summary loop
+    // above only checks the run when summary AND command are present, so omitting
+    // either would skip that proof and let a regression summary alone (or any
+    // failed same-change run) stand in for the reproduction.
+    if (reproAutomated && (typeof reproduction?.summary !== 'string' || reproduction.summary === '')) {
       errors.push(
         'agent-log/bug-fix-engineer.yml: a test-reproduced (failing-before-fix) reproduction must reference a ' +
         'durable failed pre-fix run summary in bug-fix.reproduction.summary (a `cdd-kit test run` summary.json) — ' +
         'a regression summary alone does not prove the symptom was reproduced (ADR 0006 §6).',
+      );
+    }
+    if (reproAutomated && (typeof reproduction?.command !== 'string' || reproduction.command === '')) {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a test-reproduced (failing-before-fix) reproduction must declare ' +
+        'bug-fix.reproduction.command — without it the failed pre-fix summary cannot be tied to the command ' +
+        'that reproduced the symptom (ADR 0006 §6).',
       );
     }
     // The bug-fix lane uses the ADR 0005 test-evidence layer (ADR 0006 §6): a

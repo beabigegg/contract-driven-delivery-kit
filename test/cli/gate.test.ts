@@ -1757,6 +1757,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
   }
 
   const REG_COMMAND = 'pytest tests/orders/test_filter.py';
+  const REPRO_COMMAND = 'pytest tests/orders/test_filter.py::test_status_options';
 
   // A complete behavior-changing block. The default regression.summary points at
   // a run summary materialized by writeRegressionSummary(changeId).
@@ -2135,14 +2136,14 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     writeBugFixClassification(changeDir);
     writeRegressionSummary('bug-020');
     writeBugFixTestEvidence(changeDir, 'bug-020');
-    writeRunSummary('bug-020', 'repro', { status: 'passed' }); // repro summary records PASSED
+    writeRunSummary('bug-020', 'repro', { status: 'passed', command: REPRO_COMMAND }); // repro summary records PASSED
     writeBugFixLog(changeDir, 'bug-020', bugFixBlock('bug-020', {
-      reproduction: { status: 'test-reproduced', failing_before_fix: true, summary: 'specs/changes/bug-020/test-runs/repro/summary.json' },
+      reproduction: { status: 'test-reproduced', failing_before_fix: true, command: REPRO_COMMAND, summary: 'specs/changes/bug-020/test-runs/repro/summary.json' },
     }));
 
     const r = runCli(['gate', 'bug-020'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/reproduction\.summary .* records status `passed`, but the referenced run must record `failed`/i);
+    expect(r.stdout + r.stderr).toMatch(/reproduction\.summary .* records a passing run, but a test-reproduced/i);
   });
 
   it('BF21: a behavior fix whose regression omits the command fails the gate', () => {
@@ -2189,11 +2190,72 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     // test-reproduced + failing_before_fix but NO reproduction.summary: the durable
     // failed pre-fix run proving the reproduction is missing.
     writeBugFixLog(changeDir, 'bug-023', bugFixBlock('bug-023', {
-      reproduction: { status: 'test-reproduced', failing_before_fix: true },
+      reproduction: { status: 'test-reproduced', failing_before_fix: true, command: REPRO_COMMAND },
     }));
 
     const r = runCli(['gate', 'bug-023'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/test-reproduced.*must reference a durable failed pre-fix run summary/i);
+  });
+
+  it('BF24: a test-reproduced reproduction backed by a timeout pre-fix run is accepted', () => {
+    runCli(['new', 'bug-024'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-024');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-024');
+    writeBugFixTestEvidence(changeDir, 'bug-024');
+    // The pre-fix run timed out — a valid non-passing reproduction for a perf bug.
+    writeRunSummary('bug-024', 'repro', { status: 'timeout', command: REPRO_COMMAND });
+    writeBugFixLog(changeDir, 'bug-024', bugFixBlock('bug-024', {
+      reproduction: { status: 'test-reproduced', failing_before_fix: true, command: REPRO_COMMAND, summary: 'specs/changes/bug-024/test-runs/repro/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-024'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/reproduction\.summary/i);
+  });
+
+  it('BF25: a test-reproduced reproduction that omits reproduction.command fails the gate', () => {
+    runCli(['new', 'bug-025'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-025');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-025');
+    writeBugFixTestEvidence(changeDir, 'bug-025');
+    writeRunSummary('bug-025', 'repro', { status: 'failed', command: REPRO_COMMAND });
+    // reproduction.summary present (a failed run) but no reproduction.command.
+    writeBugFixLog(changeDir, 'bug-025', bugFixBlock('bug-025', {
+      reproduction: { status: 'test-reproduced', failing_before_fix: true, summary: 'specs/changes/bug-025/test-runs/repro/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-025'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/reproduction must declare bug-fix\.reproduction\.command/i);
+  });
+
+  it('BF26: a bug-fix log carrying a prohibited waiver field fails the gate', () => {
+    runCli(['new', 'bug-026'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-026');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-026');
+    writeBugFixTestEvidence(changeDir, 'bug-026');
+    const dir = join(changeDir, 'agent-log');
+    mkdirSync(dir, { recursive: true });
+    // Valid envelope + block, but a top-level known-failures waiver (ADR 0006 §7).
+    writeFileSync(join(dir, 'bug-fix-engineer.yml'), yaml.dump({
+      'change-id': 'bug-026',
+      agent: 'bug-fix-engineer',
+      timestamp: '2026-06-09T12:00:00Z',
+      status: 'complete',
+      artifacts: [{ type: 'root-cause', pointer: 'src/pages/Orders.tsx:42-68' }],
+      'next-action': 'qa-reviewer release-readiness review',
+      'known-failures': ['tests/orders/test_filter.py::test_status_options'],
+      'bug-fix': bugFixBlock('bug-026'),
+    }, { lineWidth: -1, noRefs: true }), 'utf8');
+
+    const r = runCli(['gate', 'bug-026'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/prohibited waiver field `known-failures`/i);
   });
 });

@@ -48,13 +48,14 @@
   must name a `confirmed` hypothesis; referenced reproduction/regression summaries
   must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
   recording the matching `change_id`, status, and command — and a
-  test-reproduced/failing-before-fix reproduction must reference a failed pre-fix
-  run); a behavior-changing
-  fix must carry a durable regression summary with its command plus a present
+  test-reproduced/failing-before-fix reproduction must reference a non-passing
+  (failed or timeout) pre-fix run with its command); a behavior-changing fix must
+  carry a durable regression summary with its command plus a present
   `test-evidence.yml` (the `test-evidence-not-applicable` opt-out does not apply);
-  and the diagnostic-only exemption requires explicit classifier approval
-  (`## Diagnostic Only` `- yes`), not silence, and may not itself claim a fix.
-  Feature and legacy changes (no `## Lane: bug-fix`) are unaffected.
+  the diagnostic-only exemption requires explicit classifier approval
+  (`## Diagnostic Only` `- yes`), not silence, and may not itself claim a fix; and
+  the log may not carry prohibited failure-waiver fields. Feature and legacy
+  changes (no `## Lane: bug-fix`) are unaffected.
 
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
