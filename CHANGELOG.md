@@ -72,6 +72,17 @@
   (pass `--refresh` to regenerate a stale map first); `--json` for machine output.
   Adds `src/commands/bug-suspects.ts` and a `bug` CLI namespace.
 
+- **Bug-fix typed evidence pointers (ADR 0006 — visual/data/performance
+  extensions).** The `bug-fix:` block gains optional `visual_evidence` (`before`
+  required, plus `after` / `diff`), `data_evidence` (a `kind` and a
+  request/response or contract `pointer`), and `performance_evidence` (a bounded
+  `pointer` with `baseline_ms` / `after_ms` / `bounded`). `cdd-kit gate` now
+  requires `visual_evidence.before` when the reproduction is `visual-reproduced`
+  (a durable pre-fix screenshot/browser artifact) and rejects any present evidence
+  pointer that is absolute or missing on disk. `bug-fix-engineer.md` documents the
+  fields and the escalation of high-risk production symptoms (timeouts, queues,
+  caches, DB pools, long-running behavior) to the resilience / stress / soak agents.
+
 - **Stage-2 contract-write PreToolUse hook (`cdd-kit install-agent-hooks
   --contract-write <mode>`).** The write-side analog of the graph-first hook
   (ADR 0004 §6): an opt-in Claude Code hook that intercepts the agent's

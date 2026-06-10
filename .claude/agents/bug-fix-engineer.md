@@ -133,6 +133,12 @@ bug-fix:
     # the post-fix passing run
     summary: "specs/changes/add-order-filter/test-runs/<reg-run>/summary.json"
   residual_risk: none
+  # Attach the typed evidence that fits the symptom class (durable, repo-relative,
+  # committed with the change); the gate checks any present pointer exists, and a
+  # `visual-reproduced` reproduction REQUIRES visual_evidence.before:
+  # visual_evidence: { before: "specs/changes/add-order-filter/evidence/before.png", after: "...after.png" }
+  # data_evidence: { kind: request-response, pointer: "specs/changes/add-order-filter/evidence/response.json" }
+  # performance_evidence: { pointer: "specs/changes/add-order-filter/test-runs/<run>/summary.json", baseline_ms: 4200, after_ms: 180, bounded: true }
 next-action: "qa-reviewer release-readiness review"
 ```
 
@@ -147,6 +153,14 @@ Evidence rules (`cdd-kit gate` enforces these for a `lane: bug-fix` change):
 - A behavior-changing fix needs `root_cause.pointer` (a `file:line`), a
   `regression` with `status: passed`, its `command`, and a `regression.summary`
   pointing at the post-fix passing run, plus a present `test-evidence.yml`.
+- For **visual / data / performance** symptoms, attach the matching typed evidence
+  pointer (durable, repo-relative artifacts committed with the change). A
+  `visual-reproduced` reproduction **must** include `visual_evidence.before` (a
+  pre-fix screenshot/browser capture; `after` / `diff` optional). API/data bugs
+  record `data_evidence` (a `kind` plus a request/response or contract `pointer`);
+  performance bugs record `performance_evidence` (a bounded `pointer` with
+  `baseline_ms` / `after_ms`, never an unbounded soak). The gate rejects any
+  present pointer that is absolute or missing on disk.
 - A **diagnostic-only** change (set the classifier's `## Diagnostic Only` to
   `yes` and `bug-fix.diagnostic_only: true`) is exempt from the root-cause / fix /
   regression proof — it intentionally does not fix the symptom yet. Record a
@@ -157,6 +171,10 @@ Evidence rules (`cdd-kit gate` enforces these for a `lane: bug-fix` change):
 - A required test failure is never waivable as known / pre-existing / allowed —
   fix it, expand scope, or open a separate change. The repair log may not carry
   `known-failures` (or any waiver field) at any level.
+- Escalate high-risk production symptoms (timeouts, queues, caches, DB pools,
+  large reports/exports, long-running behavior) to the resilience / stress / soak
+  agents — bounded timing evidence reproduces the symptom, but high-risk surfaces
+  still require the heavier gates defined elsewhere in the kit.
 
 ADR 0006 promotes this evidence to a first-class, machine-validated `bug-fix:`
 block (symptom, expected/actual behavior, reproduction, hypotheses, root cause,
