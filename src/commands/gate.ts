@@ -1079,16 +1079,18 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    // `cdd-kit test run` rewrites a simple pytest command before recording it
-    // (augmentPytestCommand appends --junitxml/-q/--maxfail/… so the declared
-    // command is a prefix of the recorded one). Accept an exact match or that
-    // prefix; reject an unrelated command.
+    // `cdd-kit test run` only APPENDS flags to a simple pytest command
+    // (augmentPytestCommand), so accept an exact match, or the declared command
+    // followed by runner-added flags — the suffix after it must start with `-`,
+    // not an extra test target. Otherwise a bare `pytest` would match any pytest
+    // run under this change.
     if (typeof wantCommand === 'string') {
       const recorded = typeof summary.command === 'string' ? summary.command : '';
-      if (recorded !== wantCommand && !recorded.startsWith(`${wantCommand} `)) {
+      const augmented = recorded.startsWith(`${wantCommand} `) && recorded.slice(wantCommand.length + 1).startsWith('-');
+      if (recorded !== wantCommand && !augmented) {
         errors.push(
           `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records command \`${String(summary.command)}\`, ` +
-          `which is neither the declared \`${wantCommand}\` nor a \`cdd-kit test run\` augmentation of it (ADR 0006 §7).`,
+          `which is neither the declared \`${wantCommand}\` nor that command with only runner-added flags (ADR 0006 §7).`,
         );
       }
     }

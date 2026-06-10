@@ -49,7 +49,7 @@
   must name a `confirmed` hypothesis; referenced reproduction/regression summaries
   must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
   an executed run — not collect-only — recording the matching `change_id`, status,
-  and command, tolerating the runner's pytest augmentation; and a
+  and command, tolerating only the runner's appended pytest flags; and a
   test-reproduced/failing-before-fix reproduction must reference a failed-or-timeout
   pre-fix run with its command); a behavior-changing fix must
   carry a durable regression summary with its command plus a present

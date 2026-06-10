@@ -2355,4 +2355,22 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/diagnostic-only record must not use a successful reproduction status/i);
   });
+
+  it('BF33: a bare declared command that the summary over-specifies (extra target) fails the gate', () => {
+    runCli(['new', 'bug-033'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-033');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-033');
+    // summary records a specific test target; the block declares a bare `pytest`,
+    // which would loosely prefix-match any pytest run without this tightening.
+    writeRunSummary('bug-033', 'reg', { status: 'passed', command: 'pytest tests/orders/test_filter.py --junitxml=junit.xml -q' });
+    writeBugFixLog(changeDir, 'bug-033', bugFixBlock('bug-033', {
+      regression: { status: 'passed', command: 'pytest', summary: 'specs/changes/bug-033/test-runs/reg/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-033'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records command .* which is neither the declared `pytest` nor that command with only runner-added flags/i);
+  });
 });
