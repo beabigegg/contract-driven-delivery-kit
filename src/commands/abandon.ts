@@ -3,13 +3,17 @@ import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync } fr
 import yaml from 'js-yaml';
 import { log } from '../utils/logger.js';
 
-export async function abandon(changeId: string, opts: { reason?: string }): Promise<void> {
+export async function abandon(changeId: string, opts: { reason?: string; json?: boolean }): Promise<void> {
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', changeId);
   const tasksPath = join(changeDir, 'tasks.yml');
 
   if (!existsSync(changeDir)) {
-    log.error(`Change not found: specs/changes/${changeId}`);
+    if (opts.json) {
+      console.log(JSON.stringify({ changeId, error: `change not found: specs/changes/${changeId}` }, null, 2));
+    } else {
+      log.error(`Change not found: specs/changes/${changeId}`);
+    }
     process.exit(1);
   }
 
@@ -37,6 +41,11 @@ export async function abandon(changeId: string, opts: { reason?: string }): Prom
     writeFileSync(indexPath, `# Archive Index\n\n| change-id | status | date | notes |\n|---|---|---|---|\n${indexLine}`, 'utf8');
   } else {
     appendFileSync(indexPath, indexLine, 'utf8');
+  }
+
+  if (opts.json) {
+    console.log(JSON.stringify({ changeId, status: 'abandoned', reason, date: today }, null, 2));
+    return;
   }
 
   log.ok(`Change ${changeId} marked as abandoned.`);

@@ -450,9 +450,10 @@ program
 program
   .command('archive <change-id>')
   .description('Move a completed change from specs/changes/ to specs/archive/<year>/')
-  .action(async (changeId: string) => {
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string, opts: { json?: boolean }) => {
     const { archive } = await import('../commands/archive.js');
-    await archive(changeId);
+    await archive(changeId, opts);
   });
 
 // ── cdd abandon <change-id> ───────────────────────────────────────────────────
@@ -460,7 +461,8 @@ program
   .command('abandon <change-id>')
   .description('Mark a change as abandoned (updates tasks.yml status, records in INDEX.md)')
   .option('--reason <text>', 'reason for abandonment')
-  .action(async (changeId: string, opts: { reason?: string }) => {
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string, opts: { reason?: string; json?: boolean }) => {
     const { abandon } = await import('../commands/abandon.js');
     await abandon(changeId, opts);
   });
@@ -487,9 +489,10 @@ program
 program
   .command('list')
   .description('List active changes in specs/changes/')
-  .action(async () => {
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: { json?: boolean }) => {
     const { listChanges } = await import('../commands/list-changes.js');
-    await listChanges();
+    await listChanges(opts.json);
   });
 
 // ── cdd install-hooks ─────────────────────────────────────────────────────────
