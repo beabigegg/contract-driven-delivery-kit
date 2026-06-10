@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-5 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 見下方「實作進度」）；P0-6 及 P1/P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 見下方「實作進度」）；P1/P2 待續
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -15,8 +15,8 @@
 | P0-2 `npm test` 乾淨環境可直接跑（pretest build） | ✅ 已完成 | PR #36 |
 | P0-3 測試隔離環境 git 設定 | ✅ 已完成 | PR #36 |
 | P0-4 kit 自身 CI workflow（Node 18/20/22 + mojibake guard） | ✅ 已完成 | PR #36 |
-| P0-5 一鍵 `cdd-kit setup` | ✅ 已完成 | 本次 PR |
-| P0-6 `gate --explain` 非工程師模式 | ⬜ 待續 | — |
+| P0-5 一鍵 `cdd-kit setup` | ✅ 已完成 | PR #37 |
+| P0-6 `gate --explain` 非工程師模式 | ✅ 已完成 | 本次 PR |
 | P1 / P2 | ⬜ 待續 | — |
 
 > PR #36 額外收穫：P0-1 的 mojibake guard（`tools/check-mojibake.mjs`）在三輪高階 AI review 來回中，從「只擋 `??`」強化為涵蓋六類損壞（`??`、私有/控制/代理位元組、`` `n `` 字面跳脫、U+FFFD、孤立 CJK、Windows-1252 序列），掃描範圍鎖定對外英文 prompt 面（含 `specs/templates`、`tests/templates`、`contracts`），並排除可為非英文的 `specs/changes/` 工作文件。P0-3 的 git 隔離同步補上 `GIT_CONFIG_COUNT/KEY_*/VALUE_*`、`GIT_CONFIG`、`GIT_CONFIG_PARAMETERS` 覆寫清除。
@@ -83,7 +83,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 - **工作量**：2~3 天。
 - **實作（本次 PR）**：新增 `src/commands/setup.ts` 與 `cdd-kit setup` 指令。冪等：以 `.cdd/` 是否存在區分 fresh / upgrade，fresh 走 `init`（`arm:false`，由 setup 統一武裝），upgrade 走 `refresh --yes`。六步驟依序執行 scaffold → detect-stack → 武裝 chokepoints（pre-commit gate + graph-first/test-runner agent hooks，皆 advisory）→ best-effort MCP 註冊（偵測 `claude` CLI 不存在或 `claude mcp add` 失敗時只警告並印出手動指令，不阻斷）→ context-scan → code-map，最後印出逐步成功/失敗摘要與「下一步：`/cdd-new <describe your change>`」。每步皆 best-effort（缺 git repo 或 `claude` CLI 只降為警告），唯 scaffold 失敗才以非零退出。`--provider`、`--force`、`--no-arm`、`--no-mcp` 可微調；既有細粒度指令保留為進階介面。測試 `test/cli/setup.test.ts`（8 例）涵蓋 fresh、冪等 upgrade、best-effort MCP 跳過、各 flag 與非法 provider 拒絕；README Quick Start 與 CLI Reference 同步改以 `setup` 為建議入口。
 
-### P0-6. Gate 失敗訊息的非工程師模式（`--explain`）　⬜ 待續
+### P0-6. Gate 失敗訊息的非工程師模式（`--explain`）　✅ 已完成（本次 PR）
 
 - **現況**：gate 錯誤假設工程背景，如 `mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped`、`tier floor violation: ... record tier-floor-override: "<reason>" in tasks.yml frontmatter`。非工程師不知道什麼是 frontmatter、為什麼 "auth" 字樣會觸發 tier 0、也不知道下一步該叫 Claude 做什麼。
 - **做法**：
@@ -91,6 +91,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
   2. 既有錯誤輸出末尾固定加一行：`Need help? Run: cdd-kit gate <id> --explain`。
   3. 同步修掉 gate 輸出中 warning 重複列印兩次的問題（`gate.ts:1430-1452`）。
 - **工作量**：2 天。
+- **實作說明（本次 PR）**：新增純函式 `src/utils/gate-explain.ts`（`explainGateError(error) → { why, sayToClaude } | null`），以「最特定優先」的關鍵字比對涵蓋 tier floor、missing/stub/placeholder artifact、pending tasks、test-evidence、依賴環/未就緒上游、contract、malformed YAML 等失敗族，無對應時回 `null` 讓呼叫端退回通用提示。`gate.ts` 新增 `GateOptions.explain` 與共用的 `reportGateFailure(changeId, errors, explain, headline?)`，三個失敗出口（change not found、artifact/tier 等錯誤、validators 拋錯）統一走它；非 explain 模式末尾固定附 `Need help? Run: cdd-kit gate <id> --explain`。同時移除成功路徑上第二次列印 warnings 的區塊（原 `gate.ts:1450-1452`），warning 現在只在錯誤檢查前列印一次。kit 內容維持英文。測試：`test/utils/gate-explain.test.ts`（純函式映射 + null 退回）與 `test/cli/gate.test.ts` 新增 EXPLAIN-1~4（提示行、explain 標註、缺 change 仍給白話下一步、通過時 warning 只印一次）。
 
 ---
 

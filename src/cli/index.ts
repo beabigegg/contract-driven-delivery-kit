@@ -438,8 +438,9 @@ program
   .command('gate <change-id>')
   .description('Run delivery-quality gate for a change (required artifacts, tasks, tier, contracts)')
   .option('--strict', 'Treat pending tasks (except section 7) as errors', false)
-  .action(async (id: string, opts: { strict?: boolean }) => {
-    await gate(id, { strict: opts.strict });
+  .option('--explain', 'On failure, add a plain-language reason and a "say this to Claude" hint for each problem', false)
+  .action(async (id: string, opts: { strict?: boolean; explain?: boolean }) => {
+    await gate(id, { strict: opts.strict, explain: opts.explain });
   });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────
