@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { log } from './logger.js';
 
 /**
  * Mechanical risk-tier floor — the safety net under the (AI) classifier.
@@ -83,40 +84,83 @@ interface RawPolicy {
   rules?: unknown;
 }
 
+function warnPolicy(msg: string): void {
+  log.warn(`.cdd/tier-policy.json: ${msg}`);
+}
+
 /**
  * Load `.cdd/tier-policy.json` if present, else the built-in defaults.
+ *
  * Malformed files fall back to defaults rather than throwing — the safety net
- * should never be the thing that crashes the gate.
+ * must never be the thing that crashes the gate. But a silent fallback (P1-16)
+ * let a user corrupt the JSON or mistype a rule and believe their custom tier
+ * rules were in effect while every one was being ignored. So every fallback /
+ * skipped rule now emits a warning naming the problem, and each rule is shape-
+ * validated (object, integer `maxTier` in 0-5, array `patterns`) before use.
  */
 export function loadTierPolicy(cwd: string): TierPolicy {
   const path = join(cwd, '.cdd', 'tier-policy.json');
   if (!existsSync(path)) return DEFAULT_TIER_POLICY;
+
+  let raw: RawPolicy;
   try {
-    const raw = JSON.parse(readFileSync(path, 'utf8')) as RawPolicy;
-    if (typeof raw.enabled === 'boolean' && raw.enabled === false) {
-      return { enabled: false, rules: [] };
-    }
-    if (!Array.isArray(raw.rules)) return DEFAULT_TIER_POLICY;
-    const rules: TierRule[] = [];
-    for (const r of raw.rules) {
-      if (
-        r && typeof r === 'object' &&
-        typeof (r as TierRule).maxTier === 'number' &&
-        Array.isArray((r as TierRule).patterns)
-      ) {
-        const rule = r as TierRule;
-        rules.push({
-          maxTier: rule.maxTier,
-          label: typeof rule.label === 'string' ? rule.label : `tier ${rule.maxTier} surface`,
-          patterns: rule.patterns.filter(p => typeof p === 'string'),
-        });
-      }
-    }
-    if (rules.length === 0) return DEFAULT_TIER_POLICY;
-    return { enabled: raw.enabled !== false, rules };
-  } catch {
+    raw = JSON.parse(readFileSync(path, 'utf8')) as RawPolicy;
+  } catch (err) {
+    warnPolicy(
+      `could not be parsed (${(err as Error).message}); falling back to built-in defaults — ` +
+      'your custom tier rules are NOT in effect.',
+    );
     return DEFAULT_TIER_POLICY;
   }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    warnPolicy('is not a JSON object; falling back to built-in defaults — your custom tier rules are NOT in effect.');
+    return DEFAULT_TIER_POLICY;
+  }
+
+  if (raw.enabled !== undefined && typeof raw.enabled !== 'boolean') {
+    warnPolicy(`\`enabled\` must be true or false (got ${typeof raw.enabled}); treating the policy as enabled.`);
+  }
+  if (raw.enabled === false) {
+    return { enabled: false, rules: [] };
+  }
+
+  // No `rules` key at all is a valid "enabled, use built-ins" policy — not an error.
+  if (raw.rules === undefined) return DEFAULT_TIER_POLICY;
+
+  if (!Array.isArray(raw.rules)) {
+    warnPolicy('`rules` must be an array; falling back to built-in defaults — your custom tier rules are NOT in effect.');
+    return DEFAULT_TIER_POLICY;
+  }
+
+  const rules: TierRule[] = [];
+  raw.rules.forEach((r, i) => {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) {
+      warnPolicy(`rules[${i}] is not an object; skipped.`);
+      return;
+    }
+    const rule = r as Partial<TierRule>;
+    if (typeof rule.maxTier !== 'number' || !Number.isInteger(rule.maxTier) || rule.maxTier < 0 || rule.maxTier > 5) {
+      warnPolicy(`rules[${i}].maxTier must be an integer 0-5 (got ${JSON.stringify(rule.maxTier)}); rule skipped.`);
+      return;
+    }
+    if (!Array.isArray(rule.patterns)) {
+      warnPolicy(`rules[${i}].patterns must be an array of strings; rule skipped.`);
+      return;
+    }
+    rules.push({
+      maxTier: rule.maxTier,
+      label: typeof rule.label === 'string' ? rule.label : `tier ${rule.maxTier} surface`,
+      patterns: rule.patterns.filter(p => typeof p === 'string'),
+    });
+  });
+
+  if (rules.length === 0) {
+    warnPolicy('no valid rules after validation; falling back to built-in defaults — your custom tier rules are NOT in effect.');
+    return DEFAULT_TIER_POLICY;
+  }
+
+  return { enabled: true, rules };
 }
 
 /**

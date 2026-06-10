@@ -1,7 +1,9 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
+import yaml from 'js-yaml';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { ajv, ajvErrorsToMessages, loadYamlFile, type TasksFile } from './gate-shared.js';
+import { sectionBody, stripHtmlComments } from '../utils/markdown-section.js';
 
 const validateTasks = ajv.compile(tasksSchema);
 
@@ -58,10 +60,6 @@ export function meaningfulChars(text: string): number {
     .join('').length;
 }
 
-function stripHtmlComments(text: string): string {
-  return text.replace(/<!--[\s\S]*?-->/g, '');
-}
-
 /** Unfilled template placeholder tokens still present in an artifact body. */
 export function findPlaceholders(text: string): string[] {
   const clean = stripHtmlComments(text);
@@ -79,10 +77,16 @@ export function findPlaceholders(text: string): string[] {
   }).sort();
 }
 
-function countPendingExpansions(sectionBody: string): number {
-  if (!sectionBody.trim()) return 0;
+/**
+ * Tolerant line-scan fallback used only when the section body is not valid YAML
+ * (a hand-edited manifest with, say, an unquoted colon in a reason). This is the
+ * old hand-rolled parser; it is indentation/blank-line sensitive, so it is the
+ * backstop rather than the primary path — but keeping it means a slightly
+ * malformed section is still counted rather than silently dropped.
+ */
+function countPendingByScan(body: string): number {
   let count = 0;
-  const blocks = sectionBody.split(/(?=^\s*-\s*request-id:\s*)/m);
+  const blocks = body.split(/(?=^\s*-\s*request-id:\s*)/m);
   for (const block of blocks) {
     if (!/^\s*-\s*request-id:\s*\S/m.test(block)) continue;
     const statusMatch = block.match(/^\s*status:\s*(\S+)/im);
@@ -91,10 +95,35 @@ function countPendingExpansions(sectionBody: string): number {
   return count;
 }
 
+/**
+ * Count pending Context Expansion Requests in a context-manifest.
+ *
+ * The CER section is authored as a YAML sequence (see `renderRequests` in
+ * context.ts), so we extract the `## Context Expansion Requests` body with the
+ * shared section helper and `yaml.load` it — robust to the indentation and
+ * blank-line variation the previous hand-rolled regex silently miscounted
+ * (P1-15). A genuinely malformed (non-YAML) section falls back to the tolerant
+ * line scan so we never count fewer than before.
+ */
 export function countPendingContextRequests(content: string): number {
-  const clean = stripHtmlComments(content);
-  const requestMatch = clean.match(/## Context Expansion Requests\s*\n([\s\S]*?)(?:\n## |$)/);
-  return requestMatch ? countPendingExpansions(requestMatch[1]) : 0;
+  const body = sectionBody(content, 'Context Expansion Requests');
+  if (!body.trim()) return 0;
+
+  try {
+    const parsed = yaml.load(body, { schema: yaml.JSON_SCHEMA });
+    if (Array.isArray(parsed)) {
+      return parsed.filter(item => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+        const rec = item as Record<string, unknown>;
+        if (!('request-id' in rec)) return false;
+        return String(rec.status ?? '').trim().toLowerCase() === 'pending';
+      }).length;
+    }
+    // Non-sequence YAML (null / scalar / mapping) — fall through to the scan.
+  } catch {
+    // Invalid YAML — fall through to the tolerant scan.
+  }
+  return countPendingByScan(body);
 }
 
 export function isContextGovernedChange(changeDir: string): boolean {

@@ -4,8 +4,6 @@ import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import { loadYamlFile, type TasksFile } from './gate-shared.js';
 
-const TIER_PATTERN = /\b(tier\s*[0-5]|low|medium|high|critical)\b/i;
-
 export interface TierResolution {
   tier: number | null;
   source: 'tasks-frontmatter' | 'classification-structured' | 'classification-bold' | 'none';
@@ -13,11 +11,56 @@ export interface TierResolution {
   classificationHasLooseMarker: boolean;
 }
 
+/**
+ * Structured tier marker: a `## Tier` heading whose sole list item is a single
+ * digit (`## Tier\n- 2`). Anchored to its own line and range-validated to 0-5,
+ * so the unfilled template stub (`- 0 / 1 / 2 / 3 / 4 / 5`) does not match.
+ * Returns null when absent or out of range.
+ */
+function parseStructuredTier(text: string): number | null {
+  const m = text.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 0 && n <= 5 ? n : null;
+}
+
+/**
+ * Legacy bold tier marker (`**Tier:** Tier 2`), anchored to the start of its
+ * line and range-validated to 0-5. Returns null when absent or out of range.
+ */
+function parseBoldTier(text: string): number | null {
+  const m = text.match(/^\s*\*\*Tier:\*\*\s*Tier\s*(\d)\b/im);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 0 && n <= 5 ? n : null;
+}
+
+/**
+ * Whether the classification carries SOME deliberate risk/tier marker, used only
+ * as the legacy fallback when no machine-readable tier is set. Hardened (P1-12)
+ * so it matches a marker in marker position — a `Tier N` token (digit-guarded,
+ * so `tier-based` cannot trip it), a `low|medium|high|critical` value as a list
+ * item, or a labelled risk/severity/priority value — and NOT incidental prose
+ * such as "critical systems" or "high availability", which previously suppressed
+ * the missing-tier error.
+ */
+function hasLooseRiskMarker(text: string): boolean {
+  if (/^[^\n]*\btier\s*[0-5]\b/im.test(text)) return true;
+  const RISK = '(?:low|medium|high|critical)';
+  // A list item value: "- high", "* critical".
+  if (new RegExp(String.raw`^\s*[-*]\s+${RISK}\b`, 'im').test(text)) return true;
+  // A labelled value: "**Risk Level:** medium", "Risk: high", "Severity: critical".
+  if (new RegExp(String.raw`^\s*(?:\*\*\s*)?(?:risk(?:\s*level)?|severity|priority)\s*\*?\*?\s*:\s*${RISK}\b`, 'im').test(text)) {
+    return true;
+  }
+  return false;
+}
+
 export function resolveTier(changeDir: string): TierResolution {
   const classifPath = join(changeDir, 'change-classification.md');
   const classificationPresent = existsSync(classifPath);
   const classificationText = classificationPresent ? readFileSync(classifPath, 'utf8') : '';
-  const classificationHasLooseMarker = classificationPresent && TIER_PATTERN.test(classificationText);
+  const classificationHasLooseMarker = classificationPresent && hasLooseRiskMarker(classificationText);
 
   const tasksPath = join(changeDir, 'tasks.yml');
   if (existsSync(tasksPath)) {
@@ -28,20 +71,15 @@ export function resolveTier(changeDir: string): TierResolution {
     }
   }
 
+  // Precedence: tasks.yml frontmatter (above) > structured `## Tier` > legacy bold.
   if (classificationPresent) {
-    const structured = classificationText.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
-    if (structured) {
-      const n = parseInt(structured[1], 10);
-      if (!Number.isNaN(n) && n >= 0 && n <= 5) {
-        return { tier: n, source: 'classification-structured', classificationPresent, classificationHasLooseMarker };
-      }
+    const structured = parseStructuredTier(classificationText);
+    if (structured !== null) {
+      return { tier: structured, source: 'classification-structured', classificationPresent, classificationHasLooseMarker };
     }
-    const bold = classificationText.match(/\*\*Tier:\*\*\s*Tier\s*(\d)\b/i);
-    if (bold) {
-      const n = parseInt(bold[1], 10);
-      if (!Number.isNaN(n) && n >= 0 && n <= 5) {
-        return { tier: n, source: 'classification-bold', classificationPresent, classificationHasLooseMarker };
-      }
+    const bold = parseBoldTier(classificationText);
+    if (bold !== null) {
+      return { tier: bold, source: 'classification-bold', classificationPresent, classificationHasLooseMarker };
     }
   }
 
@@ -50,6 +88,23 @@ export function resolveTier(changeDir: string): TierResolution {
 
 export function enforceTierConsistency(changeDir: string, errors: string[], warnings: string[]): void {
   const resolution = resolveTier(changeDir);
+  const classificationText = resolution.classificationPresent
+    ? readFileSync(join(changeDir, 'change-classification.md'), 'utf8')
+    : '';
+  const structuredTier = resolution.classificationPresent ? parseStructuredTier(classificationText) : null;
+  const boldTier = resolution.classificationPresent ? parseBoldTier(classificationText) : null;
+
+  // Two declared markers inside the SAME classification that disagree is an
+  // authoring error: the gate must not silently pick one. (A tasks.yml/
+  // classification disagreement is a softer warning below — frontmatter is the
+  // machine-readable source of truth, but two prose markers have no tiebreaker.)
+  if (structuredTier !== null && boldTier !== null && structuredTier !== boldTier) {
+    errors.push(
+      `change-classification.md: conflicting tier markers — \`## Tier\\n- ${structuredTier}\` vs ` +
+      `\`**Tier:** Tier ${boldTier}\`. Keep a single tier marker (prefer \`tier: <0-5>\` in tasks.yml frontmatter).`,
+    );
+    return;
+  }
 
   if (resolution.tier === null) {
     if (resolution.classificationPresent && !resolution.classificationHasLooseMarker) {
@@ -68,11 +123,8 @@ export function enforceTierConsistency(changeDir: string, errors: string[], warn
   }
 
   if (resolution.source === 'tasks-frontmatter' && resolution.classificationPresent) {
-    const text = readFileSync(join(changeDir, 'change-classification.md'), 'utf8');
-    const structured = text.match(/^## Tier\s*\n\s*-\s*(\d)\s*$/m);
-    const bold = text.match(/\*\*Tier:\*\*\s*Tier\s*(\d)\b/i);
-    const classifTier = structured ? parseInt(structured[1], 10) : (bold ? parseInt(bold[1], 10) : NaN);
-    if (!Number.isNaN(classifTier) && classifTier !== resolution.tier) {
+    const classifTier = structuredTier ?? boldTier;
+    if (classifTier !== null && classifTier !== resolution.tier) {
       warnings.push(
         `tier mismatch: tasks.yml frontmatter says ${resolution.tier}, change-classification.md says ${classifTier} (frontmatter wins; reconcile classification).`,
       );

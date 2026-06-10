@@ -3,6 +3,7 @@ import { join } from 'path';
 import { createInterface } from 'readline';
 import picomatch from 'picomatch';
 import { log } from '../utils/logger.js';
+import { sectionBody } from '../utils/markdown-section.js';
 
 interface ContextRequest {
   requestId: string;
@@ -59,15 +60,6 @@ function readManifest(changeId: string): string {
 
 function writeManifest(changeId: string, content: string): void {
   writeFileSync(manifestPathFor(changeId), content.endsWith('\n') ? content : `${content}\n`, 'utf8');
-}
-
-function sectionBody(content: string, heading: string): string {
-  const match = stripHtmlComments(content).match(new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`));
-  return match?.[1] ?? '';
-}
-
-function stripHtmlComments(text: string): string {
-  return text.replace(/<!--[\s\S]*?-->/g, '');
 }
 
 function parseListSection(content: string, heading: string): string[] {
