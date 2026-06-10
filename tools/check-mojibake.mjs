@@ -30,8 +30,10 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-// assets/ is gitignored build output (a copy of the sources scanned below).
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'assets']);
+// assets/  -- gitignored build output (a copy of the sources scanned below).
+// proposals/ -- review/design docs that quote corruption (`??`, `禮`, ...) as
+//   examples and may be authored in any language; not shipped LLM-facing prompts.
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'assets', 'proposals']);
 
 // Explicit shipped-prompt/doc roots (files or directories), relative to ROOT.
 const SCAN_TARGETS = [
@@ -91,7 +93,14 @@ const isCJK = (cp) =>
 const findings = [];
 for (const file of collectTargets()) {
   const rel = relative(ROOT, file);
-  const lines = readFileSync(file, 'utf8').split('\n');
+  const content = readFileSync(file, 'utf8');
+  const lines = content.split('\n');
+  // A file with many CJK code points is an intentional non-English doc (e.g. a
+  // Traditional-Chinese proposal). Suppress the lone-CJK heuristic for it -- a
+  // single-char Chinese word between spaces is normal there, not mojibake. The
+  // `??` / escape / garbage-byte / CP1252 checks still apply (language-agnostic).
+  const cjkCount = [...content].filter((c) => isCJK(c.codePointAt(0))).length;
+  const cjkDoc = cjkCount >= 20;
   lines.forEach((line, i) => {
     const ln = i + 1;
     if (line.includes('??')) {
@@ -112,8 +121,8 @@ for (const file of collectTargets()) {
         (cp >= 0xe000 && cp <= 0xf8ff) || // private use
         (cp >= 0xd800 && cp <= 0xdfff); // surrogates
       // A lone CJK code point wedged into otherwise-Latin text is mojibake
-      // (e.g. `?圳`, `禮`). A genuine CJK run (future i18n) is left alone.
-      const loneCJK = isCJK(cp) && !isCJK(cps[j - 1]) && !isCJK(cps[j + 1]);
+      // (e.g. `?圳`, `禮`). A genuine CJK run / CJK-heavy doc is left alone.
+      const loneCJK = !cjkDoc && isCJK(cp) && !isCJK(cps[j - 1]) && !isCJK(cps[j + 1]);
       if (garbage || loneCJK) {
         findings.push(`${rel}:${ln}: corrupt code point U+${cp.toString(16).toUpperCase()} -> ${line.trim().slice(0, 100)}`);
         break;
