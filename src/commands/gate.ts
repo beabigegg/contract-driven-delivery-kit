@@ -83,6 +83,29 @@ function splitPreservingQuotes(s: string): string[] {
   return tokens;
 }
 
+/**
+ * Validate a typed bug-fix evidence pointer (visual / data / performance, ADR 0006
+ * §6 PR 5). When present it must be a portable, existing repo-relative artifact —
+ * the durable proof committed with the change. Absent is allowed here; required-ness
+ * is decided by the caller (e.g. visual_evidence.before for a visual reproduction).
+ */
+function checkEvidencePointer(field: string, value: unknown, cwd: string, errors: string[]): void {
+  if (typeof value !== 'string' || value === '') return;
+  if (isAbsolute(value)) {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: bug-fix.${field} path \`${value}\` is absolute — ` +
+      'record a repo-root-relative path so the evidence stays portable.',
+    );
+    return;
+  }
+  if (!existsSync(resolve(cwd, value))) {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: bug-fix.${field} artifact \`${value}\` does not exist — ` +
+      'reference a durable evidence file committed with the change (ADR 0006 §6).',
+    );
+  }
+}
+
 const MIN_CHARS: Record<string, number> = {
   'change-classification.md': 200,
   'implementation-plan.md': 200,
@@ -1165,6 +1188,25 @@ function enforceBugFixEvidence(
       }
     }
   }
+
+  // 2b. Typed evidence pointers for visual / data / performance bugs (ADR 0006 §6,
+  //     PR 5). A `visual-reproduced` reproduction must carry a durable pre-fix
+  //     visual artifact; any present pointer is validated as a portable, existing
+  //     repo-relative file.
+  const visual = block.visual_evidence as { before?: unknown; after?: unknown; diff?: unknown } | undefined;
+  if (reproduction?.status === 'visual-reproduced' &&
+      (typeof visual?.before !== 'string' || visual.before === '')) {
+    errors.push(
+      'agent-log/bug-fix-engineer.yml: reproduction.status is `visual-reproduced` but no ' +
+      'bug-fix.visual_evidence.before pointer is recorded — a visual reproduction needs a durable pre-fix ' +
+      'screenshot/browser artifact (ADR 0006 §6).',
+    );
+  }
+  checkEvidencePointer('visual_evidence.before', visual?.before, cwd, errors);
+  checkEvidencePointer('visual_evidence.after', visual?.after, cwd, errors);
+  checkEvidencePointer('visual_evidence.diff', visual?.diff, cwd, errors);
+  checkEvidencePointer('data_evidence.pointer', (block.data_evidence as { pointer?: unknown } | undefined)?.pointer, cwd, errors);
+  checkEvidencePointer('performance_evidence.pointer', (block.performance_evidence as { pointer?: unknown } | undefined)?.pointer, cwd, errors);
 
   // 3. Diagnostic-only consistency and the diagnostic vs behavior-fix boundary
   //    (ADR 0006 §10).

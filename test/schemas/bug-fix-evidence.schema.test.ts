@@ -248,6 +248,56 @@ describe('bug-fix-evidence.schema', () => {
     doc['totally-unknown'] = true;
     expect(validateBlock(doc)).toBe(false);
   });
+
+  // ── typed evidence pointers (ADR 0006 §6, PR 5) ──────────────────────────────
+
+  it('accepts a visual_evidence block with a before pointer', () => {
+    const doc = validBlock();
+    doc.visual_evidence = {
+      before: 'specs/changes/x/evidence/before.png',
+      after: 'specs/changes/x/evidence/after.png',
+      summary: 'overlap gone',
+    };
+    expect(validateBlock(doc), JSON.stringify(validateBlock.errors)).toBe(true);
+  });
+
+  it('rejects visual_evidence missing its required before pointer', () => {
+    const doc = validBlock();
+    doc.visual_evidence = { after: 'specs/changes/x/evidence/after.png' };
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('rejects an unknown visual_evidence subkey (additionalProperties: false)', () => {
+    const doc = validBlock();
+    doc.visual_evidence = { before: 'a.png', screenshot: 'b.png' };
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('accepts a data_evidence block and rejects an unknown kind', () => {
+    const doc = validBlock();
+    doc.data_evidence = { kind: 'request-response', pointer: 'specs/changes/x/evidence/resp.json', summary: 'status was 500' };
+    expect(validateBlock(doc), JSON.stringify(validateBlock.errors)).toBe(true);
+    (doc.data_evidence as Record<string, unknown>).kind = 'telepathy';
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('rejects data_evidence missing its pointer', () => {
+    const doc = validBlock();
+    doc.data_evidence = { kind: 'contract' };
+    expect(validateBlock(doc)).toBe(false);
+  });
+
+  it('accepts a performance_evidence block with bounded timing', () => {
+    const doc = validBlock();
+    doc.performance_evidence = { pointer: 'specs/changes/x/test-runs/1/summary.json', baseline_ms: 4200, after_ms: 180, bounded: true };
+    expect(validateBlock(doc), JSON.stringify(validateBlock.errors)).toBe(true);
+  });
+
+  it('rejects performance_evidence missing its pointer', () => {
+    const doc = validBlock();
+    doc.performance_evidence = { baseline_ms: 4200 };
+    expect(validateBlock(doc)).toBe(false);
+  });
 });
 
 describe('agent-log.schema gains an optional bug-fix block (ADR 0006 PR 2)', () => {

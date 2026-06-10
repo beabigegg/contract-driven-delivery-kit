@@ -126,6 +126,48 @@ export const bugFixEvidenceBlock = {
       },
     },
     residual_risk: { type: "string", minLength: 1 },
+    // Typed evidence pointers for non-code-test symptom classes (ADR 0006 §6, PR 5).
+    // All optional at the schema level; the gate requires `visual_evidence.before`
+    // when the reproduction is `visual-reproduced`, and validates that any present
+    // pointer is a portable, existing repo-relative artifact.
+    //
+    // Visual/UI bugs: screenshot/browser artifacts proving the symptom and the fix.
+    visual_evidence: {
+      type: "object",
+      additionalProperties: false,
+      required: ["before"],
+      properties: {
+        before: { type: "string", minLength: 1 },
+        after: { type: "string", minLength: 1 },
+        diff: { type: "string", minLength: 1 },
+        summary: { type: "string", minLength: 1 },
+      },
+    },
+    // API/data bugs: request/response or contract evidence.
+    data_evidence: {
+      type: "object",
+      additionalProperties: false,
+      required: ["pointer"],
+      properties: {
+        kind: { type: "string", enum: ["request-response", "contract", "schema", "fixture"] },
+        pointer: { type: "string", minLength: 1 },
+        summary: { type: "string", minLength: 1 },
+      },
+    },
+    // Performance bugs: bounded timing/timeout evidence -- a bounded measurement,
+    // not an unbounded soak run (ADR 0006 §6).
+    performance_evidence: {
+      type: "object",
+      additionalProperties: false,
+      required: ["pointer"],
+      properties: {
+        pointer: { type: "string", minLength: 1 },
+        baseline_ms: { type: "number", minimum: 0 },
+        after_ms: { type: "number", minimum: 0 },
+        bounded: { type: "boolean" },
+        summary: { type: "string", minLength: 1 },
+      },
+    },
   },
   // A behavior-changing fix (diagnostic_only absent or false) must carry the full
   // repair shape (ADR 0006 §2): observed surface, root cause, a files-changed fix,

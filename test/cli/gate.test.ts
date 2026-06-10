@@ -2533,4 +2533,93 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-041'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/diagnostic-only bug-fix change must record passing test-evidence/i);
   });
+
+  // ── visual / data / performance evidence pointers (ADR 0006 §6, PR 5) ────────
+
+  it('BF42: a visual-reproduced reproduction without visual_evidence.before fails the gate', () => {
+    runCli(['new', 'bug-042'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-042');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-042');
+    writeRunSummary('bug-042', 'reg', { status: 'passed', command: REG_COMMAND });
+    // Behavior fix whose symptom was reproduced visually, but no durable pre-fix
+    // screenshot pointer is recorded.
+    writeBugFixLog(changeDir, 'bug-042', bugFixBlock('bug-042', { reproduction: { status: 'visual-reproduced' } }));
+
+    const r = runCli(['gate', 'bug-042'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/visual_evidence\.before pointer is recorded/i);
+  });
+
+  it('BF43: a visual-reproduced reproduction with an existing visual_evidence.before passes', () => {
+    runCli(['new', 'bug-043'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-043');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-043');
+    writeRunSummary('bug-043', 'reg', { status: 'passed', command: REG_COMMAND });
+    const before = join(changeDir, 'evidence', 'before.png');
+    mkdirSync(dirname(before), { recursive: true });
+    writeFileSync(before, 'PNG', 'utf8');
+    writeBugFixLog(changeDir, 'bug-043', bugFixBlock('bug-043', {
+      reproduction: { status: 'visual-reproduced' },
+      visual_evidence: { before: 'specs/changes/bug-043/evidence/before.png' },
+    }));
+
+    const r = runCli(['gate', 'bug-043'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/visual_evidence/i);
+  });
+
+  it('BF44: a visual_evidence.before pointing at a missing file fails the gate', () => {
+    runCli(['new', 'bug-044'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-044');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-044');
+    writeRunSummary('bug-044', 'reg', { status: 'passed', command: REG_COMMAND });
+    // The pointer names a durable artifact that was never committed.
+    writeBugFixLog(changeDir, 'bug-044', bugFixBlock('bug-044', {
+      reproduction: { status: 'visual-reproduced' },
+      visual_evidence: { before: 'specs/changes/bug-044/evidence/missing.png' },
+    }));
+
+    const r = runCli(['gate', 'bug-044'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/visual_evidence\.before artifact .* does not exist/i);
+  });
+
+  it('BF45: a data_evidence.pointer at a missing file fails the gate', () => {
+    runCli(['new', 'bug-045'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-045');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-045');
+    writeRunSummary('bug-045', 'reg', { status: 'passed', command: REG_COMMAND });
+    writeBugFixLog(changeDir, 'bug-045', bugFixBlock('bug-045', {
+      data_evidence: { kind: 'request-response', pointer: 'specs/changes/bug-045/evidence/missing.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-045'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/data_evidence\.pointer artifact .* does not exist/i);
+  });
+
+  it('BF46: an existing performance_evidence.pointer is accepted', () => {
+    runCli(['new', 'bug-046'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-046');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-046');
+    writeRunSummary('bug-046', 'reg', { status: 'passed', command: REG_COMMAND });
+    const perf = join(changeDir, 'evidence', 'timing.json');
+    mkdirSync(dirname(perf), { recursive: true });
+    writeFileSync(perf, '{"baseline_ms":4200,"after_ms":180}', 'utf8');
+    writeBugFixLog(changeDir, 'bug-046', bugFixBlock('bug-046', {
+      performance_evidence: { pointer: 'specs/changes/bug-046/evidence/timing.json', baseline_ms: 4200, after_ms: 180, bounded: true },
+    }));
+
+    const r = runCli(['gate', 'bug-046'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/performance_evidence/i);
+  });
 });
