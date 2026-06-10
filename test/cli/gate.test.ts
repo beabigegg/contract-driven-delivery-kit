@@ -2424,4 +2424,23 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/must reference an executed run/i);
   });
+
+  it('BF37: the runner-flag tolerance does not apply to a non-pytest declared command', () => {
+    runCli(['new', 'bug-037'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-037');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeBugFixTestEvidence(changeDir, 'bug-037');
+    // `cdd-kit test run` augments only pytest commands; `npm test` runs verbatim,
+    // so a recorded `npm test --junitxml=… -q` is a different command, not the
+    // runner appending flags. The pytest-only tolerance must require exact match.
+    writeRunSummary('bug-037', 'reg', { status: 'passed', command: 'npm test --junitxml=junit.xml -q' });
+    writeBugFixLog(changeDir, 'bug-037', bugFixBlock('bug-037', {
+      regression: { status: 'passed', command: 'npm test', summary: 'specs/changes/bug-037/test-runs/reg/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-037'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records command .* which is neither the declared .* nor that command with only runner-added flags/i);
+  });
 });

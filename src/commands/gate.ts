@@ -5,7 +5,7 @@ import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
-import { PHASES } from './test-run.js';
+import { PHASES, isPytestCommand, hasShellControl } from './test-run.js';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
 import { agentLogSchema } from '../schemas/agent-log.schema.js';
@@ -1104,16 +1104,20 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    // `cdd-kit test run` only APPENDS flags to a simple pytest command
-    // (augmentPytestCommand), so accept an exact match, or the declared command
-    // followed ONLY by the runner-added flag vocabulary. Every suffix token must
-    // be a `--junitxml=<path>` token or one of RUNNER_ADDED_PYTEST_FLAGS — a
-    // user-selected flag (e.g. `-k other`) or an extra test target present in the
-    // run but not the declared command means a different command actually ran.
+    // `cdd-kit test run` only APPENDS the runner-added flag vocabulary to a SIMPLE
+    // PYTEST command (augmentPytestCommand); every other command runs verbatim
+    // (src/commands/test-run.ts). So accept an exact match always, and — only for a
+    // pytest declared command with no shell control, mirroring the runner's own
+    // augmentation predicate — also accept the declared command followed ONLY by
+    // runner-added flags. Every suffix token must be a `--junitxml=<path>` token or
+    // one of RUNNER_ADDED_PYTEST_FLAGS; a user-selected flag (e.g. `-k other`), an
+    // extra target, or a flag suffix on a non-pytest command (e.g. `npm test`)
+    // means a different command actually ran.
     if (typeof wantCommand === 'string') {
       const recorded = typeof summary.command === 'string' ? summary.command : '';
       let commandOk = recorded === wantCommand;
-      if (!commandOk && recorded.startsWith(`${wantCommand} `)) {
+      if (!commandOk && isPytestCommand(wantCommand) && !hasShellControl(wantCommand) &&
+          recorded.startsWith(`${wantCommand} `)) {
         const suffix = recorded.slice(wantCommand.length + 1);
         commandOk = suffix.split(/\s+/).filter(Boolean).every(
           (tok) => tok.startsWith('--junitxml=') || RUNNER_ADDED_PYTEST_FLAGS.has(tok),
