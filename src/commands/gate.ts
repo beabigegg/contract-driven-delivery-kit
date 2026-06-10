@@ -12,6 +12,7 @@ import { agentLogSchema } from '../schemas/agent-log.schema.js';
 import { BEHAVIOR_FIX_REPRODUCTION_STATUSES } from '../schemas/bug-fix-evidence.schema.js';
 import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
+import { explainGateError } from '../utils/gate-explain.js';
 import {
   stripFrontmatter,
   parseEndpointTableRows,
@@ -138,6 +139,8 @@ interface TasksFile {
 
 export interface GateOptions {
   strict?: boolean;
+  /** Append plain-language explanations + a "say this to Claude" hint to each failure. */
+  explain?: boolean;
 }
 
 function meaningfulChars(text: string): number {
@@ -1327,13 +1330,49 @@ function enforceBugFixEvidence(
   }
 }
 
+/**
+ * Print the failed gate and exit non-zero. In `--explain` mode each error is
+ * followed by a plain-language "Why" and a ready-to-paste "Say this to Claude"
+ * line; otherwise a single trailing hint points the user at `--explain`. The
+ * leading `headline` lets callers distinguish a normal failure from one where
+ * the validators themselves threw.
+ */
+function reportGateFailure(
+  changeId: string,
+  errors: string[],
+  explain: boolean,
+  headline?: string,
+): never {
+  log.error(headline ?? `gate failed for change: ${changeId}`);
+  for (const e of errors) {
+    log.error(`  ${e}`);
+    if (explain) {
+      const ex = explainGateError(e);
+      if (ex) {
+        log.dim(`      Why: ${ex.why}`);
+        log.info(`      Say this to Claude: "${ex.sayToClaude}"`);
+      }
+    }
+  }
+  if (!explain) {
+    log.blank();
+    log.info(`Need help? Run: cdd-kit gate ${changeId} --explain for a plain-language explanation of each failure.`);
+  }
+  process.exit(1);
+}
+
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
   const strict = opts.strict ?? false;
+  const explain = opts.explain ?? false;
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', changeId);
 
   if (!existsSync(changeDir)) {
     log.error(`change not found: ${changeId} (looked in ${changeDir})`);
+    if (explain) {
+      log.dim('      Why: there is no change folder with that name under specs/changes/.');
+      log.info('      Say this to Claude: "What is the exact id of the change I should run the gate on?"');
+    }
     process.exit(1);
   }
 
@@ -1432,24 +1471,22 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   }
 
   if (errors.length > 0) {
-    log.error(`gate failed for change: ${changeId}`);
-    for (const e of errors) {
-      log.error(`  ${e}`);
-    }
-    process.exit(1);
+    reportGateFailure(changeId, errors, explain);
   }
 
   log.info(`gate: running contract validators for ${changeId}`);
   try {
     await validate({ contracts: true, env: true, ci: true, spec: false, versions: true });
   } catch (err) {
-    log.error(`gate failed for change: ${changeId} (validators threw): ${(err as Error).message}`);
-    process.exit(1);
+    reportGateFailure(
+      changeId,
+      [(err as Error).message],
+      explain,
+      `gate failed for change: ${changeId} (contract validators reported a problem):`,
+    );
   }
 
-  for (const w of warnings) {
-    log.warn(`  ${w}`);
-  }
-
+  // Warnings were already printed once above (before the error check); printing
+  // them again here would duplicate every warning on a passing run.
   log.ok(`gate passed for change: ${changeId}`);
 }

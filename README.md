@@ -685,6 +685,7 @@ The single quality gate for a change. Blocks merge if anything is missing or inc
 ```bash
 cdd-kit gate add-jwt-auth
 cdd-kit gate add-jwt-auth --strict
+cdd-kit gate add-jwt-auth --explain   # plain-language reasons + a sentence to say to Claude
 ```
 
 Checks:
@@ -700,6 +701,8 @@ Checks:
 - Treats any task with `status: pending` (except IDs listed in `archive-tasks`) as an error
 - Treats legacy changes missing `context-manifest.md` as errors
 
+`--explain` (non-engineer mode) annotates each failure with a plain-language **Why** and a ready-to-paste **Say this to Claude** sentence, so a non-engineer never has to decode jargon like "tier floor" or "frontmatter" to know the next step. Without `--explain`, a failing run ends with a one-line pointer: `Need help? Run: cdd-kit gate <id> --explain`.
+
 Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks`).
 
 ```
@@ -708,6 +711,17 @@ Pre-commit hook uses `--strict` by default (installed via `cdd-kit install-hooks
 ✗  gate failed for change: feat-001
 ✗    change-classification.md: appears to be a stub (< 200 meaningful chars)
 ✗    1 task(s) still pending (mark archive items in archive-tasks frontmatter; mark N/A items as status: skipped)
+
+Need help? Run: cdd-kit gate feat-001 --explain for a plain-language explanation of each failure.
+```
+
+With `--explain`:
+
+```
+✗  gate failed for change: feat-001
+✗    tier floor violation: Authentication surface detected (matched: auth) requires tier 0 or stricter, but classification declared tier 3. …
+       Why: This change touches a sensitive area (for example login, payments, or security), so the system requires a stricter review level than the one it was filed under. "Tier" is just the risk level — a lower tier number means stricter checks.
+       Say this to Claude: "This change was flagged as higher risk than its current tier. Please re-classify it to the required stricter tier and bring the tests and evidence up to that level."
 ```
 
 ---

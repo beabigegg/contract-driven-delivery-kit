@@ -358,6 +358,36 @@ describe('cdd-kit gate', () => {
     expect(r.stderr + r.stdout).toMatch(/change not found/i);
   });
 
+  // ── P0-6: --explain (non-engineer mode) + the duplicate-warning fix ─────────
+  it('EXPLAIN-1: a normal failure points the user at --explain (and does not pre-explain)', () => {
+    runCli(['new', 'feat-exp-1'], { cwd: tmpRepo, home: tmpHome });
+    const r = runCli(['gate', 'feat-exp-1'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    const out = r.stdout + r.stderr;
+    expect(out).toMatch(/Need help\? Run: cdd-kit gate feat-exp-1 --explain/);
+    // Without --explain the failure is not pre-annotated with plain-language help.
+    expect(out).not.toMatch(/Say this to Claude/);
+  });
+
+  it('EXPLAIN-2: --explain annotates each failure with a Why and a "Say this to Claude" line', () => {
+    runCli(['new', 'feat-exp-2'], { cwd: tmpRepo, home: tmpHome });
+    const r = runCli(['gate', 'feat-exp-2', '--explain'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    const out = r.stdout + r.stderr;
+    expect(out).toMatch(/Why:/);
+    expect(out).toMatch(/Say this to Claude:/);
+    // In --explain mode we drop the generic hint (the explanations replace it).
+    expect(out).not.toMatch(/Need help\? Run:/);
+  });
+
+  it('EXPLAIN-3: --explain on a missing change still gives a plain-language next step', () => {
+    const r = runCli(['gate', 'no-such-change', '--explain'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    const out = r.stdout + r.stderr;
+    expect(out).toMatch(/change not found/i);
+    expect(out).toMatch(/Say this to Claude:/);
+  });
+
   it('2: gate on fresh cdd-kit new (templates only) fails on stub content', () => {
     runCli(['new', 'feat-001'], { cwd: tmpRepo, home: tmpHome });
     const r = runCli(['gate', 'feat-001'], { cwd: tmpRepo, home: tmpHome });
@@ -400,6 +430,35 @@ describe('cdd-kit gate', () => {
     const r = runCli(['gate', 'feat-004'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/gate passed for change: feat-004/i);
+  });
+
+  it.skipIf(!hasPython())('EXPLAIN-4: a passing gate prints each warning exactly once (no duplicate)', () => {
+    runCli(['new', 'feat-004b'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-004b');
+
+    writeValidChangeArtifacts(changeDir);
+    writeValidContracts(tmpRepo);
+    // One non-archive task left pending: a warning in non-strict mode, but the
+    // gate still passes — exactly the path where warnings used to print twice.
+    writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
+      changeId: 'feat-004b',
+      tasks: [
+        { id: '1.1', section: 'Preparation', title: 'Confirm classification', status: 'done' },
+        { id: '1.2', section: 'Preparation', title: 'Confirm contracts', status: 'done' },
+        { id: '1.3', section: 'Preparation', title: 'Confirm design decisions', status: 'skipped' },
+        { id: '1.4', section: 'Preparation', title: 'Confirm CI plan', status: 'done' },
+        { id: '1.5', section: 'Preparation', title: 'Confirm implementation plan', status: 'done' },
+        { id: '2.1', section: 'Implementation', title: 'Build the feature', status: 'pending' },
+        { id: '7.1', section: 'Archive', title: 'Archive change', status: 'pending' },
+        { id: '7.2', section: 'Archive', title: 'Promote learnings', status: 'pending' },
+      ],
+    }), 'utf8');
+
+    const r = runCli(['gate', 'feat-004b'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/gate passed for change: feat-004b/i);
+    const occurrences = (r.stdout + r.stderr).match(/task\(s\) still pending \(warning only in non-strict mode\)/g) ?? [];
+    expect(occurrences.length, 'the pending-task warning should print exactly once').toBe(1);
   });
 
   // ?????????????????????????????????????????????????????????????????????????
