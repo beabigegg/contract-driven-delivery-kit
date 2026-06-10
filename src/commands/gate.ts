@@ -955,9 +955,10 @@ function enforceBugFixEvidence(
     {
       field: 'reproduction.summary',
       value: reproduction?.summary,
-      // A failing-before-fix reproduction (ADR 0006 §6) must reference a FAILED
-      // run; otherwise the post-fix passing summary could be reused as the repro.
-      status: reproduction?.failing_before_fix === true ? 'failed' : undefined,
+      // A test-reproduced / failing-before-fix reproduction (ADR 0006 §6) must
+      // reference a FAILED run; otherwise the post-fix passing summary could be
+      // reused as the repro.
+      status: reproduction?.failing_before_fix === true || reproduction?.status === 'test-reproduced' ? 'failed' : undefined,
       command: reproduction?.command,
     },
     { field: 'regression.summary', value: regression?.summary, status: regression?.status, command: regression?.command },
@@ -1069,6 +1070,20 @@ function enforceBugFixEvidence(
         'agent-log/bug-fix-engineer.yml: a behavior-changing fix must declare bug-fix.regression.command — ' +
         'without it the referenced summary cannot be tied to the test that proves the fix, so any same-change ' +
         'passing run (e.g. collect-only) would satisfy it (ADR 0006 §7).',
+      );
+    }
+    // A test-reproduced / failing-before-fix reproduction must itself reference a
+    // durable FAILED pre-fix run (ADR 0006 §6): the summary loop above only checks
+    // the run when the summary is present, so omitting it would skip that proof and
+    // let a regression summary alone stand in for the reproduction.
+    if (
+      (reproduction?.status === 'test-reproduced' || reproduction?.failing_before_fix === true) &&
+      (typeof reproduction?.summary !== 'string' || reproduction.summary === '')
+    ) {
+      errors.push(
+        'agent-log/bug-fix-engineer.yml: a test-reproduced (failing-before-fix) reproduction must reference a ' +
+        'durable failed pre-fix run summary in bug-fix.reproduction.summary (a `cdd-kit test run` summary.json) — ' +
+        'a regression summary alone does not prove the symptom was reproduced (ADR 0006 §6).',
       );
     }
     // The bug-fix lane uses the ADR 0005 test-evidence layer (ADR 0006 §6): a

@@ -48,7 +48,8 @@
   must name a `confirmed` hypothesis; referenced reproduction/regression summaries
   must be this change's own `cdd-kit test run` artifacts (under its `test-runs/`,
   recording the matching `change_id`, status, and command — and a
-  failing-before-fix reproduction must reference a failed run); a behavior-changing
+  test-reproduced/failing-before-fix reproduction must reference a failed pre-fix
+  run); a behavior-changing
   fix must carry a durable regression summary with its command plus a present
   `test-evidence.yml` (the `test-evidence-not-applicable` opt-out does not apply);
   and the diagnostic-only exemption requires explicit classifier approval

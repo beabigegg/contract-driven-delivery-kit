@@ -1767,7 +1767,10 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
       expected_behavior: 'Status filter shows the available statuses',
       actual_behavior: 'Filter dropdown renders no options',
       observed_surface: 'Orders page filter panel',
-      reproduction: { status: 'test-reproduced', failing_before_fix: true },
+      // Default is a command/local-step reproduction (no test-run summary
+      // required); tests that exercise the test-reproduced failed-run rule set it
+      // explicitly.
+      reproduction: { status: 'reproduced' },
       hypotheses: [
         { id: 'H1', candidate: 'src/pages/Orders.tsx::buildFilterOptions', reason: 'graph match', result: 'confirmed' },
       ],
@@ -2174,5 +2177,23 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-022'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/opt-out does not apply to a bug-fix lane behavior fix/i);
+  });
+
+  it('BF23: a test-reproduced fix that omits reproduction.summary fails the gate', () => {
+    runCli(['new', 'bug-023'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-023');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-023');
+    writeBugFixTestEvidence(changeDir, 'bug-023');
+    // test-reproduced + failing_before_fix but NO reproduction.summary: the durable
+    // failed pre-fix run proving the reproduction is missing.
+    writeBugFixLog(changeDir, 'bug-023', bugFixBlock('bug-023', {
+      reproduction: { status: 'test-reproduced', failing_before_fix: true },
+    }));
+
+    const r = runCli(['gate', 'bug-023'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/test-reproduced.*must reference a durable failed pre-fix run summary/i);
   });
 });
