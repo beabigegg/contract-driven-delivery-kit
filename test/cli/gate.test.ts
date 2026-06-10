@@ -2143,7 +2143,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
 
     const r = runCli(['gate', 'bug-020'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/reproduction\.summary .* records a passing run, but a test-reproduced/i);
+    expect(r.stdout + r.stderr).toMatch(/reproduction\.summary .* records status `passed`, but a test-reproduced/i);
   });
 
   it('BF21: a behavior fix whose regression omits the command fails the gate', () => {
@@ -2257,5 +2257,53 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     const r = runCli(['gate', 'bug-026'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/prohibited waiver field `known-failures`/i);
+  });
+
+  it('BF27: a reproduction.summary recording an error (not a real reproduction) fails the gate', () => {
+    runCli(['new', 'bug-027'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-027');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-027');
+    writeBugFixTestEvidence(changeDir, 'bug-027');
+    // A runner/setup failure (e.g. command failed to start) — not a real reproduction.
+    writeRunSummary('bug-027', 'repro', { status: 'error', command: REPRO_COMMAND });
+    writeBugFixLog(changeDir, 'bug-027', bugFixBlock('bug-027', {
+      reproduction: { status: 'test-reproduced', failing_before_fix: true, command: REPRO_COMMAND, summary: 'specs/changes/bug-027/test-runs/repro/summary.json' },
+    }));
+
+    const r = runCli(['gate', 'bug-027'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/records status `error`, but a test-reproduced/i);
+  });
+
+  it('BF28: a waiver field nested inside the bug-fix block fails the gate', () => {
+    runCli(['new', 'bug-028'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-028');
+    writeValidChangeArtifacts(changeDir);
+    writeBugFixClassification(changeDir);
+    writeRegressionSummary('bug-028');
+    writeBugFixTestEvidence(changeDir, 'bug-028');
+    const block = bugFixBlock('bug-028');
+    (block as Record<string, unknown>)['waived-failures'] = ['tests/orders/test_filter.py::test_x']; // nested waiver
+    writeBugFixLog(changeDir, 'bug-028', block);
+
+    const r = runCli(['gate', 'bug-028'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/prohibited waiver field `waived-failures`/i);
+  });
+
+  it('BF29: a ## Lane section with an unrecognized value fails the gate', () => {
+    runCli(['new', 'bug-029'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'bug-029');
+    writeValidChangeArtifacts(changeDir);
+    const filler = 'This change has a mistyped lane value in its classification section, under audit. '.repeat(4);
+    writeFileSync(join(changeDir, 'change-classification.md'), [
+      '# Change Classification', '', '## Lane', '- bugfix', '', '## Tier', '- 2', '', filler,
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'bug-029'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/`## Lane` has an unrecognized value/i);
   });
 });

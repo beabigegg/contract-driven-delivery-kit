@@ -91,9 +91,10 @@ agent log and MUST stay valid against the current agent-log schema
 (`src/schemas/agent-log.schema.ts`: `additionalProperties: false`; required
 `change-id`, `timestamp`, `agent`, `status`, `artifacts`, `next-action`). The
 `status` field is what lets `/cdd-resume` skip an already-completed bug-fix
-engineer, so never drop it. Carry the bug-fix evidence as typed `artifacts:`
-entries and reference `test-evidence.yml` run summaries instead of pasting test
-output:
+engineer, so never drop it. Record the envelope **plus a nested `bug-fix:`
+block** — `cdd-kit gate` requires the block for a `lane: bug-fix` change (see the
+evidence rules below) — and reference `cdd-kit test run` summaries instead of
+pasting test output:
 
 ```yaml
 change-id: add-order-filter
@@ -104,34 +105,58 @@ files-read:
   - specs/changes/add-order-filter/context-manifest.md
   - src/pages/Orders.tsx
 artifacts:
-  - { type: symptom, pointer: "Orders filter options empty; expected status options, rendered none" }
-  - { type: reproduction, pointer: "test-reproduced; failing before fix; specs/changes/add-order-filter/test-runs/<run-id>/summary.json" }
-  - { type: hypothesis, pointer: "H1 src/pages/Orders.tsx::buildFilterOptions — confirmed (root cause)" }
-  - { type: hypothesis, pointer: "H2 src/api/orders.ts::fetchOrders — rejected" }
-  - { type: root-cause, pointer: "src/pages/Orders.tsx:42-68 mapped status_label instead of the canonical status" }
-  - { type: files-changed, pointer: "src/pages/Orders.tsx, test/orders-filter.test.ts" }
-  - { type: regression-evidence, pointer: "passed; same command now passes; specs/changes/add-order-filter/test-runs/<run-id>/summary.json" }
-  - { type: residual-risk, pointer: "none" }
+  - { type: root-cause, pointer: "src/pages/Orders.tsx:42-68" }
+bug-fix:
+  schema-version: 0.1.0
+  symptom: "Orders page filter options are empty"
+  expected_behavior: "Status filter shows the available statuses"
+  actual_behavior: "Filter dropdown renders no options"
+  observed_surface: "Orders page filter panel"
+  reproduction:
+    status: test-reproduced
+    command: "pytest tests/orders/test_filter.py"
+    failing_before_fix: true
+    # a failed (or timeout) pre-fix run, recorded by `cdd-kit test run`
+    summary: "specs/changes/add-order-filter/test-runs/<repro-run>/summary.json"
+  hypotheses:
+    - { id: H1, candidate: "src/pages/Orders.tsx::buildFilterOptions", reason: "graph matched the filter symbol", result: confirmed }
+    - { id: H2, candidate: "src/api/orders.ts::fetchOrders", reason: "API client might omit status", result: rejected }
+  root_cause:
+    pointer: "src/pages/Orders.tsx:42-68"
+    summary: "mapped status_label instead of the canonical status"
+  fix:
+    files_changed: [src/pages/Orders.tsx, tests/orders/test_filter.py]
+    summary: "use the canonical status field and add regression coverage"
+  regression:
+    status: passed
+    command: "pytest tests/orders/test_filter.py"
+    # the post-fix passing run
+    summary: "specs/changes/add-order-filter/test-runs/<reg-run>/summary.json"
+  residual_risk: none
 next-action: "qa-reviewer release-readiness review"
 ```
 
-Evidence rules:
+Evidence rules (`cdd-kit gate` enforces these for a `lane: bug-fix` change):
 
-- Record exactly one `reproduction` status from the table above. A code change
-  that claims to fix the symptom needs `reproduced`, `test-reproduced`, or
-  `visual-reproduced`.
-- A `root-cause` artifact (a `file:line` pointer) is required once code changes.
-- For a **behavior-changing** fix, a `regression-evidence` artifact is required:
-  the same or an equivalent command that failed before the fix must pass after
-  it, and changed code needs added or updated regression coverage.
-- A **diagnostic-only** change does not produce that before/after fix proof — it
-  intentionally does not fix the symptom yet. Set the classifier's
-  `## Diagnostic Only` to `yes`, record the diagnostic reproduction status
-  (`environment-blocked`, `intermittent`, or `not-reproduced`), add passing tests
-  for the instrumentation itself, do not claim to fix the symptom, and open a
-  follow-up change for the actual fix.
+- Record exactly one `reproduction.status` from the table above. A behavior-
+  changing fix needs `reproduced`, `test-reproduced`, or `visual-reproduced`; a
+  `test-reproduced` / `failing_before_fix` reproduction must also give a
+  `reproduction.command` and a `reproduction.summary` that records a **failed or
+  timed-out** pre-fix run.
+- When reproduction succeeded, at least one hypothesis must end `result: confirmed`.
+- A behavior-changing fix needs `root_cause.pointer` (a `file:line`), a
+  `regression` with `status: passed`, its `command`, and a `regression.summary`
+  pointing at the post-fix passing run, plus a present `test-evidence.yml`.
+- A **diagnostic-only** change (set the classifier's `## Diagnostic Only` to
+  `yes` and `bug-fix.diagnostic_only: true`) is exempt from the root-cause / fix /
+  regression proof — it intentionally does not fix the symptom yet. Record a
+  diagnostic reproduction status (`environment-blocked`, `intermittent`, or
+  `not-reproduced`), add passing tests for the instrumentation itself, do not
+  claim to fix the symptom, and open a follow-up change for the actual fix. It
+  must NOT carry `root_cause` / `fix` / `regression`.
 - A required test failure is never waivable as known / pre-existing / allowed —
-  fix it, expand scope, or open a separate change.
+  fix it, expand scope, or open a separate change. The repair log may not carry
+  `known-failures` (or any waiver field) at any level.
 
 ADR 0006 promotes this evidence to a first-class, machine-validated `bug-fix:`
 block (symptom, expected/actual behavior, reproduction, hypotheses, root cause,

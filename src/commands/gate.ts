@@ -812,11 +812,34 @@ const validateAgentLog = ajv.compile(agentLogSchema);
 function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return null;
-  const m = readFileSync(classifPath, 'utf8').match(/^##\s+Lane\s*\n\s*-\s*(feature|bug-fix)\b/im);
+  // The value must be exactly `feature` or `bug-fix` (anchored at end of line): a
+  // both-options stub (`- feature | bug-fix`) or a typo (`- bugfix`) does not
+  // match, so the null result + laneSectionPresent drive an invalid-lane error
+  // instead of silently skipping enforcement.
+  const m = readFileSync(classifPath, 'utf8').match(/^##\s+Lane\s*\n\s*-\s*(feature|bug-fix)\s*$/im);
   // Lowercase the match: the regex is case-insensitive, so `- Bug-Fix` matches —
   // returning it verbatim would fail the `=== 'bug-fix'` comparison and silently
   // skip the whole bug-fix gate for that change.
   return m ? (m[1].toLowerCase() as 'feature' | 'bug-fix') : null;
+}
+
+/** True when change-classification.md has a `## Lane` heading (regardless of value). */
+function laneSectionPresent(changeDir: string): boolean {
+  const classifPath = join(changeDir, 'change-classification.md');
+  if (!existsSync(classifPath)) return false;
+  return /^##\s+Lane\s*$/im.test(readFileSync(classifPath, 'utf8'));
+}
+
+/** Collect any prohibited waiver-field key appearing anywhere in the log (ADR 0006 §7). */
+function collectWaiverFields(value: unknown, found: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const v of value) collectWaiverFields(v, found);
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      if (PROHIBITED_WAIVER_FIELDS.includes(k)) found.add(k);
+      collectWaiverFields(v, found);
+    }
+  }
 }
 
 /** The classifier's `## Diagnostic Only` decision (ADR 0006 §10), or null if absent. */
@@ -852,7 +875,19 @@ function enforceBugFixEvidence(
   errors: string[],
   warnings: string[],
 ): void {
-  if (readLane(changeDir) !== 'bug-fix') return;
+  const lane = readLane(changeDir);
+  if (lane !== 'bug-fix') {
+    // A `## Lane` section present with an unrecognized value (a typo like
+    // `bugfix`, or the unfilled `feature | bug-fix` stub) must fail, not silently
+    // skip bug-fix enforcement (ADR 0006 §1).
+    if (lane === null && laneSectionPresent(changeDir)) {
+      errors.push(
+        'change-classification.md: `## Lane` has an unrecognized value — use exactly `feature` or ' +
+        '`bug-fix`. An invalid lane must not silently skip bug-fix evidence enforcement (ADR 0006 §1).',
+      );
+    }
+    return;
+  }
 
   const logPath = join(changeDir, 'agent-log', 'bug-fix-engineer.yml');
   if (!existsSync(logPath)) {
@@ -873,17 +908,18 @@ function enforceBugFixEvidence(
     return;
   }
 
-  // ADR 0006 §7 — a repair record may not waive failures. The agent-log's
-  // additionalProperties:false downgrades unknown keys to warnings, so the
-  // prohibited waiver fields are scanned explicitly (as the test-evidence path
-  // does) and rejected outright.
-  for (const field of PROHIBITED_WAIVER_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(data, field)) {
-      errors.push(
-        `agent-log/bug-fix-engineer.yml: prohibited waiver field \`${field}\` — a bug-fix repair record may ` +
-        `not exclude known or pre-existing failures (ADR 0006 §7): ${BLOCKED_FAILURE_GUIDANCE}.`,
-      );
-    }
+  // ADR 0006 §7 — a repair record may not waive failures anywhere, top-level OR
+  // nested inside `bug-fix:`. The agent-log's additionalProperties:false
+  // downgrades unknown keys to warnings, so the prohibited waiver fields are
+  // scanned explicitly at every depth (as the test-evidence path does) and
+  // rejected outright.
+  const waived = new Set<string>();
+  collectWaiverFields(data, waived);
+  for (const field of [...waived].sort()) {
+    errors.push(
+      `agent-log/bug-fix-engineer.yml: prohibited waiver field \`${field}\` — a bug-fix repair record may ` +
+      `not exclude known or pre-existing failures (ADR 0006 §7): ${BLOCKED_FAILURE_GUIDANCE}.`,
+    );
   }
 
   if (!validateAgentLog(data)) {
@@ -967,20 +1003,20 @@ function enforceBugFixEvidence(
   const regression = block.regression as { status?: unknown; command?: unknown; summary?: unknown } | undefined;
   const testRunsDir = resolve(changeDir, 'test-runs');
   const reproAutomated = reproduction?.failing_before_fix === true || reproduction?.status === 'test-reproduced';
-  const refs: ReadonlyArray<{ field: string; value: unknown; status?: unknown; notStatus?: string; command?: unknown }> = [
+  const refs: ReadonlyArray<{ field: string; value: unknown; status?: unknown; allowedStatuses?: readonly string[]; command?: unknown }> = [
     {
       field: 'reproduction.summary',
       value: reproduction?.summary,
       // A test-reproduced / failing-before-fix reproduction (ADR 0006 §6) must
-      // reference a NON-passing pre-fix run — failed, or `timeout` for a
-      // performance bug (the runner records that, src/commands/test-run.ts) — so
-      // the post-fix passing summary cannot be reused as the repro.
-      notStatus: reproAutomated ? 'passed' : undefined,
+      // reference a run that FAILED or TIMED OUT (the runner records `timeout`
+      // for a performance bug, src/commands/test-run.ts) — never a passing run,
+      // nor an `error`/`no-command` setup failure that never actually reproduced.
+      allowedStatuses: reproAutomated ? ['failed', 'timeout'] : undefined,
       command: reproduction?.command,
     },
     { field: 'regression.summary', value: regression?.summary, status: regression?.status, command: regression?.command },
   ];
-  for (const { field, value, status: wantStatus, notStatus, command: wantCommand } of refs) {
+  for (const { field, value, status: wantStatus, allowedStatuses, command: wantCommand } of refs) {
     if (typeof value !== 'string' || value === '') continue;
     if (isAbsolute(value)) {
       errors.push(
@@ -1028,11 +1064,11 @@ function enforceBugFixEvidence(
       );
       continue;
     }
-    if (notStatus !== undefined && summary.status === notStatus) {
+    if (allowedStatuses !== undefined && !allowedStatuses.includes(String(summary.status))) {
       errors.push(
-        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records a passing run, but a ` +
-        'test-reproduced / failing-before-fix reproduction must reference a non-passing pre-fix run ' +
-        '(a failed or timed-out run) that proves the symptom (ADR 0006 §6).',
+        `agent-log/bug-fix-engineer.yml: bug-fix.${field} \`${value}\` records status \`${String(summary.status)}\`, ` +
+        'but a test-reproduced / failing-before-fix reproduction must reference a failed or timed-out pre-fix run ' +
+        'that proves the symptom — a passing or errored run does not (ADR 0006 §6).',
       );
       continue;
     }
