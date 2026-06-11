@@ -131,6 +131,22 @@ const tools: ToolDef[] = [
     },
   },
   {
+    name: 'cdd_test_impact',
+    description: 'List the tests affected by changing a file: transitive importers that are test files (from the code-map import graph), plus mirror-path test files (src/foo.ts ↔ tests/foo.test.ts, foo_test.py). Each result carries a reason. Replaces a manual grep for "which tests cover this".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', description: 'Source file path (or a unique symbol) you are about to change.' },
+        depth: { type: 'integer', minimum: 1, maximum: 10, default: 2, description: 'How many import hops to follow when finding dependent tests.' },
+        limit: { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+        map: { type: 'string', description: 'Code-map YAML path.', default: DEFAULT_MAP },
+        refresh: { type: 'boolean', default: true },
+      },
+      required: ['file'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'cdd_contract_query',
     description: 'Query the API contract by key (endpoint, schema, path prefix/glob, or column filter) and get back only the matching slice — the contract analog of cdd_index_query (ask, don\'t read the whole contract). Parse-on-demand and read-only. Provide one selector: endpoint, schema, path, a column filter (auth/category/owner), or a free-text term.',
     inputSchema: {
@@ -275,6 +291,16 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         'impact', requireString(args, 'target'),
         '--map', optionalString(args.map, DEFAULT_MAP),
         '--limit', String(optionalInt(args.limit, 20)),
+        '--json',
+        ...refreshArgs(args),
+      ]);
+    case 'cdd_test_impact':
+      return runCddJson([
+        'test',
+        'impact', requireString(args, 'file'),
+        '--map', optionalString(args.map, DEFAULT_MAP),
+        '--depth', String(optionalInt(args.depth, 2)),
+        '--limit', String(optionalInt(args.limit, 50)),
         '--json',
         ...refreshArgs(args),
       ]);

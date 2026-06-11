@@ -115,7 +115,7 @@ export async function indexImpact(term: string, opts: IndexImpactOptions): Promi
   return 0;
 }
 
-function findTarget(entries: FileEntry[], term: string): { entry: FileEntry } | { error: string } {
+export function findTarget(entries: FileEntry[], term: string): { entry: FileEntry } | { error: string } {
   const query = normalizeQueryPath(term);
   const exact = entries.find(entry => entry.path === query);
   if (exact) return { entry: exact };

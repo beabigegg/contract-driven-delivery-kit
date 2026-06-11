@@ -777,6 +777,9 @@ artifacts, and records results in `test-evidence.yml` for the gate to validate.
 cdd-kit test select <change-id>            # choose bounded commands per ladder phase from test-plan.md
 cdd-kit test select <change-id> --json     # machine-readable selection (or needs-test-plan-update)
 
+cdd-kit test impact src/auth/token.ts      # which tests are affected by changing this file?
+cdd-kit test impact src/auth/token.ts --depth 3 --json
+
 # Run each phase with the command select returned (--command is required today);
 # declare any conditional phases on the first run so the gate requires them:
 cdd-kit test run <change-id> --phase collect --command "<collect cmd>" --required-phases collect,targeted,changed-area
@@ -797,6 +800,15 @@ Each run writes `specs/changes/<change-id>/test-runs/<run-id>/` (`command.txt`,
 `summary.json`, `stdout.log`, `stderr.log`, and `junit.xml` when supported) and
 updates `test-evidence.yml`. The ladder phases and the no-waiver policy live in
 `references/sdd-tdd-policy.md` and each change's `test-plan.md`.
+
+`cdd-kit test impact <file>` answers "if I change this file, which tests are
+affected?" by walking the code-map's import graph: it reports test files that
+transitively import the target (up to `--depth`, default 2) plus mirror-path test
+files (`src/foo.ts` ↔ `tests/foo.test.ts`, `foo_test.py`). Every result carries a
+`reason` (`is-target` / `imports-target` / `transitive` / `mirror`), so it never
+guesses — it's a composition of facts the code-map already records, exposed over
+MCP as `cdd_test_impact` to replace a manual grep. Options: `--depth <n>`,
+`--limit <n>` (default 50), `--map <path>`, `--no-refresh`, `--json`.
 
 ---
 
@@ -1354,6 +1366,7 @@ Exposed tools:
 - `cdd_graph_impact`
 - `cdd_index_query`
 - `cdd_index_impact`
+- `cdd_test_impact` — tests affected by changing a file (transitive importing tests + mirror-path tests)
 
 Large Python repos are scanned in chunks (`CDD_CODE_MAP_BATCH_SIZE`, default 400)
 so one slow batch cannot drop the whole language. Raise

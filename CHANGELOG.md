@@ -4,6 +4,18 @@
 
 ### Added
 
+- **`cdd-kit test impact <file>` + `cdd_test_impact` MCP tool (P2-3, first of
+  two).** Answers "if I change this file, which tests are affected?" without a
+  manual grep, by walking the code-map's import graph: it reports test files that
+  transitively import the target (up to `--depth`, default 2) plus mirror-path
+  test files (`src/foo.ts` ↔ `tests/foo.test.ts`, `foo_test.py`). Every result
+  carries a `reason` (`is-target` / `imports-target` / `transitive` / `mirror`),
+  so it is a composition of facts the code-map already records — never inference.
+  Exposed over MCP as `cdd_test_impact` and as a CLI subcommand (`--depth`,
+  `--limit`, `--map`, `--no-refresh`, `--json`); reuses the `index impact` target
+  resolver. The companion `cdd_contract_locate` (code symbol → contract slices)
+  lands in the next P2-3 PR.
+
 - **Machine-readable change metadata: gate + doctor freshness wiring (P2-1,
   integration phase).** `cdd-kit gate` now emits a warn-only nudge when a
   change's generated `change.yml`/`trace.yml` has drifted from its source
