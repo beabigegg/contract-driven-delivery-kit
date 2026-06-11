@@ -2,7 +2,7 @@
  * CLI tests for `cdd-kit mcp`.
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { copyFileSync } from 'fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -70,6 +70,7 @@ describe('cdd-kit mcp', () => {
     expect(toolNames).toContain('cdd_graph_impact');
     expect(toolNames).toContain('cdd_index_query');
     expect(toolNames).toContain('cdd_test_impact');
+    expect(toolNames).toContain('cdd_contract_locate');
   });
 
   it('calls graph query and returns JSON content', () => {
@@ -157,5 +158,48 @@ describe('cdd-kit mcp', () => {
     expect(Array.isArray(payload.affected_tests)).toBe(true);
     expect(Array.isArray(payload.impacted_sources)).toBe(true);
     expect(typeof payload.truncated).toBe('boolean');
+  });
+
+  it('calls contract locate and returns the related slices (P2-3)', () => {
+    mkdirSync(join(tmpRepo, 'contracts', 'api'), { recursive: true });
+    writeFileSync(
+      join(tmpRepo, 'contracts', 'api', 'api-contract.md'),
+      [
+        '---', 'contract: api', '---', '',
+        '# API Contract', '',
+        '## Endpoint Requirements',
+        '| method | path | auth | request schema | response schema | errors | tests |',
+        '|---|---|---|---|---|---|---|',
+        '| POST | /api/orders | admin | CreateOrder | Order | 400 | yes |', '',
+        '## Schemas', '',
+        '### CreateOrder',
+        '| field | type | required | format | notes |',
+        '|---|---|---|---|---|',
+        '| email | string | yes | email | buyer |', '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const responses = runMcp([
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'cdd_contract_locate',
+          arguments: { symbol: 'CreateOrder', refresh: false },
+        },
+      },
+    ], tmpRepo, tmpHome);
+
+    const toolResult = responses[1].result;
+    expect(toolResult.isError).toBeUndefined();
+    const payload = JSON.parse(toolResult.content[0].text) as {
+      symbol: string;
+      schemas: { name: string }[];
+    };
+    expect(payload.symbol).toBe('CreateOrder');
+    expect(payload.schemas.some(s => s.name === 'CreateOrder')).toBe(true);
   });
 });

@@ -4,6 +4,21 @@
 
 ### Added
 
+- **`cdd-kit contract locate <symbol>` + `cdd_contract_locate` MCP tool (P2-3,
+  second of two).** Given a code symbol or file, returns the API-contract slices
+  (schemas + endpoints) related to it — the contract analog of `cdd_test_impact`,
+  saving the graph-query → read-file → guess-schema-name → contract-query
+  round-trip. The code-to-contract bridge is **name overlap** (a `CreateOrder`
+  interface ↔ a `CreateOrder` schema), the same honest, bounded heuristic used
+  elsewhere — never inference. The symbol is resolved in the code-map (best
+  effort) to harvest the file's declared type/class/function names as extra
+  search terms, and each located slice records `matched_via`; it still works with
+  no code-map (the literal symbol is always a term). Exposed over MCP as
+  `cdd_contract_locate` and as a CLI subcommand (`--contract`, `--inventory`,
+  `--map`, `--limit`, `--no-refresh`, `--json`). Internally, `contract query`'s
+  payload builder was extracted into a pure, reusable `runContractQuery` (the CLI
+  behavior is unchanged). **With this, P2-3 is complete.**
+
 - **`cdd-kit test impact <file>` + `cdd_test_impact` MCP tool (P2-3, first of
   two).** Answers "if I change this file, which tests are affected?" without a
   manual grep, by walking the code-map's import graph: it reports test files that
