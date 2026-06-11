@@ -416,6 +416,28 @@ graph
     process.exit(exit);
   });
 
+graph
+  .command('unresolved [path-or-symbol]')
+  .description('List references the graph could not resolve (external/dynamic/DI calls, ambiguous names) — the blast radius impact analysis silently drops')
+  .option('--engine <engine>', 'Graph engine: auto or native (unresolved data lives in the native index)', 'auto')
+  .option('--map <path>', 'Code-map YAML path', '.cdd/code-map.yml')
+  .option('--kind <kind>', 'Filter by reference kind: calls, extends, implements, references, or imports')
+  .option('--limit <n>', 'Maximum unresolved references to print', '50')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate stale or missing code-map/graph')
+  .action(async (term: string | undefined, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; kind?: string; limit: string; json?: boolean; refresh?: boolean }) => {
+    const { graphUnresolved } = await import('../commands/graph.js');
+    const exit = await graphUnresolved(term, {
+      engine: opts.engine,
+      map: opts.map,
+      kind: opts.kind,
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd classify-check [change-id] ────────────────────────────────────────────
 program
   .command('classify-check [change-id]')

@@ -1272,7 +1272,19 @@ cdd-kit graph query OrderService
 cdd-kit graph query OrderService --with-source   # include code inline; no follow-up Read needed
 cdd-kit graph context "filter options are empty"
 cdd-kit graph impact src/services/orders.ts --depth 2
+cdd-kit graph unresolved src/services/orders.ts   # external/dynamic/DI calls this file makes
 ```
+
+`cdd-kit graph unresolved [path-or-symbol]` (also `cdd_graph_unresolved` over MCP)
+lists the `calls`/`extends`/`implements` references the graph builder could not
+link to a target node — DI-container lookups, external service calls, dynamic
+dispatch, and ambiguous names. These are exactly the edges that `graph impact`
+cannot follow, so `graph impact` now also reports the unresolved references
+originating from its impact set: the blast radius is no longer silently
+undercounted. Each item carries same-name candidate nodes (present = *ambiguous*;
+absent = *truly external*). Options: `--kind <calls|extends|implements|references|imports>`,
+`--limit <n>` (default 50), `--map`, `--no-refresh`, `--json`. An empty result is
+a successful, healthy one (exit 0): every reference resolved.
 
 `--with-source` (also on `cdd-kit index query`, and `withSource: true` via MCP)
 returns the matched symbol's code inline so the query *replaces* a `Read` rather
@@ -1390,6 +1402,7 @@ Exposed tools:
 - `cdd_index_query`
 - `cdd_index_impact`
 - `cdd_test_impact` — tests affected by changing a file (transitive importing tests + mirror-path tests)
+- `cdd_graph_unresolved` — references the graph could not resolve (external/dynamic/DI calls, ambiguous names); the blast radius `cdd_graph_impact` would otherwise omit
 - `cdd_contract_query` — the matching slice of the API contract by key (endpoint/schema/path/column/term)
 - `cdd_contract_locate` — contract slices related to a code symbol/file by name overlap
 

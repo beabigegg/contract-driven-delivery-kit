@@ -71,6 +71,7 @@ describe('cdd-kit mcp', () => {
     expect(toolNames).toContain('cdd_index_query');
     expect(toolNames).toContain('cdd_test_impact');
     expect(toolNames).toContain('cdd_contract_locate');
+    expect(toolNames).toContain('cdd_graph_unresolved');
   });
 
   it('calls graph query and returns JSON content', () => {
@@ -201,5 +202,31 @@ describe('cdd-kit mcp', () => {
     };
     expect(payload.symbol).toBe('CreateOrder');
     expect(payload.schemas.some(s => s.name === 'CreateOrder')).toBe(true);
+  });
+
+  it('calls graph unresolved and returns the external/dynamic references (P2-4)', () => {
+    writeFileSync(join(tmpRepo, 'a.ts'), 'export function handler() { return externalThing(); }\n', 'utf8');
+
+    const responses = runMcp([
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'cdd_graph_unresolved',
+          arguments: { kind: 'calls' },
+        },
+      },
+    ], tmpRepo, tmpHome);
+
+    const toolResult = responses[1].result;
+    expect(toolResult.isError).toBeUndefined();
+    const payload = JSON.parse(toolResult.content[0].text) as {
+      engine: string;
+      unresolved: { name: string; kind: string }[];
+    };
+    expect(payload.engine).toBe('native');
+    expect(payload.unresolved.some(u => u.name === 'externalThing' && u.kind === 'calls')).toBe(true);
   });
 });
