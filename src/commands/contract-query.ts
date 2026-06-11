@@ -45,7 +45,7 @@ interface SourcedRow extends EndpointTableRow {
   source: string;
 }
 
-interface EndpointMatch {
+export interface EndpointMatch {
   source: string;
   method: string;
   path: string;
@@ -53,7 +53,7 @@ interface EndpointMatch {
   score?: number;
 }
 
-interface SchemaAnswer {
+export interface SchemaAnswer {
   name: string;
   /** Whether a `### Name` section is actually defined in the contract. */
   defined: boolean;
@@ -68,7 +68,7 @@ interface ProseSection {
   content: string;
 }
 
-interface ContractQueryPayload {
+export interface ContractQueryPayload {
   contract: string;
   inventory: string | null;
   query: string;
@@ -77,10 +77,22 @@ interface ContractQueryPayload {
   prose: ProseSection[];
 }
 
-export async function contractQuery(term: string | undefined, opts: ContractQueryOptions): Promise<number> {
+export interface ContractQueryResult {
+  payload?: ContractQueryPayload;
+  error?: string;
+}
+
+/**
+ * Pure contract query: load + parse the markdown and build the answer payload,
+ * with NO printing or process I/O. Returns `{ error }` for the not-found /
+ * no-selector cases so callers (the CLI below, and `contract locate`) decide how
+ * to surface them. Extracted so `cdd-kit contract locate` can run several
+ * term queries in-process without spawning a CLI per candidate.
+ */
+export function runContractQuery(term: string | undefined, opts: ContractQueryOptions): ContractQueryResult {
   const contractPath = opts.contract || DEFAULT_CONTRACT;
   if (!existsSync(contractPath)) {
-    return printFailure(`API contract not found: ${contractPath}`, opts.json);
+    return { error: `API contract not found: ${contractPath}` };
   }
   const contractBody = stripFrontmatter(readFileSync(contractPath, 'utf8')).body;
 
@@ -99,25 +111,33 @@ export async function contractQuery(term: string | undefined, opts: ContractQuer
   const trimmedTerm = (term ?? '').trim();
   const hasFilter = !!(opts.auth || opts.category || opts.owner);
 
-  let payload: ContractQueryPayload;
   if (opts.endpoint) {
-    payload = answerEndpoint(opts.endpoint, rows, schemaNames, contentByName, contractBody, contractPath, inventoryPath, hasInventory);
-  } else if (opts.schema) {
-    payload = {
-      contract: contractPath,
-      inventory: hasInventory ? inventoryPath : null,
-      query: `schema ${opts.schema}`,
-      endpoints: [],
-      schemas: [schemaAnswer(opts.schema, schemaNames, contentByName, rows)],
-      prose: [],
+    return { payload: answerEndpoint(opts.endpoint, rows, schemaNames, contentByName, contractBody, contractPath, inventoryPath, hasInventory) };
+  }
+  if (opts.schema) {
+    return {
+      payload: {
+        contract: contractPath,
+        inventory: hasInventory ? inventoryPath : null,
+        query: `schema ${opts.schema}`,
+        endpoints: [],
+        schemas: [schemaAnswer(opts.schema, schemaNames, contentByName, rows)],
+        prose: [],
+      },
     };
-  } else if (opts.path || hasFilter || trimmedTerm) {
-    payload = answerList(opts, trimmedTerm, rows, sections, schemaNames, contentByName, contractPath, inventoryPath, hasInventory);
-  } else {
-    return printFailure(
-      'contract query needs a selector: --endpoint "METHOD /path", --path <prefix|glob>, --schema <Name>, a column filter (--auth/--category/--owner), or a free-text term.',
-      opts.json,
-    );
+  }
+  if (opts.path || hasFilter || trimmedTerm) {
+    return { payload: answerList(opts, trimmedTerm, rows, sections, schemaNames, contentByName, contractPath, inventoryPath, hasInventory) };
+  }
+  return {
+    error: 'contract query needs a selector: --endpoint "METHOD /path", --path <prefix|glob>, --schema <Name>, a column filter (--auth/--category/--owner), or a free-text term.',
+  };
+}
+
+export async function contractQuery(term: string | undefined, opts: ContractQueryOptions): Promise<number> {
+  const { payload, error } = runContractQuery(term, opts);
+  if (error || !payload) {
+    return printFailure(error ?? 'contract query failed', opts.json);
   }
 
   if (opts.json) {

@@ -586,6 +586,28 @@ contract
   });
 
 contract
+  .command('locate <symbol>')
+  .description('Find the API-contract slices related to a code symbol/file by name overlap (saves the graph-query → read → guess-schema → contract-query round-trip)')
+  .option('--contract <path>', 'API contract markdown path', DEFAULT_CONTRACT_PATH)
+  .option('--inventory <path>', 'API inventory markdown path', DEFAULT_INVENTORY_PATH)
+  .option('--map <path>', 'Code-map YAML path (used to harvest the symbol\'s declared names)', '.cdd/code-map.yml')
+  .option('--limit <n>', 'Maximum endpoints/schemas to print', '20')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate a stale or missing code-map first')
+  .action(async (symbol: string, opts: { contract: string; inventory: string; map: string; limit: string; json?: boolean; refresh?: boolean }) => {
+    const { contractLocate } = await import('../commands/contract-locate.js');
+    const exit = await contractLocate(symbol, {
+      contract: opts.contract,
+      inventory: opts.inventory,
+      map: opts.map,
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
+contract
   .command('endpoint')
   .description('Mutate endpoint rows by key')
   .command('set')

@@ -767,6 +767,29 @@ already generated), and `cdd-kit doctor` reports it as a warning that
 
 ---
 
+### `cdd-kit contract locate <symbol>`
+
+Given a code symbol or file, returns the API-contract slices (schemas +
+endpoints) related to it — the contract analog of `cdd-kit test impact`. It saves
+the usual graph-query → read-file → guess-schema-name → contract-query round-trip
+an agent would otherwise do by hand.
+
+```bash
+cdd-kit contract locate src/orders/service.ts   # schemas/endpoints related to this file
+cdd-kit contract locate CreateOrder --json      # or a single symbol/schema name
+```
+
+The bridge from code to contract is **name overlap** (a `CreateOrder` interface ↔
+a `CreateOrder` schema) — the same honest, bounded heuristic the kit uses
+elsewhere, never inference. The symbol is resolved in the code-map (best effort)
+to harvest the file's declared type/class/function names as extra search terms,
+and each located slice records `matched_via` (which term surfaced it). It still
+works with no code-map, since the literal symbol is always one of the terms.
+Exposed over MCP as `cdd_contract_locate`. Options: `--contract`, `--inventory`,
+`--map`, `--limit` (default 20), `--no-refresh`, `--json`.
+
+---
+
 ### `cdd-kit test`
 
 Bounded test execution and structured evidence (ADR 0005). Runs narrow test
@@ -884,7 +907,7 @@ cdd-kit abandon add-jwt-auth --reason "using Auth0 instead"
 Every lifecycle and query command supports `--json` for wrapper scripts and CI:
 `doctor`, `list`, `gate`-adjacent checks (`classify-check`, `validate` on errors),
 `archive`, `abandon`, `index query`/`impact`, `graph query`/`impact`/`status`/`sync`/`context`,
-`contract query`, `test run`/`select`, `bug suspects`, `detect-stack`, and
+`contract query`/`locate`, `test run`/`select`/`impact`, `metadata`, `bug suspects`, `detect-stack`, and
 `context request`/`approve`/`reject`/`list`/`check`.
 
 Conventions, uniform across commands:
@@ -1367,6 +1390,8 @@ Exposed tools:
 - `cdd_index_query`
 - `cdd_index_impact`
 - `cdd_test_impact` — tests affected by changing a file (transitive importing tests + mirror-path tests)
+- `cdd_contract_query` — the matching slice of the API contract by key (endpoint/schema/path/column/term)
+- `cdd_contract_locate` — contract slices related to a code symbol/file by name overlap
 
 Large Python repos are scanned in chunks (`CDD_CODE_MAP_BATCH_SIZE`, default 400)
 so one slow batch cannot drop the whole language. Raise

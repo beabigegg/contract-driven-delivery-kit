@@ -166,6 +166,23 @@ const tools: ToolDef[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'cdd_contract_locate',
+    description: 'Given a code symbol or file, return the API-contract slices (schemas + endpoints) related to it by name overlap — the contract analog of cdd_test_impact. Saves the graph-query → read-file → guess-schema-name → contract-query round-trip. Resolves the symbol in the code-map to harvest its declared type/class names as extra search terms; still works with no code-map (the symbol may itself be a schema name).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'A code symbol (class/interface/type/function) or file path.' },
+        contract: { type: 'string', description: 'API contract markdown path.', default: DEFAULT_CONTRACT_PATH },
+        inventory: { type: 'string', description: 'API inventory markdown path.', default: DEFAULT_INVENTORY_PATH },
+        map: { type: 'string', description: 'Code-map YAML path.', default: DEFAULT_MAP },
+        limit: { type: 'integer', minimum: 1, maximum: 200, default: 20 },
+        refresh: { type: 'boolean', default: true },
+      },
+      required: ['symbol'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export async function runMcpServer(opts: RunMcpServerOptions): Promise<void> {
@@ -325,6 +342,17 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
       cmd.push('--limit', String(optionalInt(args.limit, 20)), '--json');
       return runCddJson(cmd);
     }
+    case 'cdd_contract_locate':
+      return runCddJson([
+        'contract',
+        'locate', requireString(args, 'symbol'),
+        '--contract', optionalString(args.contract, DEFAULT_CONTRACT_PATH),
+        '--inventory', optionalString(args.inventory, DEFAULT_INVENTORY_PATH),
+        '--map', optionalString(args.map, DEFAULT_MAP),
+        '--limit', String(optionalInt(args.limit, 20)),
+        '--json',
+        ...refreshArgs(args),
+      ]);
     default:
       return {
         isError: true,
