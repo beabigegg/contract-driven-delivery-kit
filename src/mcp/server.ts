@@ -83,7 +83,7 @@ const tools: ToolDef[] = [
   },
   {
     name: 'cdd_graph_impact',
-    description: 'Analyze callers, callees, imports, references, and dependents for a file or symbol before editing.',
+    description: 'Analyze callers, callees, imports, references, and dependents for a file or symbol before editing. The result also lists the unresolved references (external/dynamic/DI calls) originating from the impact set, so the blast radius is not silently undercounted.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,6 +95,21 @@ const tools: ToolDef[] = [
         refresh: { type: 'boolean', default: true },
       },
       required: ['target'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'cdd_graph_unresolved',
+    description: 'List references the native graph could NOT resolve to a target node — external/dynamic/DI calls, cross-boundary service calls, and ambiguous names. These are exactly the blast radius that cdd_graph_impact would otherwise omit. Optionally scope to a file or symbol. Each item carries same-name candidate nodes (present = ambiguous; absent = truly external).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'Optional file path or symbol to scope to; omit for the whole repository.' },
+        kind: { type: 'string', enum: ['calls', 'extends', 'implements', 'references', 'imports'], description: 'Filter by reference kind.' },
+        limit: { type: 'integer', minimum: 1, maximum: 500, default: 50 },
+        map: { type: 'string', description: 'Code-map YAML path.', default: DEFAULT_MAP },
+        refresh: { type: 'boolean', default: true },
+      },
       additionalProperties: false,
     },
   },
@@ -292,6 +307,16 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         '--json',
         ...refreshArgs(args),
       ]);
+    case 'cdd_graph_unresolved': {
+      const cmd = ['graph', 'unresolved'];
+      const target = optionalString(args.target, '');
+      if (target) cmd.push(target);
+      cmd.push('--map', optionalString(args.map, DEFAULT_MAP), '--limit', String(optionalInt(args.limit, 50)));
+      const kind = optionalString(args.kind, '');
+      if (kind) cmd.push('--kind', kind);
+      cmd.push('--json', ...refreshArgs(args));
+      return runCddJson(cmd);
+    }
     case 'cdd_index_query':
       return runCddJson([
         'index',

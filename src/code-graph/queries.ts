@@ -1,4 +1,4 @@
-import type { CodeGraphEdge, CodeGraphIndex, CodeGraphNode } from './types.js';
+import type { CodeGraphEdge, CodeGraphEdgeKind, CodeGraphIndex, CodeGraphNode, CodeGraphUnresolvedRef } from './types.js';
 
 export interface GraphSearchResult {
   node: CodeGraphNode;
@@ -14,7 +14,48 @@ export interface GraphImpactResult {
   depth: number;
   nodes: CodeGraphNode[];
   edges: CodeGraphEdge[];
+  /**
+   * References originating from any node in the impact set that the graph
+   * builder could NOT link to a target (external/dynamic/DI calls, ambiguous
+   * names). Surfaced so impact analysis does not silently drop them.
+   */
+  unresolved: CodeGraphUnresolvedRef[];
 }
+
+/** A single same-name candidate node for an unresolved reference. */
+export interface UnresolvedCandidate {
+  id: string;
+  qualified_name: string;
+  file_path: string;
+  kind: CodeGraphNode['kind'];
+}
+
+/** An unresolved reference enriched for human/agent consumption. */
+export interface UnresolvedRefView {
+  from: string;
+  from_qualified_name: string;
+  file_path: string;
+  line: number;
+  kind: CodeGraphEdgeKind;
+  name: string;
+  /**
+   * Graph nodes whose name equals the unresolved name. Non-empty = AMBIGUOUS
+   * (the target exists but could not be linked deterministically); empty =
+   * truly external/dynamic/DI (no such node in the graph at all).
+   */
+  candidates: UnresolvedCandidate[];
+}
+
+export interface GraphUnresolvedResult {
+  scope: 'all' | 'file' | 'symbol';
+  filter?: { term: string; resolved: string };
+  total: number;
+  returned: number;
+  truncated: boolean;
+  unresolved: UnresolvedRefView[];
+}
+
+const CANDIDATE_CAP = 5;
 
 export function searchGraph(graph: CodeGraphIndex, term: string, limit: number): GraphSearchResult[] {
   const query = term.trim().toLowerCase();
@@ -69,7 +110,97 @@ export function graphCallees(graph: CodeGraphIndex, term: string, depth: number,
 export function graphImpact(graph: CodeGraphIndex, term: string, depth: number, limit: number): GraphImpactResult | undefined {
   const target = findGraphNode(graph, term);
   if (!target) return undefined;
-  return traverse(graph, target, ['calls', 'imports', 'references', 'extends', 'implements'], 'both', depth, limit);
+  const result = traverse(graph, target, ['calls', 'imports', 'references', 'extends', 'implements'], 'both', depth, limit);
+  // The blast radius also includes references the builder could not resolve
+  // (DI lookups, external service calls, dynamic dispatch). Surface the ones
+  // emanating from any node we touched so callers do not assume completeness.
+  const visited = new Set(result.nodes.map(n => n.id));
+  result.unresolved = graph.unresolved.filter(u => visited.has(u.from));
+  return result;
+}
+
+/**
+ * List references the builder could not resolve to a target node, optionally
+ * scoped to a file or symbol. Each ref is enriched with the originating node's
+ * qualified name and with same-name candidate nodes (computed at query time;
+ * the on-disk index is never mutated) so callers can tell an AMBIGUOUS target
+ * (candidates present) from a truly external/dynamic one (no candidates).
+ */
+export function graphUnresolved(
+  graph: CodeGraphIndex,
+  term: string | undefined,
+  opts: { kind?: CodeGraphEdgeKind; limit: number },
+): GraphUnresolvedResult {
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]));
+  // Index symbol nodes by both their full name and their leaf segment so an
+  // unresolved `save` can surface a `Repo.save` method as a candidate.
+  const byName = new Map<string, CodeGraphNode[]>();
+  for (const node of graph.nodes) {
+    if (node.kind === 'file') continue;
+    for (const key of new Set([node.name.toLowerCase(), unresolvedBaseName(node.name)])) {
+      const list = byName.get(key) ?? [];
+      list.push(node);
+      byName.set(key, list);
+    }
+  }
+
+  let scope: GraphUnresolvedResult['scope'] = 'all';
+  let filter: GraphUnresolvedResult['filter'];
+  let inScope: (ref: CodeGraphUnresolvedRef) => boolean = () => true;
+
+  const trimmed = term?.trim();
+  if (trimmed) {
+    const node = findGraphNode(graph, trimmed);
+    if (node?.kind === 'file') {
+      scope = 'file';
+      filter = { term: trimmed, resolved: node.file_path };
+      inScope = ref => ref.file_path === node.file_path;
+    } else if (node) {
+      scope = 'symbol';
+      filter = { term: trimmed, resolved: node.qualified_name };
+      inScope = ref => ref.from === node.id;
+    } else {
+      // No graph node matched the filter: fall back to a substring match over
+      // the originating file path / qualified name so a path that exists only
+      // as an unresolved ref source is still selectable.
+      const q = trimmed.toLowerCase().replace(/\\/g, '/').replace(/^\.\//, '');
+      scope = 'file';
+      filter = { term: trimmed, resolved: trimmed };
+      inScope = ref =>
+        ref.file_path.toLowerCase().includes(q) ||
+        (nodeById.get(ref.from)?.qualified_name.toLowerCase().includes(q) ?? false);
+    }
+  }
+
+  let matched = graph.unresolved.filter(inScope);
+  if (opts.kind) matched = matched.filter(ref => ref.kind === opts.kind);
+
+  const total = matched.length;
+  const limited = matched.slice(0, Math.max(1, opts.limit));
+  const unresolved: UnresolvedRefView[] = limited.map(ref => {
+    const fromNode = nodeById.get(ref.from);
+    const candidates = (byName.get(unresolvedBaseName(ref.name)) ?? [])
+      .slice(0, CANDIDATE_CAP)
+      .map(n => ({ id: n.id, qualified_name: n.qualified_name, file_path: n.file_path, kind: n.kind }));
+    return {
+      from: ref.from,
+      from_qualified_name: fromNode?.qualified_name ?? ref.from,
+      file_path: ref.file_path,
+      line: ref.line,
+      kind: ref.kind,
+      name: ref.name,
+      candidates,
+    };
+  });
+
+  return { scope, filter, total, returned: unresolved.length, truncated: total > unresolved.length, unresolved };
+}
+
+/** Strip receiver prefixes (this./self.) and member access to the leaf name. */
+function unresolvedBaseName(name: string): string {
+  const cleaned = name.replace(/^this\./, '').replace(/^self\./, '');
+  const parts = cleaned.split('.').filter(Boolean);
+  return (parts[parts.length - 1] ?? cleaned).toLowerCase();
 }
 
 export function graphContext(graph: CodeGraphIndex, task: string, maxNodes: number): { query: string; entry_points: GraphSearchResult[]; nodes: CodeGraphNode[]; edges: CodeGraphEdge[] } {
@@ -130,6 +261,7 @@ function traverse(
     depth: maxDepth,
     nodes: [...visited].map(id => nodeById.get(id)).filter((node): node is CodeGraphNode => !!node),
     edges: [...keptEdges.values()],
+    unresolved: [],
   };
 }
 

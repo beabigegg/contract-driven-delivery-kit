@@ -5,7 +5,8 @@ import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader.js';
 import type { FileEntry } from '../code-map/types.js';
 import { graphPathFor, loadCodeGraph } from '../code-graph/reader.js';
-import { graphContext as buildNativeContext, graphImpact as nativeImpact, searchGraph } from '../code-graph/queries.js';
+import { graphContext as buildNativeContext, graphImpact as nativeImpact, graphUnresolved as nativeUnresolved, searchGraph } from '../code-graph/queries.js';
+import type { CodeGraphEdgeKind } from '../code-graph/types.js';
 import { indexQuery, queryEntries, resolveSourceBudget, surfaceRootFor } from './index-query.js';
 import { indexImpact } from './index-impact.js';
 
@@ -32,6 +33,13 @@ export interface GraphImpactOptions extends GraphBaseOptions {
   limit: number;
   depth: number;
 }
+
+export interface GraphUnresolvedOptions extends GraphBaseOptions {
+  limit: number;
+  kind?: string;
+}
+
+const UNRESOLVED_KINDS: CodeGraphEdgeKind[] = ['calls', 'extends', 'implements', 'references', 'imports'];
 
 export interface GraphContextOptions extends GraphBaseOptions {
   maxNodes: number;
@@ -201,6 +209,9 @@ export async function graphStatus(opts: GraphStatusOptions = {}): Promise<number
     console.log(`code-map: ${payload.code_map.status}`);
     if (graphStats) {
       console.log(`code-graph: ${graphStats.nodes} nodes, ${graphStats.edges} edges, ${graphStats.unresolved} unresolved`);
+      if (graphStats.unresolved > 0) {
+        console.log('  (run cdd-kit graph unresolved to list the external/dynamic/DI references)');
+      }
     } else {
       console.log(`code-graph: missing (${graphPath}); run cdd-kit code-map`);
     }
@@ -368,6 +379,14 @@ export async function graphImpact(term: string, opts: GraphImpactOptions): Promi
           const target = graph.nodes.find(n => n.id === edge.target)?.qualified_name ?? edge.target;
           console.log(`- ${edge.kind}: ${source} -> ${target}${edge.line ? ` line ${edge.line}` : ''} (${edge.provenance})`);
         }
+        if (impact.unresolved.length > 0) {
+          console.log('unresolved (external/dynamic/DI — not in the resolvable graph; treat as extra blast radius):');
+          for (const ref of impact.unresolved.slice(0, opts.limit)) {
+            const from = graph.nodes.find(n => n.id === ref.from)?.qualified_name ?? ref.from;
+            console.log(`- ${ref.kind}: ${from} -> ${ref.name} (${ref.file_path}:${ref.line})`);
+          }
+          console.log('Tip: run cdd-kit graph unresolved <target> to see same-name candidates for these.');
+        }
         console.log('Next: inspect target plus listed callers/callees/imports before editing.');
       }
       return 0;
@@ -385,6 +404,63 @@ export async function graphImpact(term: string, opts: GraphImpactOptions): Promi
     json: opts.json === true,
     refresh: opts.refresh !== false,
   });
+}
+
+export async function graphUnresolved(term: string | undefined, opts: GraphUnresolvedOptions): Promise<number> {
+  const selected = selectEngine(opts);
+  if ('error' in selected) return printEngineError(selected.error, opts.json, selected.probe);
+
+  // Unresolved references only exist in the native cdd-kit graph index.
+  if (selected.engine !== 'native') {
+    return printEngineError(
+      'graph unresolved reads the native cdd-kit graph index; rerun with --engine native (the default).',
+      opts.json,
+      selected.probe,
+    );
+  }
+
+  let kind: CodeGraphEdgeKind | undefined;
+  if (opts.kind) {
+    const requested = opts.kind.toLowerCase() as CodeGraphEdgeKind;
+    if (!UNRESOLVED_KINDS.includes(requested)) {
+      return printEngineError(`Invalid --kind: ${opts.kind}. Use one of ${UNRESOLVED_KINDS.join(', ')}.`, opts.json, selected.probe);
+    }
+    kind = requested;
+  }
+
+  const mapPath = opts.map || '.cdd/code-map.yml';
+  const ensured = await ensureNativeGraph(mapPath, opts.refresh !== false);
+  if (ensured.error) return printEngineError(ensured.error, opts.json, selected.probe);
+  try {
+    const graph = loadCodeGraph(ensured.graphPath);
+    const result = nativeUnresolved(graph, term, { kind, limit: opts.limit });
+    if (opts.json) {
+      writeJson({ engine: 'native', graph: ensured.graphPath, refreshed: ensured.refreshed, ...result });
+    } else {
+      console.log(`graph: ${ensured.graphPath}${ensured.refreshed ? ' (refreshed)' : ''}`);
+      if (result.filter) console.log(`scope: ${result.scope} (${result.filter.resolved})`);
+      console.log(`unresolved: ${result.returned}${result.truncated ? ` (of ${result.total}; raise --limit to see the rest)` : ''}`);
+      if (result.returned === 0) {
+        console.log('No unresolved references in scope — every call/extends/implements links to a known node.');
+        return 0;
+      }
+      let lastFile = '';
+      for (const ref of result.unresolved) {
+        if (ref.file_path !== lastFile) {
+          console.log(`  ${ref.file_path}:`);
+          lastFile = ref.file_path;
+        }
+        const hint = ref.candidates.length > 0
+          ? `${ref.candidates.length} same-name candidate(s): ${ref.candidates.map(c => c.qualified_name).join(', ')} (ambiguous)`
+          : 'no candidate in graph (external/dynamic/DI)';
+        console.log(`  - ${ref.kind} ${ref.name} at line ${ref.line}, from ${ref.from_qualified_name} — ${hint}`);
+      }
+      console.log('These references point outside the resolvable graph; treat them as extra blast radius when editing.');
+    }
+    return 0;
+  } catch (err) {
+    return printEngineError((err as Error).message, opts.json, selected.probe);
+  }
 }
 
 export async function graphContext(task: string, opts: GraphContextOptions): Promise<number> {

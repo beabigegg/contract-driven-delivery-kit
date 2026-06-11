@@ -4,6 +4,24 @@
 
 ### Added
 
+- **`cdd-kit graph unresolved [path-or-symbol]` + `cdd_graph_unresolved` MCP
+  tool, and unresolved references on `graph impact` (P2-4).** The native graph
+  builder already recorded the `calls`/`extends`/`implements` references it could
+  not link to a target node (DI-container lookups, external service calls,
+  dynamic dispatch, ambiguous names) in the index `unresolved` array, but the
+  only surface was a bare count in `graph status` — so impact analysis silently
+  dropped exactly the blast radius it could not follow. `graph unresolved` now
+  lists them (optionally scoped to a file or symbol, filterable by `--kind`), and
+  `graph impact` carries the subset originating from its impact set in both text
+  and `--json` output. Each item is enriched at query time (the on-disk index is
+  never mutated) with same-name candidate nodes, distinguishing an **ambiguous**
+  target (candidates present — the target exists but could not be linked
+  deterministically) from a **truly external/dynamic** one (no candidate in the
+  graph at all). An empty result is a successful, healthy one (exit 0). Exposed
+  over MCP as `cdd_graph_unresolved`; CLI flags `--kind`, `--limit` (default 50),
+  `--map`, `--no-refresh`, `--json`. Native engine only (that is where the
+  unresolved data lives).
+
 - **`cdd-kit contract locate <symbol>` + `cdd_contract_locate` MCP tool (P2-3,
   second of two).** Given a code symbol or file, returns the API-contract slices
   (schemas + endpoints) related to it — the contract analog of `cdd_test_impact`,
