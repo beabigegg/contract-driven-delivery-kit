@@ -4,7 +4,7 @@ import { join } from 'path';
 export type StackKind =
   | 'conda' | 'poetry' | 'uv' | 'pip'
   | 'pnpm' | 'bun' | 'yarn' | 'npm'
-  | 'go' | 'rust' | 'unknown';
+  | 'unknown';
 
 export interface DetectionResult {
   primary: StackKind;
@@ -70,16 +70,6 @@ function detectJS(repoRoot: string): StackKind | null {
   return 'npm';
 }
 
-/** Detect Go project */
-function detectGo(repoRoot: string): StackKind | null {
-  return safeExists(join(repoRoot, 'go.mod')) ? 'go' : null;
-}
-
-/** Detect Rust project */
-function detectRust(repoRoot: string): StackKind | null {
-  return safeExists(join(repoRoot, 'Cargo.toml')) ? 'rust' : null;
-}
-
 export function detectStack(repoRoot: string): DetectionResult {
   // Gather all detected stacks in priority order
   const candidates: StackKind[] = [];
@@ -89,12 +79,6 @@ export function detectStack(repoRoot: string): DetectionResult {
 
   const js = detectJS(repoRoot);
   if (js) candidates.push(js);
-
-  const go = detectGo(repoRoot);
-  if (go) candidates.push(go);
-
-  const rust = detectRust(repoRoot);
-  if (rust) candidates.push(rust);
 
   if (candidates.length === 0) {
     return { primary: 'unknown', candidates: [], polyglot: false };
@@ -106,10 +90,8 @@ export function detectStack(repoRoot: string): DetectionResult {
 
   const hasPython  = candidates.some(c => PYTHON_STACKS.includes(c));
   const hasJS      = candidates.some(c => JS_STACKS.includes(c));
-  const hasGo      = candidates.includes('go');
-  const hasRust    = candidates.includes('rust');
 
-  const languageCount = [hasPython, hasJS, hasGo, hasRust].filter(Boolean).length;
+  const languageCount = [hasPython, hasJS].filter(Boolean).length;
   const polyglot = languageCount > 1;
 
   return {

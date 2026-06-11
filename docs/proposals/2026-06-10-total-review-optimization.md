@@ -47,7 +47,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 但對照 kit 的兩個核心定位 —— **「服務非工程師、極致自動化」** 與 **「最少 token 找到要修的東西」** —— 本次審查找到三類系統性落差：
 
 1. **自動化斷點**：onboarding 與升級流程需要使用者手動執行 7~10 條 shell 指令並做出多個技術決策；MCP 未註冊時 agent 默默退化為慢速模式而無人知曉；多個強制機制（conformance、test-runner hook、strict mode）預設休眠（dormant），呈現「看起來有護欄、實際沒擋」的安全假象。這直接違反「除關鍵決策外全自動」的設計目標。
-2. **Token 效率的隱性損耗**：18 個 agent 中只有 4 個有 graph-first 指示；查詢結果被截斷但 agent 不知道；freshness 檢查在大 repo 上每次查詢都重算 digest；Go/Rust 有 stack 偵測但沒有 scanner；agent 提示檔內含 150+ 處 UTF-8 亂碼（`??`）**直接進入 LLM context**。
+2. **Token 效率的隱性損耗**：18 個 agent 中只有 4 個有 graph-first 指示；查詢結果被截斷但 agent 不知道；freshness 檢查在大 repo 上每次查詢都重算 digest；~~Go/Rust 有 stack 偵測但沒有 scanner~~（已撤銷：改為移除 Go/Rust 偵測，見 P2-2）；agent 提示檔內含 150+ 處 UTF-8 亂碼（`??`）**直接進入 LLM context**。
 3. **可靠性債務**：`gate.ts` 單檔 1,455 行、32 個函式；tier 偵測依賴脆弱 regex；`npm test` 在乾淨環境直接失敗 480 個測試（缺 pretest build）；測試未隔離環境 git 設定；kit 自身沒有 CI workflow。
 
 本提案將全部發現整併為 **P0（立即）/ P1（下一個 minor 版）/ P2（路線圖）** 三級，P0 共 6 項、合計約 3~4 人日，即可消除最痛的斷點。
@@ -153,7 +153,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 | # | 提案 | 說明 | 工作量 |
 |---|---|---|---|
 | P2-1 | **實作 `change.yml`/`trace.yml`（`cdd-kit metadata`）** | `docs/machine-readable-change-design.md` 已完成設計但零實作；這是消除「markdown 當資料庫」脆弱性（P1-12、P1-15 的根因）的治本方案：gate 改讀生成的 YAML，markdown 退為人類介面。**短期行動**：先在該文件頂部標註 `Status: Proposed — not yet implemented`，避免使用者誤以為 `cdd-kit metadata` 已存在 | 4 天（標註 0.1 天） |
-| P2-2 | **Go / Rust scanner** | `stack-detect.ts:82-120` 偵測 Go/Rust，但 `code-map/config.ts:8-17` 只掃 py/js/ts/vue —— Go/Rust 專案的 graph-first 指示完全空轉，agent 退回全檔 Read | 每語言 2~3 天 |
+| ~~P2-2~~ | ~~**Go / Rust scanner**~~ — **已撤銷（descoped）** | 使用者不以 Go/Rust 開發，故反向移除整個 Go/Rust 支援面：`stack-detect.ts` 不再偵測 `go.mod`/`Cargo.toml`（回報 `unknown`），刪除 `ci-templates/{go,rust}.yml`，README detect-stack 表與 polyglot 計數一併清理。此 scanner 項目連帶取消（無偵測即無需 scanner） | — |
 | P2-3 | **新 MCP 工具：`cdd_contract_locate`、`cdd_test_impact`** | 前者以 code symbol 反查相關 contract 切片（省 2~3 輪工具呼叫）；後者回答「改了這個檔，哪些測試受影響」——目前 agent 只能手動 grep | 各 2~3 天 |
 | P2-4 | **暴露 unresolved references** | graph builder 已記錄 unresolved（`builder.ts:283-313`）但 MCP/CLI 都看不到；agent 做 impact 分析時漏掉 DI 容器/外部服務呼叫 | 1~2 天 |
 | P2-5 | **i18n 訊息目錄（繁中優先）** | 全部訊息 English-only 且散落各檔；先集中到 `src/messages.ts` 建翻譯掛點，繁中為第一個目標語系 —— 目標使用者明確包含中文非工程師 | 3~5 天 + 翻譯 |
@@ -203,7 +203,7 @@ v2.4+   (P2)      : P2-1 machine-readable metadata 為核心，其餘按使用�
 | MCP 檢查 never-fails | `README.md:568-569`、`src/commands/doctor.ts` |
 | conformance 預設關閉 | `.cdd/conformance.json` `"enabled": false` |
 | machine-readable 設計未實作 | `docs/machine-readable-change-design.md`；CLI 無 `metadata` 指令 |
-| Go/Rust scanner 缺 | `src/utils/stack-detect.ts:82-120` vs `src/code-map/config.ts:8-17` |
+| ~~Go/Rust scanner 缺~~ —（已撤銷）改為移除 Go/Rust 偵測 | `src/utils/stack-detect.ts` 不再偵測 `go.mod`/`Cargo.toml` |
 | tier-policy 無聲 fallback | `src/utils/tier-floor.ts:91-120` |
 | digest 邏輯重複 | `src/commands/doctor.ts:49-61` |
 | model 配置 | `.claude/agents/*.md` frontmatter（5 opus / 11 sonnet / 2 haiku） |

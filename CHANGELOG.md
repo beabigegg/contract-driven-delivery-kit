@@ -288,6 +288,20 @@
   `approved-with-risk` for documented residual (non-test-failure) risk is
   unchanged.
 
+### Removed
+
+- **Go and Rust stack support.** `detectStack` no longer recognizes `go.mod`
+  (Go) or `Cargo.toml` (Rust) — those projects now report `unknown`, and
+  `cdd-kit init` leaves the CI fast-gate placeholder in place for them instead
+  of patching in a stack fragment. The `ci-templates/go.yml` and
+  `ci-templates/rust.yml` fragments were deleted, the `StackKind` union and the
+  polyglot accounting dropped both languages, and the `detect-stack` table in
+  the README was trimmed to the Python and JS/TS toolchains the kit actually
+  targets. This also retires the planned P2 "Go/Rust scanners" roadmap item.
+  Ecosystem-agnostic guards are unaffected: the test-runner `PreToolUse` hook
+  still steers a broad `go test ./...` to the bounded ladder, and dependency
+  reviewers still recognize `go.mod` / `go.sum` as lockfiles to inspect.
+
 ## [2.2.1] - 2026-06-03
 
 Fix a class of false positives in the 2.2.0 API conformance validator that broke
