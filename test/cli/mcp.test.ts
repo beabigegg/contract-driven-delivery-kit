@@ -69,6 +69,7 @@ describe('cdd-kit mcp', () => {
     expect(toolNames).toContain('cdd_graph_query');
     expect(toolNames).toContain('cdd_graph_impact');
     expect(toolNames).toContain('cdd_index_query');
+    expect(toolNames).toContain('cdd_test_impact');
   });
 
   it('calls graph query and returns JSON content', () => {
@@ -126,5 +127,35 @@ describe('cdd-kit mcp', () => {
     expect(typeof payload.total_matches).toBe('number');
     expect(typeof payload.truncated).toBe('boolean');
     expect(payload.returned).toBe(payload.results.length);
+  });
+
+  it('calls test impact and returns the affected-tests payload (P2-3)', () => {
+    copyFixture(tmpRepo, 'sample.ts');
+
+    const responses = runMcp([
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'cdd_test_impact',
+          arguments: { file: 'sample.ts' },
+        },
+      },
+    ], tmpRepo, tmpHome);
+
+    const toolResult = responses[1].result;
+    expect(toolResult.isError).toBeUndefined();
+    const payload = JSON.parse(toolResult.content[0].text) as {
+      target: string;
+      affected_tests: unknown[];
+      impacted_sources: unknown[];
+      truncated: boolean;
+    };
+    expect(payload.target).toBe('sample.ts');
+    expect(Array.isArray(payload.affected_tests)).toBe(true);
+    expect(Array.isArray(payload.impacted_sources)).toBe(true);
+    expect(typeof payload.truncated).toBe('boolean');
   });
 });

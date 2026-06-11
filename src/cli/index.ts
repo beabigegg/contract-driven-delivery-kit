@@ -674,6 +674,26 @@ test
     process.exit(exit);
   });
 
+test
+  .command('impact <file>')
+  .description('List the tests affected by changing a file: transitive importers that are test files, plus mirror-path test files (saves a manual grep)')
+  .option('--map <path>', 'Code-map YAML path', '.cdd/code-map.yml')
+  .option('--depth <n>', 'How many import hops to follow when finding dependent tests', '2')
+  .option('--limit <n>', 'Maximum affected tests to print', '50')
+  .option('--json', 'Print machine-readable JSON', false)
+  .option('--no-refresh', 'Do not auto-regenerate a stale or missing code-map before querying')
+  .action(async (file: string, opts: { map: string; depth: string; limit: string; json?: boolean; refresh?: boolean }) => {
+    const { testImpact } = await import('../commands/test-impact.js');
+    const exit = await testImpact(file, {
+      map: opts.map,
+      depth: parseInt(opts.depth, 10),
+      limit: parseInt(opts.limit, 10),
+      json: opts.json === true,
+      refresh: opts.refresh !== false,
+    });
+    process.exit(exit);
+  });
+
 // ── cdd bug suspects ──────────────────────────────────────────────────────────
 const bug = program
   .command('bug')
