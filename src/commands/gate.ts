@@ -161,6 +161,22 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
   enforceBugFixEvidence(changeDir, changeId, cwd, tasksData, errors, warnings);
 
+  // Derived-index freshness (P2-1): if this change has generated change.yml /
+  // trace.yml that have drifted from their source artifacts, nudge a refresh.
+  // Warn-only and ONLY when the files already exist — a change that never opted
+  // into the derived index is never nagged, and a missing/stale index never
+  // affects the gate's pass/fail (the source artifacts remain the source of
+  // truth). Best-effort: the gate must never block on the derived index.
+  try {
+    const { checkStaleness } = await import('./metadata.js');
+    const { stale } = checkStaleness(changeDir, cwd);
+    if (stale.length > 0) {
+      warnings.push(
+        `derived metadata stale (${stale.join(', ')}); run \`cdd-kit metadata ${changeId}\` to refresh the change.yml/trace.yml index`,
+      );
+    }
+  } catch { /* derived index is advisory only — never block the gate on it */ }
+
   for (const w of warnings) {
     log.warn(`  ${w}`);
   }

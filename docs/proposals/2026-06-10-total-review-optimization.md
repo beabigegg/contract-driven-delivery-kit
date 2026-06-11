@@ -152,7 +152,7 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 
 | # | 提案 | 說明 | 工作量 |
 |---|---|---|---|
-| P2-1 | **實作 `change.yml`/`trace.yml`（`cdd-kit metadata`）** | `docs/machine-readable-change-design.md` 已完成設計但零實作；這是消除「markdown 當資料庫」脆弱性（P1-12、P1-15 的根因）的治本方案：gate 改讀生成的 YAML，markdown 退為人類介面。**短期行動**：先在該文件頂部標註 `Status: Proposed — not yet implemented`，避免使用者誤以為 `cdd-kit metadata` 已存在 | 4 天（標註 0.1 天） |
+| P2-1 ✅ | **實作 `change.yml`/`trace.yml`（`cdd-kit metadata`）** | **已完成**（generator：PR #48；gate/doctor freshness 整合：本次 PR）。`cdd-kit metadata <id>`（`--check`/`--all`/`--json`）從現有工件**衍生**出 `change.yml`（status/tier/lane/types/required-agents/artifacts/context/dependencies）與 `trace.yml`（AC→tests→gates＋agent-log evidence），治本「markdown 當資料庫」脆弱性（P1-12、P1-15 根因）：generator 集中、一次性解析 markdown，agent/MCP 改讀結構化 YAML。刻意為**衍生索引**——markdown 仍是 source of truth，缺/過時索引永不影響 gate pass/fail；gate 只在索引已生成且過時時印 warn-only 提示，`doctor --fix` 重生。設計文件 `docs/machine-readable-change-design.md` 已標註 Implemented | 4 天 |
 | ~~P2-2~~ | ~~**Go / Rust scanner**~~ — **已撤銷（descoped）** | 使用者不以 Go/Rust 開發，故反向移除整個 Go/Rust 支援面：`stack-detect.ts` 不再偵測 `go.mod`/`Cargo.toml`（回報 `unknown`），刪除 `ci-templates/{go,rust}.yml`，README detect-stack 表與 polyglot 計數一併清理。此 scanner 項目連帶取消（無偵測即無需 scanner） | — |
 | P2-3 | **新 MCP 工具：`cdd_contract_locate`、`cdd_test_impact`** | 前者以 code symbol 反查相關 contract 切片（省 2~3 輪工具呼叫）；後者回答「改了這個檔，哪些測試受影響」——目前 agent 只能手動 grep | 各 2~3 天 |
 | P2-4 | **暴露 unresolved references** | graph builder 已記錄 unresolved（`builder.ts:283-313`）但 MCP/CLI 都看不到；agent 做 impact 分析時漏掉 DI 容器/外部服務呼叫 | 1~2 天 |
@@ -202,7 +202,7 @@ v2.4+   (P2)      : P2-1 machine-readable metadata 為核心，其餘按使用�
 | autoApprovePatterns 未被使用 | `.cdd/context-policy.json` vs `src/commands/context.ts` |
 | MCP 檢查 never-fails | `README.md:568-569`、`src/commands/doctor.ts` |
 | conformance 預設關閉 | `.cdd/conformance.json` `"enabled": false` |
-| machine-readable 設計未實作 | `docs/machine-readable-change-design.md`；CLI 無 `metadata` 指令 |
+| ~~machine-readable 設計未實作~~ —（已實作 P2-1）`cdd-kit metadata` 已存在 | `src/commands/metadata.ts`；`docs/machine-readable-change-design.md`（Status: Implemented） |
 | ~~Go/Rust scanner 缺~~ —（已撤銷）改為移除 Go/Rust 偵測 | `src/utils/stack-detect.ts` 不再偵測 `go.mod`/`Cargo.toml` |
 | tier-policy 無聲 fallback | `src/utils/tier-floor.ts:91-120` |
 | digest 邏輯重複 | `src/commands/doctor.ts:49-61` |

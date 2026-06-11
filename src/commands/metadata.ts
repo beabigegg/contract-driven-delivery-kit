@@ -273,6 +273,74 @@ function dumpYaml(obj: unknown): string {
   return GENERATED_NOTICE + yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false });
 }
 
+// ── Reusable helpers (consumed by gate/doctor freshness wiring) ───────────────
+
+export interface RenderedMetadata { changeStr: string; traceStr: string; warnings: string[]; }
+
+/** Build and serialize both indexes for a change, without touching disk. */
+export function renderMetadata(changeDir: string, cwd: string): RenderedMetadata {
+  const change = buildChangeMetadata(changeDir, cwd);
+  const trace = buildTraceMetadata(changeDir, cwd);
+  return {
+    changeStr: dumpYaml(change.data),
+    traceStr: dumpYaml(trace.data),
+    warnings: [...change.warnings, ...trace.warnings],
+  };
+}
+
+/**
+ * Staleness limited to files that ALREADY EXIST. A derived index a change never
+ * opted into is not "stale" — only one that was generated and has since drifted
+ * from its sources is. This is the semantics gate/doctor use so they never nag
+ * about an index the user chose not to generate. (`metadata --check`, by
+ * contrast, treats an absent file as a change because regenerating would create
+ * it — the `code-map --check` semantics.)
+ */
+export function checkStaleness(changeDir: string, cwd: string): { stale: string[]; existing: string[] } {
+  const { changeStr, traceStr } = renderMetadata(changeDir, cwd);
+  const existing: string[] = [];
+  const stale: string[] = [];
+  const pairs: ReadonlyArray<readonly [string, string]> = [
+    ['change.yml', changeStr],
+    ['trace.yml', traceStr],
+  ];
+  for (const [name, fresh] of pairs) {
+    const p = join(changeDir, name);
+    if (!existsSync(p)) continue;
+    existing.push(name);
+    if (readIfExists(p) !== fresh) stale.push(name);
+  }
+  return { stale, existing };
+}
+
+/** Regenerate both indexes for a change, returning the filenames written. */
+export function writeMetadataFiles(changeDir: string, cwd: string): { wrote: string[]; warnings: string[] } {
+  const { changeStr, traceStr, warnings } = renderMetadata(changeDir, cwd);
+  writeFileSync(join(changeDir, 'change.yml'), changeStr);
+  writeFileSync(join(changeDir, 'trace.yml'), traceStr);
+  return { wrote: ['change.yml', 'trace.yml'], warnings };
+}
+
+/**
+ * Every change that has at least one generated metadata file which has drifted
+ * from its sources. Considers ALL changes (not just in-progress): if you
+ * generated a derived index and a source later changed, doctor should flag it
+ * regardless of the change's lifecycle status.
+ */
+export function staleMetadataReport(cwd: string): { id: string; stale: string[] }[] {
+  const changesDir = join(cwd, 'specs', 'changes');
+  if (!existsSync(changesDir)) return [];
+  const out: { id: string; stale: string[] }[] = [];
+  for (const d of readdirSync(changesDir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    const changeDir = join(changesDir, d.name);
+    if (!existsSync(join(changeDir, 'change.yml')) && !existsSync(join(changeDir, 'trace.yml'))) continue;
+    const { stale } = checkStaleness(changeDir, cwd);
+    if (stale.length > 0) out.push({ id: d.name, stale });
+  }
+  return out;
+}
+
 // ── CLI entry ─────────────────────────────────────────────────────────────────
 
 export interface MetadataOptions {
@@ -329,11 +397,7 @@ export async function metadata(changeId: string | undefined, opts: MetadataOptio
       continue;
     }
 
-    const change = buildChangeMetadata(changeDir, cwd);
-    const trace = buildTraceMetadata(changeDir, cwd);
-    const changeStr = dumpYaml(change.data);
-    const traceStr = dumpYaml(trace.data);
-    const warnings = [...change.warnings, ...trace.warnings];
+    const { changeStr, traceStr, warnings } = renderMetadata(changeDir, cwd);
 
     const changePath = join(changeDir, 'change.yml');
     const tracePath = join(changeDir, 'trace.yml');
