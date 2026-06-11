@@ -4,6 +4,16 @@
 
 ### Added
 
+- **Machine-readable change metadata: gate + doctor freshness wiring (P2-1,
+  integration phase).** `cdd-kit gate` now emits a warn-only nudge when a
+  change's generated `change.yml`/`trace.yml` has drifted from its source
+  artifacts, and `cdd-kit doctor` reports the same as a warning that
+  `cdd-kit doctor --fix` regenerates. Both surfaces act **only on an index that
+  already exists** — a change that never ran `cdd-kit metadata` is never nagged —
+  and the staleness signal is purely advisory: it never affects the gate's
+  pass/fail, since the source artifacts remain the source of truth.
+  `docs/machine-readable-change-design.md` is marked Implemented.
+
 - **Machine-readable change metadata: `cdd-kit metadata` (P2-1, generator
   phase).** Adds `cdd-kit metadata <change-id>` (with `--check`, `--all`, and
   `--json`), which derives two compact YAML indexes per tracked change —

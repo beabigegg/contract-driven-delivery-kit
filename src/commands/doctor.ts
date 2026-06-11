@@ -8,6 +8,7 @@ import { ASSET } from '../utils/paths.js';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
 import { detectChokepoints } from './chokepoints.js';
+import { staleMetadataReport, writeMetadataFiles } from './metadata.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -348,6 +349,20 @@ function checkMcpRegistration(cwd: string, provider: string): Finding[] {
   }];
 }
 
+/**
+ * Derived-index freshness (P2-1). Flags changes whose generated change.yml /
+ * trace.yml have drifted from their source artifacts. Warning-level so it trips
+ * `--strict` and is auto-fixable, but only for changes that ALREADY HAVE a
+ * generated index — doctor never nags about a derived index a change chose not
+ * to generate (use `cdd-kit metadata <id>` to opt in).
+ */
+function checkChangeMetadata(stale: { id: string; stale: string[] }[]): Finding[] {
+  return stale.map(s => ({
+    level: 'warning' as const,
+    message: `change ${s.id}: metadata is stale (${s.stale.join(', ')}); run \`cdd-kit metadata ${s.id}\` or \`cdd-kit doctor --fix\``,
+  }));
+}
+
 function checkChokepoints(cwd: string): Finding[] {
   // Enforcement-liveness dashboard. Informational (level 'ok') so it never trips
   // `--strict`: dormant is a nudge, not a failure — not every project arms every
@@ -395,6 +410,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkCodeMap(cwd));
   findings.push(...checkApiConformance(cwd));
   findings.push(...checkMcpRegistration(cwd, provider));
+  findings.push(...checkChangeMetadata(staleMetadataReport(cwd)));
   findings.push(...checkChokepoints(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
@@ -482,6 +498,19 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
         const { codeMap } = await import('./code-map.js');
         await codeMap({ path: '.', out: '.cdd/code-map.yml', include: [], exclude: [], check: false, maxLines: 100000 });
         fixed.push('regenerated .cdd/code-map.yml');
+        continue;
+      } catch (err) {
+        remaining.push({ level: 'warning', message: `${finding.message} (auto-fix failed: ${(err as Error).message})` });
+        continue;
+      }
+    }
+
+    // derived metadata stale → regenerate change.yml / trace.yml (P2-1)
+    const staleMeta = finding.message.match(/^change (\S+): metadata is stale/);
+    if (staleMeta) {
+      try {
+        writeMetadataFiles(join(cwd, 'specs', 'changes', staleMeta[1]), cwd);
+        fixed.push(`regenerated metadata for ${staleMeta[1]} (change.yml + trace.yml)`);
         continue;
       } catch (err) {
         remaining.push({ level: 'warning', message: `${finding.message} (auto-fix failed: ${(err as Error).message})` });

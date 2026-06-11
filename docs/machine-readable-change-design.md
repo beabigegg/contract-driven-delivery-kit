@@ -1,5 +1,14 @@
 # Machine-Readable Change Metadata Design
 
+> **Status: Implemented (P2-1).** `cdd-kit metadata <change-id>` generates the
+> `change.yml` and `trace.yml` described below (with `--check`, `--all`, and
+> `--json`); `cdd-kit gate` emits a warn-only staleness nudge and `cdd-kit
+> doctor --fix` regenerates a stale index. As designed, the files are a derived
+> index only — generated, never hand-authored — and a missing or stale index
+> never fails the gate (the source artifacts remain the source of truth). The
+> generated shapes below are the contract; the live schemas are
+> `src/schemas/change-metadata.schema.ts` and `src/schemas/trace.schema.ts`.
+
 ## Goal
 
 `change.yml` and `trace.yml` should reduce markdown parsing and repeated agent

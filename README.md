@@ -738,6 +738,35 @@ With `--explain`:
 
 ---
 
+### `cdd-kit metadata <change-id>`
+
+Generates two compact, machine-readable indexes for a tracked change, **derived
+from its existing artifacts** — so agents and MCP tools can read structured state
+instead of re-parsing long markdown:
+
+- **`change.yml`** — status, tier, lane, change types, required agents, required
+  vs present optional artifacts, the context manifest's allowed-paths count, and
+  dependencies.
+- **`trace.yml`** — acceptance criteria → tests → required gates, plus the
+  agent-log evidence pointers.
+
+```bash
+cdd-kit metadata add-jwt-auth           # write change.yml + trace.yml
+cdd-kit metadata add-jwt-auth --check   # exit 1 if regenerating would change them (no write)
+cdd-kit metadata --all                  # regenerate for every active (in-progress) change
+cdd-kit metadata add-jwt-auth --json    # machine-readable result
+```
+
+These files are **generated, never hand-authored**, and are a **derived index
+only**: the gate still treats the source artifacts as the source of truth, so a
+missing or stale `change.yml`/`trace.yml` never affects the gate's pass/fail.
+Each carries a `generated-from` map of per-source `sha256` digests; when a source
+drifts, `cdd-kit gate` prints a warn-only refresh nudge (only if the index was
+already generated), and `cdd-kit doctor` reports it as a warning that
+`cdd-kit doctor --fix` regenerates.
+
+---
+
 ### `cdd-kit test`
 
 Bounded test execution and structured evidence (ADR 0005). Runs narrow test
