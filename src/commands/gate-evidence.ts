@@ -371,7 +371,7 @@ export function enforceTestEvidence(
  * work) is NOT subject to bug-fix evidence enforcement, so existing changes are
  * unaffected.
  */
-function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
+export function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return null;
   // The value must be exactly `feature` or `bug-fix` (anchored at end of line): a
