@@ -495,6 +495,18 @@ program
     await listChanges(opts.json);
   });
 
+// ── cdd metadata ──────────────────────────────────────────────────────────────
+program
+  .command('metadata [change-id]')
+  .description('Generate machine-readable change.yml + trace.yml from a change\'s artifacts (a derived index for agents/MCP; never authoritative for the gate)')
+  .option('--check', 'Exit 1 if regenerating would change the files (no write)', false)
+  .option('--all', 'Process every active (in-progress) change', false)
+  .option('--json', 'Print a machine-readable result', false)
+  .action(async (changeId: string | undefined, opts: { check?: boolean; all?: boolean; json?: boolean }) => {
+    const { metadata } = await import('../commands/metadata.js');
+    await metadata(changeId, opts);
+  });
+
 // ── cdd install-hooks ─────────────────────────────────────────────────────────
 program
   .command('install-hooks')

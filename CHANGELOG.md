@@ -4,6 +4,27 @@
 
 ### Added
 
+- **Machine-readable change metadata: `cdd-kit metadata` (P2-1, generator
+  phase).** Adds `cdd-kit metadata <change-id>` (with `--check`, `--all`, and
+  `--json`), which derives two compact YAML indexes per tracked change —
+  `change.yml` (status, tier, lane, change types, required agents, required vs
+  present optional artifacts, context allowed-paths count, dependencies) and
+  `trace.yml` (acceptance criteria → tests → gates, plus agent-log evidence) —
+  from the existing markdown/YAML artifacts (`docs/machine-readable-change-design.md`).
+  This treats the root cause behind the brittle markdown-as-database parsing
+  (P1-12, P1-15): the generator parses each source artifact **once**, centrally,
+  reusing the existing parsers (`resolveTier`, `readLane`, `REQUIRED_FILES`,
+  the shared markdown-section helper + a new bounded pipe-table reader), and
+  emits a structured index that agents/MCP can read instead of repeatedly
+  re-reading long markdown. Both files are **generated, never hand-authored**;
+  each carries a `generated-from` map of per-source `sha256` digests so `--check`
+  (and, in a later phase, `doctor`) can detect staleness. They are a **derived
+  index only** — the gate still treats the source artifacts as the source of
+  truth, so a missing or stale `change.yml`/`trace.yml` never affects any gate
+  pass/fail. Ships with `change-metadata.schema.ts` + `trace.schema.ts` (the
+  generator self-validates its output before writing). doctor/gate freshness
+  wiring lands in the follow-up integration phase.
+
 - **Bug-fix lane: symptom-driven classification and diagnosis-before-edit
   protocol (ADR 0006 — classification and prompts).** `change-classifier` now
   sets a `## Lane` (`feature` | `bug-fix`) and, for symptom-driven requests,
