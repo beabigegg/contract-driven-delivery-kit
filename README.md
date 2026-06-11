@@ -1122,8 +1122,6 @@ cdd-kit detect-stack
 | JS/TS | bun | `bun.lockb` |
 | JS/TS | yarn | `yarn.lock` |
 | JS/TS | npm | `package.json` (fallback) |
-| Go | go | `go.mod` |
-| Rust | rust | `Cargo.toml` |
 
 ---
 

@@ -48,6 +48,32 @@ describe('cdd-kit detect-stack', () => {
     expect(r.stdout).toMatch(/Detected stack: unknown/);
   });
 
+  it('reports unknown for a Go-only project (go.mod support removed)', () => {
+    writeFileSync(join(tmpRepo, 'go.mod'), 'module example.com/app\n\ngo 1.22\n');
+    const r = runCli(['detect-stack'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/Detected stack: unknown/);
+  });
+
+  it('reports unknown for a Rust-only project (Cargo.toml support removed)', () => {
+    writeFileSync(join(tmpRepo, 'Cargo.toml'), '[package]\nname = "app"\nversion = "0.1.0"\n');
+    const r = runCli(['detect-stack'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/Detected stack: unknown/);
+  });
+
+  it('does not treat a Go file alongside Python as polyglot (Go no longer a language family)', () => {
+    // environment.yml (conda) + go.mod → only Python is a recognized family now,
+    // so there is no polyglot warning and Go is not a candidate.
+    writeFileSync(join(tmpRepo, 'environment.yml'), 'name: myenv\ndependencies:\n  - python=3.11\n');
+    writeFileSync(join(tmpRepo, 'go.mod'), 'module example.com/app\n\ngo 1.22\n');
+    const r = runCli(['detect-stack'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toMatch(/Detected stack: conda/);
+    expect(r.stdout).not.toMatch(/Polyglot/i);
+    expect(r.stdout).not.toMatch(/\bgo\b/);
+  });
+
   it('detects polyglot and reports warning when Python + JS files coexist', () => {
     // Conda + pnpm → polyglot
     writeFileSync(join(tmpRepo, 'environment.yml'), 'name: myenv\ndependencies:\n  - python=3.11\n');
