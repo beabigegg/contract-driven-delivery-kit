@@ -1,5 +1,10 @@
 # Install Guide
 
+> **Recommended path:** install the package and run `cdd-kit setup` (one command:
+> scaffold + arm chokepoints + register MCP + build indexes). See the README
+> "Quick Start". This guide is the **manual / advanced** fallback for copying
+> assets into a repo by hand or understanding each step.
+
 ## 1. Copy common Claude Code assets
 
 For cross-project reuse:
@@ -42,10 +47,11 @@ For Claude Code, use `claude mcp add` so the server is written to
 `~/.claude/settings.json`; that is a Claude Code UI settings format and is not
 the MCP registry read by the CLI.
 
-This exposes `cdd_graph_context`, `cdd_graph_query`, `cdd_graph_impact`,
-`cdd_index_query`, and `cdd_index_impact`. Use these before reading source
-files. If MCP is unavailable, use `cdd-kit graph ...` and `cdd-kit index ...`
-as the fallback.
+This exposes the cdd-kit MCP tools (graph / code-map / contract / test-impact
+exploration). The README "MCP server" section is the single source of truth for
+the current tool list — it is not re-listed here to avoid drift. Use these tools
+before reading source files; if MCP is unavailable, `cdd-kit graph ...` and
+`cdd-kit index ...` are the fallback.
 
 Ask Claude Code:
 

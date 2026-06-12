@@ -2,7 +2,7 @@
 
 - 日期：2026-06-10
 - 審查版本：`contract-driven-delivery@2.2.1`（branch `master` @ `95772f6`）
-- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）於 PR #40 合併**；**P1-3（CER 去阻塞）+ P1-8（freshness mtime 修復）於 PR #41 合併**；**P1-11（gate.ts 拆分）於 PR #42 合併**；**P1-12 + P1-15 + P1-16（解析強化三項）於 PR #43 合併**；**P1-17（digest 共用模組）於 PR #44 合併**；**P1-14（`--json` 一致性）於 PR #45 合併**；**P1-13（rename 失敗調查 + helper 硬化）已完成**（本次 PR）——**至此 P0 與 P1 全數完成**；P2 待續
+- 狀態：Proposed —— **P0-1 ～ P0-6 已實作**（P0-1～P0-4 於 PR #36 合併；P0-5 一鍵 `cdd-kit setup` 於 PR #37 合併；P0-6 `gate --explain` 於 PR #38 合併）；**P1 主題 A 首批（P1-1、P1-2、P1-4、P1-5）於 PR #39 合併**；**P1 主題 B 首批（P1-6、P1-7、P1-9、P1-10）於 PR #40 合併**；**P1-3（CER 去阻塞）+ P1-8（freshness mtime 修復）於 PR #41 合併**；**P1-11（gate.ts 拆分）於 PR #42 合併**；**P1-12 + P1-15 + P1-16（解析強化三項）於 PR #43 合併**；**P1-17（digest 共用模組）於 PR #44 合併**；**P1-14（`--json` 一致性）於 PR #45 合併**；**P1-13（rename 失敗調查 + helper 硬化）已完成**——**至此 P0 與 P1 全數完成**；**P2-1 ～ P2-11 亦全數收尾**（P2-1 ✅、~~P2-2 撤銷~~、P2-3 ✅、P2-4 ✅、P2-5 延後（i18n；與「kit 維持英文」原則衝突，暫不做）、P2-6 ✅、P2-7 ✅、P2-8 ✅、P2-9 ✅、P2-10 ✅、P2-11 ✅）——除刻意延後的 P2-5 外，本提案全部完成
 - 審查方式：四條並行深度審查（非工程師體驗與自動化、token 效率機制、CLI 品質與測試、文件與資產一致性），加上實際 build + 完整測試執行驗證。
 
 ---
@@ -156,13 +156,13 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 | ~~P2-2~~ | ~~**Go / Rust scanner**~~ — **已撤銷（descoped）** | 使用者不以 Go/Rust 開發，故反向移除整個 Go/Rust 支援面：`stack-detect.ts` 不再偵測 `go.mod`/`Cargo.toml`（回報 `unknown`），刪除 `ci-templates/{go,rust}.yml`，README detect-stack 表與 polyglot 計數一併清理。此 scanner 項目連帶取消（無偵測即無需 scanner） | — |
 | P2-3 ✅ | **新 MCP 工具：`cdd_contract_locate`、`cdd_test_impact`** | **已完成**（`cdd_test_impact`：PR #50；`cdd_contract_locate`：本次 PR）。前者以 code symbol 反查相關 contract 切片（名稱相等橋接，省 graph→read→猜 schema→contract-query 來回）；後者回答「改了這個檔，哪些測試受影響」（遞移 importer 測試 + 鏡像路徑，每筆附 `reason`）。兩者皆 CLI 子命令 + 薄 MCP wrapper，與既有 7 個工具同構 | 各 2~3 天 |
 | P2-4 ✅ | **暴露 unresolved references** | **已完成**（本次 PR）。新增 `cdd-kit graph unresolved [path-or-symbol]` + `cdd_graph_unresolved` MCP 工具，並讓 `graph impact` 額外帶上來源於影響集合的 unresolved（text + `--json`）。原本 builder 記錄的 `calls`/`extends`/`implements` 無法解析參照（DI 容器查找、外部服務呼叫、動態派發、歧義名稱）只在 `graph status` 顯示一個總數——impact 分析靜默漏掉這段 blast radius。每筆於查詢時補「同名候選節點」（索引不動），把**歧義**（有候選、目標存在但無法確定連結）與**真外部/動態**（圖中無此節點）分辨開來；空結果＝健康（exit 0）。CLI flags：`--kind`、`--limit`(50)、`--map`、`--no-refresh`、`--json`；native engine only | 1~2 天 |
-| P2-5 | **i18n 訊息目錄（繁中優先）** | 全部訊息 English-only 且散落各檔；先集中到 `src/messages.ts` 建翻譯掛點，繁中為第一個目標語系 —— 目標使用者明確包含中文非工程師 | 3~5 天 + 翻譯 |
+| P2-5 ⏸️ | **i18n 訊息目錄（繁中優先）** | **延後（descoped for now）**：與現行「kit 內容維持英文、僅對話用中文」的原則衝突，暫不實作；保留為日後若改變該原則時的選項。全部訊息 English-only 且散落各檔；屆時先集中到 `src/messages.ts` 建翻譯掛點 | 3~5 天 + 翻譯 |
 | P2-6 ✅ | **Tier 4（低風險）變更的 manifest 自動生成** | **已完成**（本次 PR）。新增 `cdd-kit manifest <id>`：對 tier 4-5 micro-change 產出最小 `context-manifest.md`（Allowed Paths = change dir + `git status` 變更檔 + 三個預設）。刻意限縮 tier 4-5（tier 0-3 拒絕，仍需手寫含 per-agent work packets 的完整 manifest）；不 `--force` 不覆蓋既有 manifest；需先設 tier。flags `--force`/`--json` | 1~2 天 |
 | P2-7 ✅ | **`tier-floor-override` 審計強化** | **已完成**（本次 PR）。override reason 須 ≥ 20 字（過短不再降級、floor violation 維持），每次有效 bypass 以時間戳 + 命中 floor + reason append 到 `agent-log/audit.yml`；寫入冪等（重跑 gate 不重複）且 best-effort（永不讓 gate 因審計寫入失敗） | 1 天 |
 | P2-8 ✅ | **`visual-reviewer` 模型升級 haiku → sonnet** | **已完成**（本次 PR）。改 agent frontmatter、`.cdd/model-policy.json`、`doctor --fix` 預設 role map、`/cdd-new` 模型徽章說明四處；其餘 roster 不變（改後 5 opus / 12 sonnet / 1 haiku） | 0.1 天 |
 | P2-9 ✅ | **Dogfooding 範例**：在 `specs/archive/2026/` 收錄一個完整走完流程的 change（含 agent-log、test-evidence） | **已完成**（本次 PR）。新增 `specs/archive/2026/add-order-filter/`：七個必備工件全填、窄範圍 context-manifest、完成態 tasks.yml、通過的 test-evidence + test-runs summaries、每個必備 agent 一份 agent-log、archive.md（promoted lessons）、README 導覽，及 archive `INDEX.md`。illustrative（不執行真碼） | 1 天 |
-| P2-10 | **補測試缺口**：`abandon`、`archive`、`graph` engine fallback 鏈、`install-agent-hooks` 目前零直接測試 | 由測試檔對映分析確認 | 2 天 |
-| P2-11 | **README CLI Reference 重組**：以 `cdd-kit <group> <sub>` 巢狀格式整併 graph/test/contract/index 散落段落；補 `lint-agents` 文件；README 與 install.md 去重 | 文件審查確認多處散落與重複 | 1 天 |
+| P2-10 ✅ | **補測試缺口**：`abandon`、`archive`、`graph` engine fallback 鏈、`install-agent-hooks` 目前零直接測試 | **已完成**（本次 PR）。原提案前提已過時——`abandon`/`archive`/`install-agent-hooks` 在 P0/P1 期間已各自取得直接測試（含 `lifecycle-json` 的 `--json`），graph engine fallback 也在 `graph.test.ts` 覆蓋；真正剩下的缺口是 graph **查詢引擎**本身（`graphCallers`/`graphCallees` 零引用）。新增 `test/code-graph/queries.test.ts`（11 例）直接對 hand-built `CodeGraphIndex` 測 searchGraph/findGraphNode/callers/callees/impact/context/unresolved | 2 天 |
+| P2-11 ✅ | **README CLI Reference 重組**：以 `cdd-kit <group> <sub>` 巢狀格式整併 graph/test/contract/index 散落段落；補 `lint-agents` 文件；README 與 install.md 去重 | **已完成**（本次 PR）。7 個散落 `context` 子命令收進單一 `cdd-kit context` 巢狀標題＋子命令表；`contract locate` 擴成 `cdd-kit contract` group（query/locate/endpoint set/schema set）；補上 `cdd-kit index`、`cdd-kit lint-agents` 兩個缺漏段落；install.md 不再重列會 drift 的 MCP 工具清單（指向 README 為單一真相）並導向 `cdd-kit setup` | 1 天 |
 
 ---
 

@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Documentation
+
+- **README CLI Reference reorganized + missing commands documented (P2-11).**
+  Grouped the seven scattered `cdd-kit context …` sections under one nested
+  `cdd-kit context` heading with a subcommand table; expanded the lone
+  `contract locate` section into a `cdd-kit contract` group covering `query` /
+  `locate` / `endpoint set` / `schema set`; added previously-undocumented
+  `cdd-kit index` (query / impact) and `cdd-kit lint-agents` sections; and
+  de-duplicated `install.md` against the README (it no longer re-lists the MCP
+  tools, which had drifted stale — the README MCP section is now the single
+  source of truth, and `install.md` points at `cdd-kit setup` as the
+  recommended path).
+
+### Tests
+
+- **Direct unit coverage for the code-graph query engine (P2-10).** Added
+  `test/code-graph/queries.test.ts`, exercising `searchGraph`, `findGraphNode`,
+  `graphCallers` / `graphCallees` (previously zero references), `graphImpact`,
+  `graphContext`, and `graphUnresolved` against a hand-built `CodeGraphIndex` —
+  pinning directionality, depth/limit bounds, name resolution, and
+  unresolved-candidate enrichment in isolation rather than only end-to-end
+  through the CLI. (The other P2-10 targets — `abandon`, `archive`,
+  `install-agent-hooks` — already gained direct tests during earlier P0/P1 work,
+  so the genuine remaining gap was the graph query layer.)
+
 ### Added
 
 - **Dogfooding example — a complete archived change at
