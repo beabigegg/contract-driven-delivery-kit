@@ -450,6 +450,17 @@ program
     process.exit(exit);
   });
 
+// ── cdd manifest <change-id> ──────────────────────────────────────────────────
+program
+  .command('manifest <change-id>')
+  .description('Auto-generate a minimal context-manifest.md for a low-risk tier 4-5 micro-change (Allowed Paths = change dir + touched files)')
+  .option('--force', 'Overwrite an existing context-manifest.md', false)
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string, opts: { force?: boolean; json?: boolean }) => {
+    const { manifest } = await import('../commands/manifest.js');
+    process.exit(manifest(changeId, { force: opts.force, json: opts.json }));
+  });
+
 // ── cdd gate <change-id> ──────────────────────────────────────────────────────
 program
   .command('mcp')

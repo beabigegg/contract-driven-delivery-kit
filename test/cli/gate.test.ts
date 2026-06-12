@@ -1213,6 +1213,44 @@ describe('cdd-kit gate — tier floor', () => {
     expect(r.stderr + r.stdout).not.toMatch(/tier floor violation/i);
   });
 
+  it('rejects a too-short tier-floor-override reason — it does NOT bypass the floor (P2-7)', () => {
+    const changeDir = scaffoldSensitiveChange('short-override', 2, { 'tier-floor-override': 'fix' });
+    const r = runCli(['gate', 'short-override'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    // A one-word reason must not weaken the floor.
+    expect(r.stderr + r.stdout).toMatch(/tier floor violation/i);
+    expect(r.stderr + r.stdout).toMatch(/too short|at least 20 characters/i);
+    // And nothing is audited, because no bypass happened.
+    expect(existsSync(join(changeDir, 'agent-log', 'audit.yml'))).toBe(false);
+  });
+
+  it('records a substantive override in agent-log/audit.yml with a timestamp, idempotently (P2-7)', () => {
+    const reason = 'auth handled by audited Auth0 SDK; no in-house crypto';
+    const changeDir = scaffoldSensitiveChange('audited-override', 2, { 'tier-floor-override': reason });
+
+    const first = runCli(['gate', 'audited-override'], { cwd: tmpRepo, home: tmpHome });
+    expect(first.stderr + first.stdout).toMatch(/recorded in agent-log\/audit\.yml/i);
+
+    const auditPath = join(changeDir, 'agent-log', 'audit.yml');
+    expect(existsSync(auditPath)).toBe(true);
+    const entries = yaml.load(readFileSync(auditPath, 'utf8')) as Array<Record<string, unknown>>;
+    expect(Array.isArray(entries)).toBe(true);
+    expect(entries).toHaveLength(1);
+    const [entry] = entries;
+    expect(entry.type).toBe('tier-floor-override');
+    expect(entry['change-id']).toBe('audited-override');
+    expect(entry['declared-tier']).toBe(2);
+    expect(entry['floor-tier']).toBe(0);
+    expect(entry.reason).toBe(reason);
+    expect(typeof entry.timestamp).toBe('string');
+    expect(Number.isNaN(Date.parse(entry.timestamp as string))).toBe(false);
+
+    // Re-running the gate must not append a duplicate audit entry.
+    runCli(['gate', 'audited-override'], { cwd: tmpRepo, home: tmpHome });
+    const after = yaml.load(readFileSync(auditPath, 'utf8')) as unknown[];
+    expect(after).toHaveLength(1);
+  });
+
   it('respects .cdd/tier-policy.json enabled:false', () => {
     scaffoldSensitiveChange('disabled-policy', 2);
     writeFileSync(join(tmpRepo, '.cdd', 'tier-policy.json'), JSON.stringify({ enabled: false }), 'utf8');

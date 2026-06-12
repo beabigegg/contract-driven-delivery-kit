@@ -4,6 +4,17 @@
 
 ### Added
 
+- **`cdd-kit manifest <change-id>` — auto-generated minimal manifest for
+  low-risk micro-changes (P2-6).** For a tier 4-5 change the command generates a
+  minimal `context-manifest.md` whose **Allowed Paths** is the change's own
+  directory plus the files it currently touches (from `git status`), on top of
+  the three standard defaults — so a trivial edit no longer needs a hand-authored
+  manifest. Deliberately restricted to tiers 4-5: a stricter (tier 0-3) change is
+  refused, because a critical/behavioral change should get a deliberately scoped
+  manifest with per-agent work packets, not a rubber-stamped boundary. Never
+  overwrites an existing manifest without `--force`; requires a tier to be set.
+  Flags: `--force`, `--json`.
+
 - **`cdd-kit graph unresolved [path-or-symbol]` + `cdd_graph_unresolved` MCP
   tool, and unresolved references on `graph impact` (P2-4).** The native graph
   builder already recorded the `calls`/`extends`/`implements` references it could
@@ -350,6 +361,15 @@
   only now that select + run + gate are proven green. Completes ADR 0005.
 
 ### Changed
+
+- **`tier-floor-override` now requires a substantive, audited justification
+  (P2-7).** The override that bypasses the mechanical risk-tier floor previously
+  accepted any non-empty free text (even "fix") and left no durable record. The
+  reason must now be **at least 20 characters** — a too-short reason no longer
+  bypasses, and the floor violation stands — and every accepted bypass is
+  appended, with a timestamp, the matched floor, and the reason, to the change's
+  `agent-log/audit.yml`. The audit write is idempotent (re-running the gate does
+  not duplicate an entry) and best-effort (it never fails the gate).
 
 - **No more known/pre-existing-failure waivers (ADR 0005 policy cleanup).** Any
   required test failure now blocks the gate with no `known` / `pre-existing` /

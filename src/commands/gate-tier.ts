@@ -1,8 +1,19 @@
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { loadTierPolicy, computeTierFloor } from '../utils/tier-floor.js';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { basename, join } from 'path';
+import yaml from 'js-yaml';
+import { loadTierPolicy, computeTierFloor, type TierFloorMatch } from '../utils/tier-floor.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import { loadYamlFile, type TasksFile } from './gate-shared.js';
+
+/**
+ * Minimum length of a `tier-floor-override` justification. The override is a
+ * deliberate weakening of the deterministic safety net, so a one-word reason
+ * ("fix", "ok") must not be enough to bypass it (P2-7). A substantive reason
+ * forces the author to state WHY the matched sensitive surface is a false
+ * positive (or otherwise acceptable) — and that reason is what lands in the
+ * audit trail.
+ */
+export const MIN_OVERRIDE_REASON_CHARS = 20;
 
 export interface TierResolution {
   tier: number | null;
@@ -198,13 +209,103 @@ export function enforceTierFloor(changeDir: string, errors: string[], warnings: 
     `${floor.label} detected (matched: ${floor.matched.join(', ')}) requires tier ${floor.floorTier} or stricter, ` +
     `but classification declared tier ${declared}.`;
 
-  if (overrideRaw) {
-    warnings.push(`tier floor override: ${detail} Bypassed by tier-floor-override: "${overrideRaw}".`);
-  } else {
-    errors.push(
-      `tier floor violation: ${detail} Re-classify to tier ${floor.floorTier} (or stricter), ` +
-      `or record \`tier-floor-override: "<reason>"\` in tasks.yml frontmatter to bypass with an audit trail. ` +
-      `Disable entirely in .cdd/tier-policy.json.`,
+  // A bypass needs a SUBSTANTIVE justification (P2-7): a free-text reason of one
+  // word ("fix") used to be enough to silently weaken the floor with no record.
+  // Now the reason must clear MIN_OVERRIDE_REASON_CHARS and is written, with a
+  // timestamp, to agent-log/audit.yml so the bypass is never invisible.
+  if (overrideRaw.length >= MIN_OVERRIDE_REASON_CHARS) {
+    const recorded = recordTierFloorOverride(changeDir, overrideRaw, declared, floor);
+    warnings.push(
+      `tier floor override: ${detail} Bypassed by tier-floor-override: "${overrideRaw}"` +
+      (recorded ? ' (recorded in agent-log/audit.yml).' : '.'),
     );
+    return;
+  }
+
+  if (overrideRaw) {
+    // Present but too short: it does NOT bypass — the floor violation stands.
+    errors.push(
+      `tier floor violation: ${detail} The tier-floor-override reason "${overrideRaw}" is too short ` +
+      `(${overrideRaw.length} chars); a bypass needs a substantive justification of at least ` +
+      `${MIN_OVERRIDE_REASON_CHARS} characters stating why the matched surface is acceptable. ` +
+      `Expand the reason, or re-classify to tier ${floor.floorTier} (or stricter).`,
+    );
+    return;
+  }
+
+  errors.push(
+    `tier floor violation: ${detail} Re-classify to tier ${floor.floorTier} (or stricter), ` +
+    `or record \`tier-floor-override: "<reason>"\` (at least ${MIN_OVERRIDE_REASON_CHARS} characters) ` +
+    `in tasks.yml frontmatter to bypass with an audit trail. Disable entirely in .cdd/tier-policy.json.`,
+  );
+}
+
+interface TierFloorOverrideAudit {
+  type: 'tier-floor-override';
+  'change-id': string;
+  timestamp: string;
+  'declared-tier': number;
+  'floor-tier': number;
+  label: string | null;
+  matched: string[];
+  reason: string;
+}
+
+/**
+ * Append a tier-floor-override bypass to `agent-log/audit.yml` (a YAML sequence),
+ * with a timestamp, so every weakening of the deterministic floor leaves a
+ * durable, reviewable record (P2-7). Idempotent: the gate runs many times, so a
+ * bypass already recorded for the same reason + declared/floor tiers is not
+ * appended again. Best-effort — an audit write must never fail the gate, so any
+ * IO/parse error is swallowed and the bypass simply goes unrecorded.
+ *
+ * Returns true when an entry was written (or already present), false on error.
+ */
+function recordTierFloorOverride(
+  changeDir: string,
+  reason: string,
+  declared: number,
+  floor: TierFloorMatch,
+): boolean {
+  try {
+    const auditDir = join(changeDir, 'agent-log');
+    const auditPath = join(auditDir, 'audit.yml');
+
+    let entries: TierFloorOverrideAudit[] = [];
+    if (existsSync(auditPath)) {
+      const parsed = yaml.load(readFileSync(auditPath, 'utf8'), { schema: yaml.JSON_SCHEMA });
+      if (Array.isArray(parsed)) entries = parsed as TierFloorOverrideAudit[];
+    }
+
+    const changeId = (() => {
+      const { data } = loadYamlFile<TasksFile>(join(changeDir, 'tasks.yml'));
+      const id = data?.['change-id'];
+      return typeof id === 'string' && id ? id : basename(changeDir);
+    })();
+
+    const already = entries.some(e =>
+      e && e.type === 'tier-floor-override' &&
+      e.reason === reason &&
+      e['declared-tier'] === declared &&
+      e['floor-tier'] === floor.floorTier,
+    );
+    if (already) return true;
+
+    entries.push({
+      type: 'tier-floor-override',
+      'change-id': changeId,
+      timestamp: new Date().toISOString(),
+      'declared-tier': declared,
+      'floor-tier': floor.floorTier as number,
+      label: floor.label,
+      matched: floor.matched,
+      reason,
+    });
+
+    mkdirSync(auditDir, { recursive: true });
+    writeFileSync(auditPath, yaml.dump(entries, { lineWidth: 100 }), 'utf8');
+    return true;
+  } catch {
+    return false;
   }
 }
