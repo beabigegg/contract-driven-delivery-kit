@@ -7,6 +7,7 @@ import {
   isBareTargetShape,
   formatTarget,
   isPytestTestFile,
+  isJsTestFile,
   parseMarkdownTable,
   extractQualityGates,
   detectContractAffected,
@@ -73,6 +74,35 @@ describe('cdd-kit test select (integration)', () => {
       'python -m pytest tests/orders/test_filter.py::test_status_filter_options -q --maxfail=1 --tb=short -ra',
     );
     expect(sel.phases.full[0].command).toBe('python -m pytest -q --maxfail=1 --tb=short -ra');
+  });
+
+  it('selects Vitest commands for JS/TS targets in a detected npm project', () => {
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({
+      name: 'demo',
+      scripts: { test: 'vitest' },
+      devDependencies: { vitest: '^2.0.0' },
+    }, null, 2));
+    touch('src/orders/filter.test.ts');
+    writePlan(planWithTarget('src/orders/filter.test.ts'));
+
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    const sel = JSON.parse(r.stdout);
+    expect(sel.phases.collect).toBeUndefined();
+    expect(sel.phases.targeted[0].command).toBe('npm test -- --run src/orders/filter.test.ts');
+    expect(sel.phases.full[0].command).toBe('npm test -- --run');
+  });
+
+  it('asks for explicit commands when a JS target exists but no bounded JS runner is detected', () => {
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'demo', scripts: { test: 'node test.js' } }, null, 2));
+    touch('src/orders/filter.test.ts');
+    writePlan(planWithTarget('src/orders/filter.test.ts'));
+
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    expect(r.status).toBe(1);
+    const sel = JSON.parse(r.stdout);
+    expect(sel.status).toBe('needs-test-plan-update');
+    expect(sel.reason).toMatch(/cannot infer a bounded runner/);
   });
 
   it('accepts an existing directory target (no trailing slash needed)', () => {
@@ -214,6 +244,7 @@ describe('test-select helpers (unit)', () => {
     expect(isBareTargetShape('tests/orders/test_filter.py')).toBe(true);
     expect(isBareTargetShape('tests/orders/test_filter.py::test_x')).toBe(true);
     expect(isBareTargetShape('tests/orders/test_filter.py::test_x[1-2]')).toBe(true);
+    expect(isBareTargetShape('src/orders/filter.test.ts')).toBe(true);
     expect(isBareTargetShape('tests/orders')).toBe(true);
     expect(isBareTargetShape('tests/orders/')).toBe(true);
     expect(isBareTargetShape('npm test')).toBe(false); // space
@@ -224,7 +255,10 @@ describe('test-select helpers (unit)', () => {
 
   it('formatTarget quotes parametrized node ids and leaves simple ones bare', () => {
     expect(formatTarget('tests/x.py::test_y')).toBe('tests/x.py::test_y');
-    expect(formatTarget('tests/x.py::test_y[1-2]')).toBe("'tests/x.py::test_y[1-2]'");
+    const expected = process.platform === 'win32'
+      ? '"tests/x.py::test_y[1-2]"'
+      : "'tests/x.py::test_y[1-2]'";
+    expect(formatTarget('tests/x.py::test_y[1-2]')).toBe(expected);
   });
 
   it('isPytestTestFile recognizes pytest filename conventions', () => {
@@ -232,6 +266,12 @@ describe('test-select helpers (unit)', () => {
     expect(isPytestTestFile('pkg/x_test.py')).toBe(true);
     expect(isPytestTestFile('src/x.py')).toBe(false);
     expect(isPytestTestFile('tests/x.test.ts')).toBe(false);
+  });
+
+  it('isJsTestFile recognizes common JS/TS test filename conventions', () => {
+    expect(isJsTestFile('src/orders/filter.test.ts')).toBe(true);
+    expect(isJsTestFile('src/orders/filter.spec.tsx')).toBe(true);
+    expect(isJsTestFile('src/orders/filter.ts')).toBe(false);
   });
 
   it('parseMarkdownTable reads the first table under a heading, else null', () => {

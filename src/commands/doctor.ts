@@ -257,16 +257,17 @@ function conformanceApplicable(cwd: string): boolean {
 }
 
 function checkApiConformance(cwd: string): Finding[] {
-  // Informational only (level 'ok') so it never trips `doctor --strict` — leaving
-  // conformance off is a legitimate choice, and `--fix` (opt-in) is the on-ramp.
-  // It surfaces whether the code-vs-contract API conformance net is actually armed.
+  // For autonomous agent delivery, applicable-but-off conformance is a degraded
+  // safety net, not a clean bill of health. Keep non-applicable repos
+  // informational, but warn when a real codebase with an API contract has drift
+  // detection available and disabled.
   const hasContract = existsSync(join(cwd, 'contracts', 'api', 'api-contract.md'));
   if (!hasContract) return [];
   const applicable = conformanceApplicable(cwd);
   const configPath = join(cwd, '.cdd', 'conformance.json');
   if (!existsSync(configPath)) {
     return [{
-      level: 'ok',
+      level: applicable ? 'warning' : 'ok',
       message: applicable
         ? 'API conformance: available but not configured — run `cdd-kit doctor --fix` to enable code-vs-contract drift checks'
         : 'API conformance: not configured (add .cdd/conformance.json with "enabled": true to catch frontend/backend drift against the contract)',
@@ -281,7 +282,7 @@ function checkApiConformance(cwd: string): Finding[] {
       }];
     }
     return [{
-      level: 'ok',
+      level: applicable ? 'warning' : 'ok',
       message: applicable
         ? 'API conformance: OFF — run `cdd-kit doctor --fix` to turn on code-vs-contract drift checks (or set "enabled": true in .cdd/conformance.json)'
         : 'API conformance: present but disabled (set "enabled": true in .cdd/conformance.json to enforce code-vs-contract checks)',
@@ -364,13 +365,12 @@ function checkChangeMetadata(stale: { id: string; stale: string[] }[]): Finding[
 }
 
 function checkChokepoints(cwd: string): Finding[] {
-  // Enforcement-liveness dashboard. Informational (level 'ok') so it never trips
-  // `--strict`: dormant is a nudge, not a failure — not every project arms every
-  // chokepoint. The value is observability: a repo can carry all the machinery
-  // yet enforce none of it, and that was previously invisible.
+  // Enforcement-liveness dashboard. In an autonomous-agent workflow, dormant
+  // chokepoints mean the repo carries the machinery but does not actually steer
+  // agents away from high-risk defaults, so surface them as warnings.
   if (!existsSync(join(cwd, '.cdd'))) return [];
   return detectChokepoints(cwd).map(c => ({
-    level: 'ok' as const,
+    level: c.live ? 'ok' as const : 'warning' as const,
     message: c.live
       ? `chokepoint ${c.name}: live — ${c.detail}`
       : `chokepoint ${c.name}: ${c.detail}`,
