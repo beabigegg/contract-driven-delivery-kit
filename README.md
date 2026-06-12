@@ -767,7 +767,26 @@ already generated), and `cdd-kit doctor` reports it as a warning that
 
 ---
 
-### `cdd-kit contract locate <symbol>`
+### `cdd-kit contract`
+
+Query and mutate the API contract by **key** instead of reading or hand-editing
+the whole file (ADR 0004 — see `docs/adr/0004-queryable-and-writable-contracts.md`).
+Subcommands:
+
+```bash
+cdd-kit contract query [term]                    # read: matching endpoint/schema slice
+cdd-kit contract locate <symbol>                 # read: contract slices related to a code symbol
+cdd-kit contract endpoint set ...                # write: upsert one endpoint row
+cdd-kit contract schema set <name> --field ...   # write: upsert one schema section
+```
+
+#### `cdd-kit contract query [term]`
+
+Returns only the matching slice of the API contract — an endpoint, a schema, or
+a path/column filter — so an agent reads the relevant row instead of the whole
+contract file. With no term it lists the contract's keys.
+
+#### `cdd-kit contract locate <symbol>`
 
 Given a code symbol or file, returns the API-contract slices (schemas +
 endpoints) related to it — the contract analog of `cdd-kit test impact`. It saves
@@ -787,6 +806,33 @@ and each located slice records `matched_via` (which term surfaced it). It still
 works with no code-map, since the literal symbol is always one of the terms.
 Exposed over MCP as `cdd_contract_locate`. Options: `--contract`, `--inventory`,
 `--map`, `--limit` (default 20), `--no-refresh`, `--json`.
+
+#### `cdd-kit contract endpoint set` / `cdd-kit contract schema set <name>`
+
+Keyed, **valid-by-construction** writes: `endpoint set` upserts a single endpoint
+row by `(method, path)` and `schema set` upserts a single `### Name` schema
+section from `--field` specs — each touches only that row/section instead of a
+free-form edit of the contract file. This is the mutation the contract-write
+`PreToolUse` hook routes an agent's contract edits through.
+
+---
+
+### `cdd-kit index`
+
+Query the machine-readable project index (`.cdd/code-map.yml`) before opening
+source files — the token-cheap "find the thing" layer. (`cdd-kit graph` is the
+richer relationship layer; see below.)
+
+```bash
+cdd-kit index query <term>                # files, symbols, imports, line ranges for a term
+cdd-kit index query <term> --with-source  # include the source slice for each hit
+cdd-kit index impact <path-or-symbol>     # indexed local imports and dependents of a file
+```
+
+**Truncation is always visible:** `index query` reports `total_matches` /
+`returned` / `truncated` (and per-file `match_count` / `matches_truncated`) so a
+result capped by `--limit` is never mistaken for the whole picture (P1-7). Exposed
+over MCP as `cdd_index_query`.
 
 ---
 
@@ -983,7 +1029,23 @@ git commit -m "chore: migrate changes to current cdd-kit format"
 
 ---
 
-### `cdd-kit context request <change-id> <request-id>`
+### `cdd-kit context`
+
+Manage Context Expansion Requests (CERs) against a change's
+`context-manifest.md` — how an agent asks for, and a human/policy grants, read
+access beyond its work packet. Subcommands:
+
+| subcommand | purpose |
+|---|---|
+| `context request <id> <cer-id>` | record a pending CER (or auto-approve a safe one) |
+| `context check <id>` | preflight read paths against the manifest |
+| `context approve <id> <cer-id>` | approve a pending CER (`--all-pending` for bulk) |
+| `context auto-approve <id>` | resolve pending CERs against the auto-safe policy |
+| `context approve-interactive <id>` | adjudicate each pending CER with a y/n/q prompt |
+| `context reject <id> <cer-id>` | reject a pending CER (`--all-pending` for bulk) |
+| `context list <id>` | list all CERs for a change (`--json`) |
+
+#### `cdd-kit context request <change-id> <request-id>`
 
 Records a pending Context Expansion Request in `context-manifest.md`.
 
@@ -1003,9 +1065,7 @@ paths are recorded as a pending CER for human review. The forbidden baseline
 always wins, and a repo with no policy file (or `mode` other than `auto-safe`)
 keeps the manual pending-CER behavior.
 
----
-
-### `cdd-kit context check <change-id>`
+#### `cdd-kit context check <change-id>`
 
 Preflight-checks repo-relative read paths against `context-manifest.md` before
 you invoke an agent.
@@ -1020,9 +1080,7 @@ rules, and the forbidden baseline in `.cdd/context-policy.json`. If the command
 fails and the read is legitimate, update the manifest or record/approve a
 Context Expansion Request before the agent reads the file.
 
----
-
-### `cdd-kit context approve <change-id> <request-id>`
+#### `cdd-kit context approve <change-id> <request-id>`
 
 Approves a pending Context Expansion Request in `context-manifest.md` and adds its `requested_paths` to `## Approved Expansions`.
 
@@ -1033,9 +1091,7 @@ cdd-kit context approve add-jwt-auth --all-pending   # bulk approve every pendin
 
 This keeps expansion history explicit while avoiding manual manifest editing.
 
----
-
-### `cdd-kit context auto-approve <change-id>`
+#### `cdd-kit context auto-approve <change-id>`
 
 Resolves *already-pending* CERs against the auto-safe policy: paths inside the
 safe zones move to `## Approved Expansions`, a request whose every path is safe
@@ -1048,9 +1104,7 @@ would otherwise stop on a pending CER. No-op unless the policy mode is
 cdd-kit context auto-approve add-jwt-auth
 ```
 
----
-
-### `cdd-kit context approve-interactive <change-id>`
+#### `cdd-kit context approve-interactive <change-id>`
 
 Walks each pending CER one at a time with a plain-language tag per path (inside
 an auto-safe zone / outside the usual safe zones / blocked by policy) and a
@@ -1062,9 +1116,7 @@ hand-editing the manifest. Reads answers from stdin and stops cleanly on EOF
 cdd-kit context approve-interactive add-jwt-auth
 ```
 
----
-
-### `cdd-kit context reject <change-id> <request-id>`
+#### `cdd-kit context reject <change-id> <request-id>`
 
 Rejects a pending Context Expansion Request and records `status: rejected` in the manifest.
 
@@ -1073,9 +1125,7 @@ cdd-kit context reject add-jwt-auth CER-001
 cdd-kit context reject add-jwt-auth --all-pending   # bulk reject every pending request
 ```
 
----
-
-### `cdd-kit context list <change-id>`
+#### `cdd-kit context list <change-id>`
 
 Lists all Context Expansion Requests for a change.
 
@@ -1185,6 +1235,23 @@ cdd-kit install-agent-hooks --graph-first advisory --contract-write strict # arm
 - **strict**: writes the hook's `CDD_*_STRICT=1` flag so the hook blocks the tool call (`exit 2`) — graph-first blocks source `Read` when `.cdd/code-map.yml` exists; contract-write blocks `Edit`/`Write` of the API contract (a first-time scaffold, when the file does not exist yet, is always allowed); test-runner blocks a broad whole-suite test `Bash` command (a bounded target, `cdd-kit test run`, and every non-test command are always allowed). Per ADR 0005 §10, ship the test-runner hook **advisory first** and only move to strict after it has settled in.
 
 Naming one flag arms only that hook and leaves the others untouched, so they can be armed in separate runs; a bare `install-agent-hooks` arms graph-first advisory (unchanged). All three gate only the *agent's* tools — a human editing or running tests in their own terminal is unaffected. Writes the hook script(s) to `.claude/hooks/` and `PreToolUse` entries to `.claude/settings.json` (project-scoped, so they travel with the repo). Idempotent: re-running replaces only the cdd-kit entry for the named hook and switches its mode cleanly, preserving every other setting and hook. `cdd-kit init` (and `cdd-kit setup`) arm the **graph-first and test-runner** hooks advisory by default — `init --no-test-runner` keeps graph-first but leaves test-runner dormant. The **contract-write** hook remains opt-in (ADR 0004 §6) and is never auto-armed.
+
+---
+
+### `cdd-kit lint-agents`
+
+Lints `.claude/agents/*.md` for the required-artifacts format and read-scope
+hygiene the kit's agent prompts depend on — e.g. a well-formed
+`## Required Artifacts` block and a graph-first / agent-log protocol pointer.
+
+```bash
+cdd-kit lint-agents            # report format/hygiene issues (advisory)
+cdd-kit lint-agents --strict   # fail (exit 1) on warnings too, e.g. a missing protocol pointer
+```
+
+Use it in CI (or before committing edits to the agent prompts) to keep the
+shipped agents consistent. Advisory by default; `--strict` turns warnings into a
+non-zero exit.
 
 ---
 
