@@ -1,8 +1,8 @@
 /**
  * Tests for `cdd-kit doctor --fix` enabling API conformance (P1-5).
  *
- * Plain `doctor` only *surfaces* that code-vs-contract drift detection is off
- * (informational, never trips --strict); `--fix` is the opt-in on-ramp that
+ * Plain `doctor` surfaces that code-vs-contract drift detection is off as a
+ * warning; `--fix` is the opt-in on-ramp that
  * flips it on — the switch the most-needy users would never throw themselves.
  * Enablement is gated on applicability (an API contract AND real source to drift
  * from it) so it never arms conformance on a contract-only repo.
@@ -90,6 +90,15 @@ describe('cdd-kit doctor --fix — API conformance enablement', () => {
     const r = runCli(['doctor'], { cwd, home });
     expect(r.stdout + r.stderr).toMatch(/run `cdd-kit doctor --fix`/);
     expect(conformanceEnabled()).toBe(false);
+  });
+
+  it('4b: plain JSON doctor reports applicable disabled conformance as a warning', () => {
+    setupRepo({ withStack: true, conformance: 'off' });
+    const r = runCli(['doctor', '--json'], { cwd, home });
+    expect(r.status, r.stderr).toBe(0);
+    const report = JSON.parse(r.stdout);
+    const finding = report.findings.find((f: { message: string }) => /API conformance: OFF/.test(f.message));
+    expect(finding?.level).toBe('warning');
   });
 
   it('5: an already-enabled conformance config is left untouched (no spurious fix)', () => {

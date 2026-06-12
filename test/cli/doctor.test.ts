@@ -25,7 +25,7 @@ describe('cdd-kit doctor', () => {
     expect(r.stdout + r.stderr).toMatch(/doctor failed in strict mode/i);
   });
 
-  it('passes after init and context-scan when default contracts have deterministic summaries', () => {
+  it('completes after init and context-scan while warning about unarmed automation nets', () => {
     const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
     expect(init.status, init.stderr).toBe(0);
 
@@ -38,7 +38,8 @@ describe('cdd-kit doctor', () => {
     // a (legitimate) warning and mask the health-pass this test asserts.
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
+    expect(r.stdout + r.stderr).toMatch(/doctor completed with \d+ warning/i);
+    expect(r.stdout + r.stderr).toMatch(/chokepoint contract-write hook: dormant/i);
   });
 
   it('agent lint accepts the "Suggested artifacts" heading and matches lint-agents (no drift)', () => {
@@ -133,7 +134,7 @@ describe('cdd-kit doctor', () => {
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).not.toMatch(/inputs changed/i);
-    expect(r.stdout + r.stderr).toMatch(/doctor passed/i);
+    expect(r.stdout + r.stderr).toMatch(/doctor completed with \d+ warning/i);
   });
 
   it('auto-detects codex provider and checks CODEX.md', () => {
@@ -224,5 +225,20 @@ describe('cdd-kit doctor', () => {
     expect(report.provider).toBe('claude');
     expect(Array.isArray(report.findings)).toBe(true);
     expect(report.warnings).toBeGreaterThan(0);
+  });
+
+  it('reports dormant chokepoints as warnings in JSON health output', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    const r = runCli(['doctor', '--json'], {
+      cwd: tmpRepo,
+      home: tmpHome,
+      env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const report = JSON.parse(r.stdout);
+    const finding = report.findings.find((f: { message: string }) => /chokepoint contract-write hook: dormant/.test(f.message));
+    expect(finding?.level).toBe('warning');
   });
 });

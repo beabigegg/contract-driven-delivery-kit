@@ -3,6 +3,7 @@ import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { getTouchedPaths } from '../utils/git-paths.js';
 import { isPytestCommand } from './test-run.js';
+import { detectStack, type StackKind } from '../utils/stack-detect.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select` reads
 // test-plan.md (then implementation-plan.md as fallback), the change's touched
@@ -23,10 +24,13 @@ import { isPytestCommand } from './test-run.js';
 // Parity with test-run.ts / new-change.ts: rejects path-escape ids like `..`.
 const SAFE_CHANGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
-// pytest-first (ADR "Scope of initial implementation"): bare targets become
-// pytest commands; command cells and quality gates pass through verbatim.
+// Bare targets are rendered through a stack-specific runner plan. Python targets
+// stay pytest-first; JS/TS targets use Vitest only when the repo clearly opts
+// into it. Otherwise the selector asks for explicit test-plan commands instead
+// of guessing a runner.
 const PYTEST = 'python -m pytest';
 const PYTEST_TAIL = '-q --maxfail=1 --tb=short -ra';
+const JS_STACKS = new Set<StackKind>(['pnpm', 'bun', 'yarn', 'npm']);
 
 export type Phase = 'collect' | 'targeted' | 'changed-area' | 'contract' | 'quality' | 'full';
 const PHASE_ORDER: Phase[] = ['collect', 'targeted', 'changed-area', 'contract', 'quality', 'full'];
@@ -47,10 +51,18 @@ interface MappedRow {
   command?: string;
 }
 
+interface RunnerPlan {
+  stack: StackKind;
+  jsPackageManager?: Extract<StackKind, 'pnpm' | 'bun' | 'yarn' | 'npm'>;
+  hasVitest: boolean;
+}
+
 // ── target recognition ────────────────────────────────────────────────────────
 
-// A bare pytest file/node id (`path.py`, optional `::nodeid`) ...
-const TARGET_FILE = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py(::[A-Za-z0-9_./[\]:=,+-]+)?$/;
+// A bare test file/node id (`path.py`, optional `::nodeid`; JS/TS test file path
+// only, because there is no portable JS node-id syntax across runners).
+const PY_TARGET_FILE = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py(::[A-Za-z0-9_./[\]:=,+-]+)?$/;
+const JS_TARGET_FILE = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:test|spec)\.(?:js|jsx|mjs|cjs|ts|tsx|vue)$/;
 // ... or a plain path that could be a directory (validated against the FS below).
 const PATHISH = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\/?$/;
 
@@ -67,7 +79,7 @@ function hasTraversal(value: string): boolean {
 export function isBareTargetShape(value: string): boolean {
   const v = value.trim();
   if (!v || hasTraversal(v)) return false;
-  return TARGET_FILE.test(v) || PATHISH.test(v);
+  return PY_TARGET_FILE.test(v) || JS_TARGET_FILE.test(v) || PATHISH.test(v);
 }
 
 /**
@@ -78,9 +90,10 @@ export function isBareTargetShape(value: string): boolean {
  */
 function targetKind(cwd: string, value: string): 'file' | 'dir' | null {
   if (hasTraversal(value)) return null;
-  if (TARGET_FILE.test(value)) {
+  if (PY_TARGET_FILE.test(value)) {
     return existsSync(join(cwd, value.split('::')[0])) ? 'file' : null;
   }
+  if (JS_TARGET_FILE.test(value)) return existsSync(join(cwd, value)) ? 'file' : null;
   if (PATHISH.test(value)) {
     try {
       if (statSync(join(cwd, value.replace(/\/$/, ''))).isDirectory()) return 'dir';
@@ -106,6 +119,7 @@ function classifyCell(cwd: string, cell: string): { target?: string; command?: s
   if (!v || v === '-' || v === '—' || /^n\/?a$/i.test(v) || v.includes('<') || v.includes('>')) return null;
   if (targetKind(cwd, v)) return { target: v };
   if (isPytestCommand(v)) return { command: v }; // trusted, emitted verbatim
+  if (looksLikeJsTestCommand(v)) return { command: v }; // trusted, emitted verbatim
   return null;
 }
 
@@ -128,14 +142,101 @@ export function isPytestTestFile(path: string): boolean {
   return /^test_.+\.py$/.test(base) || /_test\.py$/.test(base);
 }
 
+/** JS/TS test file by common runner filename conventions. */
+export function isJsTestFile(path: string): boolean {
+  return /\.(test|spec)\.(js|jsx|mjs|cjs|ts|tsx|vue)$/.test(path);
+}
+
 /** Directory (trailing slash) to run for a target; a dir target maps to itself. */
 function targetDirectory(target: string): string {
   const file = target.split('::')[0].replace(/\/$/, '');
-  if (/\.py$/.test(file)) {
+  if (/\.(py|js|jsx|mjs|cjs|ts|tsx|vue)$/.test(file)) {
     const slash = file.lastIndexOf('/');
     return slash >= 0 ? file.slice(0, slash + 1) : '.';
   }
   return `${file}/`;
+}
+
+function readPackageJson(cwd: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v === 'string') out[k] = v;
+  }
+  return out;
+}
+
+function detectRunnerPlan(cwd: string): RunnerPlan {
+  const detected = detectStack(cwd);
+  const jsCandidate = detected.candidates.find((c) => JS_STACKS.has(c));
+  const js = jsCandidate === 'pnpm' || jsCandidate === 'bun' || jsCandidate === 'yarn' || jsCandidate === 'npm'
+    ? jsCandidate
+    : undefined;
+  const pkg = readPackageJson(cwd);
+  const scripts = stringRecord(pkg?.scripts);
+  const deps = { ...stringRecord(pkg?.dependencies), ...stringRecord(pkg?.devDependencies) };
+  const hasVitest =
+    /\bvitest\b/.test(scripts.test ?? '') ||
+    Object.prototype.hasOwnProperty.call(deps, 'vitest') ||
+    existsSync(join(cwd, 'vitest.config.ts')) ||
+    existsSync(join(cwd, 'vitest.config.js')) ||
+    existsSync(join(cwd, 'vitest.config.mjs'));
+  return { stack: detected.primary, jsPackageManager: js, hasVitest };
+}
+
+function appendTestArgs(pm: RunnerPlan['jsPackageManager'], args: string): string {
+  const trimmed = args.trim();
+  if (!pm) return '';
+  if (!trimmed) return pm === 'bun' ? 'bun run test' : `${pm} test`;
+  if (pm === 'yarn') return `yarn test ${trimmed}`;
+  if (pm === 'bun') return `bun run test -- ${trimmed}`;
+  return `${pm} test -- ${trimmed}`;
+}
+
+function looksLikeJsTestCommand(command: string): boolean {
+  return /(^|\s)(npm|pnpm|yarn|bun)\s+(run\s+)?test\b/.test(command) ||
+    /(^|\s)(vitest|jest)\b/.test(command);
+}
+
+function targetRunner(target: string, plan: RunnerPlan): 'pytest' | 'vitest' | null {
+  const file = target.split('::')[0].replace(/\/$/, '');
+  if (/\.py$/.test(file)) return 'pytest';
+  if (isJsTestFile(file)) return plan.hasVitest && plan.jsPackageManager ? 'vitest' : null;
+  if (target.endsWith('/') || !/\.[A-Za-z0-9]+$/.test(file)) {
+    if (JS_STACKS.has(plan.stack) && plan.hasVitest && plan.jsPackageManager) return 'vitest';
+    return 'pytest';
+  }
+  return null;
+}
+
+function commandForTarget(target: string, phase: 'collect' | 'targeted' | 'changed-area', plan: RunnerPlan): string | null {
+  const runner = targetRunner(target, plan);
+  const quoted = formatTarget(target);
+  if (runner === 'pytest') {
+    if (phase === 'collect') return `${PYTEST} --collect-only -q ${quoted}`;
+    return `${PYTEST} ${quoted} ${PYTEST_TAIL}`;
+  }
+  if (runner === 'vitest') {
+    if (phase === 'collect') return null;
+    const args = `--run ${quoted}`;
+    return appendTestArgs(plan.jsPackageManager, args);
+  }
+  return null;
+}
+
+function fullCommand(plan: RunnerPlan): string {
+  if (JS_STACKS.has(plan.stack) && plan.hasVitest && plan.jsPackageManager) {
+    return appendTestArgs(plan.jsPackageManager, '--run');
+  }
+  return `${PYTEST} ${PYTEST_TAIL}`;
 }
 
 // ── markdown table parsing ────────────────────────────────────────────────────
@@ -322,13 +423,13 @@ export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
  * -- the selector only plans commands that can actually run. Graph-impact via the
  * code-map is intentionally deferred (see ADR 0005 "Revisit when").
  */
-function deriveChangedArea(cwd: string, changeId: string, targetDirs: string[]): SelectionEntry[] {
+function deriveChangedArea(cwd: string, changeId: string, targetDirs: string[], plan: RunnerPlan): SelectionEntry[] {
   const found = new Map<string, string>(); // target -> reason
 
   for (const p of getTouchedPaths(cwd).map((x) => x.replace(/\\/g, '/'))) {
     if (p.startsWith(`specs/changes/${changeId}/`) || !existsSync(join(cwd, p))) continue;
     const base = p.split('/').pop() ?? '';
-    if (isPytestTestFile(p)) {
+    if (isPytestTestFile(p) || isJsTestFile(p)) {
       if (!found.has(p)) found.set(p, 'changed test file');
     } else if (base === 'conftest.py') {
       const dir = p.slice(0, p.length - base.length) || '.';
@@ -342,7 +443,11 @@ function deriveChangedArea(cwd: string, changeId: string, targetDirs: string[]):
 
   return [...found.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([target, reason]) => ({ reason, target, command: `${PYTEST} ${formatTarget(target)} ${PYTEST_TAIL}` }));
+    .map(([target, reason]) => {
+      const command = commandForTarget(target, 'changed-area', plan);
+      return command ? { reason, target, command } : null;
+    })
+    .filter((entry): entry is SelectionEntry & { target: string } => entry !== null);
 }
 
 // ── selection ─────────────────────────────────────────────────────────────────
@@ -362,6 +467,7 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const testPlanText = readIf('test-plan.md');
   const implPlanText = readIf('implementation-plan.md');
   const touched = getTouchedPaths(cwd).map((p) => p.replace(/\\/g, '/'));
+  const runnerPlan = detectRunnerPlan(cwd);
 
   // Explicit mapping first: test-plan.md, then implementation-plan.md.
   let rows = extractMappedRows(parseMarkdownTable(testPlanText, /acceptance criteria.*test mapping/i), 'test-plan.md', cwd);
@@ -372,13 +478,22 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const commands = rows.filter((r): r is MappedRow & { command: string } => r.command !== undefined);
 
   const targetDirs = [...new Set(targets.map((r) => targetDirectory(r.target)))];
-  const changedArea = deriveChangedArea(cwd, changeId, targetDirs);
+  const changedArea = deriveChangedArea(cwd, changeId, targetDirs, runnerPlan);
 
   if (rows.length === 0 && changedArea.length === 0) {
     const reason = !testPlanExists
       ? `test-plan.md not found at specs/changes/${changeId}/test-plan.md`
       : 'test-plan.md does not provide target commands or node IDs, and no changed-area tests could be inferred safely';
     return { change_id: changeId, status: 'needs-test-plan-update', reason };
+  }
+
+  const unsupportedTargets = targets.filter((r) => commandForTarget(r.target, 'targeted', runnerPlan) === null);
+  if (unsupportedTargets.length > 0) {
+    return {
+      change_id: changeId,
+      status: 'needs-test-plan-update',
+      reason: `test-plan.md maps target(s) ${unsupportedTargets.map(t => t.target).join(', ')} but cdd-kit cannot infer a bounded runner for this stack; provide an explicit command in the mapping table`,
+    };
   }
 
   const phases: Partial<Record<Phase, SelectionEntry[]>> = {};
@@ -391,15 +506,17 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
     ? targets.map((r) => ({ target: r.target, reason: r.reason }))
     : changedArea.map((e) => ({ target: e.target as string, reason: e.reason }));
   if (collectSource.length) {
-    phases.collect = collectSource.map((r) => ({
-      reason: r.reason,
-      target: r.target,
-      command: `${PYTEST} --collect-only -q ${formatTarget(r.target)}`,
-    }));
+    const collect = collectSource
+      .map((r) => {
+        const command = commandForTarget(r.target, 'collect', runnerPlan);
+        return command ? { reason: r.reason, target: r.target, command } : null;
+      })
+      .filter((entry): entry is SelectionEntry & { target: string } => entry !== null);
+    if (collect.length) phases.collect = collect;
   }
 
   const targeted: SelectionEntry[] = [
-    ...targets.map((r) => ({ reason: r.reason, target: r.target, command: `${PYTEST} ${formatTarget(r.target)} ${PYTEST_TAIL}` })),
+    ...targets.map((r) => ({ reason: r.reason, target: r.target, command: commandForTarget(r.target, 'targeted', runnerPlan) as string })),
     ...commands.map((r) => ({ reason: r.reason, command: r.command })),
   ];
   if (targeted.length) phases.targeted = targeted;
@@ -411,7 +528,7 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const quality = extractQualityGates(readIf('ci-gates.md'));
   if (quality.length) phases.quality = quality;
 
-  phases.full = [{ reason: 'final bounded full-suite smoke', command: `${PYTEST} ${PYTEST_TAIL}` }];
+  phases.full = [{ reason: 'final bounded full-suite smoke', command: fullCommand(runnerPlan) }];
 
   return { change_id: changeId, status: 'selected', phases };
 }

@@ -19,6 +19,7 @@ export const BUILTIN_INCLUDE: string[] = [
 /**
  * Built-in exclude globs. Includes:
  *  - dependency / build / cache directories common across stacks
+ *  - generated/package asset directories that should not drive graph freshness
  *  - cdd-kit's own scaffold directories (.claude/, specs/templates/, tests/templates/)
  *    which are template fixtures, not user source
  */
@@ -26,6 +27,7 @@ export const BUILTIN_EXCLUDE: string[] = [
   '**/node_modules/**',
   '**/dist/**',
   '**/build/**',
+  '**/assets/**',
   '**/__pycache__/**',
   '**/.git/**',
   '**/.cdd/**',

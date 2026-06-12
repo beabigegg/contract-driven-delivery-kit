@@ -77,6 +77,15 @@ describe('cdd-kit code-map', () => {
     expect(out).not.toContain('node_modules');
   });
 
+  it('4b: excludes generated assets by default', () => {
+    copyFixtures(tmpRepo, 'sample.js');
+    mkdirSync(join(tmpRepo, 'assets', 'skills'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'assets', 'skills', 'generated.ts'), 'export const GENERATED = true;', 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+    const out = readFileSync(join(tmpRepo, '.cdd', 'code-map.yml'), 'utf8');
+    expect(out).not.toContain('assets/skills/generated.ts');
+  });
+
   it('5: parse error file does not abort the run', () => {
     writeFileSync(join(tmpRepo, 'broken.js'), '!!!@@@##$$', 'utf8');
     const r = runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
