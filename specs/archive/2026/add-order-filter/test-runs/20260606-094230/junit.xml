@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="tests.orders.test_filter" tests="8" failures="0" errors="0" skipped="0" time="1.843">
+    <testcase classname="tests.orders.test_filter" name="test_status_filter_options" time="0.121"/>
+    <testcase classname="tests.orders.test_filter" name="test_no_filter_returns_all" time="0.205"/>
+    <testcase classname="tests.orders.test_filter" name="test_single_status_filter" time="0.214"/>
+    <testcase classname="tests.orders.test_filter" name="test_multi_status_filter" time="0.231"/>
+    <testcase classname="tests.orders.test_filter" name="test_status_dedupes_duplicates" time="0.108"/>
+    <testcase classname="tests.orders.test_filter" name="test_unknown_status_rejected" time="0.262"/>
+    <testcase classname="tests.orders.test_filter" name="test_partial_invalid_status_rejected" time="0.249"/>
+    <testcase classname="tests.orders.test_filter" name="test_pagination_after_filter" time="0.453"/>
+  </testsuite>
+</testsuites>

@@ -1,0 +1,14 @@
+{
+  "change_id": "add-order-filter",
+  "phase": "contract",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "cdd-kit validate --contracts",
+  "duration_ms": 894,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/archive/2026/add-order-filter/test-runs/20260606-094420/summary.json",
+    "stdout": "specs/archive/2026/add-order-filter/test-runs/20260606-094420/stdout.txt"
+  },
+  "next_action": "contracts valid; required ladder complete (final-status: passed)."
+}

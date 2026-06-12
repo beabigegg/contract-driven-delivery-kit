@@ -1,0 +1,19 @@
+change-id: add-order-filter
+timestamp: 2026-06-09T10:30:00Z
+agent: qa-reviewer
+status: approved
+files-read:
+  - specs/changes/add-order-filter/test-plan.md
+  - specs/changes/add-order-filter/test-evidence.yml
+  - tests/orders/test_filter.py
+artifacts:
+  - type: review
+    pointer: specs/changes/add-order-filter/agent-log/qa-reviewer.yml
+next-action: change is ready to merge and archive (tasks 7.1, 7.2).
+notes: >-
+  Quality gate: every acceptance criterion (AC-1..AC-5) maps to a passing test,
+  test-evidence.yml records all four required phases as passed with run pointers
+  under test-runs/, and there are no waiver fields. The two data-boundary cases
+  (unknown and partial-invalid status) confirm a typo returns 400 rather than a
+  misleading empty list. No blocking findings; no approved-with-risk residual.
+  Approved for merge.

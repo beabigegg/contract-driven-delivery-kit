@@ -1,0 +1,24 @@
+change-id: add-order-filter
+timestamp: 2026-06-05T09:40:00Z
+agent: change-classifier
+status: complete
+indexes-used:
+  - specs/context/project-map.md
+  - specs/context/contracts-index.md
+index-queries:
+  - cdd-kit index query "orders list endpoint"
+files-read:
+  - specs/changes/add-order-filter/change-request.md
+  - specs/context/project-map.md
+  - specs/context/contracts-index.md
+artifacts:
+  - type: classification
+    pointer: specs/changes/add-order-filter/change-classification.md
+  - type: context-manifest-draft
+    pointer: specs/changes/add-order-filter/change-classification.md#context-manifest-draft
+next-action: hand off to test-strategist to map AC-1..AC-5 to tests, then backend-engineer.
+notes: >-
+  Tier 2 — a new optional API request field plus a data-shape addition, no
+  auth/payments/migration surface, so the mechanical tier floor (critical = 0)
+  is not triggered. Confirmed comma-separated multi-select with the requester to
+  avoid a follow-up change. Marked E2E/visual/stress not-applicable.

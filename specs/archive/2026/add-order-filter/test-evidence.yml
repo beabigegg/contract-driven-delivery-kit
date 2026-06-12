@@ -1,0 +1,43 @@
+# Test evidence for add-order-filter (ADR 0005 section 6).
+#
+# Machine-readable proof that the change's required test phases ran and passed,
+# produced by `cdd-kit test run`. The gate validates THIS file (and the run
+# summaries it points at), not assistant claims. Waiver fields are prohibited.
+#
+# The summary pointers below resolve within this archived change directory; while
+# the change was active they lived under specs/changes/add-order-filter/ and were
+# moved here by `cdd-kit archive`.
+
+change-id: add-order-filter
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+  - contract
+
+runs:
+  - phase: collect
+    status: passed
+    command: python -m pytest --collect-only -q tests/orders/test_filter.py
+    summary: specs/archive/2026/add-order-filter/test-runs/20260606-094112/summary.json
+
+  - phase: targeted
+    status: passed
+    command: python -m pytest tests/orders/test_filter.py -q --maxfail=1 --tb=short -ra
+    summary: specs/archive/2026/add-order-filter/test-runs/20260606-094230/summary.json
+    junit: specs/archive/2026/add-order-filter/test-runs/20260606-094230/junit.xml
+
+  - phase: changed-area
+    status: passed
+    command: python -m pytest tests/orders/ -q --maxfail=1 --tb=short -ra
+    summary: specs/archive/2026/add-order-filter/test-runs/20260606-094355/summary.json
+
+  - phase: contract
+    status: passed
+    command: cdd-kit validate --contracts
+    summary: specs/archive/2026/add-order-filter/test-runs/20260606-094420/summary.json
+
+final-status: passed

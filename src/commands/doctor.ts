@@ -542,7 +542,7 @@ async function attemptAutoFixes(cwd: string, report: DoctorReport): Promise<{ fi
             'monkey-test-engineer': 'sonnet',
             'stress-soak-engineer': 'sonnet',
             'ui-ux-reviewer': 'sonnet',
-            'visual-reviewer': 'haiku',
+            'visual-reviewer': 'sonnet',
             'dependency-security-reviewer': 'sonnet',
             'spec-drift-auditor': 'opus',
             'repo-context-scanner': 'haiku',
