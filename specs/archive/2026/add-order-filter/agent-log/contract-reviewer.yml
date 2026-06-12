@@ -1,0 +1,18 @@
+change-id: add-order-filter
+timestamp: 2026-06-08T14:05:00Z
+agent: contract-reviewer
+status: approved
+files-read:
+  - specs/changes/add-order-filter/change-classification.md
+  - contracts/api/orders.md
+  - specs/changes/add-order-filter/test-evidence.yml
+artifacts:
+  - type: review
+    pointer: specs/changes/add-order-filter/agent-log/contract-reviewer.yml
+next-action: qa-reviewer for the final quality gate.
+notes: >-
+  Verified the orders API row: `status` is documented as an OPTIONAL
+  comma-separated enum, the response schema is unchanged (backward compatible),
+  and a `400` row covers an invalid status. The request/response examples match
+  the schema. No breaking change — existing callers that omit `status` are
+  unaffected. Approved with no findings.

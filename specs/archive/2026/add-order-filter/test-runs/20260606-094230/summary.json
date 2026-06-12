@@ -1,0 +1,15 @@
+{
+  "change_id": "add-order-filter",
+  "phase": "targeted",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "python -m pytest tests/orders/test_filter.py -q --maxfail=1 --tb=short -ra",
+  "duration_ms": 1843,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/archive/2026/add-order-filter/test-runs/20260606-094230/summary.json",
+    "junit": "specs/archive/2026/add-order-filter/test-runs/20260606-094230/junit.xml",
+    "stdout": "specs/archive/2026/add-order-filter/test-runs/20260606-094230/stdout.txt"
+  },
+  "next_action": "8 passed; proceed to the changed-area phase."
+}

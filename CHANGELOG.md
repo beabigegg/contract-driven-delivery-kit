@@ -4,6 +4,18 @@
 
 ### Added
 
+- **Dogfooding example — a complete archived change at
+  `specs/archive/2026/add-order-filter/` (P2-9).** The kit shipped only empty
+  scaffolds, so a human or agent had no concrete "this is what a finished change
+  looks like" reference. This adds a full, self-consistent worked example (the
+  `add-order-filter` API change used throughout the kit's docs and tests): all
+  seven required artifacts filled in, a narrowly-scoped `context-manifest.md`,
+  a completed `tasks.yml` (every task `done`/`skipped` with a reason), passing
+  `test-evidence.yml` with `test-runs/` summaries, one `agent-log/*.yml` per
+  required agent, an `archive.md` with promoted lessons, and a `README.md` guide
+  to what each file demonstrates. Illustrative (no real code is executed); the
+  archive `INDEX.md` lists it.
+
 - **`cdd-kit manifest <change-id>` — auto-generated minimal manifest for
   low-risk micro-changes (P2-6).** For a tier 4-5 change the command generates a
   minimal `context-manifest.md` whose **Allowed Paths** is the change's own
@@ -361,6 +373,13 @@
   only now that select + run + gate are proven green. Completes ADR 0005.
 
 ### Changed
+
+- **`visual-reviewer` agent upgraded `haiku` → `sonnet` (P2-8).** Pixel-level
+  visual / accessibility review needs comparative judgment that haiku tends to
+  miss; sonnet matches the other reviewer agents. Updated the agent frontmatter,
+  `.cdd/model-policy.json`, the `doctor --fix` default role map, and the
+  `/cdd-new` model-badge note. (The rest of the model roster — 5 opus / 12
+  sonnet / 1 haiku after this change — is unchanged.)
 
 - **`tier-floor-override` now requires a substantive, audited justification
   (P2-7).** The override that bypasses the mechanical risk-tier floor previously

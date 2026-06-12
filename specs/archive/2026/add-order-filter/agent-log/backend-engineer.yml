@@ -1,0 +1,35 @@
+change-id: add-order-filter
+timestamp: 2026-06-06T09:45:00Z
+agent: backend-engineer
+status: complete
+indexes-used:
+  - .cdd/code-map.yml
+index-queries:
+  - cdd-kit index query "orders list query"
+  - cdd-kit graph impact "src/orders/query.py"
+files-read:
+  - specs/changes/add-order-filter/implementation-plan.md
+  - contracts/api/orders.md
+  - src/orders/router.py
+  - src/orders/query.py
+  - src/orders/schemas.py
+  - tests/orders/test_filter.py
+artifacts:
+  - type: code
+    pointer: src/orders/schemas.py
+  - type: code
+    pointer: src/orders/query.py
+  - type: code
+    pointer: src/orders/router.py
+  - type: tests
+    pointer: tests/orders/test_filter.py
+  - type: test-evidence
+    pointer: specs/changes/add-order-filter/test-evidence.yml
+next-action: contract-reviewer verifies the orders API row, then qa-reviewer.
+notes: >-
+  TDD: wrote the eight tests red first, then implemented. Parsed `status` into a
+  de-duplicated set in schemas.py with enum validation (unknown member -> 400
+  listing the allowed values); added a `WHERE status IN (...)` clause in query.py
+  applied BEFORE pagination; router.py passes the value through unchanged. No
+  parameter == prior behavior. Recorded the bounded ladder (collect/targeted/
+  changed-area/contract) via `cdd-kit test run` — all passed.

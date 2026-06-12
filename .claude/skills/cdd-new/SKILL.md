@@ -389,7 +389,7 @@ model class appended as `[role · model]`, then a single space, then the
 human-readable narration. Resolve `model` from `.cdd/model-policy.json`
 `roles.<agent-name>` (defaults: classifier / architect / plan / qa / drift =
 `opus`; backend / bug-fix / frontend / ci-cd / test-plan / e2e / monkey / stress /
-ui-ux / deps-sec = `sonnet`; visual / repo-scan = `haiku`).
+ui-ux / visual / deps-sec = `sonnet`; repo-scan = `haiku`).
 
 Examples:
 

@@ -159,8 +159,8 @@ cdd-kit 的核心工程品質**良好**：gate 的路徑安全防護、YAML 安�
 | P2-5 | **i18n 訊息目錄（繁中優先）** | 全部訊息 English-only 且散落各檔；先集中到 `src/messages.ts` 建翻譯掛點，繁中為第一個目標語系 —— 目標使用者明確包含中文非工程師 | 3~5 天 + 翻譯 |
 | P2-6 ✅ | **Tier 4（低風險）變更的 manifest 自動生成** | **已完成**（本次 PR）。新增 `cdd-kit manifest <id>`：對 tier 4-5 micro-change 產出最小 `context-manifest.md`（Allowed Paths = change dir + `git status` 變更檔 + 三個預設）。刻意限縮 tier 4-5（tier 0-3 拒絕，仍需手寫含 per-agent work packets 的完整 manifest）；不 `--force` 不覆蓋既有 manifest；需先設 tier。flags `--force`/`--json` | 1~2 天 |
 | P2-7 ✅ | **`tier-floor-override` 審計強化** | **已完成**（本次 PR）。override reason 須 ≥ 20 字（過短不再降級、floor violation 維持），每次有效 bypass 以時間戳 + 命中 floor + reason append 到 `agent-log/audit.yml`；寫入冪等（重跑 gate 不重複）且 best-effort（永不讓 gate 因審計寫入失敗） | 1 天 |
-| P2-8 | **`visual-reviewer` 模型升級 haiku → sonnet** | 視覺/可及性審查需要比較性判斷，haiku 容易漏細節；其餘 model 配置（5 opus / 11 sonnet / 2 haiku）合理 | 0.1 天 |
-| P2-9 | **Dogfooding 範例**：在 `specs/archive/2026/` 收錄一個完整走完流程的真實 change（含 agent-log、test-evidence） | kit 自身 `specs/changes/` 只有一個 plan.md；使用者與 agent 都缺「成功長什麼樣」的範本 | 1 天 |
+| P2-8 ✅ | **`visual-reviewer` 模型升級 haiku → sonnet** | **已完成**（本次 PR）。改 agent frontmatter、`.cdd/model-policy.json`、`doctor --fix` 預設 role map、`/cdd-new` 模型徽章說明四處；其餘 roster 不變（改後 5 opus / 12 sonnet / 1 haiku） | 0.1 天 |
+| P2-9 ✅ | **Dogfooding 範例**：在 `specs/archive/2026/` 收錄一個完整走完流程的 change（含 agent-log、test-evidence） | **已完成**（本次 PR）。新增 `specs/archive/2026/add-order-filter/`：七個必備工件全填、窄範圍 context-manifest、完成態 tasks.yml、通過的 test-evidence + test-runs summaries、每個必備 agent 一份 agent-log、archive.md（promoted lessons）、README 導覽，及 archive `INDEX.md`。illustrative（不執行真碼） | 1 天 |
 | P2-10 | **補測試缺口**：`abandon`、`archive`、`graph` engine fallback 鏈、`install-agent-hooks` 目前零直接測試 | 由測試檔對映分析確認 | 2 天 |
 | P2-11 | **README CLI Reference 重組**：以 `cdd-kit <group> <sub>` 巢狀格式整併 graph/test/contract/index 散落段落；補 `lint-agents` 文件；README 與 install.md 去重 | 文件審查確認多處散落與重複 | 1 天 |
 

@@ -1,0 +1,43 @@
+change-id: add-order-filter
+status: completed
+tier: 2
+context-governance: v1
+archive-tasks:
+  - "7.1"
+  - "7.2"
+depends-on: []
+created: "2026-06-05"
+completed: "2026-06-09"
+
+tasks:
+  # status: pending | done | skipped   (optional: note: "reason or context")
+  - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: done }
+  - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: done, note: "API: contracts/api/orders.md" }
+  - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: skipped, note: "no architecture review (tier 2, module-level)" }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: done }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: done }
+  - { id: "2.1", section: "Contract Updates", title: "API contract", status: done, note: "added optional status query param + 400 row" }
+  - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "no UI surface" }
+  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: skipped, note: "no env change" }
+  - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: done, note: "request schema gains status; response unchanged" }
+  - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: done, note: "filter rule documented in the API row" }
+  - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: skipped, note: "covered by existing contract + test gates" }
+  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: done, note: "status parsing + request/response schema" }
+  - { id: "3.2", section: "Tests First", title: "Integration tests", status: done, note: "filter, multi-select, pagination" }
+  - { id: "3.3", section: "Tests First", title: "E2E/resilience tests", status: skipped, note: "internal API; integration coverage sufficient" }
+  - { id: "3.4", section: "Tests First", title: "Data-boundary/monkey tests", status: done, note: "unknown/partial-invalid status -> 400" }
+  - { id: "3.5", section: "Tests First", title: "Stress/soak tests if required", status: skipped, note: "no load-profile change" }
+  - { id: "4.1", section: Implementation, title: "Backend", status: done, note: "schemas.py + query.py + router.py" }
+  - { id: "4.2", section: Implementation, title: "Frontend", status: skipped, note: "no frontend in this change" }
+  - { id: "4.3", section: Implementation, title: "Env/deploy", status: skipped, note: "no env/deploy change" }
+  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: skipped, note: "no workflow change" }
+  - { id: "5.1", section: Review, title: "UI/UX review", status: skipped, note: "no UI surface" }
+  - { id: "5.2", section: Review, title: "Visual review", status: skipped, note: "no UI surface" }
+  - { id: "5.3", section: Review, title: "Contract review", status: done, note: "agent-log/contract-reviewer.yml (approved)" }
+  - { id: "5.4", section: Review, title: "QA review", status: done, note: "agent-log/qa-reviewer.yml (approved)" }
+  - { id: "6.1", section: Verification, title: "Local gates", status: done, note: "cdd-kit gate --strict passed" }
+  - { id: "6.2", section: Verification, title: "PR required gates", status: done, note: "build + tests + contract validation green" }
+  - { id: "6.3", section: Verification, title: "Informational gates", status: done, note: "coverage delta reviewed" }
+  - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: skipped, note: "none affected" }
+  - { id: "7.1", section: Archive, title: "Archive change", status: done }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: done, note: "see archive.md -> Lessons Promoted to Standards" }

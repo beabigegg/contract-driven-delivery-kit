@@ -1,0 +1,14 @@
+{
+  "change_id": "add-order-filter",
+  "phase": "changed-area",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "python -m pytest tests/orders/ -q --maxfail=1 --tb=short -ra",
+  "duration_ms": 5127,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/archive/2026/add-order-filter/test-runs/20260606-094355/summary.json",
+    "stdout": "specs/archive/2026/add-order-filter/test-runs/20260606-094355/stdout.txt"
+  },
+  "next_action": "31 passed in tests/orders/; proceed to the contract phase."
+}

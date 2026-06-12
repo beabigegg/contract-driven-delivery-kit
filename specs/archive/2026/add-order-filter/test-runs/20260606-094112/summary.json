@@ -1,0 +1,14 @@
+{
+  "change_id": "add-order-filter",
+  "phase": "collect",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "python -m pytest --collect-only -q tests/orders/test_filter.py",
+  "duration_ms": 612,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/archive/2026/add-order-filter/test-runs/20260606-094112/summary.json",
+    "stdout": "specs/archive/2026/add-order-filter/test-runs/20260606-094112/stdout.txt"
+  },
+  "next_action": "8 tests collected; proceed to the targeted phase."
+}

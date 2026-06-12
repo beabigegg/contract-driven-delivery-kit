@@ -1,0 +1,18 @@
+change-id: add-order-filter
+timestamp: 2026-06-05T11:15:00Z
+agent: test-strategist
+status: complete
+files-read:
+  - specs/changes/add-order-filter/change-classification.md
+  - contracts/api/orders.md
+  - tests/orders/
+artifacts:
+  - type: test-plan
+    pointer: specs/changes/add-order-filter/test-plan.md
+next-action: backend-engineer writes the failing tests in tests/orders/test_filter.py, then implements.
+notes: >-
+  Mapped all five acceptance criteria to concrete tests, including two
+  data-boundary cases for invalid input (AC-4: unknown and partial-invalid
+  status both -> 400) so a typo never degrades to a silent empty list. AC-5
+  proves pagination is applied AFTER filtering. No E2E/visual/stress required at
+  tier 2.
