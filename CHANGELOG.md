@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-12
+
+Major version: queryable/writable contracts (ADR 0004), bounded test execution
+(ADR 0005), and the bug-fix lane (ADR 0006) land together with the contract/test
+MCP tools (`cdd_contract_query`, `cdd_contract_locate`, `cdd_test_impact`,
+`cdd_graph_unresolved`). **Breaking:** Go/Rust stack auto-detection was removed
+(see Removed).
+
+### Changed (doctor strictness, #56)
+
+- **`doctor` now warns on dormant safety nets instead of staying silent.**
+  Applicable-but-off API conformance and dormant chokepoints are reported at
+  `warning` level rather than informational `ok`, so a repo that carries the
+  safety-net machinery but enforces none of it no longer reads as a clean bill
+  of health. Note: this can change `doctor --strict` exit codes for repos that
+  have not armed their chokepoints.
+- **Stack-aware `test select`.** Bare targets render through a stack-specific
+  runner plan — Python stays pytest-first, JS/TS uses Vitest only when the repo
+  clearly opts in, otherwise the selector asks for explicit test-plan commands
+  instead of guessing a runner.
+- **`code-map` excludes `**/assets/**`** (generated/package asset dirs) from
+  driving graph freshness.
+
 ### Documentation
 
 - **README CLI Reference reorganized + missing commands documented (P2-11).**
