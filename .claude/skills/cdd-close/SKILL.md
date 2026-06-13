@@ -101,17 +101,22 @@ Read `specs/changes/<change-id>/archive.md` section `## Lessons Promoted to Stan
 
 Classify each candidate:
 - **promote-to-contract**: stable product/system behavior, API/data/env/business/CI rule, compatibility rule, or testable invariant.
-- **promote-to-guidance**: durable workflow guidance for future agents, provider-specific operating instructions, or project-specific agent constraints. Target `CLAUDE.md` and/or `CODEX.md`.
+- **promote-to-guidance**: durable *agent workflow* guidance that would change how an agent behaves on a future **unrelated** change — provider/project operating rules only, never product behavior (that is promote-to-contract). This is the rare exception; default to promote-to-contract. Target the `cdd-kit:learnings` managed region of `CLAUDE.md` and/or `CODEX.md` as **one line: rule + pointer to detail**, never an inline playbook. `CLAUDE.md` is loaded into every session, so each line here is a recurring token cost.
 - **do-not-promote**: one-off implementation detail, abandoned approach, temporary workaround, historical rationale, or anything contradicted by current contracts.
 
 If there are lessons to promote, invoke `contract-reviewer` with:
 - The archive.md lessons section
 - Supporting evidence from agent-log / QA / changed contracts / changed tests
-- Instruction: "Review these lessons and propose specific additions only for evidence-backed durable rules. For each lesson, output: classification, target file, target section, proposed text (≤ 5 lines), evidence path, schema-version bump required (yes/no). Reject any cold-data-only or one-off lesson."
+- Instruction: "Review these lessons and propose specific additions only for evidence-backed durable rules. For each lesson, output: classification, target file, target section, proposed text (contracts: ≤ 5 lines; CLAUDE.md/CODEX.md guidance: exactly one line = rule + pointer to the contracts/ or docs/ file holding the detail), evidence path, schema-version bump required (yes/no). Reject any cold-data-only or one-off lesson. Prefer promote-to-contract; treat CLAUDE.md/CODEX.md guidance as the rare exception."
 
 After contract-reviewer responds:
 1. Apply each approved contract addition to the contract file (YOU write)
-2. Apply each approved guidance addition to `CLAUDE.md` and/or `CODEX.md` only if it is provider/project guidance, not product behavior
+2. Apply each approved guidance addition **inside the `cdd-kit:learnings:start` / `cdd-kit:learnings:end` markers** of `CLAUDE.md` and/or `CODEX.md` (provider/project workflow guidance only, never product behavior). If the markers are absent, create them once under a `### Promoted Learnings` heading at the end of the file, then operate within them. Follow this consolidation discipline every time — **net growth should be ≈ 0**:
+   - Operate **only between the markers**. Never edit, move, or delete anything outside them — those are the human's own sections, and must be left untouched.
+   - Before adding: read the existing in-region entries. If the new lesson generalizes, supersedes, or duplicates one, **edit/replace that entry in place** instead of appending.
+   - Remove any in-region entry now contradicted by current `contracts/`.
+   - Each entry is **one line: the rule + a pointer** (`see contracts/…` or `see docs/…`). Put the actual detail in `contracts/` (preferred — queried on demand) or a `docs/…` file; do **not** inline a playbook in `CLAUDE.md`.
+   - Appending a brand-new entry is the exception — only for a genuinely new cross-change rule with no existing entry to fold into.
 3. Run `cdd-kit validate --contracts` to confirm contract format is preserved
 4. Run `cdd-kit context-scan` so future classifiers see updated hot context indexes
 5. Fill in `## Lessons Promoted to Standards` in archive.md with what was promoted, where, and evidence path
@@ -152,4 +157,8 @@ Token cost of future sessions reduced by ~<N> files.
 - NEVER treat `specs/archive/` as hot requirements
 - NEVER promote a lesson without an evidence path from this change
 - Product behavior belongs in `contracts/`; agent workflow guidance belongs in `CLAUDE.md` and/or `CODEX.md`
+- Default to promote-to-contract; `CLAUDE.md`/`CODEX.md` guidance is the rare exception (it costs tokens every session)
+- NEVER append to `CLAUDE.md`/`CODEX.md` without first folding into an existing entry — net growth ≈ 0; consolidate, don't accumulate
+- NEVER touch content outside the `cdd-kit:learnings` markers — that is the human's own data
+- Each promoted guidance line = rule + pointer; the detail lives in `contracts/` or `docs/`, not inline
 - The archive command is irreversible without git — remind user to commit after archiving

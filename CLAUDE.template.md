@@ -101,6 +101,17 @@ For context-governed changes, read `specs/changes/<change-id>/context-manifest.m
 - Pre-existing test failures may be excluded from the current gate only when
   `qa-report.md` records the failing test, baseline evidence, why it is outside
   scope, owner, and follow-up.
-- For MySQL migrations, treat ENUM contraction and any DDL requiring
-  `ALGORITHM=COPY` as high risk on large tables; require row-count/runtime
-  estimate, online migration or maintenance window, and rollback plan.
+
+### Promoted Learnings
+
+This file is loaded into every session, so size here is a recurring token cost.
+`/cdd-close` consolidates promoted lessons **inside the markers below only**.
+Each entry is **one terse line: a rule + a pointer to where the detail lives**
+(`contracts/…` for product/behavior, `docs/…` for workflow detail) — never an
+inline playbook. New lessons **merge into or replace** an existing entry instead
+of appending; obsolete or contract-superseded entries are removed. Anything you
+write **outside** the markers is yours and is never edited or evicted.
+
+<!-- cdd-kit:learnings:start -->
+- MySQL ENUM contraction / any `ALGORITHM=COPY` DDL = high risk on large tables (row-count + online-migration/maintenance-window + rollback required) — see `contracts/data/` migration rules.
+<!-- cdd-kit:learnings:end -->

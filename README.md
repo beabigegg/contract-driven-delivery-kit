@@ -222,6 +222,15 @@ After the PR is merged:
 4. Runs `cdd-kit archive add-jwt-auth` — moves the change from `specs/changes/` to `specs/archive/2026/`
 5. Reduces the active context that future Claude sessions need to load
 
+> **Keeping `CLAUDE.md` small.** `CLAUDE.md` is loaded into every session, so each
+> promoted line is a recurring token cost. `/cdd-close` therefore promotes the bulk
+> of learnings to `contracts/` (queried on demand, not auto-loaded) and keeps
+> `CLAUDE.md` to a delimited `cdd-kit:learnings` region of **one-line rule +
+> pointer** entries that it consolidates (merge/replace) rather than appends —
+> content you write outside the markers is never touched. If a project already
+> grew a bloated `CLAUDE.md` before this discipline existed, run
+> **`/cdd-consolidate-guidance`** once to migrate and shrink it in place.
+
 ---
 
 ### Abandoning a change
