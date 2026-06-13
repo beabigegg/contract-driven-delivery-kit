@@ -30,6 +30,14 @@ always-loaded session context.
   `### Promoted Learnings` heading, documenting the one-line-plus-pointer
   convention inline.
 
+### Fixed
+
+- **Flaky `prepublishOnly` / CI gate.** A few filesystem-timing tests (fs
+  watchers, mtime staleness, debounce) intermittently failed under full-suite
+  parallel contention on Windows, randomly blocking `npm publish`. Vitest now
+  retries a failed test up to twice — a timing flake recovers on retry while a
+  genuinely broken test still fails every attempt.
+
 ## [3.0.0] - 2026-06-12
 
 Major version: queryable/writable contracts (ADR 0004), bounded test execution
