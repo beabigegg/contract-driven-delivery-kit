@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-06-13
+
+Bound `CLAUDE.md` growth so repeated lesson promotion no longer inflates the
+always-loaded session context.
+
+### Added
+
+- **`/cdd-consolidate-guidance` skill.** One-time cleanup for a project whose
+  `CLAUDE.md`/`CODEX.md` bloated from repeated lesson promotion: it buckets
+  content into human-authored / kit-boilerplate / promoted-learning, consolidates
+  the promoted bucket into the `cdd-kit:learnings` managed region as one-line +
+  pointer entries, externalizes detail to `contracts/` or `docs/`, proposes a
+  full plan before writing, and never touches human-authored content (git is the
+  undo path).
+
+### Changed
+
+- **`/cdd-close` Step 3 — bounded guidance promotion.** `CLAUDE.md` is loaded
+  every session, so appended learnings are a recurring token cost. Close now
+  defaults to promote-to-contract, treats `CLAUDE.md`/`CODEX.md` guidance as the
+  rare exception, and writes guidance only inside a delimited `cdd-kit:learnings`
+  managed region using a merge-or-replace discipline (net growth ≈ 0) with
+  externalized detail — never a raw append. Content outside the markers is the
+  human's and is never edited.
+- **`CLAUDE.template.md`** ships the `cdd-kit:learnings` managed region under a
+  `### Promoted Learnings` heading, documenting the one-line-plus-pointer
+  convention inline.
+
 ## [3.0.0] - 2026-06-12
 
 Major version: queryable/writable contracts (ADR 0004), bounded test execution
