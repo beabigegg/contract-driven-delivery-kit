@@ -9,6 +9,7 @@ import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
 import { detectChokepoints } from './chokepoints.js';
 import { staleMetadataReport, writeMetadataFiles } from './metadata.js';
+import { stripFrontmatter, parseEndpoints, parseContractSchemas, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH } from '../contracts/parser.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -292,6 +293,60 @@ function checkApiConformance(cwd: string): Finding[] {
   }
 }
 
+/**
+ * Response-shape coverage (ADR 0007). The body-level gate is opt-in by adoption
+ * (a tests/contract/response-samples.json manifest), so without a nudge it stays
+ * dormant — the prose-governance trap. This makes the gap a mechanical signal an
+ * agent (or human) sees on `doctor`/`setup`: how many endpoints carry a typed
+ * response schema vs prose, and whether the sample harness exists to enforce
+ * them. Read-only and never an error — it drives migration, it does not block.
+ */
+function checkResponseShapeCoverage(cwd: string): Finding[] {
+  const contractPath = join(cwd, DEFAULT_CONTRACT_PATH);
+  if (!existsSync(contractPath)) return [];
+  let endpoints: ReturnType<typeof parseEndpoints>;
+  let schemas: Record<string, unknown>;
+  try {
+    const { body } = stripFrontmatter(readFileSync(contractPath, 'utf8'));
+    endpoints = parseEndpoints(body);
+    schemas = parseContractSchemas(body).schemas;
+  } catch {
+    return []; // a malformed contract is the structural validators' concern
+  }
+  if (endpoints.length === 0) return [];
+
+  // An endpoint's response body is "typed" (machine-enforceable) when its
+  // response cell resolves to a defined schema — a bare name or Name[].
+  const resolves = (cell: string): boolean => {
+    const raw = cell.trim();
+    if (!raw || raw === '-') return false;
+    const name = raw.endsWith('[]') ? raw.slice(0, -2).trim() : raw;
+    return SCHEMA_NAME_RE.test(name) && name in schemas;
+  };
+  const typed = endpoints.filter(e => resolves(e.response)).length;
+  const applicable = (() => { try { return detectStack(cwd).primary !== 'unknown'; } catch { return false; } })();
+  const hasManifest = existsSync(join(cwd, 'tests', 'contract', 'response-samples.json'));
+
+  if (typed === 0) {
+    return [{
+      level: applicable ? 'warning' : 'ok',
+      message: applicable
+        ? `Response-shape: ${endpoints.length} endpoint(s), 0 with a typed response schema — response bodies are prose, so the data-shape gate enforces nothing. Migrate high-value endpoints to a typed \`## Schemas\` entry + add tests/contract/response-samples.json (ADR 0007).`
+        : 'Response-shape: response bodies are prose; declare typed `## Schemas` entries to enable the data-shape gate (ADR 0007).',
+    }];
+  }
+  if (!hasManifest) {
+    return [{
+      level: 'warning',
+      message: `Response-shape: ${typed} endpoint(s) declare a typed response schema but tests/contract/response-samples.json is absent — copy tests/contract/response-samples.example.json and capture samples so the gate enforces them (ADR 0007).`,
+    }];
+  }
+  return [{
+    level: 'ok',
+    message: `Response-shape: ${typed} typed response endpoint(s) with a sample manifest — the data-shape gate enforces response bodies (cdd-kit validate --contracts).`,
+  }];
+}
+
 function checkMcpRegistration(cwd: string, provider: string): Finding[] {
   // Observability for the silent-degradation failure mode: if the cdd-kit MCP
   // server is not registered, agents never see the graph/index tools and
@@ -409,6 +464,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkAgentLint(cwd));
   findings.push(...checkCodeMap(cwd));
   findings.push(...checkApiConformance(cwd));
+  findings.push(...checkResponseShapeCoverage(cwd));
   findings.push(...checkMcpRegistration(cwd, provider));
   findings.push(...checkChangeMetadata(staleMetadataReport(cwd)));
   findings.push(...checkChokepoints(cwd));

@@ -33,6 +33,7 @@ See `references/code-map-protocol.md` for the full protocol.
 ## Rules
 
 - Do not assume backend response shape; use the API contract. Do not call an endpoint (path + method) that is not in `contracts/api/api-contract.md`. If `.cdd/conformance.json` is enabled, `cdd-kit validate --contracts` (and the gate) will fail on frontend calls that drift from the contract.
+- Do not hand-write response-body types. When the contract declares a typed response schema, generate the FE types from `contracts/api/openapi.json` (`npm run contract:client`) and consume those — a hand-written shape silently drifts from the contract (ADR 0007). If an endpoint you depend on still has a prose response cell, ask the contract reviewer to type it so the data-shape gate can enforce it.
 - Follow `implementation-plan.md` for scope, non-goals, required changes, and file-level plan.
 - Do not expand scope beyond the implementation plan unless a Context Expansion Request is approved and the plan is updated.
 - Do not hard-code visual tokens when token system exists.

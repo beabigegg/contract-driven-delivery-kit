@@ -62,3 +62,39 @@ describe('cdd-kit init — contract:client codegen wiring', () => {
     expect(r.status, r.stderr).toBe(0);
   });
 });
+
+describe('cdd-kit init — contract:models backend codegen wiring (ADR 0007)', () => {
+  it('adds contract:models when FastAPI is detected alongside a package.json', () => {
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'app', scripts: {} }, null, 2) + '\n', 'utf8');
+    writeFileSync(join(repo, 'requirements.txt'), 'fastapi==0.110.0\nuvicorn\n', 'utf8');
+    const r = runCli(['init', '--local-only'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const scripts = pkg().scripts ?? {};
+    expect(scripts['contract:models']).toContain('datamodel-codegen');
+    expect(scripts['contract:models']).toContain('cdd-kit openapi export --out');
+  });
+
+  it('does NOT add contract:models for a non-FastAPI Python backend', () => {
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'app', scripts: {} }, null, 2) + '\n', 'utf8');
+    writeFileSync(join(repo, 'requirements.txt'), 'flask==3.0.0\n', 'utf8');
+    const r = runCli(['init', '--local-only'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const scripts = pkg().scripts ?? {};
+    expect(scripts['contract:models']).toBeUndefined();
+  });
+
+  it('never clobbers an existing contract:models script', () => {
+    writeFileSync(
+      join(repo, 'package.json'),
+      JSON.stringify({ name: 'app', scripts: { 'contract:models': 'my-custom-models' } }, null, 2) + '\n',
+      'utf8',
+    );
+    writeFileSync(join(repo, 'pyproject.toml'), '[project]\ndependencies = ["fastapi"]\n', 'utf8');
+    const r = runCli(['init', '--local-only'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    expect((pkg().scripts ?? {})['contract:models']).toBe('my-custom-models');
+  });
+});

@@ -27,9 +27,10 @@ const VALIDATORS: ValidatorEntry[] = [
     script: 'validate_contracts.py',
     label: 'contracts',
     chain: [
-      { script: 'validate_api_semantic.py',     label: 'API semantic'     },
-      { script: 'validate_api_conformance.py',  label: 'API conformance'  },
-      { script: 'validate_env_semantic.py',     label: 'Env semantic'     },
+      { script: 'validate_api_semantic.py',     label: 'API semantic'      },
+      { script: 'validate_api_conformance.py',  label: 'API conformance'   },
+      { script: 'validate_response_shape.py',   label: 'response shape'    },
+      { script: 'validate_env_semantic.py',     label: 'Env semantic'      },
     ],
   },
   { flag: 'env',      script: 'validate_env_contract.py',      label: 'env contract'      },

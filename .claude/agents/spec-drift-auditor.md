@@ -27,6 +27,12 @@ See `references/code-map-protocol.md` for the full protocol.
 - Does every contract entry have at least one corresponding test?
 - Are tests asserting the correct contract schema (not internal implementation details)?
 
+**2b. response-body shape (data-shape conformance, ADR 0007)**
+- Run `cdd-kit doctor` and read its `Response-shape:` finding — it reports how many endpoints carry a typed response schema vs prose, and whether the `tests/contract/response-samples.json` harness exists.
+- Treat a **prose response cell on an endpoint the code actually returns a structured body for** as drift (the contract under-specifies what ships). Recommend migrating it to a typed `## Schemas` entry + a captured sample.
+- Treat a **typed response endpoint with no sample manifest entry** as drift (declared but unenforced — `validate_response_shape.py` warns on these). Recommend adding the sample so the gate enforces it.
+- Where the backend has multiple return branches for one endpoint (cache vs fallback, sync vs async), check they agree with the single contract schema — divergent branches are a classic body-shape drift the route gate cannot see.
+
 **3. CI workflows vs ci-gates declarations**
 - Does every gate declared in contracts/ci/ci-gate-contract.md exist in .github/workflows/?
 - Are required gates non-skippable?

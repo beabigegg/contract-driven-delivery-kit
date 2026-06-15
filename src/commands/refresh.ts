@@ -214,6 +214,15 @@ function planTemplateRefresh(cwd: string): { sections: { name: string; plan: Pla
     name: 'tests/templates',
     plan: planForceRefresh(ASSET.testsTemplates, join(cwd, 'tests', 'templates'), 'tests/templates'),
   });
+  // Response-shape harness (ADR 0007): refresh the kit-shipped README + example
+  // manifest. The active response-samples.json and captured samples/*.json are
+  // not kit assets, so a force-refresh (source-driven) never touches them.
+  if (existsSync(ASSET.contractHarness)) {
+    sections.push({
+      name: 'tests/contract',
+      plan: planForceRefresh(ASSET.contractHarness, join(cwd, 'tests', 'contract'), 'tests/contract'),
+    });
+  }
   // ci-templates ships as a sibling under assets/ and lives at <cwd>/ci-templates
   const ciTemplatesAsset = join(ASSET.ci, '..', 'ci-templates'); // assets/ci-templates
   if (existsSync(ciTemplatesAsset)) {

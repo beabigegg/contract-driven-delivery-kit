@@ -76,6 +76,7 @@ copy('.claude/skills', 'assets/skills');
 copy('contracts',      'assets/contracts');
 copy('specs/templates',                         'assets/specs-templates');
 copy('tests/templates',                         'assets/tests-templates');
+copy('contract-harness',                        'assets/contract-harness');
 copy('ci',                                      'assets/ci');
 copy('github-workflows',                        'assets/github-workflows');
 copy('ci-templates',                             'assets/ci-templates');

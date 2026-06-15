@@ -220,6 +220,19 @@ export async function init(opts: InitOptions): Promise<void> {
       track(testsCreated);
       log.ok(`tests/templates/ — ${testsCount} file(s) written.`);
 
+      // Response-shape contract harness (ADR 0007): README + example manifest so
+      // the body-level data-shape gate is a ready-to-activate scaffold, not a doc.
+      // The active manifest name (response-samples.json) is never shipped, so a
+      // project's own samples are never clobbered; activation is opt-in (copy the
+      // .example.json). See contract-harness/README.md.
+      const { count: harnessCount, created: harnessCreated } = copyDirTracked(
+        ASSET.contractHarness,
+        join(cwd, 'tests', 'contract'),
+        { overwrite: opts.force, label: 'tests/contract' },
+      );
+      track(harnessCreated);
+      log.ok(`tests/contract/ — ${harnessCount} file(s) written (response-shape harness; see its README).`);
+
       const { count: ciCount, created: ciCreated } = copyDirTracked(
         ASSET.ci,
         join(cwd, 'ci'),

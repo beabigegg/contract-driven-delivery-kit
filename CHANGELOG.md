@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-06-15
+
+### Added
+
+- **Data-shape conformance — the response-body gate (ADR 0007).** Route-level
+  conformance only checks method + path; the response *body* shape — the thing
+  that actually breaks frontend/backend integration — was unenforced. New
+  `validate_response_shape.py` (in the `cdd-kit validate --contracts` chain and
+  the gate) validates captured response samples against the contract's typed
+  response schema. Stack-agnostic by construction: it reads only JSON + JSON
+  Schema (the generated `contracts/api/openapi.json` projection), so it works the
+  same for Flask, FastAPI, Express, or Go.
+  - **Opt-in by adoption, error by default once adopted.** A
+    `tests/contract/response-samples.json` manifest is the opt-in signal — no
+    manifest, the check skips and exits 0 (existing projects are untouched on
+    `npm update`). Once a manifest exists, a declared-schema mismatch is an error
+    by default (configurable to `warning` via `.cdd/conformance.json`
+    `responseShape`). Endpoints whose response cell is still prose are skipped —
+    migration is incremental, never forced.
+  - **Scaffold.** `cdd-kit init`/`refresh` lay down a `tests/contract/` harness
+    (README with per-stack capture snippets, example manifest, `samples/`) so the
+    gate is a ready-to-activate scaffold, not a doc. The active manifest name is
+    never shipped, so a project's own samples are never clobbered.
+  - **Backend codegen.** `suggest-codegen` now wires a `contract:models` npm
+    script when FastAPI is detected (`datamodel-codegen`: `openapi.json` →
+    Pydantic), so declaring the models as a route's `response_model` makes FastAPI
+    enforce the contracted shape at runtime — the backend half of the OpenAPI seam
+    ADR 0001 left open.
+  - **Self-driving adoption.** `cdd-kit doctor` reports response-shape coverage
+    (typed vs prose response cells, manifest presence) so the gap is a mechanical
+    nudge. Agent guidance updated (contract-reviewer, spec-drift-auditor,
+    qa-reviewer, backend/frontend-engineer) and the API contract standard gained a
+    "Response-body shape & the data-shape gate" adoption recipe, so the workflow
+    drives migration to typed schemas + re-running the gate.
+
 ## [3.1.1] - 2026-06-15
 
 ### Fixed

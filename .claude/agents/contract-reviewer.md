@@ -31,6 +31,15 @@ Record dependency or migration impacts in `contracts.md` only as contract-level 
 - Consumer impact — list every known consumer (frontend, mobile, partners, internal jobs) before approving a contract change.
 - Versioning is now machine-enforced via `validate_contract_versions.py` — every contract has frontmatter with `schema-version`, and `contracts/CHANGELOG.md` tracks all changes.
 
+## Response-body shape (data-shape conformance, ADR 0007)
+
+Route-level conformance only checks method + path. The body shape is what actually breaks frontend/backend integration, and it is enforced by `validate_response_shape.py` (in `cdd-kit validate --contracts` and the gate). Drive adoption on every API change:
+
+- When a change **adds or modifies an endpoint whose response body matters** (anything beyond a trivial ack), require its `response schema` column to point at a **typed** `## Schemas` entry — a field table (Tier A) or a ` ```json-schema ` block (Tier B, needed for nested objects / arrays of objects) — **not a prose label** like `success_response`. A bare prose response cell on a touched endpoint is a `Missing Contract Update`.
+- Require a `tests/contract/response-samples.json` entry for that endpoint, with a captured sample (see `tests/contract/README.md` for the per-stack capture snippet; use `dataPath` to drill into a `{success, data}` envelope).
+- This is **opt-in by adoption and incremental** — do not demand migrating untouched legacy prose endpoints. Push typed schemas for the endpoints this change touches, and flag the highest-value prose endpoints as a follow-up. `cdd-kit doctor` reports the coverage gap.
+- After the contract gains a typed schema, the engineer must regenerate `contracts/api/openapi.json` (`cdd-kit openapi export --out …`) and **re-run the gate** so the new shape is actually enforced.
+
 ## Output
 
 ```md

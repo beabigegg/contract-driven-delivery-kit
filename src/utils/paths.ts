@@ -19,6 +19,7 @@ export const ASSET = {
   contracts:      join(ASSETS_DIR, 'contracts'),
   specsTemplates: join(ASSETS_DIR, 'specs-templates'),
   testsTemplates: join(ASSETS_DIR, 'tests-templates'),
+  contractHarness: join(ASSETS_DIR, 'contract-harness'),
   ci:             join(ASSETS_DIR, 'ci'),
   githubWorkflows: join(ASSETS_DIR, 'github-workflows'),
   hooks:          join(ASSETS_DIR, 'hooks'),

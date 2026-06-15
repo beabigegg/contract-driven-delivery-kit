@@ -34,6 +34,7 @@ See `references/code-map-protocol.md` for the full protocol.
 
 - Do not change API response shape or add/rename/remove endpoints without updating `contracts/api/api-contract.md` in the same change. If `.cdd/conformance.json` is enabled, `cdd-kit validate --contracts` (and the gate) will fail when a backend route is missing from the contract.
 - Do not change API response shape without contract updates.
+- For an endpoint whose response body matters, the contract's `response schema` must be a **typed** `## Schemas` entry (not a prose label), and `tests/contract/response-samples.json` must carry a captured sample — `cdd-kit validate --contracts` then enforces the body shape, not just the route (ADR 0007). After editing the contract schema, regenerate `contracts/api/openapi.json` (`cdd-kit openapi export --out …`) and re-run the gate. On FastAPI, generate models from `openapi.json` (`npm run contract:models`) and declare them as each route's `response_model` so the framework enforces the shape. Keep every return branch of one endpoint agreeing with the single contract schema.
 - Keep route/controller code thin.
 - Put business logic in service/domain layers.
 - Validate input at the boundary.

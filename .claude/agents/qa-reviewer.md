@@ -22,6 +22,7 @@ Do not approve based on claims. Approve based on commands, artifacts, screenshot
   code surface must carry `test-evidence-not-applicable: "<reason>"` in
   `tasks.yml` frontmatter
 - CI/CD gates run or scheduled
+- for a change that adds/modifies an API response body: the endpoint has a typed `## Schemas` response schema (not prose) and a `tests/contract/response-samples.json` sample, and `cdd-kit validate --contracts` shows `response shape passed` (not `skipped`). A structured response left as a prose contract cell is a `data-shape issue` (ADR 0007), routed below
 - visual evidence provided for UI changes
 - stress/soak evidence provided when required
 - known risks and residual gaps documented
