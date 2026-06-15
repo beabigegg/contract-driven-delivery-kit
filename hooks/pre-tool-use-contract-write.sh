@@ -23,12 +23,19 @@
 # `contract set` path. The hook gates only the agent's Edit/Write/MultiEdit tools
 # — a human editing the contract in their editor is unaffected.
 #
-# Wire into Claude Code (~/.claude/settings.json):
+# Wire into Claude Code (.claude/settings.json) — `cdd-kit install-agent-hooks
+# --contract-write` writes this for you. Anchor to $CLAUDE_PROJECT_DIR: Claude
+# Code does not guarantee the hook's cwd is the project root, and this hook's
+# relative `[ -f "$path_value" ]` probe needs it — otherwise the hook silently
+# allows every edit.
 #
 #   {
 #     "hooks": {
 #       "PreToolUse": [
-#         { "matcher": "Write|Edit|MultiEdit", "command": "/path/to/hooks/pre-tool-use-contract-write.sh" }
+#         { "matcher": "Write|Edit|MultiEdit", "hooks": [
+#           { "type": "command",
+#             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && ./.claude/hooks/pre-tool-use-contract-write.sh" }
+#         ] }
 #       ]
 #     }
 #   }

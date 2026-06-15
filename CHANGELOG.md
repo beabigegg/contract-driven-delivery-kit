@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-06-15
+
+### Fixed
+
+- **Agent PreToolUse hooks now resolve from the project root.** The installer
+  wrote each hook command as a bare relative path (`./.claude/hooks/...`), but
+  Claude Code does not guarantee the hook's cwd is the project root — so when the
+  session cwd differed the harness reported `/bin/sh: ./.claude/hooks/...: not
+  found` and the chokepoint never fired. Worse, even when the script resolved,
+  each hook's internal relative probes (`.cdd/code-map.yml`, `.cdd/`,
+  `contracts/api/api-contract.md`) silently no-op'd under the wrong cwd, turning
+  graph-first / contract-write / test-runner into always-allow stubs. The
+  installer now anchors every command with `cd "${CLAUDE_PROJECT_DIR:-.}" && ...`
+  (the harness exports `CLAUDE_PROJECT_DIR`; the `:-.` fallback preserves prior
+  behavior on an older harness). Re-running `cdd-kit install-agent-hooks` (or
+  `cdd-kit init` / `cdd-kit setup`) upgrades existing buggy entries in place.
+
 ## [3.1.0] - 2026-06-13
 
 Bound `CLAUDE.md` growth so repeated lesson promotion no longer inflates the

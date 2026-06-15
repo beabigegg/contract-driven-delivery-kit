@@ -13,12 +13,18 @@
 # graph-first path. Contract/spec/markdown/Read of .cdd/code-map.yml itself are
 # always allowed.
 #
-# Wire into Claude Code (~/.claude/settings.json):
+# Wire into Claude Code (.claude/settings.json) — `cdd-kit install-agent-hooks`
+# writes this for you. Anchor to $CLAUDE_PROJECT_DIR: Claude Code does not
+# guarantee the hook's cwd is the project root, and this hook's relative probe
+# (`.cdd/code-map.yml`) needs it — otherwise the hook silently allows everything.
 #
 #   {
 #     "hooks": {
 #       "PreToolUse": [
-#         { "matcher": "Read", "command": "/path/to/hooks/pre-tool-use-graph-first.sh" }
+#         { "matcher": "Read", "hooks": [
+#           { "type": "command",
+#             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && ./.claude/hooks/pre-tool-use-graph-first.sh" }
+#         ] }
 #       ]
 #     }
 #   }

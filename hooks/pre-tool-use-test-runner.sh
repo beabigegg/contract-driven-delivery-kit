@@ -37,12 +37,18 @@
 # gates only the agent's Bash tool — a human running tests in a terminal is
 # unaffected.
 #
-# Wire into Claude Code (~/.claude/settings.json):
+# Wire into Claude Code (.claude/settings.json) — `cdd-kit install-agent-hooks
+# --test-runner` writes this for you. Anchor to $CLAUDE_PROJECT_DIR: Claude Code
+# does not guarantee the hook's cwd is the project root, and this hook's relative
+# `[ -d ".cdd" ]` probe needs it — otherwise the hook silently allows everything.
 #
 #   {
 #     "hooks": {
 #       "PreToolUse": [
-#         { "matcher": "Bash", "command": "/path/to/hooks/pre-tool-use-test-runner.sh" }
+#         { "matcher": "Bash", "hooks": [
+#           { "type": "command",
+#             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && ./.claude/hooks/pre-tool-use-test-runner.sh" }
+#         ] }
 #       ]
 #     }
 #   }

@@ -236,7 +236,18 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
 
     preTool = withoutHandler(preTool, def);
     const invoke = `./${hookRelPath(def.filename)}`;
-    const command = mode === 'strict' ? `${def.strictEnv}=1 ${invoke}` : invoke;
+    const run = mode === 'strict' ? `${def.strictEnv}=1 ${invoke}` : invoke;
+    // Anchor the run to the project root via $CLAUDE_PROJECT_DIR. Claude Code does
+    // NOT guarantee the hook's cwd is the project root (the actual cwd is only
+    // passed on stdin), so a bare relative `./.claude/hooks/...` fails to resolve
+    // ("/bin/sh: ./.claude/hooks/...: not found") whenever the session cwd differs.
+    // The `cd` also fixes each hook's INTERNAL relative probes (`.cdd/code-map.yml`,
+    // `.cdd/`, `contracts/api/api-contract.md`): without a correct cwd those resolve
+    // to nothing and the hook silently no-ops (always-allow) instead of steering —
+    // worse than erroring. `${CLAUDE_PROJECT_DIR:-.}` falls back to the current dir
+    // on an older harness that does not export the var, preserving prior behavior.
+    // The command runs through `sh -c`, so `$CLAUDE_PROJECT_DIR` and `&&` are honored.
+    const command = `cd "\${CLAUDE_PROJECT_DIR:-.}" && ${run}`;
     preTool.push({ matcher: def.matcher, hooks: [{ type: 'command', command }] });
   }
 
