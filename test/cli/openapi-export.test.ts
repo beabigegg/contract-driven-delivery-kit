@@ -57,6 +57,32 @@ describe('cdd-kit openapi export', () => {
     expect(doc.paths['/api/users'].get.summary).toBe('GET /api/users');
   });
 
+  it('warns when a response cell names a defined schema in a non-bare form (near-miss)', () => {
+    writeContract(
+      ['| POST | /api/ack | public | - | → Ack | - | yes |'],
+      undefined,
+      '## Schemas\n\n### Ack\n\n```json-schema\n{ "type": "object" }\n```',
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0); // export still succeeds; warn-only
+    const out = `${r.stdout}${r.stderr}`;
+    expect(out).toMatch(/Unresolved schema reference/);
+    expect(out).toMatch(/use the bare form `Ack`/);
+    // and the body genuinely stayed unenforced (no $ref emitted)
+    const doc = JSON.parse(r.stdout);
+    expect(doc.paths['/api/ack'].post.responses['201'].content).toBeUndefined();
+  });
+
+  it('does not warn when the response cell is the bare schema name', () => {
+    writeContract(
+      ['| POST | /api/ack | public | - | Ack | - | yes |'],
+      undefined,
+      '## Schemas\n\n### Ack\n\n```json-schema\n{ "type": "object" }\n```',
+    );
+    const r = runCli(['openapi', 'export'], { cwd: repo, home });
+    expect(`${r.stdout}${r.stderr}`).not.toMatch(/Unresolved schema reference/);
+  });
+
   it('normalizes :id and {id} to a single {id} path with a path parameter', () => {
     writeContract([
       '| GET | /api/users/:id | required | - | User | 404 | yes |',

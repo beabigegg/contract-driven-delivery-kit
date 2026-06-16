@@ -6,6 +6,7 @@ import {
   parseEndpoints,
   parseContractSchemas,
   normalizeApiPath,
+  detectSchemaCellNearMiss,
   SCHEMA_NAME_RE,
   DEFAULT_CONTRACT_PATH,
   type EndpointRow,
@@ -312,6 +313,28 @@ export async function openapiExport(opts: OpenApiExportOptions = {}): Promise<nu
   if (endpoints.length === 0) {
     log.error(`No endpoint table rows found in ${contractPath}. Add rows to the "| method | path | ... |" table first.`);
     return 1;
+  }
+
+  // Near-miss warning: a response/request cell that names a DEFINED schema in a
+  // non-bare form (`→ AckResponse`, `AckResponse (success)`) resolves to no
+  // `$ref` and silently leaves the body unenforced. Surface it at the moment the
+  // projection is generated — the agent's first feedback point — so a decorated
+  // cell never slips through as "prose" unnoticed. Warn-only: the export itself
+  // still succeeds; the blocking enforcement is the gate's response-shape check.
+  const definedNames = new Set(Object.keys(contractSchemas.schemas));
+  const nearMisses: string[] = [];
+  for (const ep of endpoints) {
+    for (const [kind, cell] of [['response', ep.response], ['request', ep.request]] as const) {
+      const nm = detectSchemaCellNearMiss(cell, definedNames);
+      if (nm) nearMisses.push(`${ep.method.toUpperCase()} ${ep.path} ${kind} cell "${cell.trim()}" names schema ${nm.name}; use the bare form \`${nm.suggestion}\``);
+    }
+  }
+  // Emit to stderr, not stdout: the no-`--out` path streams the doc to stdout
+  // (`cdd-kit openapi export > openapi.json`), so a warning on stdout would be
+  // baked into the generated artifact. log.warn uses console.log (stdout); use
+  // console.error here to keep the machine-readable doc stream clean.
+  for (const w of nearMisses) {
+    console.error(`\x1b[33m⚠\x1b[0m  Unresolved schema reference (body left unenforced): ${w}`);
   }
 
   const styleBlock = extractStyleBlock(body);

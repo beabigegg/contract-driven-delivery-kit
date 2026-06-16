@@ -131,6 +131,34 @@ describe.skipIf(!py)('validate_response_shape.py', () => {
     expect(out).toMatch(/no resolved response schema/);
   });
 
+  it('errors (exit 1) on a near-miss: a sampled cell names a defined schema in a non-bare form', () => {
+    // openapi.json a near-miss cell (`→ Summary`) produces: no resolved schema on
+    // the operation, the raw cell preserved as x-cdd-response-contract, and the
+    // named schema present in components — the "looked green, checked zero" trap.
+    const doc = {
+      openapi: '3.1.0',
+      info: { title: 'API', version: '1.0.0' },
+      paths: {
+        '/api/summary': {
+          post: {
+            summary: 'POST /api/summary',
+            responses: { '201': { description: 'Contract response: → Summary' } },
+            'x-cdd-response-contract': '→ Summary',
+          },
+        },
+      },
+      components: { schemas: { Summary: { type: 'object' } } },
+    };
+    mkdirSync(join(repo, 'contracts', 'api'), { recursive: true });
+    writeFileSync(join(repo, 'contracts', 'api', 'openapi.json'), JSON.stringify(doc, null, 2));
+    writeManifest(repo, { 'POST /api/summary': 'samples/s.json' });
+    writeSample(repo, 's.json', { totalLots: 1 });
+    const { status, out } = run(repo);
+    expect(status).toBe(1);
+    expect(out).toMatch(/names defined schema "Summary"/);
+    expect(out).toMatch(/bare name `Summary`/);
+  });
+
   describe.skipIf(!js)('with jsonschema available', () => {
     it('passes (exit 0) when the sample matches the contract schema', () => {
       writeOpenApi(repo, { requireTopReasons: true });

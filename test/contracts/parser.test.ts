@@ -3,6 +3,8 @@ import {
   parseEndpoints,
   parseEndpointTableRows,
   parseContractSchemas,
+  parseSchemaCellRef,
+  detectSchemaCellNearMiss,
   stripFrontmatter,
   extractSection,
   parseRow,
@@ -42,6 +44,45 @@ describe('parseRow / isSeparator', () => {
   it('recognises markdown separator rows', () => {
     expect(isSeparator(['---', ':--', '--:', ''])).toBe(true);
     expect(isSeparator(['a', '---'])).toBe(false);
+  });
+});
+
+describe('parseSchemaCellRef', () => {
+  it('parses a bare schema name and a Name[] array form', () => {
+    expect(parseSchemaCellRef('AckResponse')).toEqual({ name: 'AckResponse', isArray: false });
+    expect(parseSchemaCellRef('User[]')).toEqual({ name: 'User', isArray: true });
+  });
+
+  it('returns null for empty, dash, or a non-bare (decorated) cell', () => {
+    expect(parseSchemaCellRef('')).toBeNull();
+    expect(parseSchemaCellRef('-')).toBeNull();
+    expect(parseSchemaCellRef('→ AckResponse')).toBeNull();
+    expect(parseSchemaCellRef('AckResponse (success)')).toBeNull();
+  });
+});
+
+describe('detectSchemaCellNearMiss', () => {
+  const defined = new Set(['AckResponse', 'User']);
+
+  it('flags a decorated cell that names a defined schema and suggests the bare form', () => {
+    expect(detectSchemaCellNearMiss('→ AckResponse', defined)).toEqual({ name: 'AckResponse', suggestion: 'AckResponse' });
+    expect(detectSchemaCellNearMiss('see AckResponse', defined)).toEqual({ name: 'AckResponse', suggestion: 'AckResponse' });
+    expect(detectSchemaCellNearMiss('AckResponse (success)', defined)).toEqual({ name: 'AckResponse', suggestion: 'AckResponse' });
+  });
+
+  it('preserves an array intent in the suggestion', () => {
+    expect(detectSchemaCellNearMiss('→ User[]', defined)).toEqual({ name: 'User', suggestion: 'User[]' });
+  });
+
+  it('returns null for a clean resolved reference', () => {
+    expect(detectSchemaCellNearMiss('AckResponse', defined)).toBeNull();
+    expect(detectSchemaCellNearMiss('User[]', defined)).toBeNull();
+  });
+
+  it('never false-positives on genuine prose naming no defined schema', () => {
+    expect(detectSchemaCellNearMiss('success_response', defined)).toBeNull();
+    expect(detectSchemaCellNearMiss('a list of things', defined)).toBeNull();
+    expect(detectSchemaCellNearMiss('-', defined)).toBeNull();
   });
 });
 
