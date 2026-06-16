@@ -193,6 +193,59 @@ export function parseEndpoints(body: string): EndpointRow[] {
 }
 
 /**
+ * Parse a schema cell as a bare schema reference — `Name` or `Name[]` — the
+ * exact grammar `openapi export` resolves to a `$ref`. Returns the name and
+ * whether it is an array, independent of whether `Name` is actually defined.
+ * Returns null for an empty/`-` cell or any non-bare form (prose, a decorated
+ * reference like `→ Name`). Factored into the shared parser so `openapi export`,
+ * `doctor`, and the near-miss detector all key off ONE definition of "what a
+ * resolvable response/request cell looks like" and can never drift.
+ */
+export function parseSchemaCellRef(cell: string): { name: string; isArray: boolean } | null {
+  const raw = cell.trim();
+  if (!raw || raw === '-') return null;
+  const isArray = raw.endsWith('[]');
+  const name = (isArray ? raw.slice(0, -2) : raw).trim();
+  if (!SCHEMA_NAME_RE.test(name)) return null;
+  return { name, isArray };
+}
+
+/**
+ * Detect a NEAR-MISS schema reference: a response/request cell that does NOT
+ * resolve to a defined schema (so `openapi export` emits no `$ref` and the body
+ * is silently left unenforced) but that mentions, as an identifier token, the
+ * name of a schema that IS defined under `## Schemas` — e.g. `→ AckResponse`,
+ * `see AckResponse`, `AckResponse (success)`. This is almost always an author or
+ * agent meaning to reference the schema in a non-bare form the grammar rejects;
+ * left undetected it reads as a clean pass while enforcing nothing (the exact
+ * "looked green, checked zero" trap data-shape conformance exists to kill).
+ *
+ * Returns the matched schema name plus the bare correction to suggest, or null
+ * when the cell resolves cleanly, is empty/`-`, or is genuine prose naming no
+ * defined schema (legitimate Tier-C — never flagged, per ADR 0007's
+ * no-forced-migration guarantee). High precision by construction: it only fires
+ * when the named schema actually exists, so prose labels like `success_response`
+ * (no such schema) are never false-positived.
+ */
+export function detectSchemaCellNearMiss(
+  cell: string,
+  definedSchemas: ReadonlySet<string>,
+): { name: string; suggestion: string } | null {
+  const raw = cell.trim();
+  if (!raw || raw === '-') return null;
+  const ref = parseSchemaCellRef(cell);
+  if (ref && definedSchemas.has(ref.name)) return null; // already a clean, resolved reference
+  for (const m of raw.matchAll(/[A-Za-z][A-Za-z0-9_]*/g)) {
+    const token = m[0];
+    if (!definedSchemas.has(token)) continue;
+    // Preserve an array intent when the token is immediately followed by `[]`.
+    const after = raw.slice((m.index ?? 0) + token.length).trimStart();
+    return { name: token, suggestion: after.startsWith('[]') ? `${token}[]` : token };
+  }
+  return null;
+}
+
+/**
  * Normalize an endpoint path to the OpenAPI path-template form that `openapi
  * export` uses as the `paths[path]` key: Express-style `:id` and brace `{ id }`
  * params both collapse to `{id}`, and any `?query` suffix is dropped. Two

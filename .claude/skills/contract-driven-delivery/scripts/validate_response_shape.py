@@ -19,6 +19,10 @@ Opt-in by adoption, enforced by default once adopted:
     warning behind a flag — a protection that defaults to advisory gets disarmed).
   - An endpoint whose contract response cell is still prose (no resolved schema
     in openapi.json) is simply not checked — incremental adoption, never forced.
+  - BUT a sampled cell that NAMES a defined schema in a non-bare form
+    (`-> AckResponse`, `AckResponse (success)`) is a near-miss: the author meant
+    to enforce the body and a typo silently disarmed it. That is an ERROR, not a
+    skip — it is the "looked green, checked zero" trap this gate exists to kill.
 
 Manifest (tests/contract/response-samples.json):
 {
@@ -138,6 +142,51 @@ def build_endpoint_schema_map(openapi: dict):
     return out
 
 
+def build_unresolved_cell_map(openapi: dict):
+    """Map (method, normalized_path) -> the raw response cell text that `openapi
+    export` preserved as `x-cdd-response-contract` when a cell did NOT resolve to
+    a schema. This lets the validator tell a near-miss (`→ AckResponse`, where the
+    cell names a defined schema) from genuine prose."""
+    out = {}
+    paths = openapi.get('paths')
+    if not isinstance(paths, dict):
+        return out
+    for raw_path, methods in paths.items():
+        if not isinstance(methods, dict):
+            continue
+        np = normalize_path(raw_path)
+        for method, operation in methods.items():
+            if method.lower() not in VALID_METHODS or not isinstance(operation, dict):
+                continue
+            cell = operation.get('x-cdd-response-contract')
+            if isinstance(cell, str) and cell.strip():
+                out[(method.lower(), np)] = cell.strip()
+    return out
+
+
+IDENTIFIER_RE = re.compile(r'[A-Za-z][A-Za-z0-9_]*')
+
+
+def near_miss_schema(cell_text: str, defined_names: set):
+    """If `cell_text` does not look like a bare schema reference but mentions a
+    DEFINED schema name as an identifier token (`→ AckResponse`,
+    `AckResponse (success)`), return that name plus the bare correction; else
+    None. Mirrors detectSchemaCellNearMiss in src/contracts/parser.ts."""
+    raw = cell_text.strip()
+    if not raw or raw == '-':
+        return None
+    bare = raw[:-2].strip() if raw.endswith('[]') else raw
+    if IDENTIFIER_RE.fullmatch(bare) and bare in defined_names:
+        return None  # already a clean, resolved reference
+    for m in IDENTIFIER_RE.finditer(raw):
+        token = m.group(0)
+        if token not in defined_names:
+            continue
+        after = raw[m.end():].lstrip()
+        return token, (token + '[]' if after.startswith('[]') else token)
+    return None
+
+
 # ── sample loading + validation ──────────────────────────────────────────────
 
 def drill(value, data_path: str):
@@ -219,6 +268,8 @@ def main() -> None:
 
     components = openapi.get('components', {}) if isinstance(openapi.get('components'), dict) else {}
     endpoint_schemas = build_endpoint_schema_map(openapi)
+    unresolved_cells = build_unresolved_cell_map(openapi)
+    defined_schema_names = set(components.get('schemas', {})) if isinstance(components.get('schemas'), dict) else set()
     manifest_dir = manifest_path.parent
 
     errors = []
@@ -238,6 +289,21 @@ def main() -> None:
 
         schema = endpoint_schemas.get(parsed)
         if schema is None:
+            # A sampled endpoint with no resolved schema is normally just an
+            # un-migrated prose cell (warn, incremental adoption). But if the
+            # cell NAMES a defined schema in a non-bare form (`→ AckResponse`),
+            # the author meant to enforce this body and a typo silently disarmed
+            # it — exactly the "looked green, checked zero" failure this gate
+            # exists to kill. Escalate that to an error so the gate goes red.
+            near = near_miss_schema(unresolved_cells.get(parsed, ''), defined_schema_names)
+            if near is not None:
+                name, suggestion = near
+                errors.append(
+                    f'{key}: response cell "{unresolved_cells.get(parsed)}" names defined schema '
+                    f'"{name}" but is not a bare schema reference, so `openapi export` emits no $ref '
+                    f'and this body is NOT enforced. Change the contract response cell to the bare '
+                    f'name `{suggestion}` and re-run `cdd-kit openapi export`.')
+                continue
             warnings.append(
                 f'{key}: no resolved response schema in {OPENAPI_PATH} '
                 f'(the contract response cell is still prose, or the endpoint is absent). '

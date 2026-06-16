@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-06-16
+
+### Added
+
+- **Near-miss schema-reference detection — close the "looked green, checked
+  zero" hole in the data-shape gate (ADR 0007).** A response/request cell that
+  names a defined schema in a non-bare form (`→ AckResponse`, `see AckResponse`,
+  `AckResponse (success)`) does not resolve to a `$ref`, so `openapi export`
+  silently leaves the body unenforced and the gate passes while checking nothing.
+  This was observed in a real consumer project: 178 endpoints written as
+  `→ SchemaName`, a 177-entry sample manifest, and `validate --contracts`
+  reporting `checked 0 sampled endpoint(s)` — exit 0, fully disarmed. cdd-kit now
+  detects the near-miss on three surfaces, none of which existed before:
+  - **`cdd-kit openapi export`** warns (on stderr, still exits 0) for every
+    decorated cell that names a defined schema, naming the bare correction.
+  - **`cdd-kit doctor`** adds a warning finding (trips `--strict`) listing the
+    offending endpoints, separate from the aggregate "0 typed" coverage line.
+  - **`validate_response_shape.py`** (the `validate --contracts` / gate chain)
+    escalates a *sampled* near-miss from the generic prose warning to a hard
+    **error**, turning a falsely-green build red. Detection is high-precision: it
+    only fires when the named schema is actually defined, so genuine prose labels
+    (`success_response`) are never flagged. The shared grammar
+    (`parseSchemaCellRef` / `detectSchemaCellNearMiss`) lives in the contract
+    parser so all three surfaces and the Python validator key off one definition.
+
 ## [3.2.0] - 2026-06-15
 
 ### Added

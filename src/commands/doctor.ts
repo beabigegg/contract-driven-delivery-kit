@@ -9,7 +9,7 @@ import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
 import { detectChokepoints } from './chokepoints.js';
 import { staleMetadataReport, writeMetadataFiles } from './metadata.js';
-import { stripFrontmatter, parseEndpoints, parseContractSchemas, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH } from '../contracts/parser.js';
+import { stripFrontmatter, parseEndpoints, parseContractSchemas, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH } from '../contracts/parser.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -327,24 +327,46 @@ function checkResponseShapeCoverage(cwd: string): Finding[] {
   const applicable = (() => { try { return detectStack(cwd).primary !== 'unknown'; } catch { return false; } })();
   const hasManifest = existsSync(join(cwd, 'tests', 'contract', 'response-samples.json'));
 
+  const findings: Finding[] = [];
+
+  // Near-miss: a response cell names a DEFINED schema but in a non-bare form
+  // (`→ AckResponse`, `AckResponse (success)`), so cdd-kit treats it as prose and
+  // emits no $ref — the body is silently unenforced. This is a high-signal typo,
+  // not incremental adoption, so surface it as its own warning (trips --strict)
+  // rather than letting it hide inside the aggregate "0 typed" count.
+  const definedNames = new Set(Object.keys(schemas));
+  const nearMisses = endpoints
+    .map(e => ({ e, nm: detectSchemaCellNearMiss(e.response, definedNames) }))
+    .filter((x): x is { e: typeof x.e; nm: NonNullable<typeof x.nm> } => x.nm !== null)
+    .map(({ e, nm }) => `${e.method.toUpperCase()} ${e.path} response cell "${e.response.trim()}" → use bare \`${nm.suggestion}\``);
+  if (nearMisses.length > 0) {
+    const head = nearMisses.slice(0, 3).join('; ');
+    const more = nearMisses.length > 3 ? ` (+${nearMisses.length - 3} more)` : '';
+    findings.push({
+      level: 'warning',
+      message: `Response-shape: ${nearMisses.length} response cell(s) name a defined schema in a non-bare form, so cdd-kit treats them as prose and the body is NOT enforced — ${head}${more}. Use the bare schema name (ADR 0007).`,
+    });
+  }
+
   if (typed === 0) {
-    return [{
+    findings.push({
       level: applicable ? 'warning' : 'ok',
       message: applicable
         ? `Response-shape: ${endpoints.length} endpoint(s), 0 with a typed response schema — response bodies are prose, so the data-shape gate enforces nothing. Migrate high-value endpoints to a typed \`## Schemas\` entry + add tests/contract/response-samples.json (ADR 0007).`
         : 'Response-shape: response bodies are prose; declare typed `## Schemas` entries to enable the data-shape gate (ADR 0007).',
-    }];
-  }
-  if (!hasManifest) {
-    return [{
+    });
+  } else if (!hasManifest) {
+    findings.push({
       level: 'warning',
       message: `Response-shape: ${typed} endpoint(s) declare a typed response schema but tests/contract/response-samples.json is absent — copy tests/contract/response-samples.example.json and capture samples so the gate enforces them (ADR 0007).`,
-    }];
+    });
+  } else {
+    findings.push({
+      level: 'ok',
+      message: `Response-shape: ${typed} typed response endpoint(s) with a sample manifest — the data-shape gate enforces response bodies (cdd-kit validate --contracts).`,
+    });
   }
-  return [{
-    level: 'ok',
-    message: `Response-shape: ${typed} typed response endpoint(s) with a sample manifest — the data-shape gate enforces response bodies (cdd-kit validate --contracts).`,
-  }];
+  return findings;
 }
 
 function checkMcpRegistration(cwd: string, provider: string): Finding[] {

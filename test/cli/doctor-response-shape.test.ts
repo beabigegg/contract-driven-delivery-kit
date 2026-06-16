@@ -93,6 +93,32 @@ describe('cdd-kit doctor — response-shape coverage (ADR 0007)', () => {
     expect(out).toMatch(/the data-shape gate enforces response bodies/);
   });
 
+  it('warns on a near-miss: a response cell names a defined schema in a non-bare form', () => {
+    writeContract(`---
+summary: API
+schema-version: 1.0.0
+---
+# API
+
+| method | path | auth | request schema | response schema | errors | tests |
+|--------|------|------|----------------|-----------------|--------|-------|
+| POST | /api/summary | public | - | → Summary | - | yes |
+
+## Schemas
+
+### Summary
+
+\`\`\`json-schema
+{ "type": "object", "required": ["totalLots"], "properties": { "totalLots": { "type": "integer" } } }
+\`\`\`
+`);
+    writeStackSignal();
+    const r = runCli(['doctor'], { cwd: repo, home });
+    const out = `${r.stdout}${r.stderr}`;
+    expect(out).toMatch(/name a defined schema in a non-bare form/);
+    expect(out).toMatch(/use bare `Summary`/);
+  });
+
   it('emits no response-shape finding when there is no API contract', () => {
     writeStackSignal();
     const r = runCli(['doctor'], { cwd: repo, home });
