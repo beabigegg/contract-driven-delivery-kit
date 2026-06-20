@@ -109,7 +109,8 @@ export function renderYaml(entries: FileEntry[], opts: RenderOptions): string {
     if (i > 0) bodyLines.push('');  // blank line between files
 
     const pathKey = quotePath(e.path);
-    bodyLines.push(`${pathKey}:  # ${e.total_lines} lines`);
+    const staleMarker = e.stale ? '  (STALE: parse failed last run; last-good symbols retained)' : '';
+    bodyLines.push(`${pathKey}:  # ${e.total_lines} lines${staleMarker}`);
 
     if (e.imports.length > 0) {
       bodyLines.push('  imports:');

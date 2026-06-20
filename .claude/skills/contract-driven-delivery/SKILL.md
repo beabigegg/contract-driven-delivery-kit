@@ -19,6 +19,7 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Use `scripts/detect_project_profile.py` when useful.
    - Capture stack, commands, contracts, tests, and CI/CD.
    - Invoke repo-context-scanner to capture project profile and standardization gaps.
+   - Refresh the structural index before any planning agent reads it: run `cdd-kit code-map`. The planning agents (`test-strategist`, `spec-architect`, `implementation-planner`) have no shell access and read `.cdd/code-map.yml` as a static snapshot, so a stale map hands them wrong file/line ranges. Implementation agents (backend/frontend/bug-fix) auto-refresh via their own `cdd-kit graph/index` queries, so this one refresh covers the no-shell planning stage.
 3. Select required artifacts.
    - Use templates in `templates/`.
    - Do not force every artifact for tiny changes, but do require `change-classification.md`, `implementation-plan.md`, `test-plan.md`, and `ci-gates.md` for implementation changes.

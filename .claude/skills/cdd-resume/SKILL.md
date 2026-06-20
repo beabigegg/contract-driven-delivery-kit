@@ -57,6 +57,22 @@ Read `specs/changes/<change-id>/agent-log/` to list which agents have already ru
 
 Read `specs/changes/<change-id>/change-classification.md` to recall the tier and required agents.
 
+### Refresh the code map before re-commissioning planning agents
+
+A resume happens after a break, so source has likely changed since the map was
+last built. The planning agents resumed below (`spec-architect`,
+`implementation-planner`, `test-strategist`) have no shell access and read
+`.cdd/code-map.yml` directly as a **static snapshot** — a stale one gives them
+wrong file/line ranges. Before resuming any of them, regenerate it once:
+
+```bash
+cdd-kit code-map
+```
+
+Implementation agents (backend/frontend/bug-fix) auto-refresh on their own
+`cdd-kit graph/index` queries, so this single refresh covers the no-shell
+planning stage.
+
 If `change-classification.md` requires `design.md` (`Architecture Review Required: yes`, Optional Artifacts `design.md: yes`, or Required Agents includes `spec-architect`) and `design.md` is missing or still a scaffold, resume from `spec-architect` before invoking `implementation-planner`.
 
 Read `specs/changes/<change-id>/implementation-plan.md` if it exists. If implementation tasks are still pending and the plan is missing or still a scaffold, resume from `implementation-planner` before invoking backend/frontend/test implementation agents.

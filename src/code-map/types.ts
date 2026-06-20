@@ -71,6 +71,14 @@ export interface FileEntry {
   interfaces?: TypeDefEntry[];
   types?: TypeDefEntry[];
   enums?: EnumEntry[];
+  /**
+   * Set when this entry was carried over from the previous map because the file
+   * failed to parse on the latest run (last-good retention — keeps the symbols
+   * queryable instead of letting a mid-edit syntax error delete the file from
+   * the index). Surfaced only as a header comment by the renderer; never read
+   * back as a structured field.
+   */
+  stale?: boolean;
 }
 
 export interface ScannerWarning {

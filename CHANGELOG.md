@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-06-20
+
+### Added
+
+- **tsconfig/jsconfig path-alias resolution in the code graph.** Non-relative
+  imports resolved through `compilerOptions.paths` aliases (`@/x`, `~/x`) or a
+  `baseUrl` root are now linked to real `imports` edges instead of being dropped
+  as third-party — previously the dominant source of missing edges (and the
+  downstream unresolved call/extends refs they carry) in alias-heavy Vue/React
+  projects. Each candidate is gated by membership in the scanned file set, so a
+  stray guess at a real npm package is simply ignored. Projects that declare no
+  alias config are unaffected: the resolver returns `null` and resolution is
+  byte-for-byte identical to before. New module
+  `src/code-graph/tsconfig-paths.ts` (tolerant JSONC parse, one level of
+  `extends`, classic `baseUrl` resolution for bare specifiers).
+
+- **Last-good retention when a source file fails to parse.** A file that threw a
+  parse error during `cdd-kit code-map` previously vanished from the index,
+  blinding agents to a file that was merely mid-edit and momentarily broken. Its
+  previous entry is now carried over and flagged in the map header
+  (`path:  # N lines  (STALE: parse failed last run; last-good symbols retained)`)
+  so its symbols stay queryable until the syntax is valid again. Brand-new
+  unparseable files — with nothing to retain — still drop, as before. This is
+  the write-side complement to the agent-read-discipline change below.
+
+### Changed
+
+- **Index discipline: a direct `Read .cdd/code-map.yml` is now a last-resort
+  fallback, not an equal first option.** Only the `cdd-kit graph/index` query
+  path auto-refreshes the map (and the native graph) before answering; a raw
+  file read returns a static snapshot that can lag edits made earlier in the
+  same change. `backend-engineer` and `frontend-engineer` now reach for the
+  refreshing query first and read the raw file only when shell access is
+  unavailable, with an explicit staleness caveat. The `/cdd-new`,
+  `/cdd-resume`, and `contract-driven-delivery` skills now run `cdd-kit code-map`
+  before commissioning the no-shell planning agents (`spec-architect`,
+  `implementation-planner`, `test-strategist`), which can only read the static
+  file.
+
 ## [3.3.0] - 2026-06-16
 
 ### Added

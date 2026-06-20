@@ -5,12 +5,14 @@ import { log } from '../utils/logger.js';
 import { renderYaml } from '../code-map/yaml-writer.js';
 import { walkRepo, bucketByExtension, scanInProcess } from '../code-map/orchestrator.js';
 import { loadCodeMapConfig } from '../code-map/config.js';
-import { sidecarPathFor } from '../code-map/index-reader.js';
+import { sidecarPathFor, loadCodeMapEntries } from '../code-map/index-reader.js';
+import { canonicalRelPath } from '../code-map/scanners/common.js';
 import { buildCodeGraph } from '../code-graph/builder.js';
+import { loadPathAliases } from '../code-graph/tsconfig-paths.js';
 import { graphPathFor } from '../code-graph/reader.js';
 import { sha256OfFileNormalized } from '../utils/digest.js';
 import { ensureGitignoreEntry } from '../utils/gitignore.js';
-import type { Scanner, ScannerResult } from '../code-map/types.js';
+import type { Scanner, ScannerResult, FileEntry } from '../code-map/types.js';
 
 /**
  * Compute a stable digest of the source files included in a code-map run.
@@ -163,6 +165,31 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
     result.warnings.push(...r.warnings);
   }
 
+  // Last-good retention: a file that failed to parse this run is absent from
+  // `entries`, which would make it VANISH from the index — exactly the trap
+  // when an agent re-queries while a file is mid-edit and momentarily broken.
+  // Carry over its previous entry (marked stale) so its symbols stay
+  // queryable until the syntax is valid again. Only files that HAD a prior
+  // entry are retained; genuinely new unparseable files still drop.
+  if (existsSync(out)) {
+    const presentPaths = new Set(result.entries.map(e => e.path));
+    const missing = files
+      .map(abs => canonicalRelPath(abs, root))
+      .filter(rel => !presentPaths.has(rel));
+    if (missing.length > 0) {
+      let previous: FileEntry[] = [];
+      try { previous = loadCodeMapEntries(out); } catch { previous = []; }
+      const prevByPath = new Map(previous.map(e => [e.path, e]));
+      for (const rel of missing) {
+        const prev = prevByPath.get(rel);
+        if (prev) {
+          result.entries.push({ ...prev, stale: true });
+          if (!opts.silent) log.warn(`${rel}: parse failed — retained last-good map entry (stale)`);
+        }
+      }
+    }
+  }
+
   // Sort entries by canonical path (bytes-wise, locale-independent)
   result.entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
@@ -230,9 +257,11 @@ export async function codeMap(opts: CodeMapOptions): Promise<number> {
       ensureGitignoreEntry(process.cwd(), rel, 'cdd-kit local cache (do not commit)');
     }
     const graphPath = graphPathFor(out);
+    const aliasResolver = loadPathAliases(root);
     const graph = buildCodeGraph(result.entries, {
       generator: `cdd-kit ${_pkg.version}`,
       sourcesDigest,
+      ...(aliasResolver ? { aliasResolver } : {}),
     });
     writeFileSync(graphPath, JSON.stringify(graph, null, 2) + '\n', 'utf8');
     const graphRel = relative(process.cwd(), graphPath).replace(/\\/g, '/');

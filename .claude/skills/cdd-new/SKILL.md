@@ -211,6 +211,25 @@ cdd-kit context-scan
 
 Do not use broad search or ad hoc reads to classify the change before `context-scan` has completed.
 
+### Refresh the code map before planning
+
+`cdd-kit new` and `cdd-kit context-scan` build the context indexes
+(`project-map.md`, `contracts-index.md`) but do NOT regenerate
+`.cdd/code-map.yml`. The planning agents in Step 3 (`spec-architect`,
+`test-strategist`, `implementation-planner`) have no shell access, so they read
+that file directly as a **static snapshot** — if it lags current source, their
+file/line ranges are wrong. Regenerate it once now, before classification:
+
+```bash
+cdd-kit code-map
+```
+
+Run it once here. Implementation agents (backend/frontend/bug-fix) have shell
+access and auto-refresh on their own `cdd-kit graph/index` queries, so this
+single refresh is what covers the no-shell planning stage. Skip it only if you
+just ran `cdd-kit code-map` (or a pre-commit hook did) since the last source
+edit.
+
 The generated scaffold contains the artifacts listed in the table below. **All
 templates are written from disk by `cdd-kit new` — do not paste template bodies
 into this prompt.** The on-disk source of truth lives in `specs/templates/` of

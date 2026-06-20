@@ -9,12 +9,19 @@ import type {
   CodeGraphNodeKind,
   CodeGraphUnresolvedRef,
 } from './types.js';
+import type { AliasResolver } from './tsconfig-paths.js';
 
 const RESOLUTION_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue', '.py'] as const;
 
 interface BuildOptions {
   generator: string;
   sourcesDigest: string;
+  /**
+   * Resolves non-relative imports (tsconfig `paths` aliases like `@/x` and
+   * `baseUrl`-rooted bare specifiers) to candidate repo-relative base paths.
+   * When absent, every non-relative import is treated as third-party, as before.
+   */
+  aliasResolver?: AliasResolver;
 }
 
 interface SymbolTarget {
@@ -117,15 +124,32 @@ function resolutionCandidates(base: string): string[] {
   return [...new Set(candidates)];
 }
 
-function resolveLocalModule(importerPath: string, moduleName: string, pathSet: Set<string>): string | undefined {
-  if (!isLocalImport(moduleName)) return undefined;
+function resolveLocalModule(
+  importerPath: string,
+  moduleName: string,
+  pathSet: Set<string>,
+  aliasResolver?: AliasResolver,
+): string | undefined {
+  if (isLocalImport(moduleName)) {
+    const base = moduleName.startsWith('./') || moduleName.startsWith('../')
+      ? posix.normalize(posix.join(posix.dirname(importerPath), moduleName))
+      : resolvePythonRelativeImport(importerPath, moduleName);
 
-  const base = moduleName.startsWith('./') || moduleName.startsWith('../')
-    ? posix.normalize(posix.join(posix.dirname(importerPath), moduleName))
-    : resolvePythonRelativeImport(importerPath, moduleName);
+    for (const candidate of resolutionCandidates(base)) {
+      if (pathSet.has(candidate)) return candidate;
+    }
+    return undefined;
+  }
 
-  for (const candidate of resolutionCandidates(base)) {
-    if (pathSet.has(candidate)) return candidate;
+  // Non-relative: try tsconfig `paths` aliases and baseUrl-rooted specifiers.
+  // Each candidate base is gated by pathSet membership, so a stray guess that
+  // points at a non-existent file (e.g. a real npm package) is simply ignored.
+  if (aliasResolver) {
+    for (const base of aliasResolver(moduleName)) {
+      for (const candidate of resolutionCandidates(base)) {
+        if (pathSet.has(candidate)) return candidate;
+      }
+    }
   }
   return undefined;
 }
@@ -261,7 +285,7 @@ export function buildCodeGraph(entries: FileEntry[], opts: BuildOptions): CodeGr
     importBindingsByFile.set(entry.path, bindings);
 
     for (const imp of entry.imports) {
-      const resolved = resolveLocalModule(entry.path, imp.module, pathSet);
+      const resolved = resolveLocalModule(entry.path, imp.module, pathSet, opts.aliasResolver);
       if (resolved) {
         addEdge(edges, file.id, fileNodes.get(resolved)!.id, 'imports', imp.line, 'ast', { module: imp.module });
       }

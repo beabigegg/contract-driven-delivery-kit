@@ -11,7 +11,7 @@ Before editing production code, read `specs/changes/<change-id>/implementation-p
 
 ## Code map (READ FIRST)
 
-Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit index query "<symbol-or-file>" --with-source` or `Read .cdd/code-map.yml`.
+Before reading ANY source file (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.vue`), FIRST run `cdd-kit index query "<symbol-or-file>" --with-source`. This auto-refreshes the map before answering, so it reflects edits made earlier in this change. Read `.cdd/code-map.yml` directly ONLY as a last resort when you cannot run commands: that file is a static snapshot and may be stale relative to source you (or a sibling agent) just edited, so treat its line ranges as approximate and re-verify before relying on them.
 Prefer `--with-source`: it returns the matched symbol's code inline, so you do NOT need a separate `Read` for that range. Use a plain `Read` only when you need lines the query did not return (e.g. a range flagged as source-budget truncated).
 Before editing a chosen source file, run `cdd-kit index impact "<path-or-symbol>"` to identify indexed local imports and dependents.
 

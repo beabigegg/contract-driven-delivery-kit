@@ -1,196 +1,6 @@
-# generated: 2026-05-27T05:00:00Z by cdd-kit 2.1.0
-# files: 112, src-lines: 16716, map-lines: 1575, compression: 10.6x
-# sources-digest: 36b6e0c4040eae35649201939599f69c6079bb3ea155ad643bba4c5db1e5d5be
-assets/code-map/python_scanner.py:  # 206 lines
-  imports:
-    - { module: __future__, items: [annotations], line: 2 }
-    - { module: ast, items: [], line: 4 }
-    - { module: json, items: [], line: 5 }
-    - { module: os, items: [], line: 6 }
-    - { module: sys, items: [], line: 7 }
-    - { module: traceback, items: [], line: 8 }
-  functions:
-    - { name: _check_python_version, lines: 11-18 }
-    - { name: _rel_path, lines: 21-27 }
-    - { name: _is_all_caps, lines: 30-38 }
-    - { name: _expr_name, lines: 41-51 }
-    - { name: _calls_in, lines: 54-65 }
-    - { name: scan_file, lines: 68-180 }
-    - { name: main, lines: 183-202 }
-
-assets/skills/contract-driven-delivery/scripts/detect_project_profile.py:  # 128 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-  constants:
-    - { name: FRONTEND_MARKERS, line: 6 }
-    - { name: BACKEND_MARKERS, line: 7 }
-    - { name: CI_MARKERS, line: 8 }
-    - { name: CONTRACT_DIRS, line: 9 }
-    - { name: CDD_KIT_SKILL, line: 12 }
-  functions:
-    - { name: exists, lines: 14-15 }
-    - { name: list_existing, lines: 17-18 }
-    - { name: cdd_kit_installed, lines: 20-22 }
-    - { name: classify_agents, lines: 24-42 }
-    - { name: classify_skills, lines: 44-57 }
-    - { name: detect_commands, lines: 59-69 }
-    - { name: main, lines: 71-125 }
-
-assets/skills/contract-driven-delivery/scripts/generate_change_scaffold.py:  # 48 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: shutil, items: [], line: 5 }
-  functions:
-    - { name: main, lines: 7-46 }
-
-assets/skills/contract-driven-delivery/scripts/validate_api_semantic.py:  # 162 lines
-  imports:
-    - { module: sys, items: [], line: 12 }
-    - { module: re, items: [], line: 13 }
-    - { module: pathlib, items: [Path], line: 14 }
-  constants:
-    - { name: VALID_METHODS, line: 16 }
-    - { name: VALID_AUTH, line: 17 }
-    - { name: CONTRACT_PATH, line: 19 }
-  functions:
-    - { name: strip_frontmatter, lines: 22-28 }
-    - { name: parse_table_row, lines: 31-35 }
-    - { name: is_separator_row, lines: 38-40 }
-    - { name: find_endpoint_table, lines: 43-85 }
-    - { name: main, lines: 88-158 }
-
-assets/skills/contract-driven-delivery/scripts/validate_ci_gates.py:  # 42 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED_TERMS, line: 5 }
-  functions:
-    - { name: check_file, lines: 6-15 }
-    - { name: main, lines: 16-41 }
-
-assets/skills/contract-driven-delivery/scripts/validate_contract_versions.py:  # 385 lines
-  imports:
-    - { module: argparse, items: [], line: 13 }
-    - { module: hashlib, items: [], line: 14 }
-    - { module: re, items: [], line: 15 }
-    - { module: subprocess, items: [], line: 16 }
-    - { module: sys, items: [], line: 17 }
-    - { module: pathlib, items: [Path], line: 18 }
-  constants:
-    - { name: CONTRACT_FILES, line: 22 }
-    - { name: VALID_CONTRACT_TYPES, line: 31 }
-    - { name: VALID_BREAKING_POLICIES, line: 32 }
-    - { name: SEMVER_RE, line: 33 }
-    - { name: DATE_RE, line: 34 }
-    - { name: CHANGELOG_PATH, line: 36 }
-  functions:
-    - { name: parse_frontmatter, lines: 40-62 }
-    - { name: strip_frontmatter, lines: 65-68 }
-    - { name: sha256_of, lines: 71-72 }
-    - { name: parse_semver, lines: 77-83 }
-    - { name: is_pre_1_0, lines: 86-87 }
-    - { name: parse_changelog, lines: 92-123 }
-    - { name: git_available, lines: 128-139 }
-    - { name: git_show_head, lines: 142-159 }
-    - { name: validate_format, lines: 164-223 }
-    - { name: validate_file, lines: 226-349 }
-    - { name: main, lines: 354-381 }
-
-assets/skills/contract-driven-delivery/scripts/validate_contracts.py:  # 37 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-    - { module: re, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED, line: 5 }
-    - { name: PLACEHOLDER_THRESHOLD, line: 6 }
-  functions:
-    - { name: meaningful_chars, lines: 8-19 }
-    - { name: main, lines: 21-36 }
-
-assets/skills/contract-driven-delivery/scripts/validate_env_contract.py:  # 18 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED_COLUMNS, line: 5 }
-  functions:
-    - { name: main, lines: 6-17 }
-
-assets/skills/contract-driven-delivery/scripts/validate_env_semantic.py:  # 182 lines
-  imports:
-    - { module: sys, items: [], line: 14 }
-    - { module: re, items: [], line: 15 }
-    - { module: pathlib, items: [Path], line: 16 }
-  constants:
-    - { name: CONTRACT_PATH, line: 18 }
-    - { name: COL_NAME, line: 21 }
-    - { name: COL_REQUIRED, line: 22 }
-    - { name: COL_SECRET, line: 23 }
-    - { name: COL_DEFAULT, line: 24 }
-  functions:
-    - { name: strip_frontmatter, lines: 27-33 }
-    - { name: parse_table_row, lines: 36-39 }
-    - { name: is_separator_row, lines: 42-44 }
-    - { name: is_truthy, lines: 47-49 }
-    - { name: is_empty_default, lines: 52-54 }
-    - { name: find_variable_table, lines: 57-104 }
-    - { name: main, lines: 107-178 }
-
-assets/skills/contract-driven-delivery/scripts/validate_spec_traceability.py:  # 44 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED, line: 5 }
-  functions:
-    - { name: check_change_dir, lines: 6-19 }
-    - { name: main, lines: 20-43 }
-
-assets/tests-templates/soak/k6-example.js:  # 19 lines
-  imports:
-    - { module: k6/http, items: ['default:http'], line: 1 }
-    - { module: k6, items: [check, sleep], line: 2 }
-  constants:
-    - { name: BASE_URL, line: 13 }
-  functions:
-    - { name: default, lines: 15-19 }
-
-assets/tests-templates/soak/locust-example.py:  # 21 lines
-  imports:
-    - { module: locust, items: [HttpUser, task, between], line: 11 }
-  classes:
-    - name: SoakUser
-      lines: 14-21
-      methods:
-        - { name: health_check, lines: 18-21 }
-
-assets/tests-templates/stress/k6-example.js:  # 22 lines
-  imports:
-    - { module: k6/http, items: ['default:http'], line: 1 }
-    - { module: k6, items: [check, sleep], line: 2 }
-  constants:
-    - { name: BASE_URL, line: 16 }
-  functions:
-    - { name: default, lines: 18-22 }
-
-assets/tests-templates/stress/locust-example.py:  # 21 lines
-  imports:
-    - { module: locust, items: [HttpUser, task, between], line: 7 }
-  classes:
-    - name: StressUser
-      lines: 10-21
-      methods:
-        - { name: health_check, lines: 14-17 }
-        - { name: list_items, lines: 20-21 }
-
+# generated: 2026-06-20T12:13:42Z by cdd-kit 3.4.0
+# files: 180, src-lines: 36033, map-lines: 2687, compression: 13.4x
+# sources-digest: 5feccd6c06f5a7ccd302942b6b134235b46f0e5bd87e860ec17b11cb783a9683
 bin/cdd.js:  # 2 lines
   imports:
     - { module: '../dist/cli/index.js', items: [], line: 2 }
@@ -202,16 +12,17 @@ bin/postinstall.js:  # 20 lines
     - { module: 'node:path', items: [join, dirname], line: 4 }
     - { module: 'node:url', items: [fileURLToPath], line: 5 }
 
-build.js:  # 88 lines
+build.js:  # 100 lines
   imports:
     - { module: esbuild, items: [build], line: 1 }
     - { module: fs, items: [cpSync, mkdirSync, rmSync, existsSync], line: 2 }
     - { module: path, items: [join, dirname], line: 8 }
     - { module: url, items: [fileURLToPath], line: 9 }
   functions:
-    - { name: copy, lines: 51-61 }
+    - { name: shouldCopyAsset, lines: 51-60 }
+    - { name: copy, lines: 62-72 }
 
-src/cli/index.ts:  # 521 lines
+src/cli/index.ts:  # 900 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: os, items: ['default:os'], line: 2 }
@@ -224,60 +35,71 @@ src/cli/index.ts:  # 521 lines
     - { module: '../commands/validate.js', items: [validate], line: 9 }
     - { module: '../commands/gate.js', items: [gate], line: 10 }
     - { module: '../commands/install-hooks.js', items: [installHooks], line: 11 }
-    - { module: '../utils/stack-detect.js', items: [detectStack], line: 12 }
-    - { module: '../utils/provider.js', items: [ProviderOption], line: 13 }
+    - { module: '../commands/install-agent-hooks.js', items: [installAgentHooks], line: 12 }
+    - { module: '../commands/openapi-export.js', items: [openapiExport], line: 13 }
+    - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH], line: 14 }
+    - { module: '../utils/stack-detect.js', items: [detectStack], line: 15 }
+    - { module: '../utils/provider.js', items: [ProviderOption], line: 16 }
   functions:
-    - { name: collectRepeatable, lines: 163-166 }
-    - { name: resolveWorkers, lines: 179-186 }
+    - { name: collectRepeatable, lines: 196-199 }
+    - { name: resolveWorkers, lines: 212-219 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 168-176 }  # local
+    - { name: CodeMapCliOpts, lines: 201-209 }  # local
 
-src/code-graph/builder.ts:  # 375 lines
+src/code-graph/builder.ts:  # 399 lines
   imports:
     - { module: crypto, items: [createHash], line: 1 }
     - { module: path, items: [posix], line: 2 }
     - { module: '../code-map/types.js', items: [FileEntry, ImportEntry], line: 3 }
     - { module: './types.js', items: [CodeGraphEdge, CodeGraphFile, CodeGraphIndex, CodeGraphNode, CodeGraphNodeKind, CodeGraphUnresolvedRef], line: 4 }
+    - { module: './tsconfig-paths.js', items: [AliasResolver], line: 12 }
   constants:
-    - { name: RESOLUTION_EXTENSIONS, line: 13 }
+    - { name: RESOLUTION_EXTENSIONS, line: 14 }
   functions:
-    - { name: stableId, lines: 25-27 }
-    - { name: nodeId, lines: 29-31 }
-    - { name: edgeId, lines: 33-35 }
-    - { name: fileNode, lines: 37-47 }
-    - { name: symbolNode, lines: 49-68 }
-    - { name: addEdge, lines: 70-80 }
-    - { name: isLocalImport, lines: 82-84 }
-    - { name: resolvePythonRelativeImport, lines: 86-96 }
-    - { name: resolutionCandidates, lines: 98-118 }
-    - { name: resolveLocalModule, lines: 120-131 }
-    - { name: importedBindings, lines: 133-150 }
-    - { name: simpleName, lines: 152-154 }
-    - { name: isWithin, lines: 156-158 }
-    - { name: findCallerNode, lines: 160-166 }
-    - { name: buildCodeGraph, lines: 168-334 }
-    - { name: resolveSymbol, lines: 336-357 }
-    - { name: symbolLookupNames, lines: 359-363 }
-    - { name: dedupeBy, lines: 365-375 }
+    - { name: stableId, lines: 32-34 }
+    - { name: nodeId, lines: 36-38 }
+    - { name: edgeId, lines: 40-42 }
+    - { name: fileNode, lines: 44-54 }
+    - { name: symbolNode, lines: 56-75 }
+    - { name: addEdge, lines: 77-87 }
+    - { name: isLocalImport, lines: 89-91 }
+    - { name: resolvePythonRelativeImport, lines: 93-103 }
+    - { name: resolutionCandidates, lines: 105-125 }
+    - { name: resolveLocalModule, lines: 127-155 }
+    - { name: importedBindings, lines: 157-174 }
+    - { name: simpleName, lines: 176-178 }
+    - { name: isWithin, lines: 180-182 }
+    - { name: findCallerNode, lines: 184-190 }
+    - { name: buildCodeGraph, lines: 192-358 }
+    - { name: resolveSymbol, lines: 360-381 }
+    - { name: symbolLookupNames, lines: 383-387 }
+    - { name: dedupeBy, lines: 389-399 }
   interfaces:
-    - { name: BuildOptions, lines: 15-18 }  # local
-    - { name: SymbolTarget, lines: 20-23 }  # local
+    - { name: BuildOptions, lines: 16-25 }  # local
+    - { name: SymbolTarget, lines: 27-30 }  # local
 
-src/code-graph/queries.ts:  # 143 lines
+src/code-graph/queries.ts:  # 275 lines
   imports:
-    - { module: './types.js', items: [CodeGraphEdge, CodeGraphIndex, CodeGraphNode], line: 1 }
+    - { module: './types.js', items: [CodeGraphEdge, CodeGraphEdgeKind, CodeGraphIndex, CodeGraphNode, CodeGraphUnresolvedRef], line: 1 }
+  constants:
+    - { name: CANDIDATE_CAP, line: 58 }
   functions:
-    - { name: searchGraph, lines: 19-41 }
-    - { name: findGraphNode, lines: 43-55 }
-    - { name: graphCallers, lines: 57-61 }
-    - { name: graphCallees, lines: 63-67 }
-    - { name: graphImpact, lines: 69-73 }
-    - { name: graphContext, lines: 75-86 }
-    - { name: traverse, lines: 88-134 }
-    - { name: scoreText, lines: 136-143 }
+    - { name: searchGraph, lines: 60-82 }
+    - { name: findGraphNode, lines: 84-96 }
+    - { name: graphCallers, lines: 98-102 }
+    - { name: graphCallees, lines: 104-108 }
+    - { name: graphImpact, lines: 110-120 }
+    - { name: graphUnresolved, lines: 129-197 }
+    - { name: unresolvedBaseName, lines: 200-204 }
+    - { name: graphContext, lines: 206-217 }
+    - { name: traverse, lines: 219-266 }
+    - { name: scoreText, lines: 268-275 }
   interfaces:
     - { name: GraphSearchResult, lines: 3-10 }
-    - { name: GraphImpactResult, lines: 12-17 }
+    - { name: GraphImpactResult, lines: 12-23 }
+    - { name: UnresolvedCandidate, lines: 26-31 }
+    - { name: UnresolvedRefView, lines: 34-47 }
+    - { name: GraphUnresolvedResult, lines: 49-56 }
 
 src/code-graph/reader.ts:  # 19 lines
   imports:
@@ -286,6 +108,21 @@ src/code-graph/reader.ts:  # 19 lines
   functions:
     - { name: graphPathFor, lines: 4-8 }
     - { name: loadCodeGraph, lines: 10-19 }
+
+src/code-graph/tsconfig-paths.ts:  # 135 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [dirname, isAbsolute, join, relative, resolve], line: 2 }
+  functions:
+    - { name: parseJsonc, lines: 30-40 }
+    - { name: resolveExtendsTarget, lines: 42-50 }
+    - { name: readConfigFile, lines: 53-73 }
+    - { name: loadPathAliases, lines: 81-135 }
+  interfaces:
+    - { name: TsCompilerOptions, lines: 14-17 }  # local
+    - { name: TsConfig, lines: 19-22 }  # local
+  types:
+    - { name: AliasResolver, lines: 12-12 }
 
 src/code-graph/types.ts:  # 67 lines
   interfaces:
@@ -299,23 +136,23 @@ src/code-graph/types.ts:  # 67 lines
     - { name: CodeGraphEdgeKind, lines: 12-19 }
     - { name: CodeGraphProvenance, lines: 21-21 }
 
-src/code-map/config.ts:  # 135 lines
+src/code-map/config.ts:  # 137 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
     - { module: js-yaml, items: ['load:yamlLoad'], line: 3 }
   constants:
     - { name: BUILTIN_INCLUDE, line: 8 }
-    - { name: BUILTIN_EXCLUDE, line: 25 }
-    - { name: CONFIG_REL_PATH, line: 56 }
+    - { name: BUILTIN_EXCLUDE, line: 26 }
+    - { name: CONFIG_REL_PATH, line: 58 }
   functions:
-    - { name: asStringArray, lines: 63-74 }
-    - { name: loadCodeMapConfig, lines: 86-135 }
+    - { name: asStringArray, lines: 65-76 }
+    - { name: loadCodeMapConfig, lines: 88-137 }
   interfaces:
-    - { name: ResolvedConfig, lines: 47-54 }
-    - { name: RawConfig, lines: 58-61 }  # local
+    - { name: ResolvedConfig, lines: 49-56 }
+    - { name: RawConfig, lines: 60-63 }  # local
 
-src/code-map/freshness.ts:  # 114 lines
+src/code-map/freshness.ts:  # 121 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, statSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -323,10 +160,10 @@ src/code-map/freshness.ts:  # 114 lines
     - { module: './config.js', items: [loadCodeMapConfig], line: 4 }
     - { module: '../commands/code-map.js', items: [computeSourcesDigest], line: 5 }
   functions:
-    - { name: checkCodeMapFreshness, lines: 28-100 }
-    - { name: readSourcesDigest, lines: 106-114 }
+    - { name: checkCodeMapFreshness, lines: 35-107 }
+    - { name: readSourcesDigest, lines: 113-121 }
   interfaces:
-    - { name: FreshnessResult, lines: 7-14 }
+    - { name: FreshnessResult, lines: 7-21 }
 
 src/code-map/include-exclude.ts:  # 79 lines
   imports:
@@ -338,19 +175,19 @@ src/code-map/include-exclude.ts:  # 79 lines
   interfaces:
     - { name: WalkOptions, lines: 9-19 }
 
-src/code-map/index-reader.ts:  # 130 lines
+src/code-map/index-reader.ts:  # 144 lines
   imports:
-    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync, utimesSync], line: 1 }
     - { module: js-yaml, items: ['default:yaml'], line: 2 }
     - { module: './freshness.js', items: [checkCodeMapFreshness], line: 3 }
     - { module: './types.js', items: [FileEntry], line: 4 }
   functions:
-    - { name: async ensureCodeMapFresh, lines: 13-45 }
-    - { name: sidecarPathFor, lines: 52-54 }
-    - { name: tryLoadSidecar, lines: 63-80 }
-    - { name: loadCodeMapEntries, lines: 82-113 }
-    - { name: extractTotalLines, lines: 115-123 }
-    - { name: unquoteYamlKey, lines: 125-130 }
+    - { name: async ensureCodeMapFresh, lines: 13-59 }
+    - { name: sidecarPathFor, lines: 66-68 }
+    - { name: tryLoadSidecar, lines: 77-94 }
+    - { name: loadCodeMapEntries, lines: 96-127 }
+    - { name: extractTotalLines, lines: 129-137 }
+    - { name: unquoteYamlKey, lines: 139-144 }
   interfaces:
     - { name: EnsureCodeMapResult, lines: 8-11 }
   types:
@@ -382,6 +219,21 @@ src/code-map/python/python_scanner.py:  # 206 lines
     - { name: _calls_in, lines: 54-65 }
     - { name: scan_file, lines: 68-180 }
     - { name: main, lines: 183-202 }
+
+src/code-map/resolve.ts:  # 80 lines
+  imports:
+    - { module: path, items: [posix], line: 1 }
+  constants:
+    - { name: RESOLUTION_EXTENSIONS, line: 8 }
+  functions:
+    - { name: isLocalImport, lines: 11-13 }
+    - { name: resolveLocalModule, lines: 21-32 }
+    - { name: dottedModuleToPath, lines: 35-37 }
+    - { name: resolvePythonRelativeImport, lines: 39-51 }
+    - { name: baseWithExtCandidates, lines: 54-61 }
+    - { name: baseWithoutExtCandidates, lines: 64-66 }
+    - { name: indexAndInitCandidates, lines: 69-74 }
+    - { name: resolutionCandidates, lines: 76-80 }
 
 src/code-map/scanners/common.ts:  # 33 lines
   imports:
@@ -486,7 +338,7 @@ src/code-map/scanners/vue.ts:  # 125 lines
       methods:
         - { name: async scan, lines: 10-122 }
 
-src/code-map/types.ts:  # 96 lines
+src/code-map/types.ts:  # 104 lines
   interfaces:
     - { name: ImportEntry, lines: 1-5 }
     - { name: CallEntry, lines: 7-11 }
@@ -497,10 +349,10 @@ src/code-map/types.ts:  # 96 lines
     - { name: FunctionEntry, lines: 39-45 }
     - { name: TypeDefEntry, lines: 47-51 }
     - { name: EnumEntry, lines: 53-58 }
-    - { name: FileEntry, lines: 60-74 }
-    - { name: ScannerWarning, lines: 76-79 }
-    - { name: ScannerResult, lines: 81-84 }
-    - { name: Scanner, lines: 86-96 }
+    - { name: FileEntry, lines: 60-82 }
+    - { name: ScannerWarning, lines: 84-87 }
+    - { name: ScannerResult, lines: 89-92 }
+    - { name: Scanner, lines: 94-104 }
 
 src/code-map/worker-dispatch.ts:  # 91 lines
   imports:
@@ -519,7 +371,7 @@ src/code-map/worker-dispatch.ts:  # 91 lines
     - { name: scanChunkInChild, lines: 23-60 }
     - { name: async scanLangWithWorkers, lines: 69-91 }
 
-src/code-map/yaml-writer.ts:  # 173 lines
+src/code-map/yaml-writer.ts:  # 184 lines
   imports:
     - { module: './types.js', items: [FileEntry, ClassEntry, FunctionEntry, TypeDefEntry, EnumEntry], line: 1 }
   constants:
@@ -533,27 +385,92 @@ src/code-map/yaml-writer.ts:  # 173 lines
     - { name: renderFunction, lines: 52-60 }
     - { name: renderTypeDef, lines: 62-65 }
     - { name: renderEnum, lines: 67-76 }
-    - { name: renderYaml, lines: 93-173 }
+    - { name: renderYaml, lines: 100-184 }
   interfaces:
-    - { name: RenderOptions, lines: 78-87 }
+    - { name: RenderOptions, lines: 78-94 }
 
-src/commands/abandon.ts:  # 45 lines
+src/commands/abandon.ts:  # 54 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync], line: 2 }
     - { module: js-yaml, items: ['default:yaml'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
   functions:
-    - { name: async abandon, lines: 6-45 }
+    - { name: async abandon, lines: 6-54 }
 
-src/commands/archive.ts:  # 76 lines
+src/commands/archive.ts:  # 94 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, renameSync, readFileSync, writeFileSync, appendFileSync, cpSync, rmSync], line: 2 }
     - { module: js-yaml, items: ['default:yaml'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
   functions:
-    - { name: async archive, lines: 6-76 }
+    - { name: async archive, lines: 6-94 }
+
+src/commands/bug-suspects.ts:  # 438 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 3 }
+    - { module: '../code-graph/reader.js', items: [graphPathFor, loadCodeGraph], line: 4 }
+    - { module: '../code-graph/queries.js', items: [searchGraph, 'graphImpact:nativeGraphImpact'], line: 5 }
+    - { module: './index-query.js', items: [queryEntries], line: 6 }
+    - { module: '../utils/git-paths.js', items: [getStagedPaths], line: 7 }
+    - { module: '../utils/logger.js', items: [log], line: 8 }
+  functions:
+    - { name: emitError, lines: 39-42 }
+    - { name: normalizePath, lines: 44-46 }
+    - { name: parseListSection, lines: 48-57 }
+    - { name: readChangeDir, lines: 59-61 }
+    - { name: parseAllowedPaths, lines: 63-71 }
+    - { name: parseTestPlanFiles, lines: 73-86 }
+    - { name: rangeFromLines, lines: 88-92 }
+    - { name: async bugSuspects, lines: 96-219 }
+    - { name: buildQueryTerms, lines: 227-238 }
+    - { name: async buildFromGraph, lines: 242-321 }
+    - { name: buildFromCodeMap, lines: 325-372 }
+    - { name: buildReason, lines: 376-384 }
+    - { name: isWithinAllowedPaths, lines: 386-393 }
+    - { name: normalizePaths, lines: 395-397 }
+    - { name: printHuman, lines: 399-438 }
+  interfaces:
+    - { name: BugSuspectsOptions, lines: 10-17 }
+    - { name: SuspectCandidate, lines: 19-28 }
+    - { name: BugSuspectsPayload, lines: 30-35 }
+
+src/commands/chokepoints.ts:  # 205 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 1 }
+    - { module: path, items: [join, resolve], line: 2 }
+    - { module: child_process, items: [spawnSync], line: 3 }
+    - { module: './install-agent-hooks.js', items: [GRAPH_FIRST_MARKER, CONTRACT_WRITE_MARKER, TEST_RUNNER_MARKER], line: 4 }
+  constants:
+    - { name: PRECOMMIT_MARKER, line: 38 }
+    - { name: OPENAPI_CHECK_MARKER, line: 40 }
+  functions:
+    - { name: safeRead, lines: 42-48 }
+    - { name: nestedPreToolUseCommands, lines: 58-78 }
+    - { name: probeGraphFirst, lines: 81-91 }
+    - { name: probeContractWrite, lines: 94-104 }
+    - { name: probeTestRunner, lines: 107-117 }
+    - { name: resolveHooksDir, lines: 125-133 }
+    - { name: probePreCommitGate, lines: 136-147 }
+    - { name: probeOpenApiGate, lines: 150-195 }
+    - { name: detectChokepoints, lines: 197-205 }
+  interfaces:
+    - { name: ChokepointStatus, lines: 24-32 }
+
+src/commands/classify-check.ts:  # 78 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: '../utils/tier-floor.js', items: [loadTierPolicy, computeTierFloor], line: 4 }
+    - { module: '../utils/git-paths.js', items: [getTouchedPaths], line: 5 }
+  functions:
+    - { name: async classifyCheck, lines: 25-78 }
+  interfaces:
+    - { name: ClassifyCheckOptions, lines: 7-11 }
 
 src/commands/code-map-hook.ts:  # 77 lines
   imports:
@@ -577,7 +494,25 @@ src/commands/code-map-scan-worker.ts:  # 49 lines
   interfaces:
     - { name: ScanWorkerOptions, lines: 5-9 }
 
-src/commands/code-map.ts:  # 242 lines
+src/commands/code-map-watch.ts:  # 239 lines
+  imports:
+    - { module: fs, items: [watch, FSWatcher], line: 1 }
+    - { module: path, items: [resolve], line: 2 }
+    - { module: picomatch, items: ['default:picomatch'], line: 3 }
+    - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: './code-map.js', items: [codeMap, slugifySurface, CodeMapOptions], line: 5 }
+    - { module: '../code-map/config.js', items: [loadCodeMapConfig, CONFIG_REL_PATH], line: 6 }
+    - { module: '../code-map/index-reader.js', items: [sidecarPathFor], line: 7 }
+    - { module: '../code-graph/reader.js', items: [graphPathFor], line: 8 }
+  functions:
+    - { name: createDebouncedRunner, lines: 48-74 }
+    - { name: generatedArtifactSet, lines: 82-88 }
+    - { name: makeWatchExcludeFilter, lines: 98-105 }
+    - { name: async codeMapWatch, lines: 107-239 }
+  interfaces:
+    - { name: CodeMapWatchOptions, lines: 29-41 }
+
+src/commands/code-map.ts:  # 277 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [resolve, dirname, relative], line: 2 }
@@ -586,240 +521,446 @@ src/commands/code-map.ts:  # 242 lines
     - { module: '../code-map/yaml-writer.js', items: [renderYaml], line: 5 }
     - { module: '../code-map/orchestrator.js', items: [walkRepo, bucketByExtension, scanInProcess], line: 6 }
     - { module: '../code-map/config.js', items: [loadCodeMapConfig], line: 7 }
-    - { module: '../code-map/index-reader.js', items: [sidecarPathFor], line: 8 }
-    - { module: '../code-graph/builder.js', items: [buildCodeGraph], line: 9 }
-    - { module: '../code-graph/reader.js', items: [graphPathFor], line: 10 }
-    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 11 }
-    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 12 }
-    - { module: '../code-map/types.js', items: [Scanner, ScannerResult], line: 13 }
-    - { module: module, items: [createRequire], line: 38 }
-    - { module: url, items: [fileURLToPath], line: 39 }
-    - { module: path, items: [join], line: 40 }
+    - { module: '../code-map/index-reader.js', items: [sidecarPathFor, loadCodeMapEntries], line: 8 }
+    - { module: '../code-map/scanners/common.js', items: [canonicalRelPath], line: 9 }
+    - { module: '../code-graph/builder.js', items: [buildCodeGraph], line: 10 }
+    - { module: '../code-graph/tsconfig-paths.js', items: [loadPathAliases], line: 11 }
+    - { module: '../code-graph/reader.js', items: [graphPathFor], line: 12 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 13 }
+    - { module: '../utils/gitignore.js', items: [ensureGitignoreEntry], line: 14 }
+    - { module: '../code-map/types.js', items: [Scanner, ScannerResult, FileEntry], line: 15 }
+    - { module: module, items: [createRequire], line: 40 }
+    - { module: url, items: [fileURLToPath], line: 41 }
+    - { module: path, items: [join], line: 42 }
   functions:
-    - { name: computeSourcesDigest, lines: 23-35 }
-    - { name: slugifySurface, lines: 68-70 }
-    - { name: async codeMap, lines: 72-242 }
+    - { name: computeSourcesDigest, lines: 25-37 }
+    - { name: slugifySurface, lines: 70-72 }
+    - { name: async codeMap, lines: 74-277 }
   interfaces:
-    - { name: CodeMapOptions, lines: 46-65 }
+    - { name: CodeMapOptions, lines: 48-67 }
 
-src/commands/context-scan.ts:  # 354 lines
+src/commands/context-scan.ts:  # 324 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
-    - { module: crypto, items: [createHash], line: 2 }
-    - { module: path, items: [basename, dirname, join, relative], line: 3 }
-    - { module: '../utils/logger.js', items: [log], line: 4 }
-    - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 7 }
+    - { module: path, items: [basename, dirname, join, relative], line: 2 }
+    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: '../utils/digest.js', items: [inputsDigest], line: 8 }
+    - { module: '../utils/context-inputs.js', items: [findContractFiles, projectMapInputs], line: 9 }
   constants:
-    - { name: DEFAULT_FORBIDDEN, line: 29 }
-    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 55 }
-    - { name: PER_DIR_ENTRY_CAP, line: 132 }
+    - { name: DEFAULT_FORBIDDEN, line: 11 }
+    - { name: FORBIDDEN_DIRECTORY_NAMES, line: 37 }
+    - { name: PER_DIR_ENTRY_CAP, line: 114 }
   functions:
-    - { name: inputsDigest, lines: 19-27 }
-    - { name: stripGlobSuffix, lines: 89-91 }
-    - { name: getForbiddenPaths, lines: 93-109 }
-    - { name: isForbidden, lines: 111-123 }
-    - { name: buildTree, lines: 134-176 }
-    - { name: firstHeading, lines: 178-181 }
-    - { name: deriveContractType, lines: 183-187 }
-    - { name: parseContractMetadata, lines: 189-215 }
-    - { name: findContractFiles, lines: 217-225 }
-    - { name: async contextScan, lines: 231-354 }
+    - { name: stripGlobSuffix, lines: 71-73 }
+    - { name: getForbiddenPaths, lines: 75-91 }
+    - { name: isForbidden, lines: 93-105 }
+    - { name: buildTree, lines: 116-158 }
+    - { name: firstHeading, lines: 160-163 }
+    - { name: deriveContractType, lines: 165-169 }
+    - { name: parseContractMetadata, lines: 171-197 }
+    - { name: async contextScan, lines: 203-324 }
   interfaces:
-    - { name: TreeStats, lines: 125-130 }  # local
-    - { name: ContextScanOptions, lines: 227-229 }
+    - { name: TreeStats, lines: 107-112 }  # local
+    - { name: ContextScanOptions, lines: 199-201 }
 
-src/commands/context.ts:  # 384 lines
+src/commands/context.ts:  # 554 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
-    - { module: picomatch, items: ['default:picomatch'], line: 3 }
-    - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: readline, items: [createInterface], line: 3 }
+    - { module: picomatch, items: ['default:picomatch'], line: 4 }
+    - { module: '../utils/logger.js', items: [log], line: 5 }
+    - { module: '../utils/markdown-section.js', items: [sectionBody], line: 6 }
   constants:
-    - { name: DEFAULT_FORBIDDEN_PATHS, line: 17 }
+    - { name: DEFAULT_FORBIDDEN_PATHS, line: 23 }
   functions:
-    - { name: normalizePath, lines: 28-30 }
-    - { name: validateRepoRelativePath, lines: 32-40 }
-    - { name: manifestPathFor, lines: 42-44 }
-    - { name: readManifest, lines: 46-53 }
-    - { name: writeManifest, lines: 55-57 }
-    - { name: sectionBody, lines: 59-62 }
-    - { name: stripHtmlComments, lines: 64-66 }
-    - { name: parseListSection, lines: 68-74 }
-    - { name: pathMatches, lines: 76-100 }
-    - { name: loadContextPolicy, lines: 102-118 }
-    - { name: parseRequests, lines: 120-158 }
-    - { name: approvedExpansionSet, lines: 160-170 }
-    - { name: replaceSection, lines: 172-177 }
-    - { name: renderRequests, lines: 179-192 }
-    - { name: setRequestStatus, lines: 194-208 }
-    - { name: async requestContextExpansion, lines: 210-240 }
-    - { name: async listContextExpansions, lines: 242-260 }
-    - { name: async checkContextPaths, lines: 262-303 }
-    - { name: applyApproval, lines: 305-318 }
-    - { name: async approveContextExpansion, lines: 320-337 }
-    - { name: async approveAllPending, lines: 339-364 }
-    - { name: async rejectContextExpansion, lines: 366-370 }
-    - { name: async rejectAllPending, lines: 372-384 }
+    - { name: normalizePath, lines: 34-36 }
+    - { name: validateRepoRelativePath, lines: 38-46 }
+    - { name: manifestPathFor, lines: 48-50 }
+    - { name: readManifest, lines: 52-59 }
+    - { name: writeManifest, lines: 61-63 }
+    - { name: parseListSection, lines: 65-71 }
+    - { name: pathMatches, lines: 73-97 }
+    - { name: defaultPolicy, lines: 105-107 }
+    - { name: loadContextPolicy, lines: 114-133 }
+    - { name: autoApprovablePaths, lines: 141-149 }
+    - { name: parseRequests, lines: 151-189 }
+    - { name: approvedExpansionSet, lines: 191-201 }
+    - { name: replaceSection, lines: 203-208 }
+    - { name: renderRequests, lines: 210-223 }
+    - { name: setRequestStatus, lines: 225-239 }
+    - { name: async requestContextExpansion, lines: 241-293 }
+    - { name: async listContextExpansions, lines: 295-313 }
+    - { name: async checkContextPaths, lines: 315-356 }
+    - { name: applyApproval, lines: 358-371 }
+    - { name: async approveContextExpansion, lines: 373-390 }
+    - { name: async approveAllPending, lines: 392-417 }
+    - { name: async autoApproveContextExpansions, lines: 426-468 }
+    - { name: describePathForHuman, lines: 471-476 }
+    - { name: async approveContextExpansionsInteractive, lines: 484-534 }
+    - { name: async rejectContextExpansion, lines: 536-540 }
+    - { name: async rejectAllPending, lines: 542-554 }
   interfaces:
-    - { name: ContextRequest, lines: 6-11 }  # local
-    - { name: ContextPolicy, lines: 13-15 }  # local
+    - { name: ContextRequest, lines: 8-13 }  # local
+    - { name: ContextPolicy, lines: 15-21 }  # local
+    - { name: RawContextPolicy, lines: 109-112 }  # local
 
-src/commands/doctor.ts:  # 442 lines
-  imports:
-    - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 1 }
-    - { module: crypto, items: [createHash], line: 2 }
-    - { module: path, items: [join, relative], line: 3 }
-    - { module: '../utils/logger.js', items: [log], line: 4 }
-    - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, ProviderOption], line: 5 }
-    - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 6 }
-    - { module: './lint-agents.js', items: [collectAgentViolations], line: 7 }
-    - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 45 }
-  functions:
-    - { name: fileExists, lines: 30-32 }
-    - { name: findFiles, lines: 34-42 }
-    - { name: inputDigest, lines: 47-59 }
-    - { name: readContextIndexMetadata, lines: 61-70 }
-    - { name: checkContextFreshness, lines: 72-133 }
-    - { name: readAgentModel, lines: 135-143 }
-    - { name: checkModelPolicyDrift, lines: 145-196 }
-    - { name: checkAgentLint, lines: 198-224 }
-    - { name: checkCodeMap, lines: 226-257 }
-    - { name: async buildDoctorReport, lines: 259-301 }
-    - { name: async attemptAutoFixes, lines: 303-394 }
-    - { name: async doctor, lines: 396-442 }
-  interfaces:
-    - { name: DoctorOptions, lines: 9-14 }
-    - { name: Finding, lines: 16-19 }  # local
-    - { name: DoctorReport, lines: 21-28 }  # local
-
-src/commands/gate.ts:  # 431 lines
-  imports:
-    - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 1 }
-    - { module: path, items: [join], line: 2 }
-    - { module: js-yaml, items: ['default:yaml'], line: 3 }
-    - { module: ajv, items: ['default:Ajv', ErrorObject], line: 4 }
-    - { module: ajv-formats, items: ['default:addFormats'], line: 5 }
-    - { module: '../utils/logger.js', items: [log], line: 6 }
-    - { module: './validate.js', items: [validate], line: 7 }
-    - { module: '../schemas/tasks.schema.js', items: [tasksSchema], line: 8 }
-  constants:
-    - { name: TASKS_STATUS_ENUM, line: 14 }
-    - { name: REQUIRED_FILES, line: 19 }
-    - { name: TIER_PATTERN, line: 29 }
-    - { name: MIN_CHARS, line: 31 }
-    - { name: DEFAULT_ARCHIVE_TASKS, line: 40 }
-  functions:
-    - { name: meaningfulChars, lines: 63-71 }
-    - { name: stripHtmlComments, lines: 73-75 }
-    - { name: countPendingExpansions, lines: 77-87 }
-    - { name: countPendingContextRequests, lines: 89-93 }
-    - { name: loadYamlFile, lines: 95-102 }
-    - { name: ajvErrorsToMessages, lines: 104-131 }
-    - { name: isContextGovernedChange, lines: 133-138 }
-    - { name: lintTasksFile, lines: 140-164 }
-    - { name: resolveTier, lines: 173-206 }
-    - { name: getArchiveTaskIds, lines: 208-211 }
-    - { name: enforceTierConsistency, lines: 213-243 }
-    - { name: isArchivedChange, lines: 245-251 }
-    - { name: detectDependencyCycle, lines: 253-280 }
-    - { name: validateDependencies, lines: 282-322 }
-    - { name: async gate, lines: 324-431 }
-  interfaces:
-    - { name: TaskItem, lines: 42-47 }  # local
-    - { name: TasksFile, lines: 49-57 }  # local
-    - { name: GateOptions, lines: 59-61 }
-    - { name: TierResolution, lines: 166-171 }  # local
-
-src/commands/graph.ts:  # 407 lines
+src/commands/contract-locate.ts:  # 192 lines
   imports:
     - { module: fs, items: [existsSync], line: 1 }
+    - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 2 }
+    - { module: '../code-map/types.js', items: [FileEntry], line: 3 }
+    - { module: './index-impact.js', items: [findTarget], line: 4 }
+    - { module: './contract-query.js', items: [runContractQuery, ContractQueryOptions], line: 5 }
+    - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH], line: 6 }
+  constants:
+    - { name: MAX_CANDIDATES, line: 55 }
+  functions:
+    - { name: candidatesFromEntry, lines: 58-66 }
+    - { name: async contractLocate, lines: 68-157 }
+    - { name: printText, lines: 159-183 }
+    - { name: printFailure, lines: 185-192 }
+  interfaces:
+    - { name: ContractLocateOptions, lines: 21-28 }
+    - { name: LocatedEndpoint, lines: 30-36 }  # local
+    - { name: LocatedSchema, lines: 38-44 }  # local
+    - { name: ContractLocatePayload, lines: 46-53 }  # local
+
+src/commands/contract-query.ts:  # 369 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpointTableRows, parseSchemaSections, extractSection, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH, EndpointTableRow], line: 2 }
+  constants:
+    - { name: DEFAULT_CONTRACT, line: 24 }
+    - { name: DEFAULT_INVENTORY, line: 25 }
+    - { name: ENDPOINT_PROSE_SECTIONS, line: 28 }
+  functions:
+    - { name: runContractQuery, lines: 92-135 }
+    - { name: async contractQuery, lines: 137-149 }
+    - { name: answerEndpoint, lines: 151-190 }
+    - { name: answerList, lines: 192-240 }
+    - { name: schemaAnswer, lines: 242-256 }
+    - { name: referenceCell, lines: 259-261 }
+    - { name: schemaBaseName, lines: 264-268 }
+    - { name: columnEquals, lines: 270-272 }
+    - { name: matchPath, lines: 275-279 }
+    - { name: escapeRegExp, lines: 281-283 }
+    - { name: parseEndpointKey, lines: 286-290 }
+    - { name: toMatch, lines: 292-294 }
+    - { name: scoreText, lines: 296-303 }
+    - { name: scoreRow, lines: 305-309 }
+    - { name: describeListQuery, lines: 311-319 }
+    - { name: hasResult, lines: 321-323 }
+    - { name: printText, lines: 325-360 }
+    - { name: printFailure, lines: 362-369 }
+  interfaces:
+    - { name: ContractQueryOptions, lines: 30-41 }
+    - { name: SourcedRow, lines: 43-46 }  # local
+    - { name: EndpointMatch, lines: 48-54 }
+    - { name: SchemaAnswer, lines: 56-64 }
+    - { name: ProseSection, lines: 66-69 }  # local
+    - { name: ContractQueryPayload, lines: 71-78 }
+    - { name: ContractQueryResult, lines: 80-83 }
+
+src/commands/contract-set.ts:  # 518 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 1 }
+    - { module: '../utils/logger.js', items: [log], line: 2 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseRow, isSeparator, isEndpointHeaderRow, parseSchemaSections, parseContractSchemas, normalizeApiPath, VALID_METHODS, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH], line: 3 }
+  constants:
+    - { name: DEFAULT_CONTRACT, line: 28 }
+    - { name: PRIMITIVE_TYPES, line: 29 }
+    - { name: TABLE_BREAKING_CELL, line: 39 }
+  functions:
+    - { name: tableBreakingCellError, lines: 42-49 }
+    - { name: fail, lines: 57-64 }
+    - { name: toLines, lines: 87-92 }
+    - { name: fromLines, lines: 94-96 }
+    - { name: renderRow, lines: 99-101 }
+    - { name: renderSeparator, lines: 104-106 }
+    - { name: locateEndpointTables, lines: 122-145 }
+    - { name: columnIn, lines: 148-154 }
+    - { name: rowKey, lines: 164-168 }
+    - { name: schemaBaseName, lines: 171-175 }
+    - { name: async contractEndpointSet, lines: 177-312 }
+    - { name: fieldTypeError, lines: 333-344 }
+    - { name: parseFieldSpec, lines: 347-360 }
+    - { name: findSchemaHeadings, lines: 363-387 }
+    - { name: commentMask, lines: 390-401 }
+    - { name: buildSchemaSection, lines: 403-407 }
+    - { name: async contractSchemaSet, lines: 409-510 }
+    - { name: emit, lines: 512-518 }
+  interfaces:
+    - { name: EndpointSetOptions, lines: 66-76 }
+    - { name: SchemaSetOptions, lines: 78-83 }
+    - { name: EndpointTableBlock, lines: 110-116 }  # local
+    - { name: FieldSpec, lines: 316-322 }  # local
+
+src/commands/doctor.ts:  # 740 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, mkdirSync, writeFileSync], line: 1 }
+    - { module: child_process, items: [spawnSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, ProviderOption], line: 5 }
+    - { module: '../utils/stack-detect.js', items: [detectStack], line: 6 }
+    - { module: '../utils/paths.js', items: [ASSET], line: 7 }
+    - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 8 }
+    - { module: './lint-agents.js', items: [collectAgentViolations], line: 9 }
+    - { module: './chokepoints.js', items: [detectChokepoints], line: 10 }
+    - { module: './metadata.js', items: [staleMetadataReport, writeMetadataFiles], line: 11 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpoints, parseContractSchemas, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH], line: 12 }
+    - { module: '../utils/digest.js', items: [inputsDigest], line: 48 }
+    - { module: '../utils/context-inputs.js', items: [findContractFiles, projectMapInputs], line: 49 }
+  functions:
+    - { name: fileExists, lines: 41-43 }
+    - { name: readContextIndexMetadata, lines: 51-60 }
+    - { name: checkContextFreshness, lines: 62-118 }
+    - { name: readAgentModel, lines: 120-128 }
+    - { name: checkModelPolicyDrift, lines: 130-181 }
+    - { name: checkAgentLint, lines: 183-209 }
+    - { name: checkCodeMap, lines: 211-242 }
+    - { name: conformanceApplicable, lines: 251-258 }
+    - { name: checkApiConformance, lines: 260-294 }
+    - { name: checkResponseShapeCoverage, lines: 304-370 }
+    - { name: checkMcpRegistration, lines: 372-428 }
+    - { name: checkChangeMetadata, lines: 437-442 }
+    - { name: checkChokepoints, lines: 444-455 }
+    - { name: async buildDoctorReport, lines: 457-504 }
+    - { name: enableConformanceIfApplicable, lines: 514-543 }
+    - { name: async attemptAutoFixes, lines: 545-654 }
+    - { name: renderSimpleReport, lines: 662-686 }
+    - { name: async doctor, lines: 688-740 }
+  interfaces:
+    - { name: DoctorOptions, lines: 14-25 }
+    - { name: Finding, lines: 27-30 }  # local
+    - { name: DoctorReport, lines: 32-39 }  # local
+
+src/commands/gate-artifacts.ts:  # 165 lines
+  imports:
+    - { module: fs, items: [existsSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: js-yaml, items: ['default:yaml'], line: 3 }
+    - { module: '../schemas/tasks.schema.js', items: [tasksSchema], line: 4 }
+    - { module: './gate-shared.js', items: [ajv, ajvErrorsToMessages, loadYamlFile, TasksFile], line: 5 }
+    - { module: '../utils/markdown-section.js', items: [sectionBody, stripHtmlComments], line: 6 }
+  constants:
+    - { name: TASKS_STATUS_ENUM, line: 10 }
+    - { name: REQUIRED_FILES, line: 15 }
+    - { name: MIN_CHARS, line: 25 }
+    - { name: DEFAULT_ARCHIVE_TASKS, line: 34 }
+    - { name: PLACEHOLDER_LITERALS, line: 49 }
+    - { name: RE_META, line: 51 }
+  functions:
+    - { name: meaningfulChars, lines: 53-61 }
+    - { name: findPlaceholders, lines: 64-78 }
+    - { name: countPendingByScan, lines: 87-96 }
+    - { name: countPendingContextRequests, lines: 108-127 }
+    - { name: isContextGovernedChange, lines: 129-134 }
+    - { name: lintTasksFile, lines: 136-160 }
+    - { name: getArchiveTaskIds, lines: 162-165 }
+
+src/commands/gate-contracts.ts:  # 61 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpointTableRows, DEFAULT_CONTRACT_PATH], line: 3 }
+  functions:
+    - { name: enforceContractSubstance, lines: 36-61 }
+
+src/commands/gate-dependencies.ts:  # 82 lines
+  imports:
+    - { module: fs, items: [existsSync, readdirSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: './gate-shared.js', items: [loadYamlFile, TasksFile], line: 3 }
+  functions:
+    - { name: isArchivedChange, lines: 5-11 }
+    - { name: detectDependencyCycle, lines: 13-40 }
+    - { name: validateDependencies, lines: 42-82 }
+
+src/commands/gate-evidence.ts:  # 823 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join, resolve, relative, isAbsolute], line: 2 }
+    - { module: './test-run.js', items: [PHASES, isPytestCommand, hasShellControl], line: 3 }
+    - { module: '../schemas/test-evidence.schema.js', items: [testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES], line: 4 }
+    - { module: '../schemas/agent-log.schema.js', items: [agentLogSchema], line: 5 }
+    - { module: '../schemas/bug-fix-evidence.schema.js', items: [BEHAVIOR_FIX_REPRODUCTION_STATUSES], line: 6 }
+    - { module: './gate-shared.js', items: [ajv, ajvErrorsToMessages, loadYamlFile, TasksFile], line: 7 }
+  constants:
+    - { name: RUNNER_ADDED_PYTEST_FLAGS, line: 17 }
+    - { name: EXECUTED_PHASES, line: 22 }
+    - { name: BLOCKED_FAILURE_GUIDANCE, line: 29 }
+  functions:
+    - { name: splitPreservingQuotes, lines: 39-61 }
+    - { name: checkEvidencePointer, lines: 69-84 }
+    - { name: enforceEvidenceSemantics, lines: 112-144 }
+    - { name: isWithinDir, lines: 147-150 }
+    - { name: summaryMismatch, lines: 161-175 }
+    - { name: enforceArtifactPresence, lines: 189-236 }
+    - { name: lintTestEvidence, lines: 243-311 }
+    - { name: enforceTestEvidence, lines: 327-363 }
+    - { name: readLane, lines: 374-386 }
+    - { name: laneSectionPresent, lines: 389-393 }
+    - { name: collectWaiverFields, lines: 396-405 }
+    - { name: readClassifierDiagnosticOnly, lines: 408-416 }
+    - { name: enforceBugFixEvidence, lines: 435-823 }
+  interfaces:
+    - { name: EvidenceRun, lines: 86-92 }  # local
+    - { name: TestEvidenceFile, lines: 94-101 }  # local
+
+src/commands/gate-shared.ts:  # 67 lines
+  imports:
+    - { module: fs, items: [readFileSync], line: 1 }
+    - { module: js-yaml, items: ['default:yaml'], line: 2 }
+    - { module: ajv, items: ['default:Ajv', ErrorObject], line: 3 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 4 }
+  functions:
+    - { name: loadYamlFile, lines: 31-38 }
+    - { name: ajvErrorsToMessages, lines: 40-67 }
+  interfaces:
+    - { name: TaskItem, lines: 12-17 }
+    - { name: TasksFile, lines: 19-29 }
+
+src/commands/gate-tier.ts:  # 311 lines
+  imports:
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
+    - { module: path, items: [basename, join], line: 2 }
+    - { module: js-yaml, items: ['default:yaml'], line: 3 }
+    - { module: '../utils/tier-floor.js', items: [loadTierPolicy, computeTierFloor, TierFloorMatch], line: 4 }
+    - { module: '../utils/git-paths.js', items: [getStagedPaths], line: 5 }
+    - { module: './gate-shared.js', items: [loadYamlFile, TasksFile], line: 6 }
+  constants:
+    - { name: MIN_OVERRIDE_REASON_CHARS, line: 16 }
+  functions:
+    - { name: parseStructuredTier, lines: 31-36 }
+    - { name: parseBoldTier, lines: 42-47 }
+    - { name: hasLooseRiskMarker, lines: 58-68 }
+    - { name: resolveTier, lines: 70-98 }
+    - { name: enforceTierConsistency, lines: 100-144 }
+    - { name: enforceTierFloor, lines: 156-241 }
+    - { name: recordTierFloorOverride, lines: 264-311 }
+  interfaces:
+    - { name: TierResolution, lines: 18-23 }
+    - { name: TierFloorOverrideAudit, lines: 243-252 }  # local
+
+src/commands/gate.ts:  # 203 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: './validate.js', items: [validate], line: 4 }
+    - { module: '../utils/gate-explain.js', items: [explainGateError], line: 5 }
+    - { module: './gate-shared.js', items: [TasksFile], line: 6 }
+    - { module: './gate-artifacts.js', items: [REQUIRED_FILES, MIN_CHARS, meaningfulChars, findPlaceholders, countPendingContextRequests, isContextGovernedChange, lintTasksFile, getArchiveTaskIds], line: 7 }
+    - { module: './gate-tier.js', items: [resolveTier, enforceTierConsistency, enforceTierFloor], line: 17 }
+    - { module: './gate-dependencies.js', items: [validateDependencies], line: 18 }
+    - { module: './gate-contracts.js', items: [enforceContractSubstance], line: 19 }
+    - { module: './gate-evidence.js', items: [enforceTestEvidence, enforceBugFixEvidence], line: 20 }
+  functions:
+    - { name: reportGateFailure, lines: 35-57 }
+    - { name: async gate, lines: 59-203 }
+  interfaces:
+    - { name: GateOptions, lines: 22-26 }
+
+src/commands/graph.ts:  # 550 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
     - { module: child_process, items: [spawnSync, SpawnSyncReturns], line: 3 }
     - { module: '../code-map/freshness.js', items: [checkCodeMapFreshness], line: 4 }
     - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 5 }
     - { module: '../code-map/types.js', items: [FileEntry], line: 6 }
     - { module: '../code-graph/reader.js', items: [graphPathFor, loadCodeGraph], line: 7 }
-    - { module: '../code-graph/queries.js', items: ['graphContext:buildNativeContext', 'graphImpact:nativeImpact', searchGraph], line: 8 }
-    - { module: './index-query.js', items: [indexQuery, queryEntries], line: 9 }
-    - { module: './index-impact.js', items: [indexImpact], line: 10 }
+    - { module: '../code-graph/queries.js', items: ['graphContext:buildNativeContext', 'graphImpact:nativeImpact', 'graphUnresolved:nativeUnresolved', searchGraph], line: 8 }
+    - { module: '../code-graph/types.js', items: [CodeGraphEdgeKind], line: 9 }
+    - { module: './index-query.js', items: [indexQuery, queryEntries, resolveSourceBudget, surfaceRootFor], line: 10 }
+    - { module: './index-impact.js', items: [indexImpact], line: 11 }
+  constants:
+    - { name: UNRESOLVED_KINDS, line: 42 }
   functions:
-    - { name: codeGraphCommand, lines: 54-56 }
-    - { name: runCodeGraph, lines: 58-64 }
-    - { name: probeCodeGraph, lines: 66-87 }
-    - { name: selectEngine, lines: 89-109 }
-    - { name: writeJson, lines: 111-113 }
-    - { name: pipeResult, lines: 115-123 }
-    - { name: printEngineError, lines: 125-132 }
-    - { name: async ensureNativeGraph, lines: 134-157 }
-    - { name: async graphStatus, lines: 159-213 }
-    - { name: async graphSync, lines: 215-224 }
-    - { name: async graphQuery, lines: 226-268 }
-    - { name: async graphImpact, lines: 270-321 }
-    - { name: async graphContext, lines: 323-407 }
+    - { name: codeGraphCommand, lines: 64-66 }
+    - { name: runCodeGraph, lines: 68-74 }
+    - { name: probeCodeGraph, lines: 76-97 }
+    - { name: selectEngine, lines: 99-119 }
+    - { name: writeJson, lines: 121-123 }
+    - { name: pipeResult, lines: 125-133 }
+    - { name: printEngineError, lines: 135-142 }
+    - { name: async ensureNativeGraph, lines: 144-167 }
+    - { name: async graphStatus, lines: 169-226 }
+    - { name: async graphSync, lines: 228-237 }
+    - { name: async graphQuery, lines: 239-302 }
+    - { name: collectNodeSources, lines: 310-346 }
+    - { name: async graphImpact, lines: 348-407 }
+    - { name: async graphUnresolved, lines: 409-464 }
+    - { name: async graphContext, lines: 466-550 }
   interfaces:
-    - { name: GraphBaseOptions, lines: 14-19 }  # local
-    - { name: GraphStatusOptions, lines: 21-23 }
-    - { name: GraphQueryOptions, lines: 25-27 }
-    - { name: GraphImpactOptions, lines: 29-32 }
-    - { name: GraphContextOptions, lines: 34-36 }
-    - { name: GraphSyncOptions, lines: 38-40 }
-    - { name: CodeGraphProbe, lines: 42-47 }  # local
-    - { name: SelectedEngine, lines: 49-52 }  # local
+    - { name: GraphBaseOptions, lines: 15-20 }  # local
+    - { name: GraphStatusOptions, lines: 22-24 }
+    - { name: GraphQueryOptions, lines: 26-30 }
+    - { name: GraphImpactOptions, lines: 32-35 }
+    - { name: GraphUnresolvedOptions, lines: 37-40 }
+    - { name: GraphContextOptions, lines: 44-46 }
+    - { name: GraphSyncOptions, lines: 48-50 }
+    - { name: CodeGraphProbe, lines: 52-57 }  # local
+    - { name: SelectedEngine, lines: 59-62 }  # local
   types:
-    - { name: GraphEngine, lines: 12-12 }  # local
+    - { name: GraphEngine, lines: 13-13 }  # local
 
-src/commands/index-impact.ts:  # 314 lines
+src/commands/index-impact.ts:  # 262 lines
   imports:
     - { module: fs, items: [existsSync], line: 1 }
     - { module: path, items: [posix], line: 2 }
     - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 3 }
-    - { module: '../code-map/types.js', items: [FileEntry, ImportEntry], line: 4 }
-  constants:
-    - { name: RESOLUTION_EXTENSIONS, line: 6 }
+    - { module: '../code-map/resolve.js', items: [isLocalImport, resolveLocalModule], line: 4 }
+    - { module: '../code-map/types.js', items: [FileEntry, ImportEntry], line: 5 }
   functions:
-    - { name: async indexImpact, lines: 49-117 }
-    - { name: findTarget, lines: 119-150 }
-    - { name: ambiguousTarget, lines: 152-156 }
-    - { name: normalizeQueryPath, lines: 158-160 }
-    - { name: resolveImport, lines: 162-170 }
-    - { name: resolveLocalModule, lines: 172-183 }
-    - { name: resolvePythonRelativeImport, lines: 185-195 }
-    - { name: resolutionCandidates, lines: 197-217 }
-    - { name: isLocalImport, lines: 219-221 }
-    - { name: summarizeSymbols, lines: 223-248 }
-    - { name: rangeToString, lines: 250-254 }
-    - { name: firstLine, lines: 256-260 }
-    - { name: printText, lines: 262-305 }
-    - { name: printFailure, lines: 307-314 }
+    - { name: async indexImpact, lines: 48-116 }
+    - { name: findTarget, lines: 118-149 }
+    - { name: ambiguousTarget, lines: 151-155 }
+    - { name: normalizeQueryPath, lines: 157-159 }
+    - { name: resolveImport, lines: 161-169 }
+    - { name: summarizeSymbols, lines: 171-196 }
+    - { name: rangeToString, lines: 198-202 }
+    - { name: firstLine, lines: 204-208 }
+    - { name: printText, lines: 210-253 }
+    - { name: printFailure, lines: 255-262 }
   interfaces:
-    - { name: IndexImpactOptions, lines: 8-13 }
-    - { name: ResolvedImport, lines: 15-20 }  # local
-    - { name: Dependent, lines: 22-26 }  # local
-    - { name: SymbolSummary, lines: 28-33 }  # local
-    - { name: ImpactPayload, lines: 35-47 }  # local
+    - { name: IndexImpactOptions, lines: 7-12 }
+    - { name: ResolvedImport, lines: 14-19 }  # local
+    - { name: Dependent, lines: 21-25 }  # local
+    - { name: SymbolSummary, lines: 27-32 }  # local
+    - { name: ImpactPayload, lines: 34-46 }  # local
 
-src/commands/index-query.ts:  # 225 lines
+src/commands/index-query.ts:  # 359 lines
   imports:
-    - { module: fs, items: [existsSync], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 2 }
     - { module: '../code-map/types.js', items: [FileEntry], line: 3 }
+  constants:
+    - { name: DEFAULT_SOURCE_BUDGET, line: 6 }
+    - { name: PER_FILE_MATCH_CAP, line: 13 }
   functions:
-    - { name: async indexQuery, lines: 35-72 }
-    - { name: queryEntries, lines: 74-156 }
-    - { name: addMatch, lines: 158-169 }
-    - { name: scoreText, lines: 171-178 }
-    - { name: rangeToString, lines: 180-184 }
-    - { name: compareMatch, lines: 186-190 }
-    - { name: firstLine, lines: 192-195 }
-    - { name: printText, lines: 197-216 }
-    - { name: printFailure, lines: 218-225 }
+    - { name: resolveSourceBudget, lines: 16-20 }
+    - { name: async indexQuery, lines: 74-118 }
+    - { name: queryEntries, lines: 120-204 }
+    - { name: addMatch, lines: 206-217 }
+    - { name: scoreText, lines: 219-226 }
+    - { name: rangeToString, lines: 228-232 }
+    - { name: compareMatch, lines: 234-238 }
+    - { name: firstLine, lines: 240-243 }
+    - { name: surfaceRootFor, lines: 250-260 }
+    - { name: attachSource, lines: 270-305 }
+    - { name: resolveRange, lines: 307-316 }
+    - { name: printText, lines: 318-350 }
+    - { name: printFailure, lines: 352-359 }
   interfaces:
-    - { name: IndexQueryOptions, lines: 5-10 }
-    - { name: QueryMatch, lines: 12-19 }
-    - { name: QueryResult, lines: 21-26 }
-    - { name: QueryPayload, lines: 28-33 }
+    - { name: IndexQueryOptions, lines: 22-35 }
+    - { name: QueryMatch, lines: 37-48 }
+    - { name: QueryResult, lines: 50-59 }
+    - { name: QueryPayload, lines: 61-72 }
 
-src/commands/init.ts:  # 329 lines
+src/commands/init.ts:  # 413 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [rmSync, readFileSync, writeFileSync, existsSync, readdirSync], line: 2 }
@@ -827,25 +968,59 @@ src/commands/init.ts:  # 329 lines
     - { module: '../utils/copy.js', items: [copyDirTracked, copyFileTracked], line: 4 }
     - { module: '../utils/logger.js', items: [log], line: 5 }
     - { module: '../utils/stack-detect.js', items: [detectStack, StackKind], line: 6 }
+    - { module: './suggest-codegen.js', items: [suggestCodegenScript], line: 7 }
+    - { module: '../utils/mcp-hint.js', items: [logRecommendedMcpSetup], line: 8 }
   functions:
-    - { name: readCondaEnvName, lines: 20-30 }
-    - { name: loadCiTemplate, lines: 36-45 }
-    - { name: patchFastGateYml, lines: 59-102 }
-    - { name: async init, lines: 104-329 }
+    - { name: readCondaEnvName, lines: 37-47 }
+    - { name: loadCiTemplate, lines: 53-62 }
+    - { name: patchFastGateYml, lines: 76-119 }
+    - { name: async init, lines: 121-413 }
   interfaces:
-    - { name: InitOptions, lines: 8-14 }
+    - { name: InitOptions, lines: 10-31 }
 
-src/commands/install-hooks.ts:  # 68 lines
+src/commands/install-agent-hooks.ts:  # 262 lines
   imports:
-    - { module: fs, items: [existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync, copyFileSync, chmodSync, mkdirSync], line: 1 }
     - { module: path, items: [join], line: 2 }
     - { module: '../utils/paths.js', items: [ASSET], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
   constants:
-    - { name: START_MARKER, line: 6 }
-    - { name: END_MARKER, line: 7 }
+    - { name: SETTINGS_REL_PATH, line: 25 }
+    - { name: GRAPH_FIRST_MARKER, line: 33 }
+    - { name: CONTRACT_WRITE_MARKER, line: 34 }
+    - { name: TEST_RUNNER_MARKER, line: 35 }
+    - { name: GRAPH_FIRST, line: 53 }
+    - { name: CONTRACT_WRITE, line: 64 }
+    - { name: TEST_RUNNER, line: 76 }
   functions:
-    - { name: async installHooks, lines: 9-68 }
+    - { name: hookRelPath, lines: 114-116 }
+    - { name: withoutHandler, lines: 126-146 }
+    - { name: async installAgentHooks, lines: 166-262 }
+  interfaces:
+    - { name: InstallAgentHooksOptions, lines: 10-23 }
+    - { name: HookDef, lines: 38-51 }  # local
+    - { name: HookHandler, lines: 89-93 }  # local
+    - { name: HookEntry, lines: 95-105 }  # local
+    - { name: SettingsShape, lines: 107-110 }  # local
+  types:
+    - { name: HookMode, lines: 6-6 }
+    - { name: GraphFirstMode, lines: 8-8 }
+
+src/commands/install-hooks.ts:  # 115 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync, statSync], line: 1 }
+    - { module: path, items: [join, resolve], line: 2 }
+    - { module: child_process, items: [spawnSync], line: 3 }
+    - { module: '../utils/paths.js', items: [ASSET], line: 4 }
+    - { module: '../utils/logger.js', items: [log], line: 5 }
+  constants:
+    - { name: START_MARKER, line: 7 }
+    - { name: END_MARKER, line: 8 }
+  functions:
+    - { name: resolveHooksDir, lines: 17-36 }
+    - { name: async installHooks, lines: 46-115 }
+  interfaces:
+    - { name: InstallHooksOptions, lines: 38-44 }
 
 src/commands/lint-agents.ts:  # 272 lines
   imports:
@@ -867,14 +1042,85 @@ src/commands/lint-agents.ts:  # 272 lines
     - { name: LintAgentsOptions, lines: 6-8 }
     - { name: Violation, lines: 10-15 }
 
-src/commands/list-changes.ts:  # 42 lines
+src/commands/list-changes.ts:  # 54 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync, readdirSync, readFileSync], line: 2 }
     - { module: js-yaml, items: ['default:yaml'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
   functions:
-    - { name: async listChanges, lines: 6-42 }
+    - { name: collectChanges, lines: 12-30 }
+    - { name: async listChanges, lines: 32-54 }
+  interfaces:
+    - { name: ChangeListEntry, lines: 6-10 }  # local
+
+src/commands/manifest.ts:  # 149 lines
+  imports:
+    - { module: fs, items: [existsSync, writeFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: '../utils/git-paths.js', items: [getTouchedPaths], line: 4 }
+    - { module: './gate-tier.js', items: [resolveTier], line: 5 }
+  constants:
+    - { name: MIN_AUTO_TIER, line: 19 }
+    - { name: DEFAULT_ALLOWED, line: 22 }
+  functions:
+    - { name: printJson, lines: 28-30 }
+    - { name: changeRelevantPaths, lines: 38-45 }
+    - { name: renderManifest, lines: 47-78 }
+    - { name: manifest, lines: 88-149 }
+  interfaces:
+    - { name: ManifestOptions, lines: 7-10 }
+
+src/commands/metadata.ts:  # 429 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, readdirSync, writeFileSync], line: 1 }
+    - { module: path, items: [basename, join, relative], line: 2 }
+    - { module: js-yaml, items: ['default:yaml'], line: 3 }
+    - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: '../utils/digest.js', items: [sha256OfFileNormalized], line: 5 }
+    - { module: '../utils/markdown-section.js', items: [sectionBody], line: 6 }
+    - { module: '../utils/markdown-table.js', items: [parsePipeTable], line: 7 }
+    - { module: './gate-shared.js', items: [ajv, loadYamlFile, TasksFile], line: 8 }
+    - { module: './gate-artifacts.js', items: [REQUIRED_FILES], line: 9 }
+    - { module: './gate-tier.js', items: [resolveTier], line: 10 }
+    - { module: './gate-evidence.js', items: [readLane], line: 11 }
+    - { module: '../schemas/change-metadata.schema.js', items: [changeMetadataSchema], line: 12 }
+    - { module: '../schemas/trace.schema.js', items: [traceMetadataSchema], line: 13 }
+  constants:
+    - { name: OPTIONAL_ARTIFACTS, line: 50 }
+    - { name: GENERATED_NOTICE, line: 267 }
+  functions:
+    - { name: readIfExists, lines: 61-63 }
+    - { name: digestRef, lines: 65-67 }
+    - { name: generatedFrom, lines: 70-77 }
+    - { name: labeledValue, lines: 80-83 }
+    - { name: parseChangeTypes, lines: 85-91 }
+    - { name: parseRequiredAgents, lines: 93-103 }
+    - { name: countAllowedPaths, lines: 105-108 }
+    - { name: parseAcceptanceCriteria, lines: 110-118 }
+    - { name: parseTestMapping, lines: 120-131 }
+    - { name: parseRequiredGates, lines: 133-142 }
+    - { name: gateMatchesFamily, lines: 151-155 }
+    - { name: listAgentLogs, lines: 157-161 }
+    - { name: collectEvidence, lines: 163-181 }
+    - { name: buildChangeMetadata, lines: 185-227 }
+    - { name: buildTraceMetadata, lines: 229-263 }
+    - { name: dumpYaml, lines: 272-274 }
+    - { name: renderMetadata, lines: 281-289 }
+    - { name: checkStaleness, lines: 299-314 }
+    - { name: writeMetadataFiles, lines: 317-322 }
+    - { name: staleMetadataReport, lines: 330-342 }
+    - { name: activeChangeIds, lines: 360-370 }
+    - { name: async metadata, lines: 372-429 }
+  interfaces:
+    - { name: ChangeMetadata, lines: 17-29 }
+    - { name: TraceCriterion, lines: 31-36 }
+    - { name: TraceMetadata, lines: 38-44 }
+    - { name: BuildResult, lines: 46-46 }
+    - { name: RenderedMetadata, lines: 278-278 }
+    - { name: MetadataOptions, lines: 346-350 }
+    - { name: MetadataResult, lines: 352-358 }  # local
 
 src/commands/migrate.ts:  # 523 lines
   imports:
@@ -905,7 +1151,7 @@ src/commands/migrate.ts:  # 523 lines
     - { name: PendingDelete, lines: 25-27 }  # local
     - { name: LegacyTaskRow, lines: 144-149 }  # local
 
-src/commands/new-change.ts:  # 186 lines
+src/commands/new-change.ts:  # 192 lines
   imports:
     - { module: path, items: [join, relative], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -917,20 +1163,50 @@ src/commands/new-change.ts:  # 186 lines
     - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 17 }
   constants:
     - { name: REQUIRED_TEMPLATES, line: 75 }
-    - { name: SAFE_NAME, line: 94 }
+    - { name: NEVER_SCAFFOLD, line: 89 }
+    - { name: SAFE_NAME, line: 100 }
   functions:
     - { name: inputsDigest, lines: 19-28 }
     - { name: findContractFiles, lines: 30-40 }
     - { name: readIndexDigest, lines: 42-46 }
     - { name: async ensureFreshContextIndexes, lines: 48-73 }
-    - { name: listOptional, lines: 85-92 }
-    - { name: parseDependsOn, lines: 96-102 }
-    - { name: applyScaffoldMetadata, lines: 104-119 }
-    - { name: async newChange, lines: 121-186 }
+    - { name: listOptional, lines: 91-98 }
+    - { name: parseDependsOn, lines: 102-108 }
+    - { name: applyScaffoldMetadata, lines: 110-125 }
+    - { name: async newChange, lines: 127-192 }
   interfaces:
     - { name: NewChangeOptions, lines: 9-14 }
 
-src/commands/refresh.ts:  # 389 lines
+src/commands/openapi-export.ts:  # 403 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync, mkdirSync], line: 1 }
+    - { module: path, items: [dirname, resolve], line: 2 }
+    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpoints, parseContractSchemas, normalizeApiPath, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH, EndpointRow, JsonSchema], line: 4 }
+  constants:
+    - { name: DEFAULT_CONTRACT, line: 43 }
+  functions:
+    - { name: resolveSchemaCell, lines: 82-90 }
+    - { name: toOpenApiPath, lines: 93-110 }
+    - { name: authToSecurity, lines: 112-126 }
+    - { name: statusFromErrors, lines: 128-133 }
+    - { name: buildDoc, lines: 135-226 }
+    - { name: extractStyleBlock, lines: 229-237 }
+    - { name: isNonEmptyComposite, lines: 240-243 }
+    - { name: yamlScalar, lines: 246-255 }
+    - { name: toYaml, lines: 263-293 }
+    - { name: async openapiExport, lines: 295-393 }
+    - { name: countUnresolved, lines: 395-403 }
+  interfaces:
+    - { name: OpenApiExportOptions, lines: 31-41 }
+    - { name: OpenApiParameter, lines: 45-50 }  # local
+    - { name: OpenApiOperation, lines: 52-64 }  # local
+    - { name: OpenApiResponse, lines: 68-71 }  # local
+    - { name: OpenApiDoc, lines: 73-80 }  # local
+  types:
+    - { name: OpenApiPaths, lines: 66-66 }  # local
+
+src/commands/refresh.ts:  # 401 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync], line: 29 }
     - { module: path, items: [dirname, join, relative], line: 30 }
@@ -943,22 +1219,203 @@ src/commands/refresh.ts:  # 389 lines
     - { module: './code-map.js', items: [codeMap], line: 37 }
     - { module: './code-map-hook.js', items: [installCodeMapHook], line: 38 }
     - { module: '../utils/provider.js', items: [ProviderOption], line: 39 }
+    - { module: '../utils/mcp-hint.js', items: [logRecommendedMcpSetup], line: 40 }
   constants:
-    - { name: HOOKS_MARKER_PATH, line: 58 }
+    - { name: HOOKS_MARKER_PATH, line: 59 }
   functions:
-    - { name: fileHash, lines: 60-62 }
-    - { name: planForceRefresh, lines: 64-96 }
-    - { name: planSingleFile, lines: 98-103 }
-    - { name: applyPlan, lines: 105-123 }
-    - { name: parseAgentFrontmatter, lines: 130-141 }
-    - { name: resyncModelPolicy, lines: 147-203 }
-    - { name: planTemplateRefresh, lines: 205-232 }
-    - { name: summarizePlan, lines: 234-240 }
-    - { name: async refresh, lines: 242-389 }
+    - { name: fileHash, lines: 61-63 }
+    - { name: planForceRefresh, lines: 65-97 }
+    - { name: planSingleFile, lines: 99-104 }
+    - { name: applyPlan, lines: 106-124 }
+    - { name: parseAgentFrontmatter, lines: 131-142 }
+    - { name: resyncModelPolicy, lines: 148-204 }
+    - { name: planTemplateRefresh, lines: 206-242 }
+    - { name: summarizePlan, lines: 244-250 }
+    - { name: async refresh, lines: 252-401 }
   interfaces:
-    - { name: RefreshOptions, lines: 41-49 }
-    - { name: PlannedCopy, lines: 51-56 }  # local
-    - { name: AgentFrontmatter, lines: 125-128 }  # local
+    - { name: RefreshOptions, lines: 42-50 }
+    - { name: PlannedCopy, lines: 52-57 }  # local
+    - { name: AgentFrontmatter, lines: 126-129 }  # local
+
+src/commands/setup.ts:  # 262 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 23 }
+    - { module: path, items: [join], line: 24 }
+    - { module: child_process, items: [spawnSync], line: 25 }
+    - { module: '../utils/logger.js', items: [log], line: 26 }
+    - { module: '../utils/stack-detect.js', items: [detectStack], line: 27 }
+    - { module: '../utils/mcp-hint.js', items: [logRecommendedMcpSetup], line: 28 }
+    - { module: '../utils/provider.js', items: [inferProvider, Provider], line: 29 }
+  functions:
+    - { name: registerMcp, lines: 55-81 }
+    - { name: conformanceOffButRelevant, lines: 88-102 }
+    - { name: printSummaryRow, lines: 105-111 }
+    - { name: async setup, lines: 113-262 }
+  interfaces:
+    - { name: SetupOptions, lines: 31-40 }
+    - { name: StepResult, lines: 43-47 }  # local
+  types:
+    - { name: StepStatus, lines: 42-42 }  # local
+
+src/commands/suggest-codegen.ts:  # 139 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+  constants:
+    - { name: ARTIFACT_PATH, line: 38 }
+    - { name: CLIENT_OUT, line: 39 }
+    - { name: MODELS_OUT, line: 40 }
+    - { name: SCRIPT_GENERATE, line: 42 }
+    - { name: SCRIPT_CHECK, line: 43 }
+    - { name: SCRIPT_MODELS, line: 44 }
+    - { name: GENERATE_CMD, line: 46 }
+    - { name: CHECK_CMD, line: 49 }
+    - { name: MODELS_CMD, line: 50 }
+  functions:
+    - { name: detectsFastApi, lines: 55-64 }
+    - { name: suggestCodegenScript, lines: 66-139 }
+  interfaces:
+    - { name: CodegenSuggestion, lines: 29-36 }
+
+src/commands/test-impact.ts:  # 218 lines
+  imports:
+    - { module: fs, items: [existsSync], line: 1 }
+    - { module: path, items: [posix], line: 2 }
+    - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 3 }
+    - { module: '../code-map/resolve.js', items: [resolveLocalModule], line: 4 }
+    - { module: '../code-map/types.js', items: [FileEntry], line: 5 }
+    - { module: './index-impact.js', items: [findTarget], line: 6 }
+  functions:
+    - { name: isTestFilePath, lines: 51-58 }
+    - { name: mirrorCandidates, lines: 64-88 }
+    - { name: async testImpact, lines: 90-190 }
+    - { name: printText, lines: 192-209 }
+    - { name: printFailure, lines: 211-218 }
+  interfaces:
+    - { name: TestImpactOptions, lines: 19-25 }
+    - { name: AffectedTest, lines: 29-34 }
+    - { name: TestImpactPayload, lines: 36-44 }
+  types:
+    - { name: AffectedReason, lines: 27-27 }
+
+src/commands/test-run.ts:  # 690 lines
+  imports:
+    - { module: fs, items: [createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
+    - { module: path, items: [join, relative, resolve], line: 2 }
+    - { module: child_process, items: [spawn, spawnSync], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: '../utils/copy.js', items: [ensureDir], line: 5 }
+    - { module: '../utils/logger.js', items: [log], line: 6 }
+    - { module: '../schemas/test-evidence.schema.js', items: [DEFAULT_REQUIRED_PHASES], line: 7 }
+  constants:
+    - { name: PHASES, line: 16 }
+    - { name: SCHEMA_VERSION, line: 19 }
+    - { name: GENERATED_BY, line: 20 }
+    - { name: OUTPUT_CAP_CHARS, line: 21 }
+    - { name: MAX_MESSAGE_CHARS, line: 22 }
+    - { name: TAIL_CAPTURE_BYTES, line: 25 }
+    - { name: SAFE_CHANGE_ID, line: 27 }
+  functions:
+    - { name: isPytestCommand, lines: 75-84 }
+    - { name: hasShellControl, lines: 91-93 }
+    - { name: shellQuote, lines: 96-99 }
+    - { name: effectiveMaxfail, lines: 103-109 }
+    - { name: effectiveTb, lines: 111-117 }
+    - { name: augmentPytestCommand, lines: 126-141 }
+    - { name: attrVal, lines: 145-149 }
+    - { name: clip, lines: 151-154 }
+    - { name: decodeXml, lines: 156-164 }
+    - { name: classifyErrorMessage, lines: 166-170 }
+    - { name: parseJunitFirstFailure, lines: 178-211 }
+    - { name: extractNodeFromSummary, lines: 213-217 }
+    - { name: lastMeaningfulLine, lines: 219-222 }
+    - { name: classifyFailure, lines: 224-266 }
+    - { name: defaultRequired, lines: 274-278 }
+    - { name: blankEvidence, lines: 280-289 }
+    - { name: computeFinalStatus, lines: 291-295 }
+    - { name: updateEvidence, lines: 297-337 }
+    - { name: defaultRunId, lines: 341-344 }
+    - { name: reserveGeneratedRunDir, lines: 351-367 }
+    - { name: isSafeRunId, lines: 371-373 }
+    - { name: nextAction, lines: 375-383 }
+    - { name: capTail, lines: 385-388 }
+    - { name: report, lines: 402-428 }
+    - { name: emitError, lines: 430-433 }
+    - { name: killTree, lines: 453-463 }
+    - { name: appendTail, lines: 465-468 }
+    - { name: runCommand, lines: 470-540 }
+    - { name: async testRun, lines: 544-682 }
+    - { name: safeRead, lines: 684-690 }
+  interfaces:
+    - { name: FirstFailure, lines: 31-37 }
+    - { name: TestRunOptions, lines: 39-47 }
+    - { name: EvidenceRun, lines: 49-55 }  # local
+    - { name: EvidenceFile, lines: 57-64 }  # local
+    - { name: RunSummary, lines: 390-400 }  # local
+    - { name: CommandResult, lines: 437-444 }  # local
+  types:
+    - { name: Phase, lines: 17-17 }
+    - { name: RunStatus, lines: 29-29 }
+
+src/commands/test-select.ts:  # 583 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, statSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../utils/logger.js', items: [log], line: 3 }
+    - { module: '../utils/git-paths.js', items: [getTouchedPaths], line: 4 }
+    - { module: './test-run.js', items: [isPytestCommand], line: 5 }
+    - { module: '../utils/stack-detect.js', items: [detectStack, StackKind], line: 6 }
+  constants:
+    - { name: SAFE_CHANGE_ID, line: 25 }
+    - { name: PYTEST, line: 31 }
+    - { name: PYTEST_TAIL, line: 32 }
+    - { name: JS_STACKS, line: 33 }
+    - { name: PHASE_ORDER, line: 36 }
+    - { name: PY_TARGET_FILE, line: 64 }
+    - { name: JS_TARGET_FILE, line: 65 }
+    - { name: PATHISH, line: 67 }
+    - { name: TARGET_COLUMN, line: 297 }
+    - { name: CRITERION_COLUMN, line: 298 }
+    - { name: QUALITY_GATES, line: 380 }
+    - { name: WORKFLOW_REF, line: 383 }
+  functions:
+    - { name: hasTraversal, lines: 70-72 }
+    - { name: isBareTargetShape, lines: 79-83 }
+    - { name: targetKind, lines: 91-105 }
+    - { name: stripInlineCode, lines: 108-111 }
+    - { name: classifyCell, lines: 117-124 }
+    - { name: formatTarget, lines: 132-137 }
+    - { name: isPytestTestFile, lines: 140-143 }
+    - { name: isJsTestFile, lines: 146-148 }
+    - { name: targetDirectory, lines: 151-158 }
+    - { name: readPackageJson, lines: 160-166 }
+    - { name: stringRecord, lines: 168-175 }
+    - { name: detectRunnerPlan, lines: 177-193 }
+    - { name: appendTestArgs, lines: 195-202 }
+    - { name: looksLikeJsTestCommand, lines: 204-207 }
+    - { name: targetRunner, lines: 209-218 }
+    - { name: commandForTarget, lines: 220-233 }
+    - { name: fullCommand, lines: 235-240 }
+    - { name: splitTableRow, lines: 249-254 }
+    - { name: isSeparatorRow, lines: 256-259 }
+    - { name: parseMarkdownTable, lines: 266-287 }
+    - { name: columnIndex, lines: 289-295 }
+    - { name: extractMappedRows, lines: 306-324 }
+    - { name: detectContractAffected, lines: 336-375 }
+    - { name: extractQualityGates, lines: 392-413 }
+    - { name: deriveChangedArea, lines: 426-451 }
+    - { name: buildSelection, lines: 460-534 }
+    - { name: report, lines: 538-558 }
+    - { name: async testSelect, lines: 562-583 }
+  interfaces:
+    - { name: SelectionEntry, lines: 38-42 }
+    - { name: TestSelectOptions, lines: 44-46 }
+    - { name: MappedRow, lines: 48-52 }  # local
+    - { name: RunnerPlan, lines: 54-58 }  # local
+    - { name: MarkdownTable, lines: 244-247 }
+  types:
+    - { name: Phase, lines: 35-35 }
+    - { name: Selection, lines: 455-458 }  # local
 
 src/commands/update.ts:  # 181 lines
   imports:
@@ -996,7 +1453,7 @@ src/commands/upgrade.ts:  # 141 lines
     - { name: UpgradeOptions, lines: 8-13 }
     - { name: PlannedCopy, lines: 15-19 }  # local
 
-src/commands/validate.ts:  # 112 lines
+src/commands/validate.ts:  # 120 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync], line: 2 }
@@ -1006,15 +1463,108 @@ src/commands/validate.ts:  # 112 lines
   constants:
     - { name: VALIDATORS, line: 24 }
   functions:
-    - { name: resolvePython, lines: 40-46 }
-    - { name: async validate, lines: 48-112 }
+    - { name: resolvePython, lines: 42-48 }
+    - { name: async validate, lines: 50-120 }
   interfaces:
     - { name: ValidateOptions, lines: 7-13 }
     - { name: ValidatorEntry, lines: 15-22 }  # local
 
-src/schemas/agent-log.schema.ts:  # 32 lines
+src/contracts/parser.ts:  # 526 lines
+  constants:
+    - { name: VALID_METHODS, line: 22 }
+    - { name: SCHEMA_NAME_RE, line: 23 }
+    - { name: DEFAULT_CONTRACT_PATH, line: 31 }
+    - { name: DEFAULT_INVENTORY_PATH, line: 32 }
+    - { name: PRIMITIVE_TYPES, line: 33 }
+    - { name: ENDPOINT_FIELD_ALIASES, line: 99 }
+  functions:
+    - { name: stripFrontmatter, lines: 69-83 }
+    - { name: parseRow, lines: 85-87 }
+    - { name: isSeparator, lines: 89-91 }
+    - { name: isEndpointHeaderRow, lines: 114-117 }
+    - { name: parseEndpointTableRows, lines: 134-169 }
+    - { name: parseEndpoints, lines: 175-193 }
+    - { name: parseSchemaCellRef, lines: 204-211 }
+    - { name: detectSchemaCellNearMiss, lines: 230-246 }
+    - { name: normalizeApiPath, lines: 259-264 }
+    - { name: extractSchemasSection, lines: 266-276 }
+    - { name: extractSection, lines: 284-298 }
+    - { name: parseSchemaSections, lines: 300-326 }
+    - { name: findFencedBlocks, lines: 340-347 }
+    - { name: parseJsonSchemaBlocks, lines: 349-367 }
+    - { name: findForeignFenceTag, lines: 379-382 }
+    - { name: parseFieldTable, lines: 384-417 }
+    - { name: compileType, lines: 419-446 }
+    - { name: compileFieldTable, lines: 448-465 }
+    - { name: parseContractSchemas, lines: 467-526 }
+  interfaces:
+    - { name: EndpointRow, lines: 35-49 }
+    - { name: SchemaSection, lines: 51-54 }
+    - { name: SchemaParseResult, lines: 56-59 }
+    - { name: FieldRow, lines: 61-67 }  # local
+    - { name: EndpointTableRow, lines: 127-131 }
+    - { name: FenceBlock, lines: 328-333 }  # local
+  types:
+    - { name: JsonSchema, lines: 20-20 }
 
-src/schemas/tasks.schema.ts:  # 45 lines
+src/mcp/server.ts:  # 452 lines
+  imports:
+    - { module: child_process, items: [spawnSync], line: 1 }
+    - { module: url, items: [fileURLToPath], line: 2 }
+    - { module: readline, items: [createInterface], line: 3 }
+    - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH], line: 4 }
+  constants:
+    - { name: DEFAULT_MAP, line: 35 }
+  functions:
+    - { name: async runMcpServer, lines: 203-228 }
+    - { name: async handleRequest, lines: 230-266 }
+    - { name: callTool, lines: 268-387 }
+    - { name: runCddJson, lines: 389-412 }
+    - { name: refreshArgs, lines: 414-416 }
+    - { name: sourceArgs, lines: 418-421 }
+    - { name: asObject, lines: 423-427 }
+    - { name: requireString, lines: 429-435 }
+    - { name: optionalString, lines: 437-439 }
+    - { name: optionalInt, lines: 441-444 }
+    - { name: writeResult, lines: 446-448 }
+    - { name: writeError, lines: 450-452 }
+  interfaces:
+    - { name: JsonRpcRequest, lines: 8-13 }  # local
+    - { name: ToolDef, lines: 15-24 }  # local
+    - { name: ToolResult, lines: 26-29 }  # local
+    - { name: RunMcpServerOptions, lines: 31-33 }  # local
+  types:
+    - { name: JsonRpcId, lines: 6-6 }  # local
+
+src/schemas/agent-log.schema.ts:  # 39 lines
+  imports:
+    - { module: './bug-fix-evidence.schema.js', items: [bugFixEvidenceBlock], line: 1 }
+
+src/schemas/bug-fix-evidence.schema.ts:  # 208 lines
+  constants:
+    - { name: REPRODUCTION_STATUSES, line: 21 }
+    - { name: BEHAVIOR_FIX_REPRODUCTION_STATUSES, line: 35 }
+    - { name: HYPOTHESIS_RESULTS, line: 42 }
+
+src/schemas/change-metadata.schema.ts:  # 58 lines
+
+src/schemas/tasks.schema.ts:  # 47 lines
+
+src/schemas/test-evidence.schema.ts:  # 81 lines
+  constants:
+    - { name: PROHIBITED_WAIVER_FIELDS, line: 17 }
+    - { name: DEFAULT_REQUIRED_PHASES, line: 32 }
+    - { name: PHASES, line: 34 }
+
+src/schemas/trace.schema.ts:  # 67 lines
+
+src/utils/context-inputs.ts:  # 36 lines
+  imports:
+    - { module: fs, items: [existsSync, readdirSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+  functions:
+    - { name: findContractFiles, lines: 19-27 }
+    - { name: projectMapInputs, lines: 34-36 }
 
 src/utils/copy.ts:  # 156 lines
   imports:
@@ -1028,13 +1578,30 @@ src/utils/copy.ts:  # 156 lines
     - { name: copyFile, lines: 110-130 }
     - { name: copyFileTracked, lines: 135-156 }
 
-src/utils/digest.ts:  # 39 lines
+src/utils/digest.ts:  # 65 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
+    - { module: path, items: [relative], line: 3 }
   functions:
-    - { name: normalizeContentForHash, lines: 16-24 }
-    - { name: sha256OfFileNormalized, lines: 31-39 }
+    - { name: normalizeContentForHash, lines: 17-25 }
+    - { name: sha256OfFileNormalized, lines: 32-40 }
+    - { name: inputsDigest, lines: 57-65 }
+
+src/utils/gate-explain.ts:  # 187 lines
+  functions:
+    - { name: leadingArtifact, lines: 26-29 }
+    - { name: explainGateError, lines: 40-187 }
+  interfaces:
+    - { name: GateExplanation, lines: 18-23 }
+
+src/utils/git-paths.ts:  # 88 lines
+  imports:
+    - { module: child_process, items: [spawnSync], line: 1 }
+  functions:
+    - { name: unquote, lines: 4-6 }
+    - { name: getTouchedPaths, lines: 22-49 }
+    - { name: getStagedPaths, lines: 61-88 }
 
 src/utils/gitignore.ts:  # 31 lines
   imports:
@@ -1052,7 +1619,30 @@ src/utils/logger.ts:  # 27 lines
     - { name: RED, line: 5 }
     - { name: DIM, line: 6 }
 
-src/utils/paths.ts:  # 30 lines
+src/utils/markdown-section.ts:  # 28 lines
+  constants:
+    - { name: RE_META, line: 10 }
+  functions:
+    - { name: stripHtmlComments, lines: 13-15 }
+    - { name: sectionBody, lines: 22-28 }
+
+src/utils/markdown-table.ts:  # 58 lines
+  imports:
+    - { module: './markdown-section.js', items: [stripHtmlComments], line: 13 }
+  functions:
+    - { name: splitRow, lines: 18-24 }
+    - { name: isSeparatorRow, lines: 27-29 }
+    - { name: parsePipeTable, lines: 37-58 }
+  types:
+    - { name: PipeTableRow, lines: 15-15 }
+
+src/utils/mcp-hint.ts:  # 10 lines
+  imports:
+    - { module: './logger.js', items: [log], line: 1 }
+  functions:
+    - { name: logRecommendedMcpSetup, lines: 3-10 }
+
+src/utils/paths.ts:  # 31 lines
   imports:
     - { module: path, items: [join, dirname], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -1076,7 +1666,7 @@ src/utils/provider.ts:  # 31 lines
     - { name: Provider, lines: 4-4 }
     - { name: ProviderOption, lines: 5-5 }
 
-src/utils/stack-detect.ts:  # 120 lines
+src/utils/stack-detect.ts:  # 102 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -1085,23 +1675,40 @@ src/utils/stack-detect.ts:  # 120 lines
     - { name: safeRead, lines: 25-31 }
     - { name: detectPython, lines: 34-59 }
     - { name: detectJS, lines: 62-71 }
-    - { name: detectGo, lines: 74-76 }
-    - { name: detectRust, lines: 79-81 }
-    - { name: detectStack, lines: 83-120 }
+    - { name: detectStack, lines: 73-102 }
   interfaces:
     - { name: DetectionResult, lines: 9-13 }
   types:
     - { name: StackKind, lines: 4-7 }
 
-test/agents/code-map-rule.test.ts:  # 40 lines
+src/utils/tier-floor.ts:  # 244 lines
   imports:
-    - { module: vitest, items: [describe, it, expect], line: 4 }
-    - { module: fs, items: [existsSync, readFileSync], line: 5 }
-    - { module: path, items: [join, dirname], line: 6 }
-    - { module: url, items: [fileURLToPath], line: 7 }
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: './logger.js', items: [log], line: 3 }
   constants:
-    - { name: AGENTS_DIR, line: 10 }
-    - { name: REQUIRED_AGENTS, line: 12 }
+    - { name: DEFAULT_TIER_POLICY, line: 47 }
+  functions:
+    - { name: warnPolicy, lines: 87-89 }
+    - { name: loadTierPolicy, lines: 101-164 }
+    - { name: patternToRegExp, lines: 172-183 }
+    - { name: computeTierFloor, lines: 196-244 }
+  interfaces:
+    - { name: TierRule, lines: 23-27 }
+    - { name: TierPolicy, lines: 29-32 }
+    - { name: TierFloorMatch, lines: 34-41 }
+    - { name: RawPolicy, lines: 82-85 }  # local
+
+test/agents/code-map-rule.test.ts:  # 61 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 13 }
+    - { module: fs, items: [existsSync, readFileSync], line: 14 }
+    - { module: path, items: [join, dirname], line: 15 }
+    - { module: url, items: [fileURLToPath], line: 16 }
+  constants:
+    - { name: AGENTS_DIR, line: 19 }
+    - { name: REQUIRED_COMMAND_FORM, line: 22 }
+    - { name: REQUIRED_MAP_FIRST, line: 26 }
 
 test/cli/abandon.test.ts:  # 95 lines
   imports:
@@ -1137,6 +1744,20 @@ test/cli/archive.test.ts:  # 105 lines
   functions:
     - { name: scaffoldChange, lines: 11-20 }
 
+test/cli/bug-suspects.test.ts:  # 211 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
+    - { module: fs, items: [existsSync, mkdirSync, writeFileSync], line: 5 }
+    - { module: path, items: [join], line: 6 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
+
+test/cli/code-map-alias-and-retention.test.ts:  # 116 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 13 }
+    - { module: fs, items: [writeFileSync, mkdirSync, readFileSync], line: 14 }
+    - { module: path, items: [join], line: 15 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 16 }
+
 test/cli/code-map-ts-and-config.test.ts:  # 112 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 6 }
@@ -1149,7 +1770,17 @@ test/cli/code-map-ts-and-config.test.ts:  # 112 lines
   functions:
     - { name: copyFixtures, lines: 19-23 }
 
-test/cli/code-map.test.ts:  # 169 lines
+test/cli/code-map-watch.test.ts:  # 120 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: fs, items: [writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
+    - { module: path, items: [resolve], line: 5 }
+    - { module: '../../src/commands/code-map-watch.js', items: [codeMapWatch, generatedArtifactSet, makeWatchExcludeFilter], line: 6 }
+    - { module: '../../src/code-map/include-exclude.js', items: [DEFAULT_EXCLUDE], line: 7 }
+
+test/cli/code-map.test.ts:  # 178 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync], line: 5 }
@@ -1160,6 +1791,24 @@ test/cli/code-map.test.ts:  # 169 lines
     - { name: FIXTURE_ROOT, line: 12 }
   functions:
     - { name: copyFixtures, lines: 17-21 }
+
+test/cli/context-auto-approve.test.ts:  # 253 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
+    - { module: child_process, items: [spawnSync], line: 13 }
+    - { module: fs, items: [mkdirSync, readFileSync, writeFileSync], line: 14 }
+    - { module: path, items: [join, dirname], line: 15 }
+    - { module: url, items: [fileURLToPath], line: 16 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 17 }
+  constants:
+    - { name: CLI_PATH, line: 19 }
+    - { name: CHANGE, line: 24 }
+  functions:
+    - { name: manifestPath, lines: 26-28 }
+    - { name: writeManifest, lines: 30-32 }
+    - { name: writePolicy, lines: 34-42 }
+    - { name: emptyManifest, lines: 44-58 }
+    - { name: runCliStdin, lines: 61-69 }
 
 test/cli/context-scan.test.ts:  # 231 lines
   imports:
@@ -1175,6 +1824,67 @@ test/cli/context.test.ts:  # 330 lines
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
+test/cli/contract-locate.test.ts:  # 118 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 12 }
+  constants:
+    - { name: CONTRACT, line: 17 }
+  functions:
+    - { name: write, lines: 42-46 }
+
+test/cli/contract-query.test.ts:  # 212 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: fs, items: [mkdirSync, writeFileSync, rmSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 12 }
+  constants:
+    - { name: CONTRACT, line: 17 }
+    - { name: INVENTORY, line: 63 }
+  functions:
+    - { name: writeContracts, lines: 76-80 }
+    - { name: query, lines: 82-91 }
+
+test/cli/contract-set.test.ts:  # 569 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 12 }
+  constants:
+    - { name: CONTRACT, line: 18 }
+  functions:
+    - { name: write, lines: 47-50 }
+    - { name: read, lines: 52-54 }
+
+test/cli/contract-write-hook.test.ts:  # 105 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: child_process, items: [spawnSync], line: 10 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 11 }
+    - { module: path, items: [join, resolve, dirname], line: 12 }
+    - { module: url, items: [fileURLToPath], line: 13 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 14 }
+  constants:
+    - { name: HOOK, line: 18 }
+    - { name: CONTRACT_REL, line: 19 }
+  functions:
+    - { name: writeContract, lines: 23-26 }
+    - { name: runHook, lines: 29-39 }
+
+test/cli/doctor-chokepoints.test.ts:  # 156 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: child_process, items: [spawnSync], line: 11 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 12 }
+    - { module: path, items: [join], line: 13 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 14 }
+  functions:
+    - { name: setupRepo, lines: 19-24 }
+
 test/cli/doctor-code-map.test.ts:  # 72 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
@@ -1182,34 +1892,107 @@ test/cli/doctor-code-map.test.ts:  # 72 lines
     - { module: path, items: [join], line: 6 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
 
-test/cli/doctor.test.ts:  # 222 lines
+test/cli/doctor-conformance-fix.test.ts:  # 110 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync, rmSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 13 }
+  functions:
+    - { name: setupRepo, lines: 19-41 }
+    - { name: conformanceEnabled, lines: 43-47 }
+
+test/cli/doctor-mcp.test.ts:  # 109 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 14 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 15 }
+    - { module: path, items: [join], line: 16 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 17 }
+  functions:
+    - { name: setupRepo, lines: 22-28 }
+    - { name: writeClaudeStub, lines: 31-43 }
+
+test/cli/doctor-response-shape.test.ts:  # 127 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 12 }
+  constants:
+    - { name: PROSE_CONTRACT, line: 27 }
+    - { name: TYPED_CONTRACT, line: 38 }
+  functions:
+    - { name: writeContract, lines: 17-20 }
+    - { name: writeStackSignal, lines: 23-25 }
+
+test/cli/doctor-simple.test.ts:  # 56 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 8 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 9 }
+
+test/cli/doctor.test.ts:  # 244 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
-test/cli/gate.test.ts:  # 910 lines
+test/cli/freshness-mtime-repair.test.ts:  # 87 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [appendFileSync, copyFileSync, statSync, utimesSync], line: 11 }
+    - { module: path, items: [join, dirname], line: 12 }
+    - { module: url, items: [fileURLToPath], line: 13 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 14 }
+  constants:
+    - { name: FIXTURE_ROOT, line: 16 }
+  functions:
+    - { name: simulateCloneSkew, lines: 32-40 }
+
+test/cli/gate.test.ts:  # 2813 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
-    - { module: path, items: [join], line: 3 }
-    - { module: js-yaml, items: ['default:yaml'], line: 4 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 5 }
+    - { module: path, items: [join, dirname], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 6 }
   functions:
-    - { name: buildApiContract, lines: 11-47 }
-    - { name: buildEnvContract, lines: 49-76 }
-    - { name: writeValidContracts, lines: 79-188 }
-    - { name: buildTasksYaml, lines: 201-221 }
-    - { name: buildAgentLogYaml, lines: 234-250 }
-    - { name: writeValidImplementationPlan, lines: 252-285 }
-    - { name: writeValidChangeArtifacts, lines: 289-304 }
-    - { name: writeContextGovernanceFiles, lines: 306-330 }
+    - { name: buildApiContract, lines: 12-48 }
+    - { name: buildEnvContract, lines: 50-77 }
+    - { name: writeValidContracts, lines: 80-189 }
+    - { name: buildTasksYaml, lines: 202-222 }
+    - { name: buildAgentLogYaml, lines: 235-251 }
+    - { name: writeValidImplementationPlan, lines: 253-286 }
+    - { name: writeValidChangeArtifacts, lines: 290-305 }
+    - { name: writeContextGovernanceFiles, lines: 307-331 }
+    - { name: buildEvidenceYaml, lines: 1542-1570 }
+    - { name: materializeEvidenceArtifacts, lines: 1579-1597 }
   interfaces:
-    - { name: TasksFileOptions, lines: 190-199 }  # local
-    - { name: AgentLogOptions, lines: 223-232 }  # local
+    - { name: TasksFileOptions, lines: 191-200 }  # local
+    - { name: AgentLogOptions, lines: 224-233 }  # local
 
-test/cli/graph.test.ts:  # 143 lines
+test/cli/git-paths.test.ts:  # 116 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
+    - { module: child_process, items: [spawnSync], line: 13 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 14 }
+    - { module: path, items: [join], line: 15 }
+    - { module: '../../src/utils/git-paths.js', items: [getTouchedPaths, getStagedPaths], line: 16 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 17 }
+  functions:
+    - { name: git, lines: 32-40 }
+
+test/cli/graph-unresolved.test.ts:  # 136 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [writeFileSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 13 }
+  functions:
+    - { name: writeMixedRepo, lines: 19-28 }
+
+test/cli/graph.test.ts:  # 167 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [copyFileSync, existsSync, mkdirSync, writeFileSync], line: 5 }
@@ -1221,6 +2004,20 @@ test/cli/graph.test.ts:  # 143 lines
   functions:
     - { name: copyFixture, lines: 15-17 }
 
+test/cli/hooks-graph-first.test.ts:  # 104 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
+    - { module: child_process, items: [spawnSync], line: 13 }
+    - { module: fs, items: [mkdirSync, writeFileSync, utimesSync], line: 14 }
+    - { module: path, items: [join, dirname], line: 15 }
+    - { module: url, items: [fileURLToPath], line: 16 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 17 }
+  constants:
+    - { name: HOOK, line: 19 }
+  functions:
+    - { name: runHook, lines: 31-39 }
+    - { name: seed, lines: 42-53 }
+
 test/cli/index-impact.test.ts:  # 104 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
@@ -1230,7 +2027,17 @@ test/cli/index-impact.test.ts:  # 104 lines
   functions:
     - { name: writeImpactFixture, lines: 12-50 }
 
-test/cli/index-query.test.ts:  # 125 lines
+test/cli/index-query-with-source.test.ts:  # 122 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: fs, items: [copyFileSync, mkdirSync, 'copyFileSync:cp'], line: 10 }
+    - { module: path, items: [join, dirname], line: 11 }
+    - { module: url, items: [fileURLToPath], line: 12 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 13 }
+  constants:
+    - { name: FIXTURE_ROOT, line: 15 }
+
+test/cli/index-query.test.ts:  # 174 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, copyFileSync, readFileSync, writeFileSync, rmSync], line: 5 }
@@ -1242,15 +2049,26 @@ test/cli/index-query.test.ts:  # 125 lines
   functions:
     - { name: copyFixture, lines: 15-17 }
 
-test/cli/init-hooks.test.ts:  # 60 lines
+test/cli/init-codegen-script.test.ts:  # 100 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 11 }
+    - { module: fs, items: [writeFileSync, readFileSync], line: 12 }
+    - { module: path, items: [join], line: 13 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 14 }
+  functions:
+    - { name: pkg, lines: 19-21 }
+
+test/cli/init-hooks.test.ts:  # 112 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, readFileSync], line: 5 }
     - { module: path, items: [join], line: 6 }
     - { module: child_process, items: [spawnSync], line: 7 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 8 }
+  functions:
+    - { name: preToolUseCommands, lines: 79-87 }
 
-test/cli/init.test.ts:  # 142 lines
+test/cli/init.test.ts:  # 145 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -1260,13 +2078,36 @@ test/cli/init.test.ts:  # 142 lines
   constants:
     - { name: PKG_VERSION, line: 7 }
 
-test/cli/install-hooks.test.ts:  # 63 lines
+test/cli/install-agent-hooks.test.ts:  # 375 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync, mkdirSync, statSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 12 }
+  constants:
+    - { name: CD, line: 44 }
+  functions:
+    - { name: settings, lines: 17-19 }
+    - { name: preTool, lines: 24-27 }
+    - { name: cmdOf, lines: 34-36 }
+  interfaces:
+    - { name: HookHandler, lines: 21-21 }  # local
+    - { name: HookEntry, lines: 22-22 }  # local
+
+test/cli/install-hooks.test.ts:  # 104 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: child_process, items: [spawnSync], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
+
+test/cli/lifecycle-json.test.ts:  # 82 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 6 }
+    - { module: fs, items: [existsSync, readFileSync], line: 7 }
+    - { module: path, items: [join], line: 8 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 9 }
 
 test/cli/lint-agents.test.ts:  # 236 lines
   imports:
@@ -1290,6 +2131,54 @@ test/cli/list.test.ts:  # 68 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
+test/cli/manifest.test.ts:  # 125 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: child_process, items: [spawnSync], line: 13 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 14 }
+  functions:
+    - { name: git, lines: 19-25 }
+    - { name: scaffoldMicroChange, lines: 28-46 }
+
+test/cli/mcp.test.ts:  # 232 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
+    - { module: fs, items: [copyFileSync, mkdirSync, writeFileSync], line: 5 }
+    - { module: child_process, items: [spawnSync], line: 6 }
+    - { module: path, items: [join, dirname], line: 7 }
+    - { module: url, items: [fileURLToPath], line: 8 }
+    - { module: '../helpers.js', items: [CLI_PATH, makeTempDir, cleanupDir], line: 9 }
+  constants:
+    - { name: FIXTURE_ROOT, line: 11 }
+  functions:
+    - { name: copyFixture, lines: 22-24 }
+    - { name: runMcp, lines: 26-44 }
+  interfaces:
+    - { name: JsonRpcResponse, lines: 16-20 }  # local
+
+test/cli/metadata-integration.test.ts:  # 86 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync, appendFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
+  functions:
+    - { name: changeDir, lines: 17-19 }
+    - { name: scaffoldChange, lines: 21-33 }
+
+test/cli/metadata.test.ts:  # 123 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync, appendFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
+  functions:
+    - { name: changeDir, lines: 16-18 }
+    - { name: scaffold, lines: 20-41 }
+
 test/cli/migrate.test.ts:  # 283 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
@@ -1298,7 +2187,7 @@ test/cli/migrate.test.ts:  # 283 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
-test/cli/new.test.ts:  # 202 lines
+test/cli/new.test.ts:  # 206 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -1318,20 +2207,51 @@ test/cli/no-bom.test.ts:  # 48 lines
     - { name: walk, lines: 20-32 }
     - { name: hasUtf8Bom, lines: 34-37 }
 
-test/cli/refresh.test.ts:  # 279 lines
+test/cli/openapi-check.test.ts:  # 116 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 13 }
+  constants:
+    - { name: CONTRACT_REL, line: 18 }
+    - { name: ARTIFACT_REL, line: 19 }
+  functions:
+    - { name: writeContract, lines: 21-33 }
+
+test/cli/openapi-export.test.ts:  # 501 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 13 }
+  functions:
+    - { name: writeContract, lines: 18-32 }
+
+test/cli/refresh.test.ts:  # 284 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync], line: 13 }
     - { module: path, items: [join], line: 14 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 15 }
 
-test/cli/skill-prompts.test.ts:  # 176 lines
+test/cli/setup.test.ts:  # 166 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
+    - { module: child_process, items: [spawnSync], line: 13 }
+    - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 14 }
+    - { module: path, items: [join], line: 15 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 16 }
+  functions:
+    - { name: gitInit, lines: 21-24 }
+
+test/cli/skill-prompts.test.ts:  # 192 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
 
-test/cli/stack-detect.test.ts:  # 119 lines
+test/cli/stack-detect.test.ts:  # 145 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [writeFileSync, mkdirSync, readFileSync], line: 2 }
@@ -1344,6 +2264,68 @@ test/cli/stress-templates.test.ts:  # 41 lines
     - { module: fs, items: [existsSync, readFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
+
+test/cli/test-impact.test.ts:  # 98 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
+    - { module: fs, items: [existsSync, mkdirSync, writeFileSync], line: 5 }
+    - { module: path, items: [join], line: 6 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
+  functions:
+    - { name: write, lines: 12-16 }
+    - { name: writeImpactFixture, lines: 21-27 }
+
+test/cli/test-run.test.ts:  # 318 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: ajv, items: ['default:Ajv'], line: 5 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 6 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
+    - { module: '../../src/schemas/test-evidence.schema.js', items: [testEvidenceSchema], line: 8 }
+    - { module: '../../src/commands/test-run.js', items: [isPytestCommand, hasShellControl, augmentPytestCommand, parseJunitFirstFailure, classifyFailure], line: 9 }
+  constants:
+    - { name: NODE_PASS, line: 24 }
+    - { name: NODE_FAIL, line: 25 }
+    - { name: NODE_BIG_FAIL, line: 30 }
+    - { name: NODE_HANG, line: 31 }
+
+test/cli/test-runner-hook.test.ts:  # 312 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 13 }
+    - { module: child_process, items: [spawnSync], line: 14 }
+    - { module: fs, items: [mkdirSync], line: 15 }
+    - { module: path, items: [join, resolve, dirname], line: 16 }
+    - { module: url, items: [fileURLToPath], line: 17 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 18 }
+  constants:
+    - { name: HOOK, line: 22 }
+  functions:
+    - { name: runHook, lines: 27-39 }
+
+test/cli/test-select.test.ts:  # 320 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [dirname, join], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
+    - { module: '../../src/commands/test-select.js', items: [isBareTargetShape, formatTarget, isPytestTestFile, isJsTestFile, parseMarkdownTable, extractQualityGates, detectContractAffected], line: 6 }
+  constants:
+    - { name: PLAN_HEADING, line: 16 }
+  functions:
+    - { name: planWithTarget, lines: 18-34 }
+
+test/cli/tier-floor.test.ts:  # 278 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect, vi], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
+    - { module: '../../src/utils/tier-floor.js', items: [computeTierFloor, loadTierPolicy, DEFAULT_TIER_POLICY], line: 5 }
+    - { module: '../../src/commands/code-map-watch.js', items: [createDebouncedRunner], line: 10 }
 
 test/cli/update.test.ts:  # 213 lines
   imports:
@@ -1360,7 +2342,43 @@ test/cli/upgrade.test.ts:  # 84 lines
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
-test/cli/validate-semantic.test.ts:  # 327 lines
+test/cli/validate-conformance.test.ts:  # 439 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: child_process, items: [spawnSync], line: 11 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 12 }
+    - { module: path, items: [join, dirname], line: 13 }
+    - { module: url, items: [fileURLToPath], line: 14 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir, hasPython], line: 15 }
+  constants:
+    - { name: SCRIPT, line: 17 }
+    - { name: ENABLED, line: 56 }
+  functions:
+    - { name: python, lines: 22-27 }
+    - { name: run, lines: 29-32 }
+    - { name: writeApiContract, lines: 34-43 }
+    - { name: writeConfig, lines: 45-48 }
+    - { name: writeSrc, lines: 50-54 }
+
+test/cli/validate-response-shape.test.ts:  # 202 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: child_process, items: [spawnSync], line: 11 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 12 }
+    - { module: path, items: [join, dirname], line: 13 }
+    - { module: url, items: [fileURLToPath], line: 14 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir, hasPython], line: 15 }
+  constants:
+    - { name: SCRIPT, line: 17 }
+  functions:
+    - { name: python, lines: 22-27 }
+    - { name: hasJsonSchema, lines: 30-32 }
+    - { name: run, lines: 34-41 }
+    - { name: writeOpenApi, lines: 44-78 }
+    - { name: writeManifest, lines: 80-83 }
+    - { name: writeSample, lines: 85-88 }
+
+test/cli/validate-semantic.test.ts:  # 352 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
@@ -1393,6 +2411,14 @@ test/cli/validate.test.ts:  # 181 lines
     - { module: fs, items: [appendFileSync, readFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 4 }
+
+test/code-graph/queries.test.ts:  # 176 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 11 }
+    - { module: '../../src/code-graph/queries.js', items: [searchGraph, findGraphNode, graphCallers, graphCallees, graphImpact, graphContext, graphUnresolved], line: 12 }
+    - { module: '../../src/code-graph/types.js', items: [CodeGraphIndex], line: 21 }
+  functions:
+    - { name: makeGraph, lines: 31-63 }
 
 test/code-map/config.test.ts:  # 95 lines
   imports:
@@ -1445,6 +2471,29 @@ test/code-map/worker-dispatch.test.ts:  # 33 lines
     - { module: '../../src/code-map/scanners/javascript.js', items: [jsScanner], line: 5 }
   constants:
     - { name: FIXTURE_ROOT, line: 7 }
+
+test/commands/metadata-build.test.ts:  # 228 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
+    - { module: '../../src/commands/metadata.js', items: [buildChangeMetadata, buildTraceMetadata], line: 5 }
+  constants:
+    - { name: CHANGE_ID, line: 17 }
+  functions:
+    - { name: write, lines: 19-23 }
+    - { name: scaffoldFullChange, lines: 25-106 }
+
+test/commands/test-impact-build.test.ts:  # 36 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: '../../src/commands/test-impact.js', items: [isTestFilePath], line: 2 }
+
+test/contracts/parser.test.ts:  # 315 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: '../../src/contracts/parser.js', items: [parseEndpoints, parseEndpointTableRows, parseContractSchemas, parseSchemaCellRef, detectSchemaCellNearMiss, stripFrontmatter, extractSection, parseRow, isSeparator], line: 2 }
 
 test/fixtures/code-map/comments-only.js:  # 5 lines
 
@@ -1570,6 +2619,69 @@ test/helpers.ts:  # 67 lines
   interfaces:
     - { name: RunResult, lines: 12-16 }
 
-vitest.config.ts:  # 8 lines
+test/schemas/bug-fix-evidence.schema.test.ts:  # 332 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: ajv, items: ['default:Ajv'], line: 2 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 3 }
+    - { module: '../../src/schemas/bug-fix-evidence.schema.js', items: [bugFixEvidenceSchema, REPRODUCTION_STATUSES, HYPOTHESIS_RESULTS], line: 4 }
+    - { module: '../../src/schemas/agent-log.schema.js', items: [agentLogSchema], line: 9 }
+  functions:
+    - { name: validBlock, lines: 22-64 }
+    - { name: diagnosticBlock, lines: 68-88 }
+    - { name: validAgentLog, lines: 92-101 }
+
+test/schemas/test-evidence.schema.test.ts:  # 124 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: fs, items: [readFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: ajv, items: ['default:Ajv'], line: 5 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 6 }
+    - { module: '../../src/schemas/test-evidence.schema.js', items: [testEvidenceSchema], line: 7 }
+  constants:
+    - { name: TEMPLATES, line: 18 }
+    - { name: WAIVER_FIELDS, line: 24 }
+  functions:
+    - { name: validEvidence, lines: 32-55 }
+
+test/setup-git-env.ts:  # 45 lines
+  imports:
+    - { module: fs, items: [mkdtempSync, writeFileSync], line: 1 }
+    - { module: os, items: [tmpdir], line: 2 }
+    - { module: path, items: [join], line: 3 }
+
+test/utils/digest.test.ts:  # 77 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 7 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 8 }
+    - { module: path, items: [join], line: 9 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 10 }
+    - { module: '../../src/utils/digest.js', items: [inputsDigest], line: 11 }
+    - { module: '../../src/utils/context-inputs.js', items: [findContractFiles, projectMapInputs], line: 12 }
+
+test/utils/gate-explain.test.ts:  # 57 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 9 }
+    - { module: '../../src/utils/gate-explain.js', items: [explainGateError], line: 10 }
+
+tools/check-mojibake.mjs:  # 141 lines
+  imports:
+    - { module: 'node:fs', items: [readdirSync, readFileSync, statSync, existsSync], line: 28 }
+    - { module: 'node:path', items: [join, relative], line: 29 }
+    - { module: 'node:url', items: [fileURLToPath], line: 30 }
+  constants:
+    - { name: ROOT, line: 32 }
+    - { name: SKIP_DIRS, line: 36 }
+    - { name: SCAN_TARGETS, line: 39 }
+    - { name: ESCAPE_RE, line: 79 }
+    - { name: CP1252_RE, line: 85 }
+  functions:
+    - { name: collectDir, lines: 53-62 }
+    - { name: collectTargets, lines: 65-75 }
+    - { name: isCJK, lines: 89-91 }
+
+vitest.config.ts:  # 15 lines
   imports:
     - { module: vitest/config, items: [defineConfig], line: 1 }
