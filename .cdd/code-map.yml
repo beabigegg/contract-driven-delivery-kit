@@ -1,6 +1,6 @@
-# generated: 2026-06-20T12:13:42Z by cdd-kit 3.4.0
-# files: 180, src-lines: 36033, map-lines: 2687, compression: 13.4x
-# sources-digest: 5feccd6c06f5a7ccd302942b6b134235b46f0e5bd87e860ec17b11cb783a9683
+# generated: 2026-06-25T00:17:01Z by cdd-kit 3.5.0
+# files: 182, src-lines: 36281, map-lines: 2705, compression: 13.4x
+# sources-digest: 7f382b1a485d071ef7f81f25d60ae407deaf54f1a0f3d2e29d8075d58ebf91f2
 bin/cdd.js:  # 2 lines
   imports:
     - { module: '../dist/cli/index.js', items: [], line: 2 }
@@ -22,7 +22,7 @@ build.js:  # 100 lines
     - { name: shouldCopyAsset, lines: 51-60 }
     - { name: copy, lines: 62-72 }
 
-src/cli/index.ts:  # 900 lines
+src/cli/index.ts:  # 904 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: os, items: ['default:os'], line: 2 }
@@ -78,28 +78,30 @@ src/code-graph/builder.ts:  # 399 lines
     - { name: BuildOptions, lines: 16-25 }  # local
     - { name: SymbolTarget, lines: 27-30 }  # local
 
-src/code-graph/queries.ts:  # 275 lines
+src/code-graph/queries.ts:  # 281 lines
   imports:
     - { module: './types.js', items: [CodeGraphEdge, CodeGraphEdgeKind, CodeGraphIndex, CodeGraphNode, CodeGraphUnresolvedRef], line: 1 }
+    - { module: '../code-map/query-score.js', items: [scoreQuery], line: 2 }
   constants:
-    - { name: CANDIDATE_CAP, line: 58 }
+    - { name: CANDIDATE_CAP, line: 59 }
   functions:
-    - { name: searchGraph, lines: 60-82 }
-    - { name: findGraphNode, lines: 84-96 }
-    - { name: graphCallers, lines: 98-102 }
-    - { name: graphCallees, lines: 104-108 }
-    - { name: graphImpact, lines: 110-120 }
-    - { name: graphUnresolved, lines: 129-197 }
-    - { name: unresolvedBaseName, lines: 200-204 }
-    - { name: graphContext, lines: 206-217 }
-    - { name: traverse, lines: 219-266 }
-    - { name: scoreText, lines: 268-275 }
+    - { name: searchGraph, lines: 61-83 }
+    - { name: findGraphNode, lines: 85-97 }
+    - { name: graphCallers, lines: 99-103 }
+    - { name: graphCallees, lines: 105-109 }
+    - { name: graphImpact, lines: 111-121 }
+    - { name: graphUnresolved, lines: 130-198 }
+    - { name: unresolvedBaseName, lines: 201-205 }
+    - { name: graphContext, lines: 207-218 }
+    - { name: traverse, lines: 220-267 }
+    - { name: scoreText, lines: 269-272 }
+    - { name: substringScore, lines: 275-281 }
   interfaces:
-    - { name: GraphSearchResult, lines: 3-10 }
-    - { name: GraphImpactResult, lines: 12-23 }
-    - { name: UnresolvedCandidate, lines: 26-31 }
-    - { name: UnresolvedRefView, lines: 34-47 }
-    - { name: GraphUnresolvedResult, lines: 49-56 }
+    - { name: GraphSearchResult, lines: 4-11 }
+    - { name: GraphImpactResult, lines: 13-24 }
+    - { name: UnresolvedCandidate, lines: 27-32 }
+    - { name: UnresolvedRefView, lines: 35-48 }
+    - { name: GraphUnresolvedResult, lines: 50-57 }
 
 src/code-graph/reader.ts:  # 19 lines
   imports:
@@ -219,6 +221,13 @@ src/code-map/python/python_scanner.py:  # 206 lines
     - { name: _calls_in, lines: 54-65 }
     - { name: scan_file, lines: 68-180 }
     - { name: main, lines: 183-202 }
+
+src/code-map/query-score.ts:  # 95 lines
+  constants:
+    - { name: STOPWORDS, line: 28 }
+  functions:
+    - { name: tokenizeQuery, lines: 43-55 }
+    - { name: scoreQuery, lines: 73-95 }
 
 src/code-map/resolve.ts:  # 80 lines
   imports:
@@ -863,7 +872,7 @@ src/commands/gate.ts:  # 203 lines
   interfaces:
     - { name: GateOptions, lines: 22-26 }
 
-src/commands/graph.ts:  # 550 lines
+src/commands/graph.ts:  # 568 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -879,31 +888,31 @@ src/commands/graph.ts:  # 550 lines
   constants:
     - { name: UNRESOLVED_KINDS, line: 42 }
   functions:
-    - { name: codeGraphCommand, lines: 64-66 }
-    - { name: runCodeGraph, lines: 68-74 }
-    - { name: probeCodeGraph, lines: 76-97 }
-    - { name: selectEngine, lines: 99-119 }
-    - { name: writeJson, lines: 121-123 }
-    - { name: pipeResult, lines: 125-133 }
-    - { name: printEngineError, lines: 135-142 }
-    - { name: async ensureNativeGraph, lines: 144-167 }
-    - { name: async graphStatus, lines: 169-226 }
-    - { name: async graphSync, lines: 228-237 }
-    - { name: async graphQuery, lines: 239-302 }
-    - { name: collectNodeSources, lines: 310-346 }
-    - { name: async graphImpact, lines: 348-407 }
-    - { name: async graphUnresolved, lines: 409-464 }
-    - { name: async graphContext, lines: 466-550 }
+    - { name: codeGraphCommand, lines: 66-68 }
+    - { name: runCodeGraph, lines: 70-76 }
+    - { name: probeCodeGraph, lines: 78-99 }
+    - { name: selectEngine, lines: 101-121 }
+    - { name: writeJson, lines: 123-125 }
+    - { name: pipeResult, lines: 127-135 }
+    - { name: printEngineError, lines: 137-144 }
+    - { name: async ensureNativeGraph, lines: 146-169 }
+    - { name: async graphStatus, lines: 171-228 }
+    - { name: async graphSync, lines: 230-239 }
+    - { name: async graphQuery, lines: 241-304 }
+    - { name: collectNodeSources, lines: 312-348 }
+    - { name: async graphImpact, lines: 350-409 }
+    - { name: async graphUnresolved, lines: 411-466 }
+    - { name: async graphContext, lines: 468-568 }
   interfaces:
     - { name: GraphBaseOptions, lines: 15-20 }  # local
     - { name: GraphStatusOptions, lines: 22-24 }
     - { name: GraphQueryOptions, lines: 26-30 }
     - { name: GraphImpactOptions, lines: 32-35 }
     - { name: GraphUnresolvedOptions, lines: 37-40 }
-    - { name: GraphContextOptions, lines: 44-46 }
-    - { name: GraphSyncOptions, lines: 48-50 }
-    - { name: CodeGraphProbe, lines: 52-57 }  # local
-    - { name: SelectedEngine, lines: 59-62 }  # local
+    - { name: GraphContextOptions, lines: 44-48 }
+    - { name: GraphSyncOptions, lines: 50-52 }
+    - { name: CodeGraphProbe, lines: 54-59 }  # local
+    - { name: SelectedEngine, lines: 61-64 }  # local
   types:
     - { name: GraphEngine, lines: 13-13 }  # local
 
@@ -932,33 +941,35 @@ src/commands/index-impact.ts:  # 262 lines
     - { name: SymbolSummary, lines: 27-32 }  # local
     - { name: ImpactPayload, lines: 34-46 }  # local
 
-src/commands/index-query.ts:  # 359 lines
+src/commands/index-query.ts:  # 365 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: '../code-map/index-reader.js', items: [ensureCodeMapFresh, loadCodeMapEntries], line: 2 }
     - { module: '../code-map/types.js', items: [FileEntry], line: 3 }
+    - { module: '../code-map/query-score.js', items: [scoreQuery], line: 4 }
   constants:
-    - { name: DEFAULT_SOURCE_BUDGET, line: 6 }
-    - { name: PER_FILE_MATCH_CAP, line: 13 }
+    - { name: DEFAULT_SOURCE_BUDGET, line: 7 }
+    - { name: PER_FILE_MATCH_CAP, line: 14 }
   functions:
-    - { name: resolveSourceBudget, lines: 16-20 }
-    - { name: async indexQuery, lines: 74-118 }
-    - { name: queryEntries, lines: 120-204 }
-    - { name: addMatch, lines: 206-217 }
-    - { name: scoreText, lines: 219-226 }
-    - { name: rangeToString, lines: 228-232 }
-    - { name: compareMatch, lines: 234-238 }
-    - { name: firstLine, lines: 240-243 }
-    - { name: surfaceRootFor, lines: 250-260 }
-    - { name: attachSource, lines: 270-305 }
-    - { name: resolveRange, lines: 307-316 }
-    - { name: printText, lines: 318-350 }
-    - { name: printFailure, lines: 352-359 }
+    - { name: resolveSourceBudget, lines: 17-21 }
+    - { name: async indexQuery, lines: 75-119 }
+    - { name: queryEntries, lines: 121-205 }
+    - { name: addMatch, lines: 207-218 }
+    - { name: scoreText, lines: 220-223 }
+    - { name: substringScore, lines: 226-232 }
+    - { name: rangeToString, lines: 234-238 }
+    - { name: compareMatch, lines: 240-244 }
+    - { name: firstLine, lines: 246-249 }
+    - { name: surfaceRootFor, lines: 256-266 }
+    - { name: attachSource, lines: 276-311 }
+    - { name: resolveRange, lines: 313-322 }
+    - { name: printText, lines: 324-356 }
+    - { name: printFailure, lines: 358-365 }
   interfaces:
-    - { name: IndexQueryOptions, lines: 22-35 }
-    - { name: QueryMatch, lines: 37-48 }
-    - { name: QueryResult, lines: 50-59 }
-    - { name: QueryPayload, lines: 61-72 }
+    - { name: IndexQueryOptions, lines: 23-36 }
+    - { name: QueryMatch, lines: 38-49 }
+    - { name: QueryResult, lines: 51-60 }
+    - { name: QueryPayload, lines: 62-73 }
 
 src/commands/init.ts:  # 413 lines
   imports:
@@ -1507,7 +1518,7 @@ src/contracts/parser.ts:  # 526 lines
   types:
     - { name: JsonSchema, lines: 20-20 }
 
-src/mcp/server.ts:  # 452 lines
+src/mcp/server.ts:  # 455 lines
   imports:
     - { module: child_process, items: [spawnSync], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -1516,18 +1527,18 @@ src/mcp/server.ts:  # 452 lines
   constants:
     - { name: DEFAULT_MAP, line: 35 }
   functions:
-    - { name: async runMcpServer, lines: 203-228 }
-    - { name: async handleRequest, lines: 230-266 }
-    - { name: callTool, lines: 268-387 }
-    - { name: runCddJson, lines: 389-412 }
-    - { name: refreshArgs, lines: 414-416 }
-    - { name: sourceArgs, lines: 418-421 }
-    - { name: asObject, lines: 423-427 }
-    - { name: requireString, lines: 429-435 }
-    - { name: optionalString, lines: 437-439 }
-    - { name: optionalInt, lines: 441-444 }
-    - { name: writeResult, lines: 446-448 }
-    - { name: writeError, lines: 450-452 }
+    - { name: async runMcpServer, lines: 205-230 }
+    - { name: async handleRequest, lines: 232-268 }
+    - { name: callTool, lines: 270-390 }
+    - { name: runCddJson, lines: 392-415 }
+    - { name: refreshArgs, lines: 417-419 }
+    - { name: sourceArgs, lines: 421-424 }
+    - { name: asObject, lines: 426-430 }
+    - { name: requireString, lines: 432-438 }
+    - { name: optionalString, lines: 440-442 }
+    - { name: optionalInt, lines: 444-447 }
+    - { name: writeResult, lines: 449-451 }
+    - { name: writeError, lines: 453-455 }
   interfaces:
     - { name: JsonRpcRequest, lines: 8-13 }  # local
     - { name: ToolDef, lines: 15-24 }  # local
@@ -1992,7 +2003,7 @@ test/cli/graph-unresolved.test.ts:  # 136 lines
   functions:
     - { name: writeMixedRepo, lines: 19-28 }
 
-test/cli/graph.test.ts:  # 167 lines
+test/cli/graph.test.ts:  # 190 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [copyFileSync, existsSync, mkdirSync, writeFileSync], line: 5 }
@@ -2037,7 +2048,7 @@ test/cli/index-query-with-source.test.ts:  # 122 lines
   constants:
     - { name: FIXTURE_ROOT, line: 15 }
 
-test/cli/index-query.test.ts:  # 174 lines
+test/cli/index-query.test.ts:  # 188 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, copyFileSync, readFileSync, writeFileSync, rmSync], line: 5 }
@@ -2412,7 +2423,7 @@ test/cli/validate.test.ts:  # 181 lines
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 4 }
 
-test/code-graph/queries.test.ts:  # 176 lines
+test/code-graph/queries.test.ts:  # 194 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 11 }
     - { module: '../../src/code-graph/queries.js', items: [searchGraph, findGraphNode, graphCallers, graphCallees, graphImpact, graphContext, graphUnresolved], line: 12 }
@@ -2429,6 +2440,13 @@ test/code-map/config.test.ts:  # 95 lines
     - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 13 }
   functions:
     - { name: writeConfig, lines: 25-28 }
+
+test/code-map/query-score.test.ts:  # 61 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 6 }
+    - { module: '../../src/code-map/query-score.js', items: [tokenizeQuery, scoreQuery], line: 7 }
+  functions:
+    - { name: sub, lines: 10-17 }
 
 test/code-map/scanners-ts.test.ts:  # 133 lines
   imports:

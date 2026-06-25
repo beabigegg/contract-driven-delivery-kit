@@ -124,6 +124,29 @@ export function target() {
     expect(payload.edges.some(e => e.kind === 'calls')).toBe(true);
   });
 
+  it('graph context resolves a multi-word task and --with-source inlines entry-point code (P0+P1)', () => {
+    writeFileSync(join(tmpRepo, 'orders.ts'), [
+      'export function exportOrders() {',
+      '  return buildReport();',
+      '}',
+      'function buildReport() { return []; }',
+      '',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['graph', 'context', 'order export', '--with-source', '--json'], { cwd: tmpRepo, home: tmpHome });
+
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout) as {
+      engine: string;
+      entry_points: Array<{ node: { name: string }; source?: string }>;
+    };
+    expect(payload.engine).toBe('native');
+    const ep = payload.entry_points.find(e => e.node.name === 'exportOrders');
+    expect(ep).toBeDefined();
+    // Source is inlined, so the agent needs no follow-up Read for this entry point.
+    expect(ep!.source).toContain('exportOrders');
+  });
+
   it('reports a clear error when CodeGraph is requested but unavailable', () => {
     const r = runCli(['graph', 'status', '--engine', 'codegraph', '--json'], {
       cwd: tmpRepo,

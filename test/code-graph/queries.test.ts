@@ -79,6 +79,24 @@ describe('code-graph queries', () => {
       expect(searchGraph(makeGraph(), '   ', 10)).toEqual([]);
       expect(searchGraph(makeGraph(), 'save', 1)).toHaveLength(1);
     });
+
+    it('finds a camelCase symbol from a multi-word task query (P0)', () => {
+      const graph: CodeGraphIndex = {
+        schema_version: '1.0',
+        generator: 'test',
+        sources_digest: 'd',
+        files: [{ path: 'orders.ts', total_lines: 10, node_count: 1 }],
+        nodes: [
+          { id: 'orders.ts', kind: 'file', name: 'orders.ts', qualified_name: 'orders.ts', file_path: 'orders.ts', start_line: 1, end_line: 10 },
+          { id: 'orders.ts::exportOrders', kind: 'function', name: 'exportOrders', qualified_name: 'orders.ts::exportOrders', file_path: 'orders.ts', start_line: 2, end_line: 8, exported: true },
+        ],
+        edges: [{ id: 'e1', source: 'orders.ts', target: 'orders.ts::exportOrders', kind: 'contains', provenance: 'codemap' }],
+        unresolved: [],
+      };
+      // The old single-substring matcher scored 0 for any two-word query.
+      const results = searchGraph(graph, 'order export', 10);
+      expect(results.map(r => r.node.name)).toContain('exportOrders');
+    });
   });
 
   describe('findGraphNode', () => {

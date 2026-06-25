@@ -67,7 +67,7 @@ const tools: ToolDef[] = [
   },
   {
     name: 'cdd_graph_context',
-    description: 'Build graph-first task context from a task, symptom, or known feature term.',
+    description: 'Build graph-first task context from a multi-word task, symptom, or feature description (e.g. "filter options are empty", "order export timeout"). Multi-word queries are tokenized and ranked by coverage, so a natural-language phrase resolves in one call. Set withSource:true to also return the entry points\' source slices inline so no separate file read is needed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -75,6 +75,8 @@ const tools: ToolDef[] = [
         maxNodes: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
         map: { type: 'string', description: 'Code-map YAML path.', default: DEFAULT_MAP },
         engine: { type: 'string', enum: ['auto', 'native', 'codegraph', 'codemap'], default: 'auto' },
+        withSource: { type: 'boolean', description: 'Include the entry points\' source slices inline (replaces a follow-up read). Native engine.', default: false },
+        sourceBudget: { type: 'integer', minimum: 1, maximum: 5000, default: 400, description: 'Max total source lines to return when withSource is true.' },
         refresh: { type: 'boolean', default: true },
       },
       required: ['task'],
@@ -294,6 +296,7 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         '--map', optionalString(args.map, DEFAULT_MAP),
         '--max-nodes', String(optionalInt(args.maxNodes, 20)),
         '--json',
+        ...sourceArgs(args),
         ...refreshArgs(args),
       ]);
     case 'cdd_graph_impact':

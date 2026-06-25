@@ -1,4 +1,5 @@
 import type { CodeGraphEdge, CodeGraphEdgeKind, CodeGraphIndex, CodeGraphNode, CodeGraphUnresolvedRef } from './types.js';
+import { scoreQuery } from '../code-map/query-score.js';
 
 export interface GraphSearchResult {
   node: CodeGraphNode;
@@ -267,6 +268,11 @@ function traverse(
 
 function scoreText(text: string, query: string, weight: number): number {
   const haystack = text.toLowerCase();
+  return scoreQuery(haystack, query, (hay, needle) => substringScore(hay, needle, weight));
+}
+
+/** Tiered substring match for one needle: exact > suffix-segment > prefix > contains. */
+function substringScore(haystack: string, query: string, weight: number): number {
   if (haystack === query) return weight + 40;
   if (haystack.endsWith(`/${query}`) || haystack.endsWith(`.${query}`) || haystack.endsWith(`::${query}`)) return weight + 30;
   if (haystack.startsWith(query)) return weight + 20;

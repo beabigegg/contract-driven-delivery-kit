@@ -834,9 +834,18 @@ richer relationship layer; see below.)
 
 ```bash
 cdd-kit index query <term>                # files, symbols, imports, line ranges for a term
+cdd-kit index query "order export"        # multi-word: tokenized, ranked by coverage
 cdd-kit index query <term> --with-source  # include the source slice for each hit
 cdd-kit index impact <path-or-symbol>     # indexed local imports and dependents of a file
 ```
+
+**Multi-word queries are tokenized.** A query is split into tokens
+(whitespace/comma separated, stopwords and 1-char tokens dropped) and scored by
+how many tokens a symbol matches, so a natural-language task (`"filter options
+are empty"`) or a two-word query (`"order export"` → `exportOrders`) resolves in
+one call instead of forcing the agent to retry one exact identifier at a time. A
+single-word or exact query behaves exactly as before (byte-identical ranking), so
+the gate's deterministic `--check` is unaffected.
 
 **Truncation is always visible:** `index query` reports `total_matches` /
 `returned` / `truncated` (and per-file `match_count` / `matches_truncated`) so a
@@ -1368,7 +1377,8 @@ with `--engine codegraph`.
 cdd-kit graph status
 cdd-kit graph query OrderService
 cdd-kit graph query OrderService --with-source   # include code inline; no follow-up Read needed
-cdd-kit graph context "filter options are empty"
+cdd-kit graph context "filter options are empty"  # multi-word task → ranked entry points
+cdd-kit graph context "order export" --with-source # entry points + their code in one call
 cdd-kit graph impact src/services/orders.ts --depth 2
 cdd-kit graph unresolved src/services/orders.ts   # external/dynamic/DI calls this file makes
 ```

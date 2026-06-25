@@ -403,8 +403,10 @@ graph
   .option('--map <path>', 'Code-map YAML path for fallback', '.cdd/code-map.yml')
   .option('--max-nodes <n>', 'Maximum context candidates/nodes', '20')
   .option('--json', 'Print machine-readable JSON', false)
+  .option('--with-source', 'Include matched entry-point source slices inline so no separate Read is needed (native engine)', false)
+  .option('--source-budget <n>', 'Max total source lines to emit with --with-source', '400')
   .option('--no-refresh', 'Do not auto-regenerate stale or missing fallback code-map')
-  .action(async (task: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; maxNodes: string; json?: boolean; refresh?: boolean }) => {
+  .action(async (task: string, opts: { engine?: 'auto' | 'native' | 'codegraph' | 'codemap'; map?: string; maxNodes: string; json?: boolean; refresh?: boolean; withSource?: boolean; sourceBudget?: string }) => {
     const { graphContext } = await import('../commands/graph.js');
     const exit = await graphContext(task, {
       engine: opts.engine,
@@ -412,6 +414,8 @@ graph
       maxNodes: parseInt(opts.maxNodes, 10),
       json: opts.json === true,
       refresh: opts.refresh !== false,
+      withSource: opts.withSource === true,
+      sourceBudget: parseInt(opts.sourceBudget ?? '400', 10),
     });
     process.exit(exit);
   });

@@ -123,6 +123,20 @@ describe('cdd-kit index query', () => {
     expect(existsSync(join(tmpRepo, '.cdd', 'code-map.yml'))).toBe(false);
   });
 
+  it('matches a multi-word query against a camelCase symbol (P0)', () => {
+    // Before P0, `index query "order export"` scored 0 (no symbol contains the
+    // whole phrase) and exited 1, forcing the agent to retry one word at a time.
+    writeFileSync(join(tmpRepo, 'orders.ts'), 'export function exportOrders() { return []; }\n', 'utf8');
+    runCli(['code-map'], { cwd: tmpRepo, home: tmpHome });
+
+    const r = runCli(['index', 'query', 'order export', '--json', '--no-refresh'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+    const payload = JSON.parse(r.stdout) as { results: Array<{ path: string; matches: Array<{ name: string }> }> };
+    const file = payload.results.find(res => res.path === 'orders.ts');
+    expect(file).toBeDefined();
+    expect(file!.matches.some(m => m.name === 'exportOrders')).toBe(true);
+  });
+
   it('reports top-level truncation when --limit hides matching files (P1-7)', () => {
     // Two files both match "alpha"; --limit 1 must report that one was hidden so
     // the agent knows to raise --limit instead of assuming it saw everything.

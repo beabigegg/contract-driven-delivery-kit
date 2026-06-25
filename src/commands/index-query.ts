@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { ensureCodeMapFresh, loadCodeMapEntries } from '../code-map/index-reader.js';
 import type { FileEntry } from '../code-map/types.js';
+import { scoreQuery } from '../code-map/query-score.js';
 
 /** Default cap on total source lines emitted by --with-source per query. */
 export const DEFAULT_SOURCE_BUDGET = 400;
@@ -218,6 +219,11 @@ function addMatch(
 
 function scoreText(text: string, query: string, weight: number): number {
   const haystack = text.toLowerCase();
+  return scoreQuery(haystack, query, (hay, needle) => substringScore(hay, needle, weight));
+}
+
+/** Tiered substring match for one needle: exact > suffix-segment > prefix > contains. */
+function substringScore(haystack: string, query: string, weight: number): number {
   if (haystack === query) return weight + 40;
   if (haystack.endsWith(`/${query}`) || haystack.endsWith(`.${query}`)) return weight + 30;
   if (haystack.startsWith(query)) return weight + 20;

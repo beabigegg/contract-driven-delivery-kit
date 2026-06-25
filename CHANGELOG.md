@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-06-25
+
+### Changed
+
+- **Multi-word query matching for `cdd-kit index query` and `cdd-kit graph
+  query`/`context`.** The matcher previously treated the whole query as one
+  atomic substring (`haystack.includes(query)`), so any multi-word query — a
+  natural-language task ("filter options are empty") or even two words ("order
+  export") — scored 0 against every symbol, because no single identifier
+  contains the whole phrase. Agents then had to decompose the query into one
+  exact identifier per call and retry, which was the observed "many round-trips,
+  never finds it" failure mode of graph-first exploration. Queries are now
+  tokenized (whitespace/comma split, stopwords and 1-char tokens dropped) and
+  scored by token coverage: a symbol matching more of the query ranks higher, so
+  `exportOrders` is found by "order export" in a single call. **Single-word and
+  exact-match queries are byte-identical to before** — only multi-word queries
+  take the new path — so the gate's `--check` determinism and existing indexes
+  are untouched. New shared module `src/code-map/query-score.ts`
+  (`tokenizeQuery`, `scoreQuery`).
+
+### Added
+
+- **`cdd-kit graph context --with-source`.** The natural-language context entry
+  (`graph context "<task>"`, and `cdd_graph_context` over MCP) now accepts
+  `--with-source` (with `--source-budget`, native engine), inlining each entry
+  point's code in the same call. Previously `graph context` returned only symbol
+  names and line ranges, forcing a second `graph query --with-source`/`Read` per
+  entry point; the source is now returned up front, removing that mandated extra
+  round-trip.
+
 ## [3.4.0] - 2026-06-20
 
 ### Added

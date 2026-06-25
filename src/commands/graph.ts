@@ -43,6 +43,8 @@ const UNRESOLVED_KINDS: CodeGraphEdgeKind[] = ['calls', 'extends', 'implements',
 
 export interface GraphContextOptions extends GraphBaseOptions {
   maxNodes: number;
+  withSource?: boolean;
+  sourceBudget?: number;
 }
 
 export interface GraphSyncOptions extends GraphBaseOptions {
@@ -479,14 +481,28 @@ export async function graphContext(task: string, opts: GraphContextOptions): Pro
     try {
       const graph = loadCodeGraph(ensured.graphPath);
       const context = buildNativeContext(graph, task, opts.maxNodes);
+      // With --with-source, inline the entry points' code so `graph context`
+      // answers a natural-language task in one call instead of forcing a
+      // follow-up `graph query --with-source`/Read on each entry point.
+      const sources = opts.withSource
+        ? collectNodeSources(context.entry_points.map(r => r.node), resolveSourceBudget(opts.sourceBudget), surfaceRootFor(mapPath))
+        : new Map<string, { source: string; truncated: boolean }>();
       if (opts.json) {
-        writeJson({ engine: 'native', graph: ensured.graphPath, refreshed: ensured.refreshed, ...context });
+        const entryPoints = opts.withSource
+          ? context.entry_points.map(r => ({ ...r, source: sources.get(r.node.id)?.source, source_truncated: sources.get(r.node.id)?.truncated }))
+          : context.entry_points;
+        writeJson({ engine: 'native', graph: ensured.graphPath, refreshed: ensured.refreshed, ...context, entry_points: entryPoints });
       } else {
         console.log(`graph: ${ensured.graphPath}${ensured.refreshed ? ' (refreshed)' : ''}`);
         console.log(`task: ${task}`);
         console.log('entry-points:');
         for (const entry of context.entry_points) {
           console.log(`- ${entry.node.kind}: ${entry.node.qualified_name} lines ${entry.node.start_line}-${entry.node.end_line}`);
+          const src = sources.get(entry.node.id);
+          if (src) {
+            for (const srcLine of src.source.split('\n')) console.log(`    | ${srcLine}`);
+            if (src.truncated) console.log('    | … (source budget reached; Read the rest directly)');
+          }
         }
         console.log('related edges:');
         for (const edge of context.edges.slice(0, opts.maxNodes)) {
@@ -494,7 +510,9 @@ export async function graphContext(task: string, opts: GraphContextOptions): Pro
           const target = graph.nodes.find(n => n.id === edge.target)?.qualified_name ?? edge.target;
           console.log(`- ${edge.kind}: ${source} -> ${target}${edge.line ? ` line ${edge.line}` : ''}`);
         }
-        console.log('Next: run cdd-kit graph impact on the most relevant entry point before editing.');
+        console.log(opts.withSource
+          ? 'Source for entry points included above — no separate Read needed; run cdd-kit graph impact before editing.'
+          : 'Next: run cdd-kit graph impact on the most relevant entry point before editing.');
       }
       return context.entry_points.length === 0 ? 1 : 0;
     } catch (err) {
