@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-06-26
+
+### Changed
+
+- **Solution-minimalism (reuse-first) discipline for implementation agents.**
+  Adapted from the "lazy senior developer" idea: before writing implementation
+  code, agents now walk a reuse-first ladder (does this need to exist? already in
+  the codebase? stdlib/framework/native feature? installed dependency? one line?
+  only then the minimum that works) instead of reaching for new code, a new
+  dependency, or premature abstraction. The discipline is placed where it
+  reliably executes — the always-loaded `CLAUDE.md` body and the
+  `backend-engineer` / `frontend-engineer` / `bug-fix-engineer` prompts (the
+  agents that demonstrably run) — **not** in a review agent that may be ticked
+  `done` without running, and **not** as a gate (over-engineering is a judgment
+  call). It is scoped to implementation/solution code only, with an explicit
+  carve-out: tests, contracts, validation, error handling, security, and
+  accessibility are never minimized.
+
+### Added
+
+- **Required-agent evidence — advisory (ADR 0008).** `cdd-kit gate` now surfaces,
+  as a **warning** (never an error, even under `--strict`), any agent listed in
+  `change-classification.md` `## Required Agents` that left no non-stub
+  `agent-log/<agent>.yml`. This addresses a real gap a forensic look at an adopted
+  project exposed — a required review (UI/UX, visual, contract, QA) marked `done`
+  in `tasks.yml` with zero trace it ran — without converting a prevention-first
+  tool into post-run paperwork: an agent-log is post-hoc, self-reported, fakeable
+  audit, and the harms that *are* mechanically checkable are already caught by the
+  validators / API + data-shape conformance / test-evidence layer regardless of
+  whether a reviewer agent ran. The warning gives a no-human-review operator a
+  signal for the judgment-only reviews (UI/UX, visual) that have no mechanical net.
+  `agent-log/*.yml` stays optional; the bug-fix lane's hard `bug-fix-engineer.yml`
+  requirement is unchanged. The `ci-cd-gatekeeper` ↔ `ci-gatekeeper` alias is
+  tolerated. New module `src/commands/gate-agents.ts`.
+
 ## [3.5.0] - 2026-06-25
 
 ### Changed

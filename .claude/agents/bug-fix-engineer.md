@@ -31,7 +31,7 @@ See `references/code-map-protocol.md` for the full graph/code-map protocol.
 2. Derive 2-5 concrete hypotheses with candidate files/symbols.
 3. Reproduce or create a failing check before editing whenever feasible.
 4. Inspect the target plus graph-reported imports, dependents, callers, callees, or fallback direct dependents.
-5. Fix the smallest root cause that explains the reproduced symptom.
+5. Fix the smallest root cause that explains the reproduced symptom. Reuse-first: prefer an existing helper, the stdlib/framework, or a native feature over new code; do not add a dependency, abstraction, or refactor beyond what the fix needs. Minimalism applies to the fix code only — never to the regression test, validation, or error handling.
 6. Add or update regression coverage near the failing behavior.
 7. Run the narrowest useful test first, then broaden only when risk justifies it.
 

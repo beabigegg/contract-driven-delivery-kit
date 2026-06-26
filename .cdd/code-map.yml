@@ -1,6 +1,6 @@
-# generated: 2026-06-25T00:17:01Z by cdd-kit 3.5.0
-# files: 182, src-lines: 36281, map-lines: 2705, compression: 13.4x
-# sources-digest: 7f382b1a485d071ef7f81f25d60ae407deaf54f1a0f3d2e29d8075d58ebf91f2
+# generated: 2026-06-26T01:10:08Z by cdd-kit 3.6.0
+# files: 184, src-lines: 36505, map-lines: 2734, compression: 13.4x
+# sources-digest: ba6dac27e83f31ded75a15b00d6b8fed2c877e9e4886ed1f85b44e1b5ee54e62
 bin/cdd.js:  # 2 lines
   imports:
     - { module: '../dist/cli/index.js', items: [], line: 2 }
@@ -745,6 +745,22 @@ src/commands/doctor.ts:  # 740 lines
     - { name: Finding, lines: 27-30 }  # local
     - { name: DoctorReport, lines: 32-39 }  # local
 
+src/commands/gate-agents.ts:  # 129 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../utils/markdown-section.js', items: [sectionBody], line: 3 }
+    - { module: './gate-artifacts.js', items: [meaningfulChars], line: 4 }
+    - { module: './gate-shared.js', items: [loadYamlFile], line: 5 }
+  constants:
+    - { name: MIN_AGENT_LOG_CHARS, line: 32 }
+    - { name: LOG_ALIASES, line: 39 }
+  functions:
+    - { name: parseRequiredAgents, lines: 48-62 }
+    - { name: resolveAgentLog, lines: 65-71 }
+    - { name: authorMatches, lines: 74-77 }
+    - { name: enforceRequiredAgentEvidence, lines: 84-129 }
+
 src/commands/gate-artifacts.ts:  # 165 lines
   imports:
     - { module: fs, items: [existsSync], line: 1 }
@@ -853,7 +869,7 @@ src/commands/gate-tier.ts:  # 311 lines
     - { name: TierResolution, lines: 18-23 }
     - { name: TierFloorOverrideAudit, lines: 243-252 }  # local
 
-src/commands/gate.ts:  # 203 lines
+src/commands/gate.ts:  # 205 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -866,11 +882,12 @@ src/commands/gate.ts:  # 203 lines
     - { module: './gate-dependencies.js', items: [validateDependencies], line: 18 }
     - { module: './gate-contracts.js', items: [enforceContractSubstance], line: 19 }
     - { module: './gate-evidence.js', items: [enforceTestEvidence, enforceBugFixEvidence], line: 20 }
+    - { module: './gate-agents.js', items: [enforceRequiredAgentEvidence], line: 21 }
   functions:
-    - { name: reportGateFailure, lines: 35-57 }
-    - { name: async gate, lines: 59-203 }
+    - { name: reportGateFailure, lines: 36-58 }
+    - { name: async gate, lines: 60-205 }
   interfaces:
-    - { name: GateOptions, lines: 22-26 }
+    - { name: GateOptions, lines: 23-27 }
 
 src/commands/graph.ts:  # 568 lines
   imports:
@@ -2256,7 +2273,7 @@ test/cli/setup.test.ts:  # 166 lines
   functions:
     - { name: gitInit, lines: 21-24 }
 
-test/cli/skill-prompts.test.ts:  # 192 lines
+test/cli/skill-prompts.test.ts:  # 194 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
@@ -2489,6 +2506,18 @@ test/code-map/worker-dispatch.test.ts:  # 33 lines
     - { module: '../../src/code-map/scanners/javascript.js', items: [jsScanner], line: 5 }
   constants:
     - { name: FIXTURE_ROOT, line: 7 }
+
+test/commands/gate-agents.test.ts:  # 91 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 9 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+    - { module: '../../src/commands/gate-agents.js', items: [parseRequiredAgents, enforceRequiredAgentEvidence], line: 12 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 13 }
+  functions:
+    - { name: writeClassification, lines: 15-22 }
+    - { name: writeLog, lines: 24-28 }
+    - { name: goodLog, lines: 30-31 }
 
 test/commands/metadata-build.test.ts:  # 228 lines
   imports:

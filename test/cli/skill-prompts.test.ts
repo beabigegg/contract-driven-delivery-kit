@@ -122,8 +122,10 @@ describe('CDD skill prompt integration', () => {
     expect(codex).toMatch(/optional/i);
     expect(contractReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
     expect(qaReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
-    expect(backend).toMatch(/If a short handoff note is useful, write or append to/);
-    expect(frontend).toMatch(/If a short handoff note is useful, write or append to/);
+    // backend/frontend now require their own agent-log when listed in
+    // ## Required Agents (ADR 0008); they still write their own log (write-capable).
+    expect(backend).toMatch(/Write a handoff note to[\s\S]*ADR 0008/);
+    expect(frontend).toMatch(/Write a handoff note to[\s\S]*ADR 0008/);
     expect(planner).toMatch(/If a short handoff note is useful, write or append to/);
   });
 

@@ -45,6 +45,19 @@ See `references/code-map-protocol.md` for the full protocol.
 - **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.yml` items 3.1–3.2 are your responsibility.
 - Update CI/CD workflows when required by `ci-gates.md`.
 
+## Solution minimalism (reuse-first)
+
+Before writing implementation code, stop at the first rung that applies — reuse over rewrite:
+
+1. Does this need to exist at all (does `implementation-plan.md` actually require it)?
+2. Is it already in this codebase (a service, util, or helper you can call)?
+3. Does the stdlib / framework / a native platform feature do it?
+4. Does an already-installed dependency do it?
+5. Can it be one line?
+6. Only then: write the minimum that works.
+
+Don't add a dependency when the stdlib or framework covers it; don't add an abstraction, config flag, or generalization for a single caller; don't leave dead parameters or speculative "future-proofing". **Scope: implementation/solution code only.** This never licenses cutting tests, contracts, input validation, error handling, or security — those stay complete (see Rules above). Lazy about the solution, never about reading or safety.
+
 ## Test execution
 
 Do not start with a broad test command (`pytest`, `npm test`, full suite). Run
@@ -93,12 +106,15 @@ Report changed files, contract updates, tests added, commands run, known risks, 
 Implementation code goes into source files. Do NOT write runnable code into any `specs/changes/<id>/` artifact.
 In your agent log, reference file paths and function names — do not paste code blocks.
 
-## Optional Handoff Evidence
+## Handoff Evidence
 
-If a short handoff note is useful, write or append to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
-and field rules are defined once in
-`references/agent-log-protocol.md` — do not duplicate them in this prompt.
+Write a handoff note to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. When this agent is
+listed in the change's `## Required Agents`, write it even on a clean pass so your
+run leaves a verifiable trace — the gate surfaces a missing
+`agent-log/backend-engineer.yml` as an advisory warning (ADR 0008), not an error.
+Field rules are defined once in `references/agent-log-protocol.md` — do not
+duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 

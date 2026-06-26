@@ -90,6 +90,17 @@ For context-governed changes, read `specs/changes/<change-id>/context-manifest.m
   `~/.claude/skills/contract-driven-delivery/references/agent-log-protocol.md`.
   Read that once; do not paraphrase it elsewhere.
 
+## Solution Minimalism (reuse-first)
+
+Before writing implementation code, stop at the first rung that applies — reuse
+over rewrite: (1) does this need to exist? (2) already in this codebase? (3) does
+the stdlib / framework / a native platform feature do it? (4) does an installed
+dependency do it? (5) one line? (6) only then, the minimum that works. Don't add a
+dependency when stdlib or a native feature covers it; don't add an abstraction for
+a single caller. **Scope: implementation/solution code only** — never minimize
+tests, contracts, validation, error handling, security, or accessibility; those
+stay complete. Lazy about the solution, never about reading or safety.
+
 ## CDD Operational Notes
 
 - After each agent returns, tick the related `tasks.yml` items immediately,

@@ -354,7 +354,13 @@ agent:
 - confirm required artifacts exist; optional handoff notes are not gate inputs
 - if the agent reports `blocked`, halt and surface its concrete next action
 - tick the owned `tasks.yml` items immediately
-- record incidental/pre-existing findings in `agent-log/*.yml`; escalate to
+- **write `agent-log/<agent>.yml` for the agent that just ran** — at minimum
+  `agent:`, `status:`, and a one-line `summary:`, even on a clean pass, for every
+  agent listed in `## Required Agents` (a read-only review agent returns its
+  verdict and YOU write its log; a write-capable agent writes its own). The gate
+  surfaces a required agent with no log as an **advisory warning** (ADR 0008), not
+  an error — but write it anyway so a no-human-review run leaves a verifiable
+  trace, especially for judgment-only reviews (ui-ux, visual). Escalate to
   `qa-report.md` or `regression-report.md` only when the finding blocks release,
   changes the QA decision, or needs durable follow-up ownership
 

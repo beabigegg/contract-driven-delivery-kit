@@ -26,7 +26,10 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Keep each fact in one authoritative artifact. Later artifacts should
      reference earlier artifacts by path, section, criterion id, decision id, or
      gate name instead of duplicating full prose.
-   - Use optional `agent-log/*.yml` pointers for routine review evidence.
+   - Write an `agent-log/<agent>.yml` for every agent in `## Required Agents` so
+     its run leaves a verifiable trace; the gate surfaces a missing one as an
+     advisory warning (ADR 0008), not an error. `agent-log/*.yml` is optional for
+     agents not on that list.
      Create report markdown only for blocking findings, approved-with-risk,
      visual evidence bundles, or high-risk load/soak results.
 4. Update contracts before or alongside implementation. Invoke contract-reviewer to validate API/CSS/env/data/business/CI-CD contracts before or alongside implementation.
@@ -150,7 +153,7 @@ Run scripts with Python 3 from the repository root.
 ## Output discipline (file formats)
 
 - `tasks.yml`: structured YAML, validated by `src/schemas/tasks.schema.ts`.
-- `agent-log/<agent>.yml`: optional structured handoff note per `references/agent-log-protocol.md`.
+- `agent-log/<agent>.yml`: structured handoff note per `references/agent-log-protocol.md`. Write one for every agent in `## Required Agents` so its run is traceable; the gate flags a missing one as an advisory warning (ADR 0008). Optional for agents not on that list.
 - `implementation-plan.md`: required execution handoff for implementation agents.
 - Report markdown is optional and reserved for durable review evidence. Routine
   pass/fail evidence belongs in short `agent-log/*.yml` pointers or the final

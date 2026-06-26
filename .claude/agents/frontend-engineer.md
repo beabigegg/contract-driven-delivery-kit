@@ -42,6 +42,19 @@ See `references/code-map-protocol.md` for the full protocol.
 - Be aware of monkey-class bugs (double submit, rapid actions, navigation state, hidden tab); the actual preventive specs and tests are owned by monkey-test-engineer.
 - **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit and component tests BEFORE writing feature code. E2E, visual, and data-boundary tests are also your responsibility when UI behavior changes. Tasks.md items 3.1–3.2 include frontend test scope.
 
+## Solution minimalism (reuse-first)
+
+Before writing UI/implementation code, stop at the first rung that applies — reuse over rewrite:
+
+1. Does this need to exist at all (does `implementation-plan.md` require it)?
+2. Is there already a component, composable, store, or util in this codebase you can reuse?
+3. Does a native HTML element / platform API / the framework do it (e.g. native `<select>`, `<dialog>`, `<details>`, constraint validation) before you reach for a custom widget?
+4. Does an already-installed dependency (design system, util lib) do it?
+5. Can it be one line?
+6. Only then: write the minimum that works.
+
+Don't add a dependency when a native element or an existing component covers it; don't build a bespoke widget where a native one styled with design tokens suffices; don't abstract for a single use. **Scope: implementation/solution code only.** This never licenses cutting accessibility, CSS-contract compliance, tests, validation, or the loading/empty/error/disabled states required above — those stay complete. Lazy about the solution, never about reading or safety.
+
 ## Test execution
 
 Do not start with a broad test command (`npm test`, `pytest`, full suite). Run
@@ -97,12 +110,15 @@ Report changed screens, component states covered, screenshots/videos if generate
 Implementation code goes into source files. Do NOT write runnable code into any `specs/changes/<id>/` artifact.
 In your agent log, reference file paths and function names — do not paste code blocks.
 
-## Optional Handoff Evidence
+## Handoff Evidence
 
-If a short handoff note is useful, write or append to
-`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. Optional fields
-and field rules are defined once in
-`references/agent-log-protocol.md` — do not duplicate them in this prompt.
+Write a handoff note to
+`specs/changes/<change-id>/agent-log/<your-agent-name>.yml`. When this agent is
+listed in the change's `## Required Agents`, write it even on a clean pass so your
+run leaves a verifiable trace — the gate surfaces a missing
+`agent-log/frontend-engineer.yml` as an advisory warning (ADR 0008), not an error.
+Field rules are defined once in `references/agent-log-protocol.md` — do not
+duplicate them in this prompt.
 
 ### Suggested artifacts for this agent
 

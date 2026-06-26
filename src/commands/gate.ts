@@ -18,6 +18,7 @@ import { resolveTier, enforceTierConsistency, enforceTierFloor } from './gate-ti
 import { validateDependencies } from './gate-dependencies.js';
 import { enforceContractSubstance } from './gate-contracts.js';
 import { enforceTestEvidence, enforceBugFixEvidence } from './gate-evidence.js';
+import { enforceRequiredAgentEvidence } from './gate-agents.js';
 
 export interface GateOptions {
   strict?: boolean;
@@ -160,6 +161,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceContractSubstance(cwd, errors, warnings, strict);
   enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
   enforceBugFixEvidence(changeDir, changeId, cwd, tasksData, errors, warnings);
+  enforceRequiredAgentEvidence(changeDir, warnings);
 
   // Derived-index freshness (P2-1): if this change has generated change.yml /
   // trace.yml that have drifted from their source artifacts, nudge a refresh.
