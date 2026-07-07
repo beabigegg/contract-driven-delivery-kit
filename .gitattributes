@@ -1,2 +1,11 @@
 * text=auto eol=lf
 *.bat text eol=crlf
+
+# Parallel-change merge policy (ADR 0009). The .cdd/* indexes are regenerated,
+# never hand-merged: keep "ours" on merge and rebuild with `cdd-kit refresh`.
+# Requires `cdd-kit parallel arm` (registers merge.ours.driver) once per clone.
+.cdd/code-map.yml merge=ours linguist-generated=true
+.cdd/*.json merge=ours linguist-generated=true
+# contracts/CHANGELOG.md is assembled from contracts/changelog.d/*.md fragments;
+# union-merge tolerates concurrent appends until `cdd-kit changelog build` runs.
+contracts/CHANGELOG.md merge=union

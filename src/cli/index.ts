@@ -901,4 +901,69 @@ context
     await checkContextPaths(changeId, opts.path, opts.json);
   });
 
+// ── cdd reserve ───────────────────────────────────────────────────────────────
+// Parallel-change fan-out: reserve a distinct contract version lane before
+// branching so concurrent worktrees never collide on a contract's version line
+// (see docs/adr/0009-parallel-change-integration.md).
+program
+  .command('reserve <change-id>')
+  .description('Reserve a contract version lane for a change before parallel worktree development (ADR 0009)')
+  .requiredOption('--contract <key>', 'Contract to reserve: api, css, env, data, business, or ci')
+  .option('--bump <kind>', 'Version bump: major, minor, or patch', 'minor')
+  .option('--surface <surfaces...>', 'Named sub-surface(s) the change edits, e.g. endpoints/export')
+  .option('--branch <branch>', 'Worktree branch that will develop this change')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (changeId: string, opts: { contract: string; bump: string; surface?: string[]; branch?: string; json?: boolean }) => {
+    const { reserve } = await import('../commands/reserve.js');
+    await reserve({
+      changeId,
+      contract: opts.contract as never,
+      bump: opts.bump as never,
+      surfaces: opts.surface ?? [],
+      branch: opts.branch,
+      json: opts.json,
+    });
+  });
+
+// ── cdd integrate ─────────────────────────────────────────────────────────────
+// Parallel-change fan-in: read the reservation ledger and print a contention
+// matrix + deterministic merge order. Exit 3 on surface collisions that need a
+// human (ADR 0009).
+program
+  .command('integrate')
+  .description('Compute the contention matrix + safe merge order for parallel changes from .cdd/reservations.yml (ADR 0009)')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: { json?: boolean }) => {
+    const { integrate } = await import('../commands/integrate.js');
+    await integrate({ json: opts.json });
+  });
+
+// ── cdd changelog build ───────────────────────────────────────────────────────
+const changelog = program
+  .command('changelog')
+  .description('Assemble per-change changelog fragments into contracts/CHANGELOG.md (news-fragment pattern, ADR 0009)');
+
+changelog
+  .command('build')
+  .description('Assemble contracts/changelog.d/*.md into the ## Unreleased section of contracts/CHANGELOG.md')
+  .option('--check', 'Exit 3 if the changelog is out of sync with the fragments (no write)', false)
+  .action(async (opts: { check?: boolean }) => {
+    const { changelogBuild } = await import('../commands/changelog-build.js');
+    await changelogBuild({ check: opts.check });
+  });
+
+// ── cdd parallel arm ──────────────────────────────────────────────────────────
+const parallel = program
+  .command('parallel')
+  .description('Parallel-change worktree helpers (ADR 0009)');
+
+parallel
+  .command('arm')
+  .description('Register the local git merge drivers the parallel .gitattributes entries need (idempotent)')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: { json?: boolean }) => {
+    const { parallelArm } = await import('../commands/parallel-arm.js');
+    await parallelArm({ json: opts.json });
+  });
+
 program.parse();
