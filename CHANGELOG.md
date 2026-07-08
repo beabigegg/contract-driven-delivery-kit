@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-07-08
+
+### Fixed
+
+- **`cdd-kit setup` no longer reports the pre-commit gate as active when it was
+  soft-skipped.** In a not-yet-`git init`ed project, `installHooks({ fromInit:
+  true })` returns without writing a hook, but `setup` still printed
+  `Pre-commit gate: ok`, giving false confidence that local enforcement was
+  armed. `installHooks` now returns an explicit `{ status: 'installed' | 'skipped'
+  }` result, and `setup` reports a soft-skip as a **warning** with the reason.
+- **`cdd-kit gate <change-id>` now validates the change id before path use.**
+  `gate` joined the raw id straight into `specs/changes/<id>`, unlike `new` and
+  `test run`, which already reject path-escape ids. A value such as `../../etc`
+  is now rejected with `invalid change id` (parity with those commands; ADR
+  0005 §4). The `SAFE_CHANGE_ID` pattern is consolidated into
+  `src/utils/change-id.ts` so `gate`, `test run`, and `test select` share one
+  definition instead of three copies.
+
+### Docs
+
+- **Clarified the read-only agent classification in README.** The reviewer/auditor
+  agents are precisely *non-writing* (no `Edit`/`Write`/`MultiEdit`); several
+  (`qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`,
+  `repo-context-scanner`, `spec-drift-auditor`) carry `Bash` to run gates,
+  `npm audit`, screenshots, and drift scans, so their read-only behaviour is a
+  prompt convention layered on the enforced no-`Edit`/`Write` tool set — not a
+  tool-level guarantee.
+- **Fixed the chokepoint-dashboard `--strict` description.** README claimed the
+  dashboard never fails `--strict`; the implementation reports a dormant
+  chokepoint as a warning, which *does* fail `--strict`. README now documents
+  the actual (intended) behaviour: under strict mode a repo carrying dormant
+  enforcement machinery does not pass.
+
 ## [3.7.0] - 2026-07-08
 
 ### Added

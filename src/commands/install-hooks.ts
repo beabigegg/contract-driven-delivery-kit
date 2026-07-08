@@ -43,14 +43,25 @@ export interface InstallHooksOptions {
   fromInit?: boolean;
 }
 
-export async function installHooks(opts: InstallHooksOptions = {}): Promise<void> {
+/**
+ * Outcome of an install attempt. `fromInit` callers must distinguish an actual
+ * install from a soft-skip so they never report a pre-commit gate as active when
+ * no hook was written (e.g. the project is not a git repo yet). Direct-CLI
+ * callers hard-exit on failure and only ever see `installed`.
+ */
+export type InstallHooksResult =
+  | { status: 'installed'; path: string }
+  | { status: 'skipped'; reason: string };
+
+export async function installHooks(opts: InstallHooksOptions = {}): Promise<InstallHooksResult> {
   const cwd = process.cwd();
   const gitPath = join(cwd, '.git');
 
   if (!existsSync(gitPath)) {
     if (opts.fromInit) {
-      log.warn('pre-commit gate not armed: not a git repository yet. Run `cdd-kit install-hooks` after `git init`.');
-      return;
+      const reason = 'not a git repository yet — run `cdd-kit install-hooks` after `git init`';
+      log.warn(`pre-commit gate not armed: ${reason}.`);
+      return { status: 'skipped', reason };
     }
     log.error('not a git repository (no .git/ found in cwd)');
     process.exit(1);
@@ -62,7 +73,10 @@ export async function installHooks(opts: InstallHooksOptions = {}): Promise<void
   // (this also honors core.hooksPath). Fall back to soft-skip/error if git is
   // unavailable so init's best-effort arming never crashes.
   const hooksDir = resolveHooksDir(cwd, gitPath, opts.fromInit ?? false);
-  if (hooksDir === null) return; // soft-skipped (fromInit); message already logged
+  if (hooksDir === null) {
+    // soft-skipped (fromInit); resolveHooksDir already logged the reason.
+    return { status: 'skipped', reason: 'git could not resolve the hooks path (worktree/submodule pointer)' };
+  }
   mkdirSync(hooksDir, { recursive: true });
 
   const dest = join(hooksDir, 'pre-commit');
@@ -112,4 +126,5 @@ export async function installHooks(opts: InstallHooksOptions = {}): Promise<void
 
   log.ok(`pre-commit hook installed at ${dest}`);
   log.info('cdd-kit gate will now run automatically before each commit affecting specs/changes/');
+  return { status: 'installed', path: dest };
 }

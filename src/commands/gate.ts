@@ -19,6 +19,7 @@ import { validateDependencies } from './gate-dependencies.js';
 import { enforceContractSubstance } from './gate-contracts.js';
 import { enforceTestEvidence, enforceBugFixEvidence } from './gate-evidence.js';
 import { enforceRequiredAgentEvidence } from './gate-agents.js';
+import { isSafeChangeId } from '../utils/change-id.js';
 
 export interface GateOptions {
   strict?: boolean;
@@ -61,6 +62,19 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   const strict = opts.strict ?? false;
   const explain = opts.explain ?? false;
   const cwd = process.cwd();
+
+  // Validate the change id before it is ever joined into a filesystem path, so a
+  // value like `../../src` cannot escape specs/changes/<id> (parity with
+  // new-change.ts and test-run.ts; ADR 0005 §4).
+  if (!isSafeChangeId(changeId)) {
+    log.error(`Invalid change id "${changeId}". Use letters, numbers, hyphens, or underscores (max 64 chars).`);
+    if (explain) {
+      log.dim('      Why: the change id becomes a folder path; unusual characters could point outside specs/changes/.');
+      log.info('      Say this to Claude: "What is the exact id of the change I should run the gate on?"');
+    }
+    process.exit(1);
+  }
+
   const changeDir = join(cwd, 'specs', 'changes', changeId);
 
   if (!existsSync(changeDir)) {

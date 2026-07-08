@@ -5,6 +5,7 @@ import yaml from 'js-yaml';
 import { ensureDir } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 import { DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
+import { SAFE_CHANGE_ID } from '../utils/change-id.js';
 
 // Bounded test execution and structured evidence (ADR 0005 §4-§6). This command
 // runs ONE phase of the test ladder for a tracked change, captures durable
@@ -23,8 +24,6 @@ const MAX_MESSAGE_CHARS = 500;
 // Full stdout/stderr stream to disk; only this much tail is held in memory for
 // classification and the capped report, so huge output never truncates the logs.
 const TAIL_CAPTURE_BYTES = 256 * 1024;
-// Same shape new-change.ts enforces; rejects path-escape segments such as `..`.
-const SAFE_CHANGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
 export type RunStatus = 'passed' | 'failed' | 'timeout' | 'error' | 'no-command';
 

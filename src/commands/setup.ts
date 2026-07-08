@@ -175,8 +175,14 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
     // rather than a process.exit, so setup never aborts here.
     try {
       const { installHooks } = await import('./install-hooks.js');
-      await installHooks({ fromInit: true });
-      results.push({ label: 'Pre-commit gate', status: 'ok' });
+      const hookResult = await installHooks({ fromInit: true });
+      if (hookResult.status === 'installed') {
+        results.push({ label: 'Pre-commit gate', status: 'ok' });
+      } else {
+        // Soft-skipped (e.g. not a git repo yet) — do NOT report success, or the
+        // user believes local gate enforcement is active when no hook was written.
+        results.push({ label: 'Pre-commit gate', status: 'warn', detail: `not armed — ${hookResult.reason}` });
+      }
     } catch (err) {
       log.warn(`  pre-commit gate not armed: ${err instanceof Error ? err.message : String(err)}`);
       results.push({ label: 'Pre-commit gate', status: 'warn', detail: 'not armed' });

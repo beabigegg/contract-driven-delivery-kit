@@ -126,13 +126,13 @@ Machine-readable metadata such as future `change.yml` / `trace.yml` should follo
 
 CDD uses two agent classes on purpose:
 
-- `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are read-only. They return analysis, verdicts, or optional handoff notes; main Claude writes the corresponding files.
+- `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` are **non-writing** agents: none has `Edit`, `Write`, or `MultiEdit`, so they cannot author artifacts — they return analysis, verdicts, or optional handoff notes and main Claude writes the corresponding files. Note that `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `repo-context-scanner`, and `spec-drift-auditor` also carry `Bash` — they need it to run gates, `npm audit`, screenshot capture, and drift scans. `Bash` is not a hard read-only boundary (a shell can write files), so their read-only behaviour is a prompt convention on top of the enforced no-`Edit`/`Write` tool set, not a tool-level guarantee.
 - `bug-fix-engineer` is an implementation agent for symptom-driven defects. It converts user-visible reports into graph/index-guided hypotheses, reproduces the issue where feasible, applies the smallest fix, and adds regression evidence.
 - `implementation-planner`, `backend-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, and `spec-architect` are write-capable. They write their own owned artifacts directly: for example, `spec-architect` owns `design.md`, while `implementation-planner` owns `implementation-plan.md`.
 
 This split is deliberate:
 
-- Review and audit agents stay read-only so they do not silently change the thing they are supposed to assess.
+- Review and audit agents carry no `Edit`/`Write`/`MultiEdit` tool so they cannot silently author or overwrite the thing they are supposed to assess.
 - Implementation and planning agents write directly so large artifacts and code edits do not have to be relayed back through the main orchestrator, which reduces token waste and preserves clearer ownership.
 - `tasks.yml` remains owned by main Claude so task state changes stay centralized even when multiple agents contribute files.
 
@@ -639,7 +639,7 @@ Checks for missing `.cdd/` policy files, provider guidance (`CLAUDE.md`, `AGENTS
 
 For Claude projects, `doctor` also reports whether the **cdd-kit MCP server is registered** with Claude Code (it runs `claude mcp list`). If it is not registered, agents never see the graph/index tools and silently fall back to `Read`. Severity is tiered on certainty: when `claude` is present and positively reports the server missing, that is a **warning** (it fails `--strict`) — agents are demonstrably degraded to the slow path, and doctor surfaces the exact `claude mcp add --scope user cdd-kit -- cdd-kit mcp` command to fix it. When the check *cannot verify* (no `claude` CLI on PATH, or `mcp list` errors — 3s timeout, best-effort) it stays **informational** so environments that don't use Claude Code are never penalised. The check is skipped entirely for non-Claude projects. Point `CDD_CLAUDE_BIN` at an alternate Claude CLI if needed.
 
-`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the contract-write hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. Like the conformance line, the chokepoint dashboard is **advisory only** and never fails `--strict` (the MCP line is the one exception — a confirmed-missing registration is a warning).
+`doctor` finally prints a **chokepoint dashboard**: for each enforcement mechanism — the graph-first hook, the contract-write hook, the pre-commit gate, and the OpenAPI sync gate — it reports `live` (armed) or `dormant`, with the one command to arm it. The kit's mechanisms are opt-in and dormant until installed, so a repo can carry all the machinery yet enforce none of it; this makes that state observable. A dormant chokepoint is reported as a **warning**, so it **fails `--strict`** — under strict mode you are asserting that enforcement is actually armed, and a repo that carries the machinery but enforces none of it should not pass. Plain `doctor` (non-strict) still exits 0 and simply lists what is dormant.
 
 ---
 

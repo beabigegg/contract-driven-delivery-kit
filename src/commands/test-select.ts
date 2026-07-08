@@ -4,6 +4,7 @@ import { log } from '../utils/logger.js';
 import { getTouchedPaths } from '../utils/git-paths.js';
 import { isPytestCommand } from './test-run.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
+import { SAFE_CHANGE_ID } from '../utils/change-id.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select` reads
 // test-plan.md (then implementation-plan.md as fallback), the change's touched
@@ -20,9 +21,6 @@ import { detectStack, type StackKind } from '../utils/stack-detect.js';
 //      flags, quoting, and multiple targets are the author's concern, not ours.
 //   2. Anything else -> the row is skipped, and if nothing is selectable the
 //      command returns `needs-test-plan-update` rather than searching the repo.
-
-// Parity with test-run.ts / new-change.ts: rejects path-escape ids like `..`.
-const SAFE_CHANGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
 // Bare targets are rendered through a stack-specific runner plan. Python targets
 // stay pytest-first; JS/TS targets use Vitest only when the repo clearly opts

@@ -358,6 +358,17 @@ describe('cdd-kit gate', () => {
     expect(r.stderr + r.stdout).toMatch(/change not found/i);
   });
 
+  // Parity with `new` and `test run`: reject a path-traversal change id before it
+  // is ever joined into specs/changes/<id> (ADR 0005 §4).
+  it('1b: gate on a path-escape change id is rejected as invalid (not treated as a folder)', () => {
+    const r = runCli(['gate', '../../etc'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    const out = r.stderr + r.stdout;
+    expect(out).toMatch(/invalid change id/i);
+    // It must NOT fall through to the filesystem path-join / not-found branch.
+    expect(out).not.toMatch(/change not found/i);
+  });
+
   // ── P0-6: --explain (non-engineer mode) + the duplicate-warning fix ─────────
   it('EXPLAIN-1: a normal failure points the user at --explain (and does not pre-explain)', () => {
     runCli(['new', 'feat-exp-1'], { cwd: tmpRepo, home: tmpHome });
