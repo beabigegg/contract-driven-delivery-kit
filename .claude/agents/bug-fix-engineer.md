@@ -27,6 +27,11 @@ See `references/code-map-protocol.md` for the full graph/code-map protocol.
 
 ## Investigation workflow
 
+Follow the Iron Law in `references/systematic-debugging.md`: no fix without
+root-cause investigation first, and if three fixes have failed, stop and
+question the architecture (escalate to `spec-architect`) rather than attempting
+a fourth.
+
 1. Restate the symptom as observable behavior.
 2. Derive 2-5 concrete hypotheses with candidate files/symbols.
 3. Reproduce or create a failing check before editing whenever feasible.

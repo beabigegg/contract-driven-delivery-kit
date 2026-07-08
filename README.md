@@ -1547,6 +1547,53 @@ entire monorepo into one giant map.
 
 ---
 
+## Parallel changes (multiple worktrees)
+
+When several tracked changes are developed at once — one git worktree per change,
+because multiple proposals are ready or were scaffolded together — they collide
+at merge time on shared governance surfaces: a contract's single `schema-version`
+line, the shared `contracts/CHANGELOG.md`, and the regenerated `.cdd/*` indexes.
+None of these are logical conflicts, yet they force hand-merging or babysitting.
+
+cdd-kit pre-empts the textual conflicts and escalates only genuine semantic
+overlap (two changes editing the same contract surface). See
+`docs/adr/0009-parallel-change-integration.md` and the `/cdd-parallel` skill.
+
+```bash
+# Fan-out, on the base branch BEFORE branching — reserve a distinct version lane
+# per (change, contract) so no two branches bump the same contract to the same version:
+cdd-kit reserve add-export   --contract api --bump minor --surface endpoints/export --branch feat/export
+cdd-kit reserve refactor-auth --contract api --bump minor --surface endpoints/login  --branch feat/auth
+cdd-kit parallel arm          # register the merge.ours git driver (once per clone)
+
+# Each worktree writes its changelog entry as a fragment, never the shared file:
+#   contracts/changelog.d/<change-id>.md
+
+# Fan-in — contention matrix + deterministic, monotonic merge order:
+cdd-kit integrate             # exit 0 = automatable; exit 3 = surface collision needs a human
+cdd-kit changelog build       # assemble fragments into the ## Unreleased section
+```
+
+`.gitattributes` marks the regenerated `.cdd/*` indexes `merge=ours` (rebuild
+with `cdd-kit refresh` after merging) and `contracts/CHANGELOG.md` `merge=union`.
+
+## Development disciplines
+
+Beyond the delivery pipeline, the skill ships process-discipline standards
+(adapted from the [superpowers](https://github.com/obra/superpowers) methodology)
+that the agents follow, in
+`.claude/skills/contract-driven-delivery/references/`:
+
+| Reference | Applies when |
+|---|---|
+| `requirement-discovery.md` | a request is vague/oversized — refine intent before classifying |
+| `systematic-debugging.md` | bug-fix lane — no fix without root cause; three-strike architecture rule |
+| `verification-before-completion.md` | before claiming done — exercise the flow, don't report from intent |
+| `parallel-worktree-standard.md` | developing several changes concurrently (above) |
+| `skill-authoring-standard.md` | adding/editing a skill, agent, or reference (TDD-for-process-docs) |
+
+---
+
 ## Migrating an Older Production Repo
 
 ```bash

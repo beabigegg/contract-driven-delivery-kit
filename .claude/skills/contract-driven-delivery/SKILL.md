@@ -12,6 +12,10 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
 ## Workflow decision tree
 
 1. Classify the request.
+   - If the request is vague, oversized, or its intent is not yet a crisp,
+     testable acceptance criterion, run requirement discovery first
+     (`references/requirement-discovery.md`) to refine intent and decide whether
+     the work should be split into independent (optionally parallel) changes.
    - Use `references/workflow-router.md`.
    - Create or update `change-classification.md`.
    - Invoke change-classifier to perform classification.
@@ -72,6 +76,9 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - If implementation reveals an unexpected boundary or architectural constraint, halt and re-invoke `spec-architect` before continuing.
 9. Run quality gates.
    - Use `references/qa-gates.md`.
+   - Before claiming a change is done, apply
+     `references/verification-before-completion.md`: exercise the affected flow
+     and confirm required evidence exists — do not report success from intent.
    - CI/CD gate plan is mandatory.
    - `qa-reviewer` decides release readiness; Tier 1 gates must be green; Tier 3+ gates must be green or explicitly deferred with a recorded promotion policy.
    - Invoke ci-cd-gatekeeper to design and enforce the gate plan.
@@ -130,6 +137,17 @@ Required when the change involves report generation, large queries, auto-refresh
 - stress tests
 - soak tests or scheduled long-run gate
 - telemetry and threshold plan
+
+## Parallel changes (multiple worktrees)
+
+When several tracked changes are developed at once in separate git worktrees,
+follow `references/parallel-worktree-standard.md`. Reserve a distinct contract
+version lane per (change, contract) with `cdd-kit reserve` **before** branching,
+write changelog entries as `contracts/changelog.d/<change-id>.md` fragments (not
+the shared `CHANGELOG.md`), and integrate with `cdd-kit integrate` (contention
+matrix + deterministic merge order) followed by `cdd-kit changelog build`. Only
+parallelize changes with disjoint contract surfaces; overlapping surfaces are
+serialized or landed on base first. See docs/adr/0009-parallel-change-integration.md.
 
 ## Output discipline
 
