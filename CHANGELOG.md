@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-07-08
+
+### Added
+
+- **Parallel-change fan-out/fan-in core (ADR 0009).** Infrastructure for
+  developing multiple tracked changes concurrently in separate git worktrees
+  without colliding at merge time on shared governance surfaces (contract
+  `schema-version` lines, `contracts/CHANGELOG.md`, regenerated `.cdd/*`
+  indexes). None of these are *logical* conflicts — the only conflict a human
+  should adjudicate is two changes editing the same contract clause — so the kit
+  now splits **prevention** (make textual conflicts impossible) from
+  **escalation** (surface only genuine semantic overlap):
+  - **`cdd-kit reserve <change-id> --contract <key> --bump <kind>`** — pre-allocate
+    a distinct contract version lane per (change, contract) on the base commit
+    before branching. Allocates the next free ascending target (bumping from the
+    max of the on-disk version and every already-reserved lane); idempotent per
+    change. Records named `surfaces` and a changelog-fragment path in the
+    `.cdd/reservations.yml` ledger (schema-validated before write).
+  - **`cdd-kit integrate`** — read the ledger, compute a contention matrix, and
+    print a deterministic monotonic merge order (lowest reserved version first).
+    Exit 3 on genuine surface overlap that needs a human, exit 0 when the merge
+    is automatable.
+  - **`cdd-kit changelog build [--check]`** — assemble per-change
+    `contracts/changelog.d/*.md` fragments into the `## Unreleased` section
+    (news-fragment / towncrier pattern), so concurrent changes touch disjoint
+    files instead of conflicting on one shared changelog. `--check` is a CI drift
+    gate.
+  - **`cdd-kit parallel arm`** — register the local `merge.ours` git driver the
+    parallel `.gitattributes` policy needs (idempotent, once per clone).
+  - **`.gitattributes`** — `merge=ours` for regenerated `.cdd/*` indexes (rebuild
+    with `cdd-kit refresh` after merge), `merge=union` for the changelog append
+    surface.
+
+  Pure semver/lane/contention logic lives in `src/commands/parallel-shared.ts`
+  and is covered by unit + CLI tests (25 new tests). New `/cdd-parallel` skill
+  and `references/parallel-worktree-standard.md`. Enforcement is by convention +
+  `cdd-kit integrate`, not (yet) a hard gate — see ADR 0009 for the tradeoff.
+
 ## [3.6.0] - 2026-06-26
 
 ### Changed
