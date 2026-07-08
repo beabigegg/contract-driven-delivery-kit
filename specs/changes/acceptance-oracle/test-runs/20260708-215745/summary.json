@@ -1,0 +1,15 @@
+{
+  "change_id": "acceptance-oracle",
+  "phase": "acceptance",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/acceptance",
+  "duration_ms": 1304,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/acceptance-oracle/test-runs/20260708-215745/summary.json",
+    "stdout": "specs/changes/acceptance-oracle/test-runs/20260708-215745/stdout.log",
+    "stderr": "specs/changes/acceptance-oracle/test-runs/20260708-215745/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

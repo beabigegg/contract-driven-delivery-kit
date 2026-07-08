@@ -31,7 +31,13 @@ export const PROHIBITED_WAIVER_FIELDS = [
 // stay opt-in per change.)
 export const DEFAULT_REQUIRED_PHASES = ["collect", "targeted", "changed-area"];
 
-const PHASES = ["collect", "targeted", "changed-area", "contract", "quality", "full"] as const;
+// `acceptance` (ADR 0010 §3.4) is added to the phase vocabulary for the
+// acceptance-oracle evidence harness: a case counts as passing only when this
+// phase has a recorded, bounded, passed run for it -- a self-reported pass
+// with no recorded run fails `enforceAcceptanceOracle` (AC-5). It is not part
+// of `DEFAULT_REQUIRED_PHASES`: only a change carrying an acceptance oracle
+// needs it, mirroring how `contract`/`quality`/`full` stay conditional.
+const PHASES = ["collect", "targeted", "changed-area", "contract", "quality", "full", "acceptance"] as const;
 
 export const testEvidenceSchema = {
   $schema: "http://json-schema.org/draft-07/schema#",

@@ -335,6 +335,37 @@ function ensureImplementationPlanScaffold(
   warnings.push('implementation-plan.md scaffold added; fill it before implementation agents continue');
 }
 
+/**
+ * ADR 0010 (acceptance-oracle) backfill: scaffold a placeholder-plus-
+ * instructions `acceptance.yml` into an existing in-flight change dir that
+ * predates the oracle, mirroring `ensureImplementationPlanScaffold` above. No
+ * per-change substitution is needed (the template carries no change-id
+ * token). The scaffold is intentionally all-placeholder, so
+ * `enforceAcceptanceOracle` (AC-1) fails the migrated change until the human
+ * author supplies real cases — the oracle is never silently skipped on
+ * upgrade (design.md Migration/Rollback; ADR 0010 §6).
+ */
+function ensureAcceptanceOracleScaffold(
+  changeDir: string,
+  changed: string[],
+  warnings: string[],
+  pendingWrites: PendingWrite[],
+): void {
+  const oraclePath = join(changeDir, 'acceptance.yml');
+  if (existsSync(oraclePath)) return;
+
+  const templatePath = join(ASSET.specsTemplates, 'acceptance.yml');
+  if (!existsSync(templatePath)) {
+    warnings.push('acceptance.yml template not found; run cdd-kit upgrade --yes after updating cdd-kit');
+    return;
+  }
+
+  const template = readFileSync(templatePath, 'utf8');
+  pendingWrites.push({ path: oraclePath, content: template });
+  changed.push('acceptance.yml: added placeholder-plus-instructions scaffold');
+  warnings.push('acceptance.yml scaffold added; author real cases before enforceAcceptanceOracle can pass (ADR 0010)');
+}
+
 function migrateOne(changeId: string, changeDir: string, enableContextGovernance: boolean): { result: MigrateResult; pending: PendingWrite[]; deletes: PendingDelete[] } {
   const changed: string[] = [];
   const warnings: string[] = [];
@@ -380,6 +411,9 @@ function migrateOne(changeId: string, changeDir: string, enableContextGovernance
 
   // agent-log/*.md -> agent-log/*.yml
   migrateAgentLogs(changeDir, changed, pending, deletes);
+
+  // acceptance.yml (ADR 0010 backfill)
+  ensureAcceptanceOracleScaffold(changeDir, changed, warnings, pending);
 
   // context-manifest.md
   const manifestPath = join(changeDir, 'context-manifest.md');

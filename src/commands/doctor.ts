@@ -5,6 +5,8 @@ import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type ProviderOption } from '../utils/provider.js';
 import { detectStack } from '../utils/stack-detect.js';
 import { ASSET } from '../utils/paths.js';
+import { readAssetManifest } from '../utils/asset-manifest.js';
+import { sha256OfFileNormalized } from '../utils/digest.js';
 import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
 import { detectChokepoints } from './chokepoints.js';
@@ -176,6 +178,80 @@ function checkModelPolicyDrift(cwd: string): Finding[] {
   }
   if (findings.length === 0) {
     findings.push({ level: 'ok', message: 'model-policy roles match installed agent prompts' });
+  }
+  return findings;
+}
+
+/**
+ * Maps an installed repo-relative path (as recorded in `.cdd/asset-manifest.json`,
+ * ADR 0010 §6 / design.md Q3) back to the packaged asset that would currently
+ * produce it, so drift can be checked against the RUNNING cdd-kit package, not
+ * just the manifest's own recorded digest. Order does not matter: every prefix
+ * here is disjoint.
+ */
+function packagedPathFor(relpath: string): string | null {
+  const mappings: Array<{ prefix: string; assetDir: string }> = [
+    { prefix: 'specs/templates/', assetDir: ASSET.specsTemplates },
+    { prefix: 'tests/templates/', assetDir: ASSET.testsTemplates },
+    { prefix: 'tests/contract/', assetDir: ASSET.contractHarness },
+    { prefix: 'ci-templates/', assetDir: join(ASSET.ci, '..', 'ci-templates') },
+    { prefix: 'ci/', assetDir: ASSET.ci },
+    { prefix: '.github/workflows/', assetDir: ASSET.githubWorkflows },
+    { prefix: '.claude/hooks/', assetDir: ASSET.hooks },
+    { prefix: '.cdd/', assetDir: ASSET.cddConfig },
+    { prefix: 'contracts/', assetDir: ASSET.contracts },
+  ];
+  for (const { prefix, assetDir } of mappings) {
+    if (relpath.startsWith(prefix)) return join(assetDir, relpath.slice(prefix.length));
+  }
+  return null;
+}
+
+/**
+ * ADR 0010 §6 (AC-8): compare every asset stamped in `.cdd/asset-manifest.json`
+ * against (1) the file actually on disk -- post-install drift, a hand-edited or
+ * partially-restored copy -- and (2) the asset currently packaged with this
+ * cdd-kit install -- a stale install that predates a package upgrade, or one
+ * `refresh`/`upgrade` never got around to picking up. Both are best-effort,
+ * read-only, and advisory: a repo that never ran refresh/upgrade/
+ * install-agent-hooks carries no manifest and reports nothing here.
+ */
+function checkAssetManifestDrift(cwd: string): Finding[] {
+  const manifest = readAssetManifest(cwd);
+  const relpaths = Object.keys(manifest);
+  if (relpaths.length === 0) return [];
+
+  const findings: Finding[] = [];
+  for (const rel of relpaths) {
+    const entry = manifest[rel];
+    const installedAbs = join(cwd, rel);
+    if (!existsSync(installedAbs)) {
+      findings.push({
+        level: 'warning',
+        message: `asset-manifest: ${rel} is missing (recorded in .cdd/asset-manifest.json but not on disk); run \`cdd-kit refresh\` or \`cdd-kit upgrade --yes\``,
+      });
+      continue;
+    }
+
+    const installedDigest = sha256OfFileNormalized(installedAbs);
+    if (installedDigest !== entry.digest) {
+      findings.push({
+        level: 'warning',
+        message: `asset-manifest: ${rel} was modified after install (digest differs from its recorded v${entry.version} stamp) — partial or hand-edited copy; run \`cdd-kit refresh\` to restore`,
+      });
+      continue; // already flagged as drifted; the packaged comparison below would be redundant
+    }
+
+    const packagedAbs = packagedPathFor(rel);
+    if (packagedAbs && existsSync(packagedAbs)) {
+      const packagedDigest = sha256OfFileNormalized(packagedAbs);
+      if (packagedDigest !== installedDigest) {
+        findings.push({
+          level: 'warning',
+          message: `asset-manifest: ${rel} differs from the currently packaged cdd-kit asset (installed at v${entry.version} is stale) — run \`cdd-kit refresh\` to pick up the current package version`,
+        });
+      }
+    }
   }
   return findings;
 }
@@ -490,6 +566,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkMcpRegistration(cwd, provider));
   findings.push(...checkChangeMetadata(staleMetadataReport(cwd)));
   findings.push(...checkChokepoints(cwd));
+  findings.push(...checkAssetManifestDrift(cwd));
 
   const errors = findings.filter(finding => finding.level === 'error').length;
   const warnings = findings.filter(finding => finding.level === 'warning').length;

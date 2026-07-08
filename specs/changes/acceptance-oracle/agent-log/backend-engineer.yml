@@ -1,0 +1,84 @@
+agent: backend-engineer
+change-id: acceptance-oracle
+status: complete
+timestamp: 2026-07-08T22:05:00Z
+next-action: "human/orchestrator must run cdd-kit accept relock acceptance-oracle to clear the AC-2 baseline warning, resolve the tier-floor violation (critical surface migrate/migration matched at declared tier 1, floor requires tier 0) in change-classification.md or via tasks.yml tier-floor-override, and clear the 12 remaining pending tasks in tasks.yml. All backend implementation work for ADR 0010 is complete across all four passes."
+notes: >-
+  WAVE 1 (blocks 1-3): AC-1/AC-2 implemented; AC-4/AC-5/AC-7 stubbed.
+
+  WAVE 2 (blocks 5/7/9): write-block hook, installer arming, HARD forbidden
+  path, doctor chokepoint detection, acceptance.yml template plus new/migrate
+  backfill.
+
+  WAVE 3 (blocks 4/6/8, AC-4/AC-5 un-stub, relock command): mock-of-sut-scan.ts
+  (SUT resolution + pytest/vitest mock scan + hardcoded-expect scan), driver
+  loader templates (block 6), asset-manifest digest stamping plus doctor drift
+  (block 8), cdd-kit accept relock.
+
+  WAVE 4 (this pass) -- closed a real gap the maintainer surfaced by dogfooding
+  the change's own gate:
+  - GAP: test-run.ts's PHASES did not include acceptance even though
+    test-evidence.schema.ts already did, so the exact command gate-acceptance.ts
+    told the user to run (test run --phase acceptance) was rejected as an
+    invalid phase. Fixed by adding acceptance to test-run.ts PHASES (generic
+    executor, unchanged otherwise) and wiring test-select.ts's
+    detectAcceptancePhase, which discovers driver files via the same
+    findAcceptanceDriverFiles used by the AC-4 scan (tests/acceptance/ for
+    pytest, test/acceptance/ for vitest) and proposes the matching bounded
+    command, mirroring how contract/quality phases are detected. Both
+    test-run.test.ts and test-select.test.ts got new coverage.
+  - Built this change's own real acceptance driver at
+    test/acceptance/acceptance-oracle.driver.test.ts, reading every case's
+    input/expect from the emitted loader template
+    (specs/templates/acceptance-driver/acceptance.loader.ts, imported
+    directly, not copied) and exercising the REAL, unmocked
+    enforceAcceptanceOracle / scanAcceptanceDrivers / computeAcceptanceHash
+    against hermetic temp-dir fixtures for each of the maintainer's 3 cases,
+    plus a check that the oracle-never-silently-skipped rule holds (a change
+    with only a placeholder case fails).
+  - Real bug found and fixed while wiring the driver: this driver file lives
+    under test/acceptance/, the same conventional directory the AC-4 scan
+    walks, so it is itself scanned as an acceptance driver against the real
+    change's own cases -- and the scanner's substring-based hardcoded-expect
+    check was too aggressive for a domain where the case ids intentionally
+    share words with their own expect values (e.g. case id
+    placeholder-oracle-blocks-gate vs its expect.reason_contains value
+    "placeholder"), and where "fail"/"pass" are inherent vocabulary for a gate
+    outcome. Fixed scanDriverForHardcodedExpect in mock-of-sut-scan.ts two
+    ways: (1) a small stopword list for generic status words (fail, pass,
+    true, false, ok, error, etc.) excluded regardless of length; (2) a leaf
+    literal occurrence is only counted as a genuine hardcode when at least one
+    of its occurrences in the source sits OUTSIDE every occurrence of the
+    case's own id string, so naming a test after its case id never trips the
+    scan, but a real standalone hardcoded comparison still does. Also moved
+    the "supposed to verify" phrasing into mock-of-sut-scan.ts's own finding
+    detail (single source of truth) so both the gate message and a direct
+    scanAcceptanceDrivers() caller see the same wording. Added unit tests for
+    both fixes; re-verified the pre-existing hardcoded-expect/mock-of-SUT
+    tests still pass unchanged.
+  - Ran cdd-kit test run acceptance-oracle --phase acceptance for real:
+    status passed, test-evidence.yml gained a phase: acceptance / status:
+    passed run (command: npm test -- --run test/acceptance).
+  - Ran node dist/cli/index.js gate acceptance-oracle for real. Remaining
+    output is exactly the three items expected: (1) 12 pending tasks (warning
+    only, non-strict -- tasks.yml is explicitly not mine to edit), (2) the
+    AC-2 baseline warning (acceptance.yml has no recorded baseline; the human
+    must run cdd-kit accept relock acceptance-oracle -- explicitly not run by
+    me per instruction), and (3) the tier-floor violation (critical surface
+    migrate/migration matched at declared tier 1, floor requires tier 0 -- a
+    classification/tier decision, not backend-engineer's to make). No
+    acceptance.yml/AC-4/AC-5 lines remain.
+artifacts:
+  - { type: files-changed, pointer: "src/commands/test-run.ts: added acceptance to PHASES" }
+  - { type: files-changed, pointer: "src/commands/test-select.ts: detectAcceptancePhase, Phase type/PHASE_ORDER extended, wired into buildSelection" }
+  - { type: files-changed, pointer: "src/cli/index.ts: test run --phase help text lists acceptance" }
+  - { type: files-changed, pointer: "src/utils/mock-of-sut-scan.ts: hardcoded-expect stopword list + case-id-containment fix; mock-of-sut finding detail carries the supposed-to-verify phrasing" }
+  - { type: files-changed, pointer: "src/commands/gate-acceptance.ts: simplified AC-4 mock-of-sut error composition to reuse finding.detail directly" }
+  - { type: files-changed, pointer: "test/acceptance/acceptance-oracle.driver.test.ts (new): real acceptance driver for this change's own acceptance.yml" }
+  - { type: tests-added, pointer: "test/cli/test-run.test.ts: --phase acceptance records a passed run" }
+  - { type: tests-added, pointer: "test/cli/test-select.test.ts: acceptance phase detected/absent based on driver file presence" }
+  - { type: tests-added, pointer: "test/utils/mock-of-sut-scan.test.ts: +3 cases (generic status stopword, case-id-contained literal is not flagged, a genuine standalone hardcode still is)" }
+  - { type: test-output, pointer: "npm test (full suite) -> 88 files passed, 4 skipped (win32 POSIX-only); 1125 tests passed, 57 skipped" }
+  - { type: test-output, pointer: "cdd-kit test run acceptance-oracle --phase acceptance -> status passed; test-evidence.yml recorded phase: acceptance" }
+  - { type: test-output, pointer: "node dist/cli/index.js gate acceptance-oracle -> fails only on pending tasks + AC-2 baseline warning + tier-floor violation, all outside backend-engineer scope" }
+  - { type: contracts-touched, pointer: "none this pass" }

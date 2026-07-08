@@ -14,7 +14,13 @@ import { SAFE_CHANGE_ID } from '../utils/change-id.js';
 // `cdd-kit test select` so the command can be chosen from test-plan.md instead of
 // being passed explicitly; until then `--command` is required.
 
-export const PHASES = ['collect', 'targeted', 'changed-area', 'contract', 'quality', 'full'] as const;
+// `acceptance` (ADR 0010 §3.4) runs the change's acceptance driver(s) under
+// tests/acceptance/ (pytest) and/or test/acceptance/ (vitest); its command is
+// bounded/discovered by `cdd-kit test select` like every other phase (see
+// test-select.ts's detectAcceptancePhase). It is not in the always-required
+// floor (test-evidence.schema.ts DEFAULT_REQUIRED_PHASES) -- only a change
+// that carries an acceptance oracle needs it.
+export const PHASES = ['collect', 'targeted', 'changed-area', 'contract', 'quality', 'full', 'acceptance'] as const;
 export type Phase = (typeof PHASES)[number];
 
 const SCHEMA_VERSION = '0.1.0';

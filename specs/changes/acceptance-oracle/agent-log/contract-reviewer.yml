@@ -1,0 +1,14 @@
+agent: contract-reviewer
+status: complete
+next-action: proceed-to-test-strategist-and-ci-cd-gatekeeper
+artifacts:
+  - { type: contract-updated, pointer: "contracts/ci/ci-gate-contract.md", notes: "0.1.0->0.2.0; enforceAcceptanceOracle required gate row + Required Check Policy (AC-1/2/4/5/7 + --strict rules)" }
+  - { type: contract-updated, pointer: "contracts/env/env-contract.md", notes: "0.1.0->0.2.0; CDD_ACCEPTANCE_WRITE_STRICT row (additive)" }
+  - { type: contract-updated, pointer: "contracts/env/.env.example.template", notes: "CDD_ACCEPTANCE_WRITE_STRICT=0" }
+  - { type: contract-updated, pointer: "contracts/env/env.schema.json", notes: "CDD_ACCEPTANCE_WRITE_STRICT enum 0/1" }
+  - { type: contract-updated, pointer: "contracts/CHANGELOG.md", notes: "ci 0.2.0 + env 0.2.0 entries" }
+notes:
+  - "Applied verbatim by main Claude (contract-reviewer is read-only). `cdd-kit validate` green on env semantic/env/CI gates/contract versions."
+  - "ci-cd-gatekeeper MUST sign off enforceAcceptanceOracle shipping REQUIRED from day one (deliberate exception to informational-first policy; a silently-passable oracle defeats its purpose)."
+  - "Pre-existing gap flagged (out of scope): CDD_CONTRACT_WRITE_STRICT is undocumented in env-contract today; do not let CDD_ACCEPTANCE_WRITE_STRICT land the same way."
+  - "Unrelated pre-existing validate failure: change 'yaml-migration-plan' missing required artifacts — not caused by this change."

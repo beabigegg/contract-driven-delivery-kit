@@ -80,6 +80,14 @@ const REQUIRED_TEMPLATES = [
   'ci-gates.md',
   'tasks.yml',
   'context-manifest.md',
+  // ADR 0010 (acceptance-oracle): every new change gets a placeholder-plus-
+  // instructions acceptance.yml, mirroring how tasks.yml/context-manifest.md
+  // are scaffolded. Unlike test-evidence.yml (NEVER_SCAFFOLD below, since that
+  // is runtime-generated), this placeholder is meant to be copied verbatim and
+  // then hand-authored — `enforceAcceptanceOracle` (AC-1) fails it until the
+  // human replaces the placeholder case with real ones, so it is never
+  // silently skipped.
+  'acceptance.yml',
 ];
 
 // Templates that ship in specs/templates/ as the canonical shape but must never

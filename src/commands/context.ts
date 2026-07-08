@@ -29,6 +29,14 @@ const DEFAULT_FORBIDDEN_PATHS = [
   'assets/**',
   'specs/archive/**',
   'specs/changes/*',
+  // ADR 0010 (acceptance-oracle) Maintainer Decisions: the acceptance oracle's
+  // hash-lock baseline is a HARD forbidden path from day one — an agent may
+  // never write or re-stamp it (only a human-run relock may). Hardcoded here
+  // (not just in the shipped .cdd/context-policy.json template) so the
+  // guarantee holds even for a repo whose context-policy.json predates this
+  // entry or was deleted/corrupted (defaultPolicy() below falls back to this
+  // same list).
+  '.cdd/acceptance-lock.json',
 ];
 
 function normalizePath(path: string): string {

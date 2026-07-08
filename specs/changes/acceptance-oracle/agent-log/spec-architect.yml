@@ -1,0 +1,8 @@
+agent: spec-architect
+change-id: acceptance-oracle
+status: complete
+artifacts:
+  - { type: adr-written, pointer: "none (refines existing authoritative ADR 0010; no new boundary)" }
+  - { type: affected-areas, pointer: "gate, acceptance schema, evidence harness, write-block hook, mock-of-SUT scan, digest stamping, migrate/refresh/upgrade" }
+  - { type: decision-summary, pointer: "hash parsed+canonicalized locked region → sidecar baseline; emit Python loader; single .cdd/asset-manifest.json digest sidecar" }
+  - { type: risks-noted, pointer: "0 high, 4 medium (baseline co-update, python-first scope, lazy-oracle residual, mock-scan precision)" }

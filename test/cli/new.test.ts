@@ -12,6 +12,7 @@ const REQUIRED_TEMPLATES = [
   'ci-gates.md',
   'tasks.yml',
   'context-manifest.md',
+  'acceptance.yml',
 ];
 
 describe('cdd-kit new', () => {
@@ -90,6 +91,22 @@ describe('cdd-kit new', () => {
     // copied example (it would masquerade as real passing evidence), so even --all
     // must not write it into the change directory.
     expect(files).not.toContain('test-evidence.yml');
+  });
+
+  it('new feat-oracle scaffolds a placeholder-plus-instructions acceptance.yml (ADR 0010)', () => {
+    const r = runCli(['new', 'feat-oracle'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const oraclePath = join(tmpRepo, 'specs', 'changes', 'feat-oracle', 'acceptance.yml');
+    expect(existsSync(oraclePath)).toBe(true);
+
+    const raw = readFileSync(oraclePath, 'utf8');
+    const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['oracle-version']).toBe('0.1.0');
+    expect(data['authored-by']).toBe('human');
+    // The scaffold is intentionally all-placeholder — enforceAcceptanceOracle
+    // (AC-1) must reject it until a human replaces the case with real values.
+    expect(raw).toMatch(/<case-id>/);
   });
 
   it('new "bad name" exits non-zero with "Invalid" in stderr', () => {

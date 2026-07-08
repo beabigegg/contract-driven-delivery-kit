@@ -84,6 +84,18 @@ describe('test-evidence.schema', () => {
     }
   });
 
+  it('accepts the acceptance phase in required-phases and runs (ADR 0010 AC-5 groundwork)', () => {
+    const doc = validEvidence();
+    (doc['required-phases'] as string[]).push('acceptance');
+    (doc.runs as Record<string, unknown>[]).push({
+      phase: 'acceptance',
+      status: 'passed',
+      command: 'python -m pytest tests/acceptance -q',
+      summary: 'specs/changes/add-order-filter/test-runs/3/summary.json',
+    });
+    expect(validate(doc), JSON.stringify(validate.errors)).toBe(true);
+  });
+
   it('rejects an unknown phase name', () => {
     const doc = validEvidence();
     (doc['required-phases'] as string[]).push('smoke');

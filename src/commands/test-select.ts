@@ -5,6 +5,7 @@ import { getTouchedPaths } from '../utils/git-paths.js';
 import { isPytestCommand } from './test-run.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
 import { SAFE_CHANGE_ID } from '../utils/change-id.js';
+import { findAcceptanceDriverFiles } from '../utils/mock-of-sut-scan.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select` reads
 // test-plan.md (then implementation-plan.md as fallback), the change's touched
@@ -30,8 +31,8 @@ const PYTEST = 'python -m pytest';
 const PYTEST_TAIL = '-q --maxfail=1 --tb=short -ra';
 const JS_STACKS = new Set<StackKind>(['pnpm', 'bun', 'yarn', 'npm']);
 
-export type Phase = 'collect' | 'targeted' | 'changed-area' | 'contract' | 'quality' | 'full';
-const PHASE_ORDER: Phase[] = ['collect', 'targeted', 'changed-area', 'contract', 'quality', 'full'];
+export type Phase = 'collect' | 'targeted' | 'changed-area' | 'contract' | 'quality' | 'full' | 'acceptance';
+const PHASE_ORDER: Phase[] = ['collect', 'targeted', 'changed-area', 'contract', 'quality', 'full', 'acceptance'];
 
 export interface SelectionEntry {
   reason: string;
@@ -410,6 +411,40 @@ export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
   return out;
 }
 
+// ── acceptance phase (ADR 0010 §3.4) ──────────────────────────────────────────
+
+/**
+ * Bounded acceptance-phase command(s): one entry per stack that actually has
+ * driver files under the conventional directories
+ * (findAcceptanceDriverFiles, src/utils/mock-of-sut-scan.ts -- the same
+ * tests/acceptance/ | test/acceptance/ discovery `enforceAcceptanceOracle`'s
+ * AC-4 scan uses, so selection and enforcement never drift apart). No driver
+ * files at all -> no acceptance entry, mirroring how `contract`/`quality` stay
+ * conditional; a change without an acceptance oracle is never forced to plan
+ * this phase.
+ */
+export function detectAcceptancePhase(cwd: string, plan: RunnerPlan): SelectionEntry[] {
+  const driverFiles = findAcceptanceDriverFiles(cwd).map((f) => f.replace(/\\/g, '/'));
+  if (driverFiles.length === 0) return [];
+
+  const entries: SelectionEntry[] = [];
+  if (driverFiles.some((f) => f.endsWith('.py'))) {
+    entries.push({
+      reason: 'acceptance driver(s) found under tests/acceptance/',
+      target: 'tests/acceptance/',
+      command: `${PYTEST} tests/acceptance ${PYTEST_TAIL}`,
+    });
+  }
+  if (driverFiles.some((f) => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(f)) && plan.hasVitest && plan.jsPackageManager) {
+    entries.push({
+      reason: 'acceptance driver(s) found under test/acceptance/',
+      target: 'test/acceptance/',
+      command: appendTestArgs(plan.jsPackageManager, '--run test/acceptance'),
+    });
+  }
+  return entries;
+}
+
 // ── changed-area (changed-file heuristic) ─────────────────────────────────────
 
 /**
@@ -525,6 +560,9 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
 
   const quality = extractQualityGates(readIf('ci-gates.md'));
   if (quality.length) phases.quality = quality;
+
+  const acceptance = detectAcceptancePhase(cwd, runnerPlan);
+  if (acceptance.length) phases.acceptance = acceptance;
 
   phases.full = [{ reason: 'final bounded full-suite smoke', command: fullCommand(runnerPlan) }];
 

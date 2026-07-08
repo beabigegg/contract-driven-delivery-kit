@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-07-09
+
+### Added
+
+- **Acceptance Oracle (ADR 0010) — human-supplied ground truth as a
+  tamper-evident gate.** A new human-owned `acceptance.yml` artifact per change
+  pairs business-language `input → expect` cases (plus never-break invariant
+  `rules`) with the behavior, and a new required `enforceAcceptanceOracle` gate
+  check makes the implementation prove it against the real system — closing the
+  intent gap that no purely-syntactic check can (the oracle problem). The
+  author's answer key is locked against agent tampering by four mechanisms:
+  - **Hash-lock** — the gate reconciles the oracle's locked region
+    (`cases[].{id,input,expect}`, `rules[].{id,statement}`) against an
+    author-time baseline in `.cdd/acceptance-lock.json` (canonical
+    parsed-projection sha256, cross-platform); a post-authoring edit fails with
+    "acceptance oracle modified after authoring — human must re-confirm."
+    `cdd-kit accept relock <id>` is the only sanctioned way to re-baseline.
+  - **Agent-write block** — `pre-tool-use-acceptance-write.sh` PreToolUse hook
+    (armed via `cdd-kit install-agent-hooks --acceptance-write`;
+    `CDD_ACCEPTANCE_WRITE_STRICT=1` hard-blocks) stops an agent editing
+    `acceptance.yml`; `.cdd/acceptance-lock.json` is a hard agent-forbidden path.
+  - **Mock-of-SUT + hardcoded-answer scan** — the gate rejects an acceptance
+    driver that mocks the change's own system-under-test (resolved from the
+    code-map) or hardcodes an `expect` value instead of reading it from the
+    emitted loader. Covers pytest and vitest.
+  - **Executed evidence** — a case passes only via a recorded, bounded
+    `acceptance`-phase run in `test-evidence.yml` (ADR 0005 harness); `cdd-kit
+    test run <id> --phase acceptance` runs the drivers under `tests/acceptance/`
+    / `test/acceptance/`.
+- **`acceptance.yml` template + backfill.** `cdd-kit new` scaffolds it; `migrate`
+  backfills existing in-flight change dirs; a placeholder oracle fails the gate
+  until real cases are supplied (never silently skipped).
+- **Asset version + content-digest stamping.** `refresh`/`upgrade`/
+  `install-agent-hooks` record `{version, digest}` per installed asset in
+  `.cdd/asset-manifest.json`, and `doctor` reports drift (installed vs manifest,
+  and installed vs packaged) — proves a complete, current re-scaffold and
+  detects a stale global install.
+- **`CDD_ACCEPTANCE_WRITE_STRICT`** env variable (advisory `0` / hard-block `1`).
+
+### Changed
+
+- `ci-gate-contract.md` → 0.2.0 (new required `enforceAcceptanceOracle` check);
+  `env-contract.md` → 0.2.0 (`CDD_ACCEPTANCE_WRITE_STRICT`). The new gate check
+  degrades gracefully for legacy/non-strict changes (`isNewChange || strict`
+  migration window) so existing change dirs are not failed on upgrade.
+
 ## [3.7.1] - 2026-07-08
 
 ### Fixed

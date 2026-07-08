@@ -56,6 +56,21 @@ describe('cdd-kit refresh — dry-run safety', () => {
     expect(r.stdout + r.stderr).toMatch(/specs\/templates.*~/);
     expect(r.stdout + r.stderr).toMatch(/change-classification\.md/);
   });
+
+  it('14: force-refreshes/adds specs/templates/acceptance.yml (ADR 0010 backfill)', () => {
+    // Simulate a project that predates the acceptance-oracle template: its
+    // local copy is missing entirely.
+    const tplPath = join(tmpRepo, 'specs', 'templates', 'acceptance.yml');
+    expect(existsSync(tplPath)).toBe(true); // init already copied it (fresh repo)
+    const r = runCli(
+      ['refresh', '--yes', '--no-code-map', '--no-update', '--no-upgrade'],
+      { cwd: tmpRepo, home: tmpHome },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(existsSync(tplPath)).toBe(true);
+    const data = readFileSync(tplPath, 'utf8');
+    expect(data).toMatch(/oracle-version: 0\.1\.0/);
+  });
 });
 
 describe('cdd-kit refresh --yes — applies changes with backup', () => {
@@ -87,6 +102,14 @@ describe('cdd-kit refresh --yes — applies changes with backup', () => {
       'utf8',
     );
     expect(backedUp).toBe(tamperedContent);
+
+    // ADR 0010 §6 (AC-8): refresh stamps .cdd/asset-manifest.json for every
+    // template it touched, keyed by repo-relative path.
+    const manifestPath = join(tmpRepo, '.cdd', 'asset-manifest.json');
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    expect(manifest['specs/templates/change-classification.md']).toBeDefined();
+    expect(manifest['specs/templates/change-classification.md'].digest).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('4: --no-templates skips template force-refresh', () => {

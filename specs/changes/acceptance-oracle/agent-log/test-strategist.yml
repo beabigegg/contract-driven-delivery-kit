@@ -1,0 +1,12 @@
+agent: test-strategist
+change-id: acceptance-oracle
+status: complete
+artifacts:
+  - { type: test-plan-path, pointer: "specs/changes/acceptance-oracle/test-plan.md" }
+  - { type: tdd-pairs, pointer: "test/utils/acceptance-hash.test.ts → src/utils/acceptance-hash.ts (new)" }
+  - { type: tdd-pairs, pointer: "test/utils/mock-of-sut-scan.test.ts → src/commands/gate*.ts + src/code-map/ (new scan)" }
+  - { type: tdd-pairs, pointer: "test/schemas/acceptance.schema.test.ts → src/schemas/acceptance.schema.ts (new)" }
+  - { type: tdd-pairs, pointer: "test/cli/acceptance-write-hook.test.ts → hooks/pre-tool-use-acceptance-write.sh (new)" }
+  - { type: tdd-pairs, pointer: "test/cli/acceptance-oracle.test.ts → src/commands/gate.ts (enforceAcceptanceOracle)" }
+  - { type: coverage-tiers, pointer: "unit, contract, integration, e2e, data-boundary" }
+  - { type: mapping-completeness, pointer: "AC-1..AC-8 all mapped, each with >=1 unit/contract test and >=1 integration/e2e test; both Python(pytest) and JS/TS(vitest) covered for AC-4/AC-5 per maintainer decision" }

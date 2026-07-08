@@ -1,0 +1,15 @@
+{
+  "change_id": "acceptance-oracle",
+  "phase": "collect",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/cli/acceptance-oracle.test.ts test/cli/gate.test.ts test/schemas/acceptance.schema.test.ts test/schemas/test-evidence.schema.test.ts test/utils/acceptance-hash.test.ts",
+  "duration_ms": 91027,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/acceptance-oracle/test-runs/20260708-201840/summary.json",
+    "stdout": "specs/changes/acceptance-oracle/test-runs/20260708-201840/stdout.log",
+    "stderr": "specs/changes/acceptance-oracle/test-runs/20260708-201840/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

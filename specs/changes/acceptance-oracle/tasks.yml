@@ -1,0 +1,42 @@
+change-id: acceptance-oracle
+status: in-progress
+tier: 1
+context-governance: v1
+archive-tasks:
+  - "7.1"
+  - "7.2"
+depends-on: []
+tier-floor-override: "The tier-floor matched the words migrate/migration in change-request.md, but this change touches the migrate/refresh/upgrade CLI commands (scaffolding a template artifact into change dirs) — NOT a production database or data migration. There is no production data, schema change, concurrency, secret, auth, or payment surface; the backfill is additive and reversible. Classified Tier 1 per the classifier's system-wide-but-authoritative-complete-spec rationale."
+
+tasks:
+  # status: pending | done | skipped   (optional: note: "reason or context")
+  - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: done }
+  - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: done }
+  - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: done }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: done }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: done }
+  - { id: "2.1", section: "Contract Updates", title: "API contract", status: skipped, note: "API: none" }
+  - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "no UI surface" }
+  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: done }
+  - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: skipped, note: "internal schemas only; no data-shape-contract.md change" }
+  - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: skipped, note: "none" }
+  - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: done }
+  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: done, note: "acceptance.schema/hash/mock-scan/asset-manifest unit + gate contract tests" }
+  - { id: "3.2", section: "Tests First", title: "Integration tests", status: done, note: "gate/migrate/refresh/upgrade/install-agent-hooks/doctor CLI integration" }
+  - { id: "3.3", section: "Tests First", title: "E2E/resilience tests", status: done, note: "acceptance-oracle.test.ts full lifecycle + test/acceptance driver (CLI E2E; no dedicated e2e agent per classifier)" }
+  - { id: "3.4", section: "Tests First", title: "Data-boundary/monkey tests", status: done, note: "malformed/placeholder acceptance.yml + evidence-phase boundary (monkey N/A)" }
+  - { id: "3.5", section: "Tests First", title: "Stress/soak tests if required", status: skipped, note: "no high-load/long-running runtime path" }
+  - { id: "4.1", section: Implementation, title: "Backend", status: done, note: "ADR 0010 blocks 1-9: schema, hash-lock, gate-acceptance, mock-scan, hook, installer, forbidden path, templates, backfill, digest, doctor drift, accept relock, acceptance test phase" }
+  - { id: "4.2", section: Implementation, title: "Frontend", status: skipped, note: "no UI surface" }
+  - { id: "4.3", section: Implementation, title: "Env/deploy", status: done, note: "CDD_ACCEPTANCE_WRITE_STRICT registered; env-contract/.env.example/env.schema synced" }
+  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: done, note: "no workflow file change needed — check composes into cdd-kit gate (ci-cd-gatekeeper sign-off)" }
+  - { id: "5.1", section: Review, title: "UI/UX review", status: skipped, note: "no UI surface" }
+  - { id: "5.2", section: Review, title: "Visual review", status: skipped, note: "no UI surface" }
+  - { id: "5.3", section: Review, title: "Contract review", status: done }
+  - { id: "5.4", section: Review, title: "QA review", status: done, note: "approved-with-risk; see qa-report.md" }
+  - { id: "6.1", section: Verification, title: "Local gates", status: done, note: "enforceAcceptanceOracle + all acceptance checks pass; full suite 1125 green. Repo-level gate blocked ONLY by pre-existing unrelated empty api/css/business templates (git-clean vs HEAD) — tracked as separate follow-up per qa-report.md" }
+  - { id: "6.2", section: Verification, title: "PR required gates", status: skipped, note: "runs in CI on PR (github-workflows/contract-driven-gates.yml); not exercised in this local dogfood" }
+  - { id: "6.3", section: Verification, title: "Informational gates", status: skipped, note: "runs in CI" }
+  - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: skipped, note: "none required" }
+  - { id: "7.1", section: Archive, title: "Archive change", status: pending }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: pending }

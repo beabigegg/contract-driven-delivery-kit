@@ -1,7 +1,8 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { cleanupDir, makeTempDir, runCli } from '../helpers.js';
+import { sha256OfFileNormalized } from '../../src/utils/digest.js';
 
 describe('cdd-kit doctor', () => {
   let tmpRepo: string;
@@ -40,6 +41,82 @@ describe('cdd-kit doctor', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/doctor completed with \d+ warning/i);
     expect(r.stdout + r.stderr).toMatch(/chokepoint contract-write hook: dormant/i);
+    expect(r.stdout + r.stderr).toMatch(/chokepoint acceptance-write hook: dormant/i);
+  });
+
+  it('reports the acceptance-write hook as live once armed (ADR 0010 SS3.2)', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    const arm = runCli(['install-agent-hooks', '--acceptance-write', 'strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(arm.status, arm.stderr).toBe(0);
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+    expect(r.stdout + r.stderr).toMatch(/chokepoint acceptance-write hook: live/i);
+    expect(r.stdout + r.stderr).not.toMatch(/chokepoint acceptance-write hook: dormant/i);
+  });
+
+  // ── asset-manifest digest stamping + drift (ADR 0010 SS6 / design.md Q3, AC-8) ──
+
+  it('reports no asset-manifest drift right after a clean install-agent-hooks arm', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    const arm = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: tmpRepo, home: tmpHome });
+    expect(arm.status, arm.stderr).toBe(0);
+    expect(existsSync(join(tmpRepo, '.cdd', 'asset-manifest.json'))).toBe(true);
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+    expect(r.stdout + r.stderr).not.toMatch(/asset-manifest:/i);
+  });
+
+  it('reports drift when an installed asset is hand-edited after install (partial/hand-edited copy)', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    const arm = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: tmpRepo, home: tmpHome });
+    expect(arm.status, arm.stderr).toBe(0);
+
+    const hookPath = join(tmpRepo, '.claude', 'hooks', 'pre-tool-use-acceptance-write.sh');
+    writeFileSync(hookPath, '#!/bin/sh\n# tampered by hand\nexit 0\n', 'utf8');
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+    expect(r.stdout + r.stderr).toMatch(/asset-manifest: \.claude\/hooks\/pre-tool-use-acceptance-write\.sh was modified after install/i);
+  });
+
+  it('reports drift when an installed asset is missing (recorded in the manifest but not on disk)', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    const arm = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: tmpRepo, home: tmpHome });
+    expect(arm.status, arm.stderr).toBe(0);
+
+    const hookPath = join(tmpRepo, '.claude', 'hooks', 'pre-tool-use-acceptance-write.sh');
+    rmSync(hookPath);
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+    expect(r.stdout + r.stderr).toMatch(/asset-manifest: \.claude\/hooks\/pre-tool-use-acceptance-write\.sh is missing/i);
+  });
+
+  it('reports drift when an installed asset differs from the currently packaged asset (stale install)', () => {
+    const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(init.status, init.stderr).toBe(0);
+
+    // Simulate a stale install: the manifest agrees with the installed file
+    // (no hand-edit), but the installed content deliberately differs from
+    // whatever this repo's own packaged specs/templates/acceptance.yml is --
+    // never touching the real assets/ tree.
+    const relpath = 'specs/templates/acceptance.yml';
+    const installedAbs = join(tmpRepo, 'specs', 'templates', 'acceptance.yml');
+    mkdirSync(join(tmpRepo, 'specs', 'templates'), { recursive: true });
+    writeFileSync(installedAbs, 'oracle-version: 0.0.1  # deliberately stale content\n', 'utf8');
+
+    mkdirSync(join(tmpRepo, '.cdd'), { recursive: true });
+    const manifest = { [relpath]: { version: '0.0.1', digest: sha256OfFileNormalized(installedAbs) } };
+    writeFileSync(join(tmpRepo, '.cdd', 'asset-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+
+    const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+    expect(r.stdout + r.stderr).toMatch(/asset-manifest: specs\/templates\/acceptance\.yml differs from the currently packaged cdd-kit asset/i);
   });
 
   it('agent lint accepts the "Suggested artifacts" heading and matches lint-agents (no drift)', () => {
@@ -240,5 +317,7 @@ describe('cdd-kit doctor', () => {
     const report = JSON.parse(r.stdout);
     const finding = report.findings.find((f: { message: string }) => /chokepoint contract-write hook: dormant/.test(f.message));
     expect(finding?.level).toBe('warning');
+    const acceptanceFinding = report.findings.find((f: { message: string }) => /chokepoint acceptance-write hook: dormant/.test(f.message));
+    expect(acceptanceFinding?.level).toBe('warning');
   });
 });

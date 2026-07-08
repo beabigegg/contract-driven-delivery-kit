@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, copyFileSync, chmodSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { ASSET } from '../utils/paths.js';
+import { ASSET, readKitVersion } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
+import { stampAssetManifest } from '../utils/asset-manifest.js';
 
 export type HookMode = 'advisory' | 'strict';
 /** Back-compat alias for the original (graph-first-only) public name. */
@@ -14,6 +15,8 @@ export interface InstallAgentHooksOptions {
   contractWrite?: HookMode;
   /** Arm the test-runner Bash hook at this mode (ADR 0005 §10). */
   testRunner?: HookMode;
+  /** Arm the acceptance-write Edit/Write hook at this mode (ADR 0010 §3.2). */
+  acceptanceWrite?: HookMode;
   /**
    * When invoked from `cdd-kit init`, recoverable problems (missing asset,
    * malformed settings.json) warn and return instead of hard-exiting — arming
@@ -33,6 +36,7 @@ const SETTINGS_REL_PATH = '.claude/settings.json';
 export const GRAPH_FIRST_MARKER = 'pre-tool-use-graph-first';
 export const CONTRACT_WRITE_MARKER = 'pre-tool-use-contract-write';
 export const TEST_RUNNER_MARKER = 'pre-tool-use-test-runner';
+export const ACCEPTANCE_WRITE_MARKER = 'pre-tool-use-acceptance-write';
 
 /** Static description of one agent PreToolUse hook the kit can arm. */
 interface HookDef {
@@ -83,6 +87,18 @@ const TEST_RUNNER: HookDef = {
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: warns when a broad whole-suite test command (e.g. bare `pytest`/`npm test`) runs instead of the bounded ladder (`cdd-kit test run --phase ...`); does not block.'
     : 'strict mode: blocks a broad whole-suite test command, routing to `cdd-kit test run` or an explicit bounded target.',
+};
+
+const ACCEPTANCE_WRITE: HookDef = {
+  id: 'acceptance-write',
+  filename: 'pre-tool-use-acceptance-write.sh',
+  // The agent's file-mutation tools; a human's editor is unaffected.
+  matcher: 'Write|Edit|MultiEdit',
+  marker: ACCEPTANCE_WRITE_MARKER,
+  strictEnv: 'CDD_ACCEPTANCE_WRITE_STRICT',
+  describe: (mode) => mode === 'advisory'
+    ? 'advisory mode: reminds agents that acceptance.yml (and .cdd/acceptance-lock.json) is a human-owned answer key; does not block.'
+    : "strict mode: blocks the agent's Edit/Write of acceptance.yml and .cdd/acceptance-lock.json (ADR 0010 §3.2).",
 };
 
 /** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
@@ -150,12 +166,15 @@ function withoutHandler(preTool: HookEntry[], def: HookDef): HookEntry[] {
  * `.claude/settings.json` so steering toward `cdd-kit` chokepoints becomes a
  * harness-enforced chokepoint rather than prose the agent can ignore.
  *
- * Three hooks are armed independently:
+ * Four hooks are armed independently:
  *  - graph-first (`Read`)  → steer to `cdd-kit index query --with-source`;
  *  - contract-write (`Edit`/`Write`) → route API-contract edits to
  *    `cdd-kit contract set` (ADR 0004 §6, Stage 2).
  *  - test-runner (`Bash`) → steer broad whole-suite test runs to the bounded
  *    ladder `cdd-kit test run --phase ...` (ADR 0005 §10).
+ *  - acceptance-write (`Edit`/`Write`) → block/advise against agent writes to
+ *    the human-owned `acceptance.yml` oracle and its `.cdd/acceptance-lock.json`
+ *    baseline (ADR 0010 §3.2).
  *
  * With no hook flag at all, defaults to graph-first advisory — the historical
  * behavior of a bare `install-agent-hooks` and of `init`'s arming step. Naming a
@@ -165,12 +184,16 @@ function withoutHandler(preTool: HookEntry[], def: HookDef): HookEntry[] {
  */
 export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Promise<void> {
   const requested: Array<{ def: HookDef; mode: HookMode }> = [];
-  if (opts.graphFirst === undefined && opts.contractWrite === undefined && opts.testRunner === undefined) {
+  if (
+    opts.graphFirst === undefined && opts.contractWrite === undefined &&
+    opts.testRunner === undefined && opts.acceptanceWrite === undefined
+  ) {
     requested.push({ def: GRAPH_FIRST, mode: 'advisory' });
   } else {
     if (opts.graphFirst !== undefined) requested.push({ def: GRAPH_FIRST, mode: opts.graphFirst });
     if (opts.contractWrite !== undefined) requested.push({ def: CONTRACT_WRITE, mode: opts.contractWrite });
     if (opts.testRunner !== undefined) requested.push({ def: TEST_RUNNER, mode: opts.testRunner });
+    if (opts.acceptanceWrite !== undefined) requested.push({ def: ACCEPTANCE_WRITE, mode: opts.acceptanceWrite });
   }
 
   for (const { def, mode } of requested) {
@@ -253,6 +276,10 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
 
   settings.hooks.PreToolUse = preTool;
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+
+  // ADR 0010 §6 / design.md Q3 (AC-8): stamp each armed hook script's version +
+  // content digest into .cdd/asset-manifest.json.
+  stampAssetManifest(cwd, readKitVersion(), requested.map(({ def }) => hookRelPath(def.filename)));
 
   for (const { def, mode } of requested) {
     log.ok(`${def.id} PreToolUse hook installed (${mode}) at ${SETTINGS_REL_PATH}`);

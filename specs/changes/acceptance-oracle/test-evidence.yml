@@ -1,0 +1,47 @@
+change-id: acceptance-oracle
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+runs:
+  - phase: collect
+    status: passed
+    command: >-
+      npm test -- --run test/cli/accept-relock.test.ts test/cli/acceptance-oracle.test.ts
+      test/cli/acceptance-write-hook.test.ts test/cli/doctor.test.ts test/cli/gate.test.ts
+      test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/cli/refresh.test.ts
+      test/cli/upgrade.test.ts test/schemas/acceptance.schema.test.ts test/schemas/test-evidence.schema.test.ts
+      test/utils/acceptance-driver-templates.test.ts test/utils/acceptance-hash.test.ts
+      test/utils/asset-manifest.test.ts test/utils/mock-of-sut-scan.test.ts
+    summary: specs/changes/acceptance-oracle/test-runs/20260708-213347/summary.json
+  - phase: targeted
+    status: passed
+    command: >-
+      npm test -- --run test/cli/accept-relock.test.ts test/cli/acceptance-oracle.test.ts
+      test/cli/acceptance-write-hook.test.ts test/cli/doctor.test.ts test/cli/gate.test.ts
+      test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/cli/refresh.test.ts
+      test/cli/upgrade.test.ts test/schemas/acceptance.schema.test.ts test/schemas/test-evidence.schema.test.ts
+      test/utils/acceptance-driver-templates.test.ts test/utils/acceptance-hash.test.ts
+      test/utils/asset-manifest.test.ts test/utils/mock-of-sut-scan.test.ts
+    summary: specs/changes/acceptance-oracle/test-runs/20260708-213512/summary.json
+  - phase: changed-area
+    status: passed
+    command: >-
+      npm test -- --run test/cli/accept-relock.test.ts test/cli/acceptance-oracle.test.ts
+      test/cli/acceptance-write-hook.test.ts test/cli/doctor.test.ts test/cli/gate.test.ts
+      test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/cli/refresh.test.ts
+      test/cli/upgrade.test.ts test/schemas/acceptance.schema.test.ts test/schemas/test-evidence.schema.test.ts
+      test/utils/acceptance-driver-templates.test.ts test/utils/acceptance-hash.test.ts
+      test/utils/asset-manifest.test.ts test/utils/mock-of-sut-scan.test.ts
+    summary: specs/changes/acceptance-oracle/test-runs/20260708-213640/summary.json
+  - phase: full
+    status: passed
+    command: npm test -- --run
+    summary: specs/changes/acceptance-oracle/test-runs/20260708-213807/summary.json
+  - phase: acceptance
+    status: passed
+    command: npm test -- --run test/acceptance
+    summary: specs/changes/acceptance-oracle/test-runs/20260708-215745/summary.json
+final-status: passed

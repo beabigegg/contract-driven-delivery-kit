@@ -1,0 +1,15 @@
+- type: tier-floor-override
+  change-id: acceptance-oracle
+  timestamp: '2026-07-08T14:04:47.868Z'
+  declared-tier: 1
+  floor-tier: 0
+  label: critical surface (auth / payments / data migration / concurrency / secrets)
+  matched:
+    - migrate
+    - migration
+  reason: >-
+    The tier-floor matched the words migrate/migration in change-request.md, but this change touches
+    the migrate/refresh/upgrade CLI commands (scaffolding a template artifact into change dirs) —
+    NOT a production database or data migration. There is no production data, schema change,
+    concurrency, secret, auth, or payment surface; the backfill is additive and reversible.
+    Classified Tier 1 per the classifier's system-wide-but-authoritative-complete-spec rationale.

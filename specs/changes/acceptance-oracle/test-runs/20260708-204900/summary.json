@@ -1,0 +1,15 @@
+{
+  "change_id": "acceptance-oracle",
+  "phase": "collect",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/cli/acceptance-oracle.test.ts test/cli/acceptance-write-hook.test.ts test/cli/doctor.test.ts test/cli/gate.test.ts test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/cli/refresh.test.ts test/cli/upgrade.test.ts test/schemas/acceptance.schema.test.ts test/schemas/test-evidence.schema.test.ts test/utils/acceptance-hash.test.ts",
+  "duration_ms": 84244,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/acceptance-oracle/test-runs/20260708-204900/summary.json",
+    "stdout": "specs/changes/acceptance-oracle/test-runs/20260708-204900/stdout.log",
+    "stderr": "specs/changes/acceptance-oracle/test-runs/20260708-204900/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

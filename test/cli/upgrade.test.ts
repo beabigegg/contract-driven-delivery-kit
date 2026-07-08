@@ -34,6 +34,14 @@ describe('cdd-kit upgrade', () => {
     expect(existsSync(join(tmpRepo, 'specs', 'templates'))).toBe(true);
     expect(existsSync(join(tmpRepo, 'CLAUDE.md'))).toBe(true);
     expect(existsSync(join(tmpRepo, 'AGENTS.md'))).toBe(true);
+
+    // ADR 0010 §6 (AC-8): upgrade stamps .cdd/asset-manifest.json for every
+    // missing file it added.
+    const manifestPath = join(tmpRepo, '.cdd', 'asset-manifest.json');
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    expect(manifest['CLAUDE.md']).toBeDefined();
+    expect(manifest['CLAUDE.md'].digest).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('preserves existing guidance files', () => {
@@ -80,5 +88,6 @@ describe('cdd-kit upgrade', () => {
     expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.yml'))).toBe(true);
     expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'tasks.md'))).toBe(false);
     expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'context-manifest.md'))).toBe(true);
+    expect(existsSync(join(tmpRepo, 'specs', 'changes', 'legacy-001', 'acceptance.yml'))).toBe(true);
   });
 });

@@ -1,0 +1,1 @@
+npm test -- --run test/cli/acceptance-oracle.test.ts test/cli/gate.test.ts test/schemas/acceptance.schema.test.ts test/schemas/test-evidence.schema.test.ts test/utils/acceptance-hash.test.ts

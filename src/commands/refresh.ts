@@ -29,9 +29,10 @@
 import { existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { createHash } from 'crypto';
-import { ASSET, AGENTS_HOME } from '../utils/paths.js';
+import { ASSET, AGENTS_HOME, readKitVersion } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { ensureGitignoreEntry } from '../utils/gitignore.js';
+import { stampAssetManifest } from '../utils/asset-manifest.js';
 import { update } from './update.js';
 import { upgrade } from './upgrade.js';
 import { codeMap } from './code-map.js';
@@ -311,6 +312,13 @@ export async function refresh(opts: RefreshOptions): Promise<void> {
       } else {
         log.dim('  (dry-run — no changes written)');
       }
+    }
+    // ADR 0010 §6 / design.md Q3 (AC-8): stamp every installed template with
+    // this package's version + content digest, whether or not this run
+    // changed anything -- a repo whose templates already matched still gets a
+    // manifest so `doctor` has a baseline to compare against.
+    if (apply) {
+      stampAssetManifest(cwd, readKitVersion(), total.map(i => i.rel));
     }
   } else {
     log.dim('[3/6] skipped (--no-templates)');

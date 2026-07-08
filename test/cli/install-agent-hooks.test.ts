@@ -373,3 +373,100 @@ describe('cdd-kit install-agent-hooks --test-runner (ADR 0005 §10)', () => {
     }
   });
 });
+
+describe('cdd-kit install-agent-hooks --acceptance-write (ADR 0010 SS3.2)', () => {
+  const AW_SCRIPT = './.claude/hooks/pre-tool-use-acceptance-write.sh';
+  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+
+  /** The PreToolUse entry whose nested command names the given hook script. */
+  function entryFor(marker: string): HookEntry | undefined {
+    return preTool().find(e => cmdOf(e)?.includes(marker));
+  }
+
+  it('installs the advisory acceptance-write hook and copies the script', () => {
+    const r = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-acceptance-write.sh'))).toBe(true);
+    const entry = entryFor('pre-tool-use-acceptance-write');
+    expect(entry).toBeDefined();
+    expect(entry?.matcher).toBe('Write|Edit|MultiEdit');
+    expect(entry?.command).toBeUndefined(); // nested handler shape, not top-level
+    expect(entry?.hooks?.[0]).toMatchObject({ type: 'command' });
+    expect(cmdOf(entry!)).toBe(CD + AW_SCRIPT);
+    expect(cmdOf(entry!)).not.toContain('CDD_ACCEPTANCE_WRITE_STRICT');
+  });
+
+  it('installs the strict acceptance-write hook with the CDD_ACCEPTANCE_WRITE_STRICT flag', () => {
+    const r = runCli(['install-agent-hooks', '--acceptance-write', 'strict'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!)).toBe(CD + `CDD_ACCEPTANCE_WRITE_STRICT=1 ${AW_SCRIPT}`);
+  });
+
+  it('a bare install-agent-hooks does NOT arm acceptance-write (opt-in)', () => {
+    const r = runCli(['install-agent-hooks'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(entryFor('pre-tool-use-acceptance-write')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-acceptance-write.sh'))).toBe(false);
+  });
+
+  it('arming acceptance-write does NOT install or disturb graph-first (opt-in, independent)', () => {
+    const r = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(1);
+    expect(entryFor('pre-tool-use-graph-first')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-graph-first.sh'))).toBe(false);
+  });
+
+  it('arms all four hooks in a single invocation', () => {
+    const r = runCli(
+      [
+        'install-agent-hooks',
+        '--graph-first', 'strict',
+        '--contract-write', 'advisory',
+        '--test-runner', 'strict',
+        '--acceptance-write', 'strict',
+      ],
+      { cwd: repo, home },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(4);
+    expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(CD + `CDD_GRAPH_FIRST_STRICT=1 ${GF_SCRIPT}`);
+    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!)).toBe(CD + `CDD_ACCEPTANCE_WRITE_STRICT=1 ${AW_SCRIPT}`);
+  });
+
+  it('is idempotent and switches acceptance-write mode without duplicating entries', () => {
+    runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--acceptance-write', 'strict'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+
+    const ours = preTool().filter(e => cmdOf(e)?.includes('pre-tool-use-acceptance-write'));
+    expect(ours).toHaveLength(1); // replaced each time, never appended
+    expect(cmdOf(ours[0])).toBe(CD + AW_SCRIPT);
+  });
+
+  it('rejects an invalid acceptance-write mode', () => {
+    const r = runCli(['install-agent-hooks', '--acceptance-write', 'bogus'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid.*mode/i);
+  });
+
+  it('writes an executable acceptance-write hook script', () => {
+    runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+    const mode = statSync(join(repo, '.claude', 'hooks', 'pre-tool-use-acceptance-write.sh')).mode;
+    if (process.platform !== 'win32') {
+      expect(mode & 0o100).toBeTruthy();
+    }
+  });
+
+  it('stamps .cdd/asset-manifest.json for the armed hook script (ADR 0010 §6, AC-8)', () => {
+    const r = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const manifestPath = join(repo, '.cdd', 'asset-manifest.json');
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    expect(manifest['.claude/hooks/pre-tool-use-acceptance-write.sh']).toBeDefined();
+    expect(manifest['.claude/hooks/pre-tool-use-acceptance-write.sh'].digest).toMatch(/^[a-f0-9]{64}$/);
+  });
+});

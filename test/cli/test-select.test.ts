@@ -205,6 +205,24 @@ describe('cdd-kit test select (integration)', () => {
     expect(sel.phases.quality).toEqual([{ reason: 'lint gate configured in ci-gates.md', command: 'ruff check .' }]);
   });
 
+  it('adds the acceptance phase when a pytest acceptance driver exists under tests/acceptance/', () => {
+    touch('tests/orders/test_filter.py');
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_x'));
+    touch('tests/acceptance/test_over_limit.py', 'def test_over_limit():\n    assert True\n');
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    const sel = JSON.parse(r.stdout);
+    expect(sel.phases.acceptance).toBeDefined();
+    expect(sel.phases.acceptance[0].command).toMatch(/pytest tests\/acceptance/);
+  });
+
+  it('does not add the acceptance phase when no acceptance driver files exist', () => {
+    touch('tests/orders/test_filter.py');
+    writePlan(planWithTarget('tests/orders/test_filter.py::test_x'));
+    const r = runCli(['test', 'select', 'demo', '--json'], { cwd: repo, home });
+    const sel = JSON.parse(r.stdout);
+    expect(sel.phases.acceptance).toBeUndefined();
+  });
+
   it('runs the directory of a changed conftest.py (changed-area)', () => {
     if (spawnSync('git', ['init'], { cwd: repo }).status !== 0) return; // git unavailable -> skip
     touch('tests/orders/test_filter.py');

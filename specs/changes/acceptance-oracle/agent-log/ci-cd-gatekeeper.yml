@@ -1,0 +1,12 @@
+agent: ci-cd-gatekeeper
+change-id: acceptance-oracle
+date: 2026-07-08
+summary: >
+  Signed off enforceAcceptanceOracle as required-from-day-one (APPROVE,
+  exception to ci/required-check-policy.md's informational-first default).
+  Wrote ci-gates.md gate table, promotion policy, and rollback policy.
+artifacts:
+  - { type: tiers-modified, pointer: "1 (Tier 1 PR-required gate only; no Tier 2-5 changes)" }
+  - { type: gate-promotions, pointer: "enforceAcceptanceOracle: none (ships required from day one, not promoted from informational)" }
+  - { type: workflow-files-changed, pointer: "n/a (no .github/workflows/*.yml edit needed; new check composes into existing src/commands/gate.ts call chain, exercised by already-wired cdd-kit gate/validate steps)" }
+  - { type: required-status-checks, pointer: "lint, build/typecheck, unit, contract, enforceAcceptanceOracle, integration, e2e-critical, data-boundary" }

@@ -7,7 +7,8 @@
     "build/**",
     "assets/**",
     "specs/archive/**",
-    "specs/changes/*"
+    "specs/changes/*",
+    ".cdd/acceptance-lock.json"
   ],
   "contextExpansion": {
     "mode": "auto-safe",

@@ -1,0 +1,37 @@
+# Acceptance oracle for the acceptance-oracle change (ADR 0010).
+#
+# HUMAN-AUTHORED (dictated by the maintainer, transcribed by the orchestrator —
+# the answer keys below are the behaviors the maintainer requires, not invented
+# by an implementation agent). The SUT is the kit's own `cdd-kit gate` acceptance
+# check; each case states, in business terms, a way the mechanism must behave and
+# the exact observable outcome. The driver (owned by the implementation agent)
+# reads `expect` from the emitted loader and asserts the real gate produces it.
+
+oracle-version: 0.1.0
+authored-by: human
+
+cases:
+  - id: placeholder-oracle-blocks-gate
+    given: "a change whose acceptance.yml still holds only the scaffold placeholder case"
+    when: "the maintainer runs cdd-kit gate on that change"
+    then: "the gate fails and tells the author to supply a real input/expect answer key"
+    input: { scenario: "acceptance.yml has only placeholder input/expect" }
+    expect: { gate: "fail", reason_contains: "placeholder" }
+
+  - id: tampered-answer-key-blocks-gate
+    given: "a locked oracle whose expect value was changed after the baseline was recorded"
+    when: "the maintainer runs cdd-kit gate"
+    then: "the gate fails and demands a human re-confirm the oracle"
+    input: { scenario: "locked oracle edited so its hash no longer matches the baseline" }
+    expect: { gate: "fail", reason_contains: "re-confirm" }
+
+  - id: mock-of-sut-driver-blocks-gate
+    given: "an acceptance driver that mocks the very module it is supposed to verify"
+    when: "the maintainer runs cdd-kit gate"
+    then: "the gate fails because the test mocks the thing it is meant to prove"
+    input: { scenario: "driver mocks a code-map-resolved SUT module" }
+    expect: { gate: "fail", reason_contains: "supposed to verify" }
+
+rules:
+  - id: oracle-never-silently-skipped
+    statement: "a change carrying an acceptance oracle can never pass the gate without at least one real, non-placeholder case whose answer key the implementation actually satisfied"

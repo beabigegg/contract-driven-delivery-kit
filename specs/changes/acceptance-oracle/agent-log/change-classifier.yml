@@ -1,0 +1,10 @@
+agent: change-classifier
+status: complete
+next-action: proceed-to-spec-architect
+artifacts:
+  - { type: tier, pointer: "specs/changes/acceptance-oracle/change-classification.md", notes: "Tier 1, high / system-wide" }
+  - { type: required-agents, pointer: "specs/changes/acceptance-oracle/change-classification.md", notes: "spec-architect, implementation-planner, backend-engineer, test-strategist, contract-reviewer, ci-cd-gatekeeper, qa-reviewer" }
+  - { type: context-manifest, pointer: "specs/changes/acceptance-oracle/context-manifest.md", notes: "CER-001 (.claude/) and CER-002 (.cdd/) approved and folded into Allowed Paths" }
+notes:
+  - "Atomic-split evaluated and rejected: only soft task-heavy trigger fires; splitting fragments one guarantee and forces same-file (upgrade/refresh/migrate/doctor) contention."
+  - "design.md + qa-report.md + regression-report.md required (Tier 1 governance-chokepoint change)."

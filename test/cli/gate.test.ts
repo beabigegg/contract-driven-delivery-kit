@@ -4,6 +4,7 @@ import { join, dirname } from 'path';
 import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
+import { computeAcceptanceHash, writeAcceptanceLock } from '../../src/utils/acceptance-hash.js';
 
 // ?????????????????????????????????????????????????????????????????????????????
 // Contract helpers (mirrors validate-semantic.test.ts)
@@ -330,7 +331,32 @@ function writeContextGovernanceFiles(changeDir: string): void {
   ].join('\n'), 'utf8');
 }
 
-// ?????????????????????????????????????????????????????????????????????????????
+/**
+ * Write a minimal, non-placeholder acceptance.yml plus its matching
+ * `.cdd/acceptance-lock.json` baseline (acceptance-oracle change, AC-1/AC-2) so
+ * a context-governed change's gate is not blocked by the new
+ * `enforceAcceptanceOracle` required check (src/commands/gate-acceptance.ts).
+ */
+function writeValidAcceptanceOracle(tmpRepo: string, changeDir: string, changeId: string): void {
+  const oracle = {
+    'oracle-version': '0.1.0',
+    'authored-by': 'human',
+    cases: [
+      {
+        id: 'happy-path',
+        given: 'a valid request',
+        when: 'it is submitted',
+        then: 'it succeeds',
+        input: { value: 1 },
+        expect: { status: 'ok' },
+      },
+    ],
+  };
+  writeFileSync(join(changeDir, 'acceptance.yml'), yaml.dump(oracle, { lineWidth: -1, noRefs: true }), 'utf8');
+  writeAcceptanceLock(tmpRepo, changeId, computeAcceptanceHash(oracle));
+}
+
+//?????????????????????????????????????????????????????????????????????????????
 // Tests
 // ?????????????????????????????????????????????????????????????????????????????
 
@@ -437,6 +463,7 @@ describe('cdd-kit gate', () => {
 
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
+    writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-004'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
 
     const r = runCli(['gate', 'feat-004'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
@@ -449,6 +476,7 @@ describe('cdd-kit gate', () => {
 
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
+    writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-004b'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
     // One non-archive task left pending: a warning in non-strict mode, but the
     // gate still passes — exactly the path where warnings used to print twice.
     writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
@@ -717,6 +745,7 @@ describe('cdd-kit gate', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015d');
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
+    writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-015d'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
 
     const filler = 'This is a meaningful description of the change to the date picker component. '.repeat(4);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nE2E tests exercise the <date-picker> and <my-element> custom elements rendered by the shell. Unit tests cover the new logic.\n`, 'utf8');
@@ -734,6 +763,7 @@ describe('cdd-kit gate', () => {
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-015e');
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
+    writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-015e'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
 
     const filler = 'This is a meaningful description of the legacy XML payload integration work. '.repeat(4);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nThe SOAP endpoint returns <id>123</id> and <date>2026-06-01</date>; tests assert the parser maps both correctly. Unit and integration coverage included.\n`, 'utf8');
@@ -1347,8 +1377,9 @@ describe('cdd-kit gate — tier floor', () => {
   });
 
   it.skipIf(!hasPython())('passes end-to-end when correctly tiered with valid contracts', () => {
-    scaffoldSensitiveChange('floor-pass', 0);
+    const changeDir = scaffoldSensitiveChange('floor-pass', 0);
     writeValidContracts(tmpRepo);
+    writeValidAcceptanceOracle(tmpRepo, changeDir, 'floor-pass'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
     const r = runCli(['gate', 'floor-pass'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/gate passed/i);
@@ -1676,7 +1707,18 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     writeValidChangeArtifacts(changeDir);
     writeContextGovernanceFiles(changeDir);
     writeValidContracts(tmpRepo);
-    const body = buildEvidenceYaml({ changeId: 'ev-pass' });
+    writeValidAcceptanceOracle(tmpRepo, changeDir, 'ev-pass'); // acceptance-oracle: satisfy the new required check
+    const body = buildEvidenceYaml({
+      changeId: 'ev-pass',
+      requiredPhases: ['collect', 'targeted', 'changed-area', 'contract', 'acceptance'],
+      runs: [
+        { phase: 'collect', status: 'passed' },
+        { phase: 'targeted', status: 'passed' },
+        { phase: 'changed-area', status: 'passed' },
+        { phase: 'contract', status: 'passed' },
+        { phase: 'acceptance', status: 'passed' }, // acceptance-oracle AC-5: executed acceptance-phase run
+      ],
+    });
     writeEvidence(changeDir, body);
     materializeEvidenceArtifacts(tmpRepo, body); // real test-runs/ artifacts so the durability check passes
 

@@ -134,6 +134,24 @@ describe('cdd-kit test run (integration)', () => {
     expect(r.status).toBe(2);
   });
 
+  it('accepts --phase acceptance and records a passed acceptance-phase run (ADR 0010 AC-5)', () => {
+    const r = runCli(
+      ['test', 'run', 'demo', '--phase', 'acceptance', '--command', NODE_PASS, '--run-id', 'racc', '--json'],
+      { cwd: repo, home },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    const summary = JSON.parse(r.stdout);
+    expect(summary.phase).toBe('acceptance');
+    expect(summary.status).toBe('passed');
+
+    const ev = evidence();
+    expect(validateEvidence(ev), JSON.stringify(validateEvidence.errors)).toBe(true);
+    expect(ev.runs.find((x: Record<string, unknown>) => x.phase === 'acceptance').status).toBe('passed');
+    // acceptance is NOT in the always-required floor, so it alone does not
+    // satisfy final-status (collect/targeted/changed-area are still missing).
+    expect(ev['required-phases']).toEqual(['collect', 'targeted', 'changed-area']);
+  });
+
   it('exits 2 when the change directory does not exist', () => {
     const r = runCli(['test', 'run', 'ghost', '--phase', 'targeted', '--command', NODE_PASS], { cwd: repo, home });
     expect(r.status).toBe(2);

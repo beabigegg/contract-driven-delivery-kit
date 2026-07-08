@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
-import { ASSET } from '../utils/paths.js';
+import { ASSET, readKitVersion } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { inferProvider, validateProviderOption, type Provider, type ProviderOption } from '../utils/provider.js';
+import { stampAssetManifest } from '../utils/asset-manifest.js';
 import { migrate } from './migrate.js';
 
 export interface UpgradeOptions {
@@ -110,6 +111,9 @@ export async function upgrade(opts: UpgradeOptions = {}): Promise<void> {
   }
 
   applyCopy(plan);
+  // ADR 0010 §6 / design.md Q3 (AC-8): stamp each newly-added file's version +
+  // content digest into .cdd/asset-manifest.json.
+  stampAssetManifest(cwd, readKitVersion(), plan.map(i => i.rel));
 
   const modelPolicyPath = join(cwd, '.cdd', 'model-policy.json');
   if (existsSync(modelPolicyPath)) {

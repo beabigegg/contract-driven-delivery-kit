@@ -5,6 +5,7 @@ import {
   GRAPH_FIRST_MARKER,
   CONTRACT_WRITE_MARKER,
   TEST_RUNNER_MARKER,
+  ACCEPTANCE_WRITE_MARKER,
 } from './install-agent-hooks.js';
 
 /**
@@ -31,9 +32,10 @@ export interface ChokepointStatus {
   detail: string;
 }
 
-// The three agent-hook markers (graph-first, contract-write, test-runner) are
-// imported from install-agent-hooks above — that command is their producer, so a
-// single definition keeps arming and this detection in lockstep.
+// The four agent-hook markers (graph-first, contract-write, test-runner,
+// acceptance-write) are imported from install-agent-hooks above — that command
+// is their producer, so a single definition keeps arming and this detection in
+// lockstep.
 /** Marker the install-hooks command writes into .git/hooks/pre-commit. */
 const PRECOMMIT_MARKER = '# cdd-kit-managed-block-start';
 /** Substring identifying the OpenAPI sync gate in a script or CI step. */
@@ -113,6 +115,19 @@ function probeTestRunner(cwd: string): ChokepointStatus {
     detail: live
       ? 'PreToolUse hook steers broad whole-suite test runs to the bounded `cdd-kit test run` ladder'
       : 'dormant — run `cdd-kit install-agent-hooks --test-runner advisory` to steer agents off broad whole-suite test commands',
+  };
+}
+
+/** acceptance-write PreToolUse hook armed in .claude/settings.json? (ADR 0010 §3.2) */
+function probeAcceptanceWrite(cwd: string): ChokepointStatus {
+  const live = nestedPreToolUseCommands(cwd).some(c => c.includes(ACCEPTANCE_WRITE_MARKER));
+  return {
+    id: 'acceptance-write-hook',
+    name: 'acceptance-write hook',
+    live,
+    detail: live
+      ? 'PreToolUse hook blocks/advises agent Edit/Write of acceptance.yml and .cdd/acceptance-lock.json'
+      : 'dormant — run `cdd-kit install-agent-hooks --acceptance-write strict` to protect the human-owned acceptance oracle from agent writes',
   };
 }
 
@@ -199,6 +214,7 @@ export function detectChokepoints(cwd: string): ChokepointStatus[] {
     probeGraphFirst(cwd),
     probeContractWrite(cwd),
     probeTestRunner(cwd),
+    probeAcceptanceWrite(cwd),
     probePreCommitGate(cwd),
     probeOpenApiGate(cwd),
   ];

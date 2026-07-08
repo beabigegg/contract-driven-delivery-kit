@@ -553,16 +553,31 @@ program
 // ── cdd install-agent-hooks ───────────────────────────────────────────────────
 program
   .command('install-agent-hooks')
-  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration; contract-write routing; test-runner ladder)')
+  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration; contract-write routing; test-runner ladder; acceptance-write block)')
   .option('--graph-first <mode>', "Arm the graph-first PreToolUse hook: 'advisory' or 'strict' (default when no hook flag is given)")
   .option('--contract-write <mode>', "Arm the contract-write PreToolUse hook (ADR 0004 §6): 'advisory' or 'strict'")
   .option('--test-runner <mode>', "Arm the test-runner PreToolUse hook (ADR 0005 §10): 'advisory' or 'strict'")
-  .action(async (opts: { graphFirst?: string; contractWrite?: string; testRunner?: string }) => {
+  .option('--acceptance-write <mode>', "Arm the acceptance-write PreToolUse hook (ADR 0010 §3.2): 'advisory' or 'strict'")
+  .action(async (opts: { graphFirst?: string; contractWrite?: string; testRunner?: string; acceptanceWrite?: string }) => {
     await installAgentHooks({
       graphFirst: opts.graphFirst as 'advisory' | 'strict' | undefined,
       contractWrite: opts.contractWrite as 'advisory' | 'strict' | undefined,
       testRunner: opts.testRunner as 'advisory' | 'strict' | undefined,
+      acceptanceWrite: opts.acceptanceWrite as 'advisory' | 'strict' | undefined,
     });
+  });
+
+// ── cdd accept relock ─────────────────────────────────────────────────────────
+const accept = program
+  .command('accept')
+  .description('Human-only acceptance-oracle baseline commands (ADR 0010)');
+
+accept
+  .command('relock <change-id>')
+  .description('Recompute the acceptance-oracle hash from acceptance.yml and rewrite .cdd/acceptance-lock.json (the only sanctioned way to re-baseline after a human edit)')
+  .action(async (changeId: string) => {
+    const { acceptRelock } = await import('../commands/accept.js');
+    await acceptRelock(changeId);
   });
 
 // ── cdd openapi export ────────────────────────────────────────────────────────
@@ -701,7 +716,7 @@ const test = program
 test
   .command('run <change-id>')
   .description('Run one bounded test phase, capture artifacts under test-runs/<run-id>/, and update test-evidence.yml')
-  .requiredOption('--phase <phase>', 'ladder phase: collect, targeted, changed-area, contract, quality, or full')
+  .requiredOption('--phase <phase>', 'ladder phase: collect, targeted, changed-area, contract, quality, full, or acceptance')
   .option('--command <cmd>', 'the test command to run; pytest commands get bounded defaults (-q --maxfail=1 --tb=short -ra) plus JUnit XML. Required until cdd-kit test select lands')
   .option('--run-id <id>', 'override the generated run id (timestamp by default)')
   .option('--timeout <ms>', 'kill the command after this many milliseconds', '300000')

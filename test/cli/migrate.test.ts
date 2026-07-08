@@ -79,6 +79,33 @@ describe('cdd-kit migrate', () => {
     expect(data['context-governance']).toBeUndefined();
     expect(existsSync(join(changeDir, 'context-manifest.md'))).toBe(true);
     expect(existsSync(join(changeDir, 'implementation-plan.md'))).toBe(true);
+    expect(existsSync(join(changeDir, 'acceptance.yml'))).toBe(true);
+  });
+
+  it('B5.1: migrate scaffolds a placeholder-plus-instructions acceptance.yml into an in-flight change (ADR 0010)', () => {
+    const changeDir = makeOldChange('old-oracle');
+    const r = runCli(['migrate', 'old-oracle'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/acceptance\.yml/i);
+
+    const oraclePath = join(changeDir, 'acceptance.yml');
+    expect(existsSync(oraclePath)).toBe(true);
+    const raw = readFileSync(oraclePath, 'utf8');
+    const data = yaml.load(raw) as Record<string, unknown>;
+    expect(data['oracle-version']).toBe('0.1.0');
+    // All-placeholder scaffold: enforceAcceptanceOracle (AC-1) must reject it
+    // until the human author supplies real cases (never silently skipped).
+    expect(raw).toMatch(/<case-id>/);
+  });
+
+  it('B5.2: migrate does not overwrite an already-authored acceptance.yml', () => {
+    const changeDir = makeOldChange('old-oracle-present');
+    const realOracle = 'oracle-version: 0.1.0\nauthored-by: human\ncases:\n  - id: real\n    given: g\n    when: w\n    then: t\n    input: 1\n    expect: 2\n';
+    writeFileSync(join(changeDir, 'acceptance.yml'), realOracle, 'utf8');
+
+    const r = runCli(['migrate', 'old-oracle-present'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(readFileSync(join(changeDir, 'acceptance.yml'), 'utf8')).toBe(realOracle);
   });
 
   it('3: migrate populates archive-tasks default in tasks.yml', () => {
@@ -137,6 +164,10 @@ describe('cdd-kit migrate', () => {
     writeFileSync(join(changeDir, 'change-classification.md'), originalClassif, 'utf8');
     writeFileSync(join(changeDir, 'implementation-plan.md'), '# Implementation Plan: new-001\n\nAlready filled.\n', 'utf8');
     writeFileSync(join(changeDir, 'context-manifest.md'), '# Context Manifest\n\n## Allowed Paths\n- specs/changes/new-001/\n', 'utf8');
+    // acceptance-oracle (ADR 0010) backfill: already present, so migrate must
+    // not re-scaffold it and report this change as fully up to date.
+    const originalOracle = 'oracle-version: 0.1.0\nauthored-by: human\ncases:\n  - id: real-case\n    given: g\n    when: w\n    then: t\n    input: 1\n    expect: 2\n';
+    writeFileSync(join(changeDir, 'acceptance.yml'), originalOracle, 'utf8');
 
     const r = runCli(['migrate', 'new-001'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);
@@ -144,6 +175,7 @@ describe('cdd-kit migrate', () => {
 
     expect(readFileSync(join(changeDir, 'tasks.yml'), 'utf8')).toBe(originalTasks);
     expect(readFileSync(join(changeDir, 'change-classification.md'), 'utf8')).toBe(originalClassif);
+    expect(readFileSync(join(changeDir, 'acceptance.yml'), 'utf8')).toBe(originalOracle);
   });
 
   it('7: migrate --dry-run reports changes but does NOT write files', () => {
