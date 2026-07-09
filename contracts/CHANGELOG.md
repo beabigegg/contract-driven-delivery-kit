@@ -8,6 +8,36 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.5.0] — 2026-07-09
+### Fixed
+- **Hash-lock truthfulness (`enforceInteractionDesign` cond. 6, `enforceAcceptanceOracle`
+  cond. 2).** Both checks treated a MISSING lock baseline as a warning and passed the
+  gate. Because both write-block hooks are advisory unless their `*_WRITE_STRICT` env
+  var is set, any Edit-capable agent could author its own `## Confirmed` section (or its
+  own `acceptance.yml` answer key), never run the confirm/relock command, and sail
+  through — so the human-confirmation guarantee at the centre of ADR 0010 and ADR 0012
+  did not exist in the default configuration. `cdd-new/SKILL.md` stated the opposite
+  outright ("Until that command runs, `cdd-kit gate` keeps failing this artifact on
+  purpose"). A missing baseline is now an ERROR under `isNewChange || strict` — the same
+  migration window every neighbouring check already uses, so no legacy change dir is
+  newly broken. Reported by an external review of `3.10.0`; same defect class as the
+  three trigger/`rules[]`/`abandon` fixes below, in the very change that shipped them.
+- **CI changed-spec detection hardened.** The detect step now declares `shell: bash`
+  (the implicit default is `bash -e {0}` — *without* `pipefail`), so a genuine
+  `git diff` failure fails the step instead of being masked by the last pipeline
+  stage's exit status. Enabling `pipefail` makes `grep -oE`'s exit-1-on-no-match
+  load-bearing, so the extraction is now `sed -n .../p` (silent, exit 0). The first-push
+  fallback also switched to `git rev-parse --verify --quiet HEAD^`: a bare
+  `git rev-parse HEAD^` echoes the unresolvable argument to stdout before failing, so
+  the `||` fallback concatenated `HEAD^` with the empty-tree sha. A stray file directly
+  under `specs/changes/` (e.g. a README) is no longer mistaken for a change id.
+- **This repo's own workflow invoked a script that does not exist.** The fast-gate
+  step ran `npm run lint && npm run typecheck && npm test`; `package.json` defines
+  no `lint` script, so the job would have failed on its first execution. It never
+  executed: the workflow file was untracked until 3.10.0 added it. Replaced with the
+  scripts that exist (`typecheck`, `check:mojibake`, `test`), each verified to pass
+  locally. Adopter template unaffected (its fast-gate step is a documented placeholder).
+
 ## [ci 0.4.0] — 2026-07-09
 ### Added
 - `enforceInteractionDesign` required gate check (ADR 0012): fails a change whose

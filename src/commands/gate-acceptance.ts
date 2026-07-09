@@ -127,15 +127,27 @@ export function enforceAcceptanceOracle(
   }
 
   // AC-2 -- hash-lock reconcile against the author-time baseline.
+  //
+  // A MISSING baseline is a hard failure under `isNewChange || strict`, not a
+  // warning. The acceptance-write hook is advisory by default, so an Edit-capable
+  // agent can author `acceptance.yml` itself; a warn-only branch here would let
+  // that AI-written answer key pass the gate, leaving ADR 0010's "human ground
+  // truth" guarantee unenforced in the default configuration. Only `cdd-kit
+  // accept relock` writes the lock. Same `isNewChange || strict` migration window
+  // as AC-5 below, so no legacy change dir is newly broken.
   const currentHash = computeAcceptanceHash(data);
   const lock = readAcceptanceLock(cwd);
   const baseline = lock[changeId];
   if (!baseline) {
-    warnings.push(
-      'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json — this oracle is not yet ' +
-      'protected against tampering; a human must record the baseline by running ' +
-      `\`cdd-kit accept relock ${changeId}\`.`,
-    );
+    const detail =
+      'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json — an unlocked oracle proves ' +
+      'nothing (an agent can write one). A human must record the baseline by running ' +
+      `\`cdd-kit accept relock ${changeId}\`.`;
+    if (isNewChange || strict) {
+      errors.push(detail);
+    } else {
+      warnings.push(detail + ' (legacy change; not yet migrated to the ADR 0010 hash-lock)');
+    }
   } else if (baseline.hash !== currentHash) {
     errors.push('acceptance oracle modified after authoring — human must re-confirm.');
   }

@@ -293,15 +293,70 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     expect(r.stdout + r.stderr).not.toMatch(/acceptance oracle modified after authoring/i);
   });
 
-  it('AC-2: no recorded baseline warns (not a hard fail) so early authoring is not blocked', () => {
+  // Regression: the predecessor of these two tests was named "no recorded
+  // baseline warns (not a hard fail) so early authoring is not blocked" and
+  // asserted only on `stdout + stderr` message text -- so it passed whether the
+  // gate warned or errored. An unlocked acceptance.yml (which the advisory-by-
+  // default write hook lets any Edit-capable agent author) therefore passed the
+  // gate, and ADR 0010's human-ground-truth guarantee did not exist.
+  //
+  // The exit code is not a usable discriminator here (a scaffolded change fails
+  // the gate on unrelated checks anyway). log.warn writes stdout and log.error
+  // writes stderr (src/utils/logger.ts), so the STREAM is what pins severity.
+  const BASELINE_MSG = /no recorded baseline/i;
+
+  // NOTE: `writeValidChangeArtifacts` overwrites tasks.yml WITHOUT
+  // `context-governance: v1`, so a fixture built from it alone is a LEGACY
+  // change (isNewChange === false). `writeContextGovernanceFiles` is what makes
+  // it governed. The superseded test used the legacy fixture and matched on the
+  // combined streams, so it was asserting the warn path while claiming to
+  // describe the required one.
+  it('AC-2: a context-governed change whose acceptance.yml has no lock baseline FAILS the gate (stderr, not a warning)', () => {
     runCli(['new', 'acc-no-baseline'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-no-baseline');
     writeValidChangeArtifacts(changeDir, 'acc-no-baseline');
+    writeContextGovernanceFiles(changeDir, 'acc-no-baseline');
     writeAcceptanceYaml(changeDir, realOracle());
 
     const r = runCli(['gate', 'acc-no-baseline'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/acceptance oracle modified after authoring/i);
-    expect(r.stdout + r.stderr).toMatch(/no recorded baseline/i);
+    expect(r.stderr).toMatch(BASELINE_MSG);
+    expect(r.stderr).toMatch(/proves nothing/i);
+    expect(r.stdout).not.toMatch(BASELINE_MSG);
+    // Not the tamper message -- the baseline is absent, not divergent.
+    expect(r.stderr).not.toMatch(/acceptance oracle modified after authoring/i);
+  });
+
+  it('AC-2: ...and `accept relock` is what clears it (isolates the cause)', () => {
+    runCli(['new', 'acc-then-relock'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-then-relock');
+    writeValidChangeArtifacts(changeDir, 'acc-then-relock');
+    writeContextGovernanceFiles(changeDir, 'acc-then-relock');
+    writeAcceptanceYaml(changeDir, realOracle());
+
+    const before = runCli(['gate', 'acc-then-relock'], { cwd: tmpRepo, home: tmpHome });
+    expect(before.stderr).toMatch(BASELINE_MSG);
+
+    const relock = runCli(['accept', 'relock', 'acc-then-relock'], { cwd: tmpRepo, home: tmpHome });
+    expect(relock.status, relock.stdout + relock.stderr).toBe(0);
+
+    const after = runCli(['gate', 'acc-then-relock'], { cwd: tmpRepo, home: tmpHome });
+    expect(after.stdout + after.stderr).not.toMatch(BASELINE_MSG);
+  });
+
+  it('AC-2: a legacy change is warned on stdout, not failed -- but --strict moves it to stderr', () => {
+    runCli(['new', 'acc-legacy-no-baseline'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-legacy-no-baseline');
+    writeValidChangeArtifacts(changeDir, 'acc-legacy-no-baseline'); // leaves it ungoverned
+    writeAcceptanceYaml(changeDir, realOracle());
+
+    const normal = runCli(['gate', 'acc-legacy-no-baseline'], { cwd: tmpRepo, home: tmpHome });
+    expect(normal.stdout).toMatch(BASELINE_MSG);
+    expect(normal.stdout).toMatch(/legacy change; not yet migrated/i);
+    expect(normal.stderr).not.toMatch(BASELINE_MSG);
+
+    const strict = runCli(['gate', 'acc-legacy-no-baseline', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(strict.stderr).toMatch(BASELINE_MSG);
+    expect(strict.stdout).not.toMatch(BASELINE_MSG);
   });
 
   it.skipIf(!hasPython())('AC-1/AC-2: gate passes end-to-end with >=1 real case and a matching lock baseline', () => {

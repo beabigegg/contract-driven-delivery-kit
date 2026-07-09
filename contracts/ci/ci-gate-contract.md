@@ -3,7 +3,7 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.4.0
+schema-version: 0.5.0
 last-changed: 2026-07-09
 breaking-change-policy: deprecate-2-minors
 ---
@@ -51,7 +51,11 @@ Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
 2. **AC-2** — the recorded oracle hash (locked region: `cases[].{id,input,expect}`,
    `rules[].{id,statement}`) matches the author-time baseline in
    `.cdd/acceptance-lock.json`; a mismatch fails with "acceptance oracle
-   modified after authoring — human must re-confirm."
+   modified after authoring — human must re-confirm." A `acceptance.yml` with **no**
+   recorded baseline at all also fails (under `isNewChange || strict`; a legacy dir
+   is warned). An unlocked oracle is not evidence of human authorship: the
+   acceptance-write hook is advisory unless `CDD_ACCEPTANCE_WRITE_STRICT=1`, so any
+   Edit-capable agent can author one. Only `cdd-kit accept relock` writes the lock.
 3. **AC-4** — no acceptance driver mocks a module resolved as the change's SUT
    from the code-map ("acceptance test mocks the thing it is supposed to
    verify"); external I/O boundary fakes (network, clock) are allowed.
@@ -118,7 +122,11 @@ Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
 6. **AC-3 / AC-6** — the confirmed-region canonical-projection sha256 in
    `.cdd/design-lock.json` matches the parsed `## Confirmed` region; a mismatch
    fails with "interaction design modified after confirmation — human must
-   re-confirm."
+   re-confirm." A `## Confirmed` section with **no** recorded baseline at all also
+   fails (under `isNewChange || strict`; a legacy dir is warned). An unlocked
+   `## Confirmed` is not evidence of human confirmation: the design-write hook is
+   advisory unless `CDD_DESIGN_WRITE_STRICT=1`, so any Edit-capable agent can
+   author that prose. Only `cdd-kit design confirm` writes the lock.
 7. **AC-8** — a change whose `interaction-design.md` carries
    `applicability: not-applicable` with a non-empty `applicability-reason` SKIPS
    conditions 1–6 entirely. `applicability.py` remains the sole pass/fail authority

@@ -44,6 +44,13 @@ jobs:
       #    § Workflow Changes) ──────────────────────────────────────────────
       - name: Determine changed spec directories
         id: changed
+        # `shell: bash` (not the implicit default) buys `-o pipefail`, so a
+        # genuine `git diff` failure fails the step instead of being masked by
+        # the exit status of the last pipeline stage. That makes the no-match
+        # case load-bearing: `grep -oE` exits 1 when nothing matches, which under
+        # pipefail would fail every docs-only PR. `sed -n .../p` is used instead —
+        # it emits nothing and exits 0 when no line matches.
+        shell: bash
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -51,10 +58,17 @@ jobs:
           else
             BASE_SHA="${{ github.event.before }}"
             if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-              BASE_SHA="$(git rev-parse HEAD^)"
+              # First push of a new branch: there is no "before" commit, and on a
+              # repo's very first commit `HEAD^` does not resolve either. Fall back
+              # to the empty tree so the diff simply yields every path in the push.
+              # `--verify --quiet` is required: a bare `git rev-parse HEAD^` echoes
+              # the unresolvable argument to STDOUT before failing, so the `||`
+              # fallback would concatenate "HEAD^" with the empty-tree sha.
+              BASE_SHA="$(git rev-parse --verify --quiet HEAD^ || git hash-object -t tree /dev/null)"
             fi
           fi
-          IDS="$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'specs/changes/' | grep -oE '^specs/changes/[^/]+' | sed 's|specs/changes/||' | sort -u)"
+          CHANGED="$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'specs/changes/')"
+          IDS="$(printf '%s\n' "$CHANGED" | sed -n 's|^specs/changes/\([^/][^/]*\)/.*|\1|p' | sort -u)"
           echo "::group::Changed spec directories"
           echo "$IDS"
           echo "::endgroup::"
@@ -69,6 +83,7 @@ jobs:
         # is simply skipped). This step carries no error-suppression flag: a
         # failing gate fails the job and blocks the PR/push, by design
         # (ci-gates.md § Workflow Changes 4).
+        shell: bash
         if: steps.changed.outputs.ids != ''
         run: |
           STRICT_FLAG=""

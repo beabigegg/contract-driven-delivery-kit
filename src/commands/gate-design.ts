@@ -342,19 +342,31 @@ export async function enforceInteractionDesign(
   errors.push(...(await reconcileProvenance(cwd, infoItems, states)));
 
   // Condition 6 -- the ## Confirmed hash must match .cdd/design-lock.json.
-  // Mirrors enforceAcceptanceOracle's AC-2 "no recorded baseline" warn-only
-  // path: early authoring (before the first `cdd-kit design confirm`) must
-  // not hard-fail.
+  //
+  // A MISSING baseline is a hard failure under `isNewChange || strict`, not a
+  // warning. An unlocked `## Confirmed` section proves nothing: the design-write
+  // hook is advisory by default, so any Edit-capable agent can author its own
+  // `## Confirmed` prose, and a warn-only branch here would let that pass the
+  // gate -- leaving ADR 0012's entire human-confirmation guarantee unenforced in
+  // the default configuration. Only `cdd-kit design confirm` (src/commands/
+  // design.ts) writes the lock, and `.cdd/design-lock.json` is a HARD forbidden
+  // context path. The `isNewChange || strict` split is the same migration window
+  // every other check in this module uses -- a legacy change dir that predates
+  // the lock is warned, never newly broken.
   if (hasConfirmed) {
     const currentHash = computeDesignHash(body);
     const lock = readDesignLock(cwd);
     const baseline = lock[changeId];
     if (!baseline) {
-      warnings.push(
-        'interaction-design.md has no recorded baseline in .cdd/design-lock.json — this design is not yet ' +
-        'protected against tampering; a human must record the baseline by running ' +
-        '`cdd-kit design confirm ' + changeId + '`.',
-      );
+      const detail =
+        'interaction-design.md has a ## Confirmed section but no recorded baseline in ' +
+        '.cdd/design-lock.json — an unconfirmed ## Confirmed proves nothing (an agent can write one). ' +
+        'A human must record the baseline by running `cdd-kit design confirm ' + changeId + '`.';
+      if (isNewChange || strict) {
+        errors.push(detail);
+      } else {
+        warnings.push(detail + ' (legacy change; not yet migrated to the ADR 0012 hash-lock)');
+      }
     } else if (baseline.hash !== currentHash) {
       errors.push('interaction design modified after confirmation — human must re-confirm.');
     }

@@ -346,12 +346,60 @@ describe('enforceInteractionDesign — AC-6: tamper-evidence hash-lock', () => {
     expect(r.stdout + r.stderr).not.toMatch(/interaction design modified after confirmation/i);
   });
 
-  it.skipIf(!hasPython())('warns (not a hard fail) when there is no recorded baseline yet', () => {
+  // Regression: the predecessor of these three tests was named "warns (not a
+  // hard fail) when there is no recorded baseline yet", ran against a GOVERNED
+  // change, and asserted only on `stdout + stderr` message text. It passed
+  // identically whether the gate warned or errored, which is what let an
+  // unlocked (agent-authorable) `## Confirmed` section pass the gate for the
+  // whole of 3.10.0.
+  //
+  // `expect(r.status).not.toBe(0)` is NOT a sufficient replacement: a scaffolded
+  // governed change already fails the gate on unrelated checks, so the exit code
+  // says nothing about THIS condition. The discriminator is the stream --
+  // log.warn writes stdout, log.error writes stderr (src/utils/logger.ts) --
+  // so each assertion below pins which stream the message lands on. Verified by
+  // mutation: reverting the check to warn-only turns these red.
+  const BASELINE_MSG = /no recorded baseline/i;
+
+  it.skipIf(!hasPython())('a governed change whose ## Confirmed has no lock baseline FAILS the gate (stderr, not a warning)', () => {
     const changeDir = scaffold(tmpRepo, 'design-no-baseline', { governed: true });
     writeDesign(changeDir, { confirmed: 'Answer: yes.' });
     const r = runCli(['gate', 'design-no-baseline'], { cwd: tmpRepo, home: tmpHome });
-    expect(r.stdout + r.stderr).not.toMatch(/interaction design modified after confirmation/i);
-    expect(r.stdout + r.stderr).toMatch(/no recorded baseline/i);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(BASELINE_MSG);
+    expect(r.stderr).toMatch(/proves nothing/i);
+    expect(r.stdout).not.toMatch(BASELINE_MSG);
+    // Not the tamper message -- the baseline is absent, not divergent.
+    expect(r.stderr).not.toMatch(/interaction design modified after confirmation/i);
+  });
+
+  it.skipIf(!hasPython())('...and running `design confirm` is what clears it (isolates the cause)', () => {
+    const changeDir = scaffold(tmpRepo, 'design-then-confirm', { governed: true });
+    writeDesign(changeDir, { confirmed: 'Answer: yes.' });
+
+    const before = runCli(['gate', 'design-then-confirm'], { cwd: tmpRepo, home: tmpHome });
+    expect(before.stderr).toMatch(BASELINE_MSG);
+
+    const confirm = runCli(['design', 'confirm', 'design-then-confirm'], { cwd: tmpRepo, home: tmpHome });
+    expect(confirm.status, confirm.stdout + confirm.stderr).toBe(0);
+
+    const after = runCli(['gate', 'design-then-confirm'], { cwd: tmpRepo, home: tmpHome });
+    expect(after.stdout + after.stderr).not.toMatch(BASELINE_MSG);
+  });
+
+  it.skipIf(!hasPython())('a legacy change is warned on stdout, not failed -- but --strict moves it to stderr', () => {
+    const changeDir = scaffold(tmpRepo, 'design-legacy-no-baseline', { governed: false });
+    writeDesign(changeDir, { confirmed: 'Answer: yes.' });
+
+    const normal = runCli(['gate', 'design-legacy-no-baseline'], { cwd: tmpRepo, home: tmpHome });
+    expect(normal.stdout).toMatch(BASELINE_MSG);
+    expect(normal.stdout).toMatch(/legacy change; not yet migrated/i);
+    expect(normal.stderr).not.toMatch(BASELINE_MSG);
+
+    const strict = runCli(['gate', 'design-legacy-no-baseline', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(strict.status).not.toBe(0);
+    expect(strict.stderr).toMatch(BASELINE_MSG);
+    expect(strict.stdout).not.toMatch(BASELINE_MSG);
   });
 });
 
