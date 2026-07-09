@@ -40,10 +40,11 @@
     "build": "node build.js",
     "typecheck": "tsc --noEmit",
     "check:mojibake": "node tools/check-mojibake.mjs",
+    "check:lockfile": "node tools/check-lockfile-sync.mjs",
     "pretest": "node build.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "node build.js && tsc --noEmit && vitest run",
+    "prepublishOnly": "npm run check:lockfile && npm run check:mojibake && node build.js && tsc --noEmit && vitest run",
     "postinstall": "node bin/postinstall.js",
     "contract:client": "cdd-kit openapi export --out contracts/api/openapi.json && npx --yes openapi-typescript contracts/api/openapi.json -o src/api/types.ts",
     "contract:client:check": "cdd-kit openapi export --check --out contracts/api/openapi.json"

@@ -42,6 +42,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # Before `npm ci` — it reads two JSON files and needs no node_modules, and
+      # a lockfile that disagrees with the manifest should not cost a full
+      # install to discover. `npm ci` itself does NOT catch this: it compares the
+      # dependency tree, not the root `version` field.
+      - name: Lockfile sync guard
+        run: npm run check:lockfile
+
       - run: npm ci
       - run: npm run build
 

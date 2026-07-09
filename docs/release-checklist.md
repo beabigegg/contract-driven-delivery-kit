@@ -33,7 +33,21 @@ Use this before publishing a new npm version.
 
 ## Publication
 
-1. Confirm `package.json` version matches `CHANGELOG.md`.
-2. Confirm README command docs match CLI help.
-3. Commit all generated asset updates from `npm run -s build`.
-4. Tag the release after tests and pack smoke pass.
+1. Bump the version with `npm version <x.y.z> --no-git-tag-version`.
+
+   Never hand-edit the `version` field in `package.json`. The root version is
+   recorded in three places -- `package.json`, `package-lock.json`'s top-level
+   `version`, and its `packages[""].version` -- and only `npm version` writes
+   all three. `--no-git-tag-version` skips the commit and tag so the bump still
+   folds into the release commit, as this repo's history does.
+
+   Releases 2.2.0 through 3.11.0 were bumped by hand, so the lockfile claimed
+   `2.1.3` for ten releases. Nothing noticed: `npm ci` compares the dependency
+   tree, not the root version; `npm publish` never ships the lockfile. If the
+   two ever diverge again, `npm run check:lockfile` fails (it runs in CI and in
+   `prepublishOnly`) and `npm install --package-lock-only` repairs it.
+
+2. Confirm `package.json` version matches `CHANGELOG.md`.
+3. Confirm README command docs match CLI help.
+4. Commit all generated asset updates from `npm run -s build`.
+5. Tag the release after tests and pack smoke pass.

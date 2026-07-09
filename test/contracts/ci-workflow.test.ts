@@ -7,11 +7,17 @@
  * published package to this CLI's own version; this repo's own workflow does
  * not install the published package at all (it gates itself against its own
  * build -- the same disease class as a stale global `cdd-kit` binary).
+ *
+ * This repo's own workflow must additionally run the lockfile/manifest sync
+ * guard before `npm ci` (see tools/check-lockfile-sync.mjs): `npm ci` compares
+ * the dependency tree, not the root `version`, so ten releases of drift went
+ * unnoticed there.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import yaml from 'js-yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ADOPTER_TEMPLATE_PATH = join(REPO_ROOT, 'github-workflows', 'contract-driven-gates.yml');
@@ -19,6 +25,28 @@ const OWN_WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'contract-driv
 
 function read(path: string): string {
   return readFileSync(path, 'utf8');
+}
+
+interface WorkflowStep {
+  name?: string;
+  run?: string;
+  uses?: string;
+}
+
+/**
+ * The `run:` commands of the main job, in order.
+ *
+ * Assertions about what a workflow *executes* must read the parsed steps, not
+ * the raw file: a `#` comment that merely mentions `npm ci` is not a step that
+ * runs it. (That false positive is not hypothetical -- the comment explaining
+ * why the lockfile guard precedes `npm ci` tripped the previous text-matching
+ * version of the exactly-once assertion below.)
+ */
+function runCommands(path: string): string[] {
+  const doc = yaml.load(read(path)) as { jobs: Record<string, { steps: WorkflowStep[] }> };
+  return doc.jobs['contract-and-fast-tests'].steps
+    .map((s) => s.run)
+    .filter((r): r is string => typeof r === 'string');
 }
 
 describe('CI workflows — ci-gates.md § Workflow Changes', () => {
@@ -77,8 +105,21 @@ describe('CI workflows — ci-gates.md § Workflow Changes', () => {
   });
 
   it("this repo's own workflow runs npm ci exactly once", () => {
-    const content = read(OWN_WORKFLOW_PATH);
-    const matches = content.match(/npm ci\b/g) ?? [];
-    expect(matches.length).toBe(1);
+    const installs = runCommands(OWN_WORKFLOW_PATH).filter((c) => /\bnpm ci\b/.test(c));
+    expect(installs.length).toBe(1);
+  });
+
+  it("this repo's own workflow guards lockfile/manifest sync BEFORE npm ci", () => {
+    const commands = runCommands(OWN_WORKFLOW_PATH);
+    const guardIndex = commands.findIndex((c) => /npm run check:lockfile/.test(c));
+    const installIndex = commands.findIndex((c) => /\bnpm ci\b/.test(c));
+
+    expect(guardIndex, 'no `npm run check:lockfile` step in the workflow').toBeGreaterThanOrEqual(0);
+    expect(installIndex, 'no `npm ci` step in the workflow').toBeGreaterThanOrEqual(0);
+    // `npm ci` compares the dependency tree, not the root `version` field, so it
+    // cannot catch a lockfile whose version drifted from package.json. The guard
+    // reads two JSON files and needs no node_modules -- it belongs before the
+    // install, so the failure costs seconds rather than a full dependency fetch.
+    expect(guardIndex).toBeLessThan(installIndex);
   });
 });
