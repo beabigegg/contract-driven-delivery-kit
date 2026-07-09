@@ -1,0 +1,18 @@
+{
+  "change_id": "not-applicable-contracts",
+  "phase": "contract",
+  "status": "failed",
+  "exit_code": 1,
+  "command": "cdd-kit validate --contracts --env --ci",
+  "duration_ms": 456,
+  "first_failure": {
+    "kind": "contract-drift",
+    "message": "\u001b[31m✗\u001b[0m  One or more validations failed."
+  },
+  "artifacts": {
+    "summary": "specs/changes/not-applicable-contracts/test-runs/20260709-082639/summary.json",
+    "stdout": "specs/changes/not-applicable-contracts/test-runs/20260709-082639/stdout.log",
+    "stderr": "specs/changes/not-applicable-contracts/test-runs/20260709-082639/stderr.log"
+  },
+  "next_action": "fix the first failure before running broader phases; do not waive it"
+}

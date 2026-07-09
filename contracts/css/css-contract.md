@@ -4,8 +4,10 @@ summary: UI token policy, component styling rules, and visual review constraints
 owner: application-team
 surface: ui
 schema-version: 0.1.0
-last-changed: 2026-04-27
+last-changed: 2026-07-09
 breaking-change-policy: deprecate-2-minors
+applicability: not-applicable
+applicability-reason: cdd-kit is a CLI tool with no CSS/UI rendering surface of its own; it validates other projects' CSS contracts, it does not ship one.
 ---
 
 # CSS / UI Contract

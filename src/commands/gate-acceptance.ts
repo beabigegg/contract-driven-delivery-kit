@@ -142,7 +142,7 @@ export function enforceAcceptanceOracle(
   // test/acceptance/); no drivers found is a silent no-op here -- AC-5 below
   // separately requires a recorded, passed run, so "no driver at all" is
   // still caught, just by a different signal.
-  for (const finding of scanAcceptanceDrivers(cwd, changeDir, realCases)) {
+  for (const finding of scanAcceptanceDrivers(cwd, changeDir, changeId, realCases)) {
     if (finding.kind === 'mock-of-sut') {
       // finding.detail already carries the "supposed to verify" framing and the
       // AC-4/ADR pointer (mock-of-sut-scan.ts), so the gate message need not

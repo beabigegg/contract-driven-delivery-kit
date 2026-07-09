@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-07-09
+
+### Added
+
+- **Not-applicable contract surfaces (ADR 0011).** Contract frontmatter may
+  declare `applicability: not-applicable` with a required, non-empty
+  `applicability-reason` when a project genuinely lacks a surface (e.g. a CLI has
+  no HTTP API / CSS / business-domain / data-shape). The semantic validators then
+  SKIP that family with an informational note, while an UNMARKED empty/placeholder
+  stub still HARD-FAILS exactly as before — closing the false positive where a
+  CLI/backend-only repo could not get a green `cdd-kit gate` without inventing
+  fake contract content. Fail-closed by design: a marker without a reason (or with
+  an unrecognized value) is a hard error; a marker only ever suppresses its own
+  family's check; a marked contract that later gains real content surfaces as an
+  advisory drift WARNING. The Python `applicability.py` reader is the single
+  pass/fail authority; `validate.ts`/`doctor` read the marker for display only.
+  `build.js` strips the marker from generated `assets/contracts` so `cdd-kit init`
+  still ships neutral stubs that fail until filled. The kit's own
+  `contracts/{api,css,business,data}` are marked, so `cdd-kit gate`/`validate` on
+  the kit itself is now green on those surfaces. `contracts/ci` → 0.3.0.
+
+### Fixed
+
+- **Acceptance-oracle hardcoded-expect scanner (surfaced by dogfooding).** The
+  ADR 0010 scanner (`src/utils/mock-of-sut-scan.ts`) had two false-positive bugs:
+  it scanned sibling changes' acceptance drivers (cross-change contamination), and
+  it matched a case's `expect` leaf value as a substring of a larger token (e.g.
+  `reason` inside `applicability-reason`). Fixed by scoping the scan to the
+  current change's own driver(s) and requiring whole-token (word-boundary)
+  matches; a genuinely hardcoded answer literal is still caught.
+
 ## [3.8.0] - 2026-07-09
 
 ### Added

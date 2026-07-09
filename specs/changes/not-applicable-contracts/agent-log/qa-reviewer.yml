@@ -1,0 +1,11 @@
+agent: qa-reviewer
+status: complete
+decision: approved-with-risk
+artifacts:
+  - { type: qa-report, pointer: "specs/changes/not-applicable-contracts/qa-report.md" }
+  - { type: gate-results, pointer: "gate exit 0; validate --contracts exit 0; invariant tests 20/20; full suite 1163 passed" }
+notes:
+  - "Fail-closed invariant directly verified: unmarked stub still fails; reason-less/unknown marker hard-errors; only reasoned marker skips."
+  - "In-scope bugfix to shipped acceptance-oracle scanner (cross-change contamination + substring FP) reviewed: correct/safe/narrowing; 3.8.1-class."
+  - "HIGH commit-hygiene risk: commit ONLY this change's files; never-tracked generated files (AGENTS.md/CLAUDE.md/.github/workflows/tests/contract/.claude/hooks/settings) must not ride along. Stray package.json/model-policy edits already reverted by orchestrator."
+  - "Version bump owed (recommend 3.9.0) + CHANGELOG at release."

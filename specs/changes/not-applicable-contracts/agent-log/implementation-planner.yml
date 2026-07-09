@@ -1,0 +1,7 @@
+agent: implementation-planner
+change-id: not-applicable-contracts
+status: complete
+artifacts:
+  - { type: plan-written, pointer: "specs/changes/not-applicable-contracts/implementation-plan.md" }
+  - { type: owner-map, pointer: "backend-engineer (all IP-1..IP-9); test-strategist maps ACs" }
+  - { type: scope-summary, pointer: "9 required changes across 6 .claude Python scripts + parser.ts + doctor.ts + 4 contract data edits + build.js; 7 non-goals fenced off" }

@@ -15,6 +15,8 @@ import sys
 import re
 from pathlib import Path
 
+from applicability import classify_file
+
 CONTRACT_PATH = Path('contracts/env/env-contract.md')
 
 # Column indices (0-based)
@@ -111,6 +113,17 @@ def main() -> None:
     if not contract.exists():
         print(f'Env contract not found: {CONTRACT_PATH}')
         sys.exit(1)
+
+    # ADR 0011: defensive self-skip (env is unmarked in the kit today, so this
+    # is a no-op there, but every semantic validator consults the same reader
+    # so no family can be enforced past a not-applicable marker).
+    applicability = classify_file(contract)
+    if applicability.status == 'invalid':
+        print(f'Env contract: invalid applicability marker: {applicability.error}')
+        sys.exit(1)
+    if applicability.status == 'not-applicable':
+        print(f'Env contract marked applicability: not-applicable ({applicability.reason}) — semantic check skipped.')
+        sys.exit(0)
 
     try:
         raw = contract.read_text(encoding='utf-8', errors='ignore')

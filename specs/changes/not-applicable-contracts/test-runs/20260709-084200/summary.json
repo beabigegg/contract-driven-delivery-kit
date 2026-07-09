@@ -1,0 +1,15 @@
+{
+  "change_id": "not-applicable-contracts",
+  "phase": "acceptance",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/acceptance",
+  "duration_ms": 4403,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/not-applicable-contracts/test-runs/20260709-084200/summary.json",
+    "stdout": "specs/changes/not-applicable-contracts/test-runs/20260709-084200/stdout.log",
+    "stderr": "specs/changes/not-applicable-contracts/test-runs/20260709-084200/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

@@ -59,6 +59,8 @@ import re
 import sys
 from pathlib import Path
 
+from applicability import classify_file
+
 CONTRACT_PATH = Path('contracts/api/api-contract.md')
 CONFIG_PATH = Path('.cdd/conformance.json')
 
@@ -590,6 +592,18 @@ def main() -> None:
     if not CONTRACT_PATH.exists():
         print(f'API conformance: contract not found: {CONTRACT_PATH}')
         sys.exit(1)
+
+    # ADR 0011: defensive self-skip (validate_contracts.py / validate_api_semantic.py
+    # are the primary enforcement points, but this validator can also be run
+    # standalone). An invalid marker is still a hard error.
+    applicability = classify_file(CONTRACT_PATH)
+    if applicability.status == 'invalid':
+        print('API conformance validation failed:')
+        print(f'  {applicability.error}')
+        sys.exit(1)
+    if applicability.status == 'not-applicable':
+        print(f'API conformance: skipped (API contract marked applicability: not-applicable — {applicability.reason}).')
+        sys.exit(0)
 
     body = strip_frontmatter(CONTRACT_PATH.read_text(encoding='utf-8', errors='ignore'))
     contract = find_contract_endpoints(body.splitlines())

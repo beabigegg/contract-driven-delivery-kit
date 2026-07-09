@@ -1,9 +1,10 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
-import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
+import { runCli, makeTempDir, cleanupDir, hasPython, CLI_PATH } from '../helpers.js';
 import { computeAcceptanceHash, writeAcceptanceLock } from '../../src/utils/acceptance-hash.js';
 
 // ?????????????????????????????????????????????????????????????????????????????
@@ -1190,6 +1191,34 @@ describe('cdd-kit gate', () => {
 
     const r = runCli(['gate', 'feat-after-api'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/dependency dep-api/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contract applicability marker (ADR 0011) — AC-5: the kit's own repo
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe.skipIf(!hasPython())('cdd-kit validate — kit-self applicability (ADR 0011, AC-5)', () => {
+  // Run directly against THIS repository's real contracts/ tree (not a temp
+  // copy): IP-7 marks contracts/{api,css,business,data} as
+  // `applicability: not-applicable` (empty stubs for surfaces this CLI does
+  // not have) and leaves the filled contracts/{env,ci} untouched. This is the
+  // exact "CRITICAL success check" the implementation plan calls out.
+  const kitRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+  it('validates the kit\'s own api/css/business/data contracts as skipped, while env/ci still validate', () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, 'validate', '--contracts'], { cwd: kitRoot, encoding: 'utf8' });
+    const out = (r.stdout ?? '') + (r.stderr ?? '');
+
+    expect(r.status, out).toBe(0);
+    expect(out).toMatch(/contracts\/api\/api-contract\.md marked applicability: not-applicable/);
+    expect(out).toMatch(/contracts\/css\/css-contract\.md marked applicability: not-applicable/);
+    expect(out).toMatch(/contracts\/business\/business-rules\.md marked applicability: not-applicable/);
+    expect(out).toMatch(/contracts\/data\/data-shape-contract\.md marked applicability: not-applicable/);
+    // Filled, unmarked contracts still validate exactly as before.
+    expect(out).toMatch(/Env semantic validation passed/i);
+    expect(out).not.toMatch(/contracts\/env\/env-contract\.md marked applicability/);
+    expect(out).not.toMatch(/contracts\/ci\/ci-gate-contract\.md marked applicability/);
   });
 });
 

@@ -3,11 +3,11 @@ artifact: project-map
 generated-by: cdd-kit context-scan
 schema-version: 1
 root: contract-driven-delivery-kit
-visible-dirs: 58
-visible-files: 299
+visible-dirs: 60
+visible-files: 316
 omitted-dirs: 0
-truncated-dirs: 1
-inputs-digest: 58ec80699f498bf40074f81de6138b321f2d3ecc03137b33052a2dd7345722a2
+truncated-dirs: 2
+inputs-digest: 26c6e3e2932cb41c80b71b0144466de658bc08d429ce0d6b001359b2e24db2f0
 ---
 
 # Project Map
@@ -27,6 +27,7 @@ Use this deterministic map to choose candidate context paths before reading file
 - .cdd/migrate-backup
 - .cdd/runtime
 - .claude/worktrees
+- .cdd/acceptance-lock.json
 
 ## Tree
 
@@ -111,6 +112,7 @@ contract-driven-delivery-kit/
 |-- hooks/
 |   |-- post-tool-use-files-read.sh
 |   |-- pre-commit
+|   |-- pre-tool-use-acceptance-write.sh
 |   |-- pre-tool-use-contract-write.sh
 |   |-- pre-tool-use-graph-first.sh
 |   \-- pre-tool-use-test-runner.sh
@@ -133,7 +135,14 @@ contract-driven-delivery-kit/
 |   \-- visual-review.md
 |-- specs/
 |   |-- context/
+|   |   |-- contracts-index.md
+|   |   \-- project-map.md
 |   \-- templates/
+|       |-- acceptance-driver/
+|       |   |-- acceptance_loader.py
+|       |   |-- acceptance.loader.ts
+|       |   \-- README.md
+|       |-- acceptance.yml
 |       |-- archive.md
 |       |-- change-classification.md
 |       |-- change-request.md
@@ -184,6 +193,7 @@ contract-driven-delivery-kit/
 |   |   \-- yaml-writer.ts
 |   |-- commands/
 |   |   |-- abandon.ts
+|   |   |-- accept.ts
 |   |   |-- archive.ts
 |   |   |-- bug-suspects.ts
 |   |   |-- changelog-build.ts
@@ -199,6 +209,7 @@ contract-driven-delivery-kit/
 |   |   |-- contract-query.ts
 |   |   |-- contract-set.ts
 |   |   |-- doctor.ts
+|   |   |-- gate-acceptance.ts
 |   |   |-- gate-agents.ts
 |   |   |-- gate-artifacts.ts
 |   |   |-- gate-contracts.ts
@@ -231,13 +242,13 @@ contract-driven-delivery-kit/
 |   |   |-- test-run.ts
 |   |   |-- test-select.ts
 |   |   |-- update.ts
-|   |   |-- upgrade.ts
-|   |   \-- validate.ts
+|   |   \-- ... (2 more entries truncated; cap=50)
 |   |-- contracts/
 |   |   \-- parser.ts
 |   |-- mcp/
 |   |   \-- server.ts
 |   |-- schemas/
+|   |   |-- acceptance.schema.ts
 |   |   |-- agent-log.schema.ts
 |   |   |-- bug-fix-evidence.schema.ts
 |   |   |-- change-metadata.schema.ts
@@ -246,6 +257,8 @@ contract-driven-delivery-kit/
 |   |   |-- test-evidence.schema.ts
 |   |   \-- trace.schema.ts
 |   \-- utils/
+|       |-- acceptance-hash.ts
+|       |-- asset-manifest.ts
 |       |-- change-id.ts
 |       |-- context-inputs.ts
 |       |-- copy.ts
@@ -257,15 +270,21 @@ contract-driven-delivery-kit/
 |       |-- markdown-section.ts
 |       |-- markdown-table.ts
 |       |-- mcp-hint.ts
+|       |-- mock-of-sut-scan.ts
 |       |-- paths.ts
 |       |-- provider.ts
 |       |-- stack-detect.ts
 |       \-- tier-floor.ts
 |-- test/
+|   |-- acceptance/
+|   |   \-- acceptance-oracle.driver.test.ts
 |   |-- agents/
 |   |   \-- code-map-rule.test.ts
 |   |-- cli/
 |   |   |-- abandon.test.ts
+|   |   |-- accept-relock.test.ts
+|   |   |-- acceptance-oracle.test.ts
+|   |   |-- acceptance-write-hook.test.ts
 |   |   |-- agent-prompts-shape.test.ts
 |   |   |-- archive.test.ts
 |   |   |-- bug-suspects.test.ts
@@ -312,10 +331,7 @@ contract-driven-delivery-kit/
 |   |   |-- new.test.ts
 |   |   |-- no-bom.test.ts
 |   |   |-- openapi-check.test.ts
-|   |   |-- openapi-export.test.ts
-|   |   |-- refresh.test.ts
-|   |   |-- setup.test.ts
-|   |   \-- ... (15 more entries truncated; cap=50)
+|   |   \-- ... (18 more entries truncated; cap=50)
 |   |-- code-graph/
 |   |   \-- queries.test.ts
 |   |-- code-map/
@@ -345,11 +361,16 @@ contract-driven-delivery-kit/
 |   |       |-- sample.vue
 |   |       \-- types-only.ts
 |   |-- schemas/
+|   |   |-- acceptance.schema.test.ts
 |   |   |-- bug-fix-evidence.schema.test.ts
 |   |   \-- test-evidence.schema.test.ts
 |   |-- utils/
+|   |   |-- acceptance-driver-templates.test.ts
+|   |   |-- acceptance-hash.test.ts
+|   |   |-- asset-manifest.test.ts
 |   |   |-- digest.test.ts
-|   |   \-- gate-explain.test.ts
+|   |   |-- gate-explain.test.ts
+|   |   \-- mock-of-sut-scan.test.ts
 |   |-- helpers.ts
 |   \-- setup-git-env.ts
 |-- tests/

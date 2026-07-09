@@ -4,8 +4,10 @@ summary: Business decision tables, rule inventory, and change policy for behavio
 owner: application-team
 surface: domain-behavior
 schema-version: 0.1.0
-last-changed: 2026-04-27
+last-changed: 2026-07-09
 breaking-change-policy: deprecate-2-minors
+applicability: not-applicable
+applicability-reason: cdd-kit is a CLI/agent-orchestration tool with no business-domain logic of its own (no decision tables, no domain rule inventory); its own behavior is the CLI/gate/validator logic covered by the other contracts.
 ---
 
 # Business Rules

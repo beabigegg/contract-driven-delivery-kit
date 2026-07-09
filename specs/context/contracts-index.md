@@ -4,7 +4,7 @@ generated-by: cdd-kit context-scan
 schema-version: 1
 contract-count: 9
 missing-summary-count: 0
-inputs-digest: 9ec1408faba18f8497f4bdd4f4a2dec18a42dfa79b19026f8be8a33d93420a21
+inputs-digest: e454a4d29bb97d90af49fc9bcf867cdba3070b59bd73b0aae9fbc7f4dfa0534a
 ---
 
 # Contracts Index
@@ -80,8 +80,8 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - title: CI/CD Gate Contract
 - owner: platform-team
 - surface: delivery-pipeline
-- schema-version: 0.1.0
-- last-changed: 2026-04-27
+- schema-version: 0.2.0
+- last-changed: 2026-07-08
 - breaking-change-policy: deprecate-2-minors
 - summary: CI gate inventory, artifact retention, and rollback requirements.
 
@@ -129,8 +129,8 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - title: Env Contract
 - owner: platform-team
 - surface: runtime-config
-- schema-version: 0.1.0
-- last-changed: 2026-04-27
+- schema-version: 0.2.0
+- last-changed: 2026-07-08
 - breaking-change-policy: deprecate-2-minors
 - summary: Environment variable inventory, secret handling, and deployment sync policy.
 

@@ -1,0 +1,1 @@
+npm test -- --run test/contracts/applicability-reader.test.ts test/cli/validate-applicability.test.ts test/cli/gate.test.ts test/cli/doctor.test.ts test/contracts/parser.test.ts test/contracts/applicability-agreement.test.ts

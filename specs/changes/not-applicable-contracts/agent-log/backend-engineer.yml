@@ -1,0 +1,79 @@
+agent: backend-engineer
+change-id: not-applicable-contracts
+status: completed
+summary: >-
+  Implemented ADR 0011 end to end (IP-1..IP-9): the shared Python
+  applicability.py reader is the sole pass/fail authority; validate_contracts.py
+  / validate_api_semantic.py wire the primary skip/hard-error logic and
+  validate_api_conformance.py / validate_response_shape.py / validate_env_semantic.py
+  self-skip defensively. src/contracts/parser.ts + src/commands/doctor.ts add a
+  read-only projection/finding for `doctor` display only (no pass/fail branch in
+  TS). The kit's own contracts/{api,css,business,data} are marked
+  applicability: not-applicable with honest reasons; contracts/{env,ci} are
+  untouched. Discovered and fixed an unplanned regression: contracts/ is dual-purpose
+  (kit's own dogfooded contracts AND the master `cdd-kit init` template via
+  ASSET.contracts), so marking the kit's copy would have silently shipped the
+  marker into every new project's starter template and broken the
+  "fresh init still fails on placeholder contracts" safety net
+  (test/cli/validate.test.ts). Fixed by having build.js strip the
+  applicability/applicability-reason frontmatter lines when generating
+  assets/contracts, so the kit's own repo keeps the marker (AC-5) while
+  `cdd-kit init` output stays neutral/unmarked (unchanged behavior for adopters).
+  This build.js edit is a deviation beyond the literal file-level plan and
+  should be reviewed.
+
+  Acceptance oracle (3.8.0, ADR 0010) follow-up: wrote
+  test/acceptance/not-applicable-contracts.driver.test.ts for the maintainer's
+  3-case + 1-rule acceptance.yml and recorded a passing `acceptance` phase run.
+  Surfaced 2 real bugs in the shared scanner (src/utils/mock-of-sut-scan.ts,
+  shipped 3.8.0) as false-positive AC-4 findings; maintainer authorized fixing
+  the scanner itself (added to this change's Allowed Paths) rather than
+  working around it. Fixed both:
+    - BUG 1 (cross-change contamination): scanAcceptanceDrivers now takes a
+      `changeId` param and only scans a driver file whose source calls
+      loadCase/loadAllCases (TS) or load_case/load_all_cases (Python) resolving
+      to THIS change's id, OR whose filename follows the `<change-id>.driver.*`
+      convention (new `driverBelongsToChange`). Updated the one caller
+      (gate-acceptance.ts) and every existing direct-call test fixture
+      (test/utils/mock-of-sut-scan.test.ts, test/acceptance/acceptance-oracle.driver.test.ts,
+      test/cli/acceptance-oracle.test.ts AC-4 fixtures) to the new signature/
+      naming convention.
+    - BUG 2 (substring false positive): scanDriverForHardcodedExpect now only
+      counts a leaf-literal occurrence when it is a whole-token match
+      (isWordBoundaryOccurrence; hyphen/underscore count as word chars so
+      "reason" no longer matches inside "applicability-reason" or
+      "reason_contains"), on top of the existing stopword list + id-overlap
+      exclusion. A genuinely hardcoded standalone literal is still caught
+      (regression test added).
+  Added regression tests to test/utils/mock-of-sut-scan.test.ts for both bugs
+  (cross-change isolation + driverBelongsToChange unit test; substring-safety +
+  still-flags-standalone-hardcode). Re-ran gate: only the 2 expected warnings
+  remain (pending tasks + no acceptance-lock baseline), zero AC-4 errors.
+artifacts:
+  - { type: files-changed, pointer: ".claude/skills/contract-driven-delivery/scripts/applicability.py (new, IP-1)" }
+  - { type: files-changed, pointer: ".claude/skills/contract-driven-delivery/scripts/validate_contracts.py (IP-2: per-file applicability consult, invalid/skip/drift branches)" }
+  - { type: files-changed, pointer: ".claude/skills/contract-driven-delivery/scripts/validate_api_semantic.py (IP-3: self-skip chain)" }
+  - { type: files-changed, pointer: ".claude/skills/contract-driven-delivery/scripts/validate_api_conformance.py:590-604 (IP-4 defensive self-skip)" }
+  - { type: files-changed, pointer: ".claude/skills/contract-driven-delivery/scripts/validate_response_shape.py (IP-4 defensive self-skip)" }
+  - { type: files-changed, pointer: ".claude/skills/contract-driven-delivery/scripts/validate_env_semantic.py (IP-4 defensive self-skip)" }
+  - { type: files-changed, pointer: "src/contracts/parser.ts (IP-5: projectApplicability, display-only projection)" }
+  - { type: files-changed, pointer: "src/commands/doctor.ts (IP-6: checkContractApplicability finding + registration)" }
+  - { type: files-changed, pointer: "contracts/api/api-contract.md, contracts/css/css-contract.md, contracts/business/business-rules.md, contracts/data/data-shape-contract.md (IP-7 marker data edit)" }
+  - { type: files-changed, pointer: "build.js (unplanned deviation: strip applicability marker from assets/contracts so cdd-kit init stays neutral; see summary)" }
+  - { type: tests-added, pointer: "test/contracts/applicability-reader.test.ts (AC-1/AC-2/AC-3 unit, spawns applicability.py)" }
+  - { type: tests-added, pointer: "test/cli/validate-applicability.test.ts (AC-1/AC-2/AC-3/AC-7 contract, cdd-kit validate --contracts)" }
+  - { type: tests-added, pointer: "test/contracts/applicability-agreement.test.ts (AC-6 TS<->Python agreement over 7 fixtures)" }
+  - { type: tests-added, pointer: "test/contracts/parser.test.ts::projectApplicability (AC-6 unit, display-only)" }
+  - { type: tests-added, pointer: "test/cli/doctor.test.ts::contract applicability marker (ADR 0011) (AC-4 listing + AC-7 drift warning)" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::cdd-kit validate — kit-self applicability (ADR 0011, AC-5) (runs against the kit's real repo tree, the CRITICAL success check)" }
+  - { type: test-output, pointer: "full phase: 'test full: passed (exit 0, 105689 ms)' — specs/changes/not-applicable-contracts/test-runs/20260709-082720/summary.json" }
+  - { type: contracts-touched, pointer: "contracts/api/api-contract.md, contracts/css/css-contract.md, contracts/business/business-rules.md, contracts/data/data-shape-contract.md (marker data edit only, no schema/endpoint change); contracts/ci/ci-gate-contract.md and contracts/env/env-contract.md left unmarked as required" }
+  - { type: tests-added, pointer: "test/acceptance/not-applicable-contracts.driver.test.ts (acceptance oracle driver: marked-not-applicable-is-skipped, unmarked-empty-stub-still-fails, marker-without-reason-is-rejected, not-applicable-never-a-silent-bypass rule)" }
+  - { type: test-output, pointer: "acceptance phase (post-scanner-fix): 'test acceptance: passed (exit 0, 4369 ms)' — specs/changes/not-applicable-contracts/test-runs/20260709-090848/summary.json" }
+  - { type: files-changed, pointer: "src/utils/mock-of-sut-scan.ts (BUG 1 driverBelongsToChange/extractLoaderChangeIds cross-change filter; BUG 2 isWordBoundaryOccurrence word-boundary matching)" }
+  - { type: files-changed, pointer: "src/commands/gate-acceptance.ts:145 (scanAcceptanceDrivers call updated with new changeId param)" }
+  - { type: tests-added, pointer: "test/utils/mock-of-sut-scan.test.ts (cross-change isolation end-to-end + driverBelongsToChange unit; word-boundary substring-safety + still-flags-standalone-hardcode)" }
+  - { type: files-changed, pointer: "test/acceptance/acceptance-oracle.driver.test.ts, test/cli/acceptance-oracle.test.ts (fixture driver filenames updated to the <change-id>.driver.* convention so they still belong to their own change under the new cross-change filter)" }
+  - { type: test-output, pointer: "test/utils/mock-of-sut-scan.test.ts + test/acceptance/ + test/cli/acceptance-oracle.test.ts: 4 files passed, 60 tests passed, 0 failed" }
+  - { type: test-output, pointer: "node dist/cli/index.js gate not-applicable-contracts (post-fix): exit 0, only 2 warnings (pending tasks, no acceptance-lock baseline), 0 AC-4 errors" }
+  - { type: test-output, pointer: "final npm test (full suite, post-scanner-fix): 92 files passed | 4 skipped, 1163 tests passed | 57 skipped, exit 0" }

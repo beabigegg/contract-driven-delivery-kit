@@ -151,6 +151,23 @@ function isFullyContainedInAny(range: [number, number], containers: Array<[numbe
   return containers.some(([cs, ce]) => range[0] >= cs && range[1] <= ce);
 }
 
+// A leaf literal is only a genuine "hardcoded answer" occurrence when it
+// stands as its own token -- not merely a substring of a longer identifier or
+// hyphenated field name (e.g. the leaf "reason" must not match inside the
+// SUT's own `applicability-reason` field name, which a driver legitimately
+// writes as fixture/input text). Hyphen and underscore count as word
+// characters for this purpose since kebab-case/snake_case identifiers are the
+// exact shape this guards against (`applicability-reason`, `reason_contains`).
+const WORD_CHAR_RE = /[A-Za-z0-9_-]/;
+
+function isWordBoundaryOccurrence(haystack: string, start: number, end: number): boolean {
+  const before = start > 0 ? haystack[start - 1] : '';
+  const after = end < haystack.length ? haystack[end] : '';
+  if (before && WORD_CHAR_RE.test(before)) return false;
+  if (after && WORD_CHAR_RE.test(after)) return false;
+  return true;
+}
+
 /**
  * Scan one driver file's source for a literal occurrence of any case's
  * `expect` value -- the driver should read `expect` from the emitted
@@ -160,9 +177,11 @@ function isFullyContainedInAny(range: [number, number], containers: Array<[numbe
  * `placeholder-oracle-blocks-gate`) that a driver legitimately names its test
  * after, and that description can itself contain a leaf word from `expect`
  * (e.g. `reason_contains: "placeholder"`). An occurrence of a leaf literal is
- * only counted when at least one occurrence sits OUTSIDE every occurrence of
- * the case's own id string -- so referencing the case by name never trips the
- * scan, but a genuine standalone hardcoded comparison still does.
+ * only counted when it is both (a) a whole-token match -- not embedded inside
+ * a longer identifier the SUT itself defines, e.g. `applicability-reason` --
+ * and (b) sits OUTSIDE every occurrence of the case's own id string -- so
+ * referencing the case by name never trips the scan, but a genuine standalone
+ * hardcoded comparison still does.
  */
 export function scanDriverForHardcodedExpect(
   content: string,
@@ -175,7 +194,8 @@ export function scanDriverForHardcodedExpect(
     const leaves = new Set<string>();
     collectLeafLiterals(c.expect, leaves);
     for (const literal of leaves) {
-      const occurrences = findAllOccurrences(content, literal);
+      const occurrences = findAllOccurrences(content, literal)
+        .filter(([s, e]) => isWordBoundaryOccurrence(content, s, e));
       if (occurrences.length === 0) continue;
       const genuine = occurrences.some((r) => !isFullyContainedInAny(r, idRanges));
       if (genuine) {
@@ -223,20 +243,79 @@ export interface DriverScanFinding {
   detail: string;
 }
 
+// Matches a call to either loader's "read one/all cases for this change id"
+// entry point -- TS/vitest (`loadCase`/`loadAllCases`, camelCase) and Python/
+// pytest (`load_case`/`load_all_cases`, snake_case) -- capturing the first
+// argument, which is always the change id. The argument is either a quoted
+// literal (`loadCase('my-change', ...)`) or an identifier bound to one
+// earlier in the file (the universal `const CHANGE_ID = 'my-change'` /
+// `CHANGE_ID = "my-change"` convention every existing driver uses).
+const LOADER_CALL_RE = /\bload(?:_all_cases|_case|AllCases|Case)\s*\(\s*(['"][^'"]*['"]|[A-Za-z_$][\w$]*)/g;
+// `const X = 'y'` (TS/JS) or `X = "y"` (Python module-level constant).
+const STRING_BINDING_RE = /\b(?:const|let|var)?\s*([A-Za-z_$][\w$]*)\s*=\s*(['"])([^'"]*)\2/g;
+
+/** The set of change ids a driver file's loader calls resolve to. */
+function extractLoaderChangeIds(content: string): Set<string> {
+  const bindings = new Map<string, string>();
+  STRING_BINDING_RE.lastIndex = 0;
+  let bm: RegExpExecArray | null;
+  while ((bm = STRING_BINDING_RE.exec(content))) bindings.set(bm[1], bm[3]);
+
+  const ids = new Set<string>();
+  LOADER_CALL_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = LOADER_CALL_RE.exec(content))) {
+    const arg = m[1];
+    if (arg[0] === '"' || arg[0] === "'") {
+      ids.add(arg.slice(1, -1));
+    } else {
+      const bound = bindings.get(arg);
+      if (bound !== undefined) ids.add(bound);
+    }
+  }
+  return ids;
+}
+
+/**
+ * True when `filePath` (with source `content`) is a driver FOR `changeId` --
+ * either by the established naming convention (`<change-id>.driver.*`, the
+ * shape every existing driver already uses) or, more robustly, because its
+ * source calls the emitted loader pointed at THIS change's acceptance.yml
+ * (`loadCase`/`loadAllCases`/`load_case`/`load_all_cases` resolving to
+ * `changeId`). A driver satisfying neither test was written for a different
+ * change and must never be scanned against this change's mock-of-SUT tokens
+ * or expect literals (cross-change contamination) -- and, symmetrically, a
+ * driver that does not reference the loader at all (e.g. a fixture used only
+ * to prove the mock-of-SUT scan fires) still matches via the filename rule.
+ */
+export function driverBelongsToChange(content: string, filePath: string, changeId: string): boolean {
+  const base = basename(filePath);
+  if (base === `${changeId}.driver` || base.startsWith(`${changeId}.driver.`)) return true;
+  return extractLoaderChangeIds(content).has(changeId);
+}
+
 export function scanAcceptanceDrivers(
   cwd: string,
   changeDir: string,
+  changeId: string,
   cases: Array<{ id?: unknown; expect?: unknown }>,
 ): DriverScanFinding[] {
-  const driverFiles = findAcceptanceDriverFiles(cwd);
-  if (driverFiles.length === 0) return [];
+  const allDriverFiles = findAcceptanceDriverFiles(cwd);
+  if (allDriverFiles.length === 0) return [];
 
   const sutFiles = resolveChangeSutFiles(cwd, changeDir);
   const sutTokens = sutMatchTokens(sutFiles);
 
   const findings: DriverScanFinding[] = [];
-  for (const file of driverFiles) {
+  for (const file of allDriverFiles) {
     const content = readFileSync(file, 'utf8');
+    // Cross-change isolation (BUG 1): a driver written for a DIFFERENT change
+    // must never be scanned against THIS change's SUT tokens or expect
+    // literals -- otherwise an unrelated driver elsewhere under
+    // test(s)/acceptance/ that happens to share vocabulary with this change's
+    // oracle is falsely flagged for a change it has nothing to do with.
+    if (!driverBelongsToChange(content, file, changeId)) continue;
+
     const rel = relative(cwd, file).replace(/\\/g, '/');
 
     for (const v of scanDriverForMockOfSut(content, sutTokens)) {

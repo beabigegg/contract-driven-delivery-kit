@@ -4,8 +4,10 @@ summary: API behavior, compatibility rules, and endpoint contract requirements.
 owner: application-team
 surface: api
 schema-version: 0.1.0
-last-changed: 2026-04-27
+last-changed: 2026-07-09
 breaking-change-policy: deprecate-2-minors
+applicability: not-applicable
+applicability-reason: cdd-kit is a CLI/agent-orchestration tool with no HTTP API surface of its own; it validates other projects' API contracts, it does not serve one.
 ---
 
 # API Contract

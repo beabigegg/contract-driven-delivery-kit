@@ -1,0 +1,13 @@
+agent: ci-cd-gatekeeper
+status: complete
+next-action: proceed-to-qa-reviewer
+decision: approved
+artifacts:
+  - { type: tiers-modified, pointer: "n/a (no tier changed; existing Tier 1 test.yml job unchanged)" }
+  - { type: gate-promotions, pointer: "none" }
+  - { type: workflow-files-changed, pointer: "n/a (no .github/workflows edits needed; existing npx vitest run covers new tests)" }
+  - { type: required-status-checks, pointer: "test (build+typecheck+vitest), guards (mojibake) — unchanged" }
+notes:
+  - "Confirmed fail-closed invariant: enforceContractSubstance (gate-contracts.ts:48) returns on rows.length===0, never independently fails an empty contract — Python applicability.py is the sole pass/fail authority, no AC-6 divergence, nothing blocking."
+  - "Change moves gate semantics strictly in the safe direction (previously-failing empty contract can pass only under explicit reasoned marker); no new gate row, no promotion-policy question, no workflow file change required."
+  - "Wrote specs/changes/not-applicable-contracts/ci-gates.md (72 lines)."

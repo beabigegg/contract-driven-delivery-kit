@@ -123,14 +123,16 @@ describe('acceptance-oracle change driver (specs/changes/acceptance-oracle/accep
     writeFileSync(join(tmpRepo, '.cdd', 'code-map.yml'), 'src/orders/service.py:\n  total_lines: 10\n', 'utf8');
     mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
     // A fixture driver that mocks the very module the fixture change declares
-    // as its own system under test.
-    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'test_demo.py'), [
+    // as its own system under test. Named per the `<change-id>.driver.*`
+    // convention so the cross-change isolation filter (BUG 1) recognizes it
+    // as belonging to this fixture change.
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'mock-sut-demo.driver.py'), [
       'def test_demo(mocker):',
       '    mocker.patch("src.orders.service.reject_order")',
     ].join('\n'), 'utf8');
 
     const fixtureCases = [{ id: 'demo-case', expect: { status: 'no-answer-key-needed-for-this-scan' } }];
-    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, fixtureCases);
+    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, changeId, fixtureCases);
     const mockFinding = findings.find((f) => f.kind === 'mock-of-sut');
 
     expect(outcomeOf(mockFinding ? ['found'] : [])).toBe(answer.gate);

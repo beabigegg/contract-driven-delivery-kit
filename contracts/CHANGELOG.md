@@ -8,6 +8,19 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.3.0] — 2026-07-09
+### Added
+- Contract applicability marker semantics (ADR 0011): a contract frontmatter
+  `applicability: not-applicable` field with a required non-empty
+  `applicability-reason` causes that contract's presence/stub check and
+  family-specific semantic validator to be SKIPPED with an informational
+  note; an unmarked empty/placeholder contract still HARD-FAILS unchanged; a
+  marker without a reason, or with an unrecognized value, is a HARD ERROR; a
+  marked contract that later gains real content surfaces as an advisory drift
+  WARNING only. Enforcement authority is the Python semantic-validator layer
+  (`applicability.py`); `validate.ts` reads the marker for `doctor` display
+  only, never for pass/fail.
+
 ## [ci 0.2.0] — 2026-07-08
 ### Added
 - `enforceAcceptanceOracle` required gate check (ADR 0010): fails a change

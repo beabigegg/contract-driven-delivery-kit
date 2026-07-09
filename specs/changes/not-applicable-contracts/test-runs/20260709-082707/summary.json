@@ -1,0 +1,15 @@
+{
+  "change_id": "not-applicable-contracts",
+  "phase": "contract",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node bin/cdd.js validate --contracts --env --ci",
+  "duration_ms": 524,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/not-applicable-contracts/test-runs/20260709-082707/summary.json",
+    "stdout": "specs/changes/not-applicable-contracts/test-runs/20260709-082707/stdout.log",
+    "stderr": "specs/changes/not-applicable-contracts/test-runs/20260709-082707/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

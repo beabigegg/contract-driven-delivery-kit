@@ -1,0 +1,11 @@
+agent: contract-reviewer
+status: complete
+next-action: proceed-to-test-strategist-and-ci-cd-gatekeeper
+decision: approved
+artifacts:
+  - { type: contract-updated, pointer: "contracts/ci/ci-gate-contract.md", notes: "0.2.0->0.3.0; Contract Applicability Marker (ADR 0011) section; additive minor" }
+  - { type: contract-updated, pointer: "contracts/CHANGELOG.md", notes: "ci 0.3.0 entry" }
+notes:
+  - "Applied verbatim by main Claude (contract-reviewer read-only)."
+  - "Confirmed contracts/data is ALSO an empty stub — must be marked alongside api/css/business for AC-5 (4 surfaces total)."
+  - "ci-cd-gatekeeper to confirm no second TS-side stub authority diverges (orchestrator verified enforceContractSubstance no-ops on empty — no divergence)."

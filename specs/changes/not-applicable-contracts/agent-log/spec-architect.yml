@@ -1,0 +1,5 @@
+artifacts:
+  - { type: adr-written, pointer: "docs/adr/0011-not-applicable-contract-marker.md" }
+  - { type: affected-areas, pointer: "validate/gate orchestration, Python semantic validators, contract frontmatter, doctor" }
+  - { type: decision-summary, pointer: "frontmatter single source; Python validators single pass/fail authority via shared applicability.py self-skip; TS reads marker for display only" }
+  - { type: risks-noted, pointer: "0 high, 2 medium (gate-contracts.ts second-enforcement-point; data-shape contract status)" }

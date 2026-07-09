@@ -9,6 +9,7 @@ import {
   extractSection,
   parseRow,
   isSeparator,
+  projectApplicability,
 } from '../../src/contracts/parser.js';
 
 /**
@@ -33,6 +34,42 @@ describe('stripFrontmatter', () => {
     const { body, frontmatter } = stripFrontmatter('# No frontmatter');
     expect(frontmatter).toEqual({});
     expect(body).toBe('# No frontmatter');
+  });
+});
+
+describe('projectApplicability (ADR 0011, AC-6 — display only, no pass/fail branch)', () => {
+  it('classifies an unmarked contract as applicable', () => {
+    expect(projectApplicability({})).toEqual({ status: 'applicable' });
+  });
+
+  it('classifies `applicability: applicable` as applicable', () => {
+    expect(projectApplicability({ applicability: 'applicable' })).toEqual({ status: 'applicable' });
+  });
+
+  it('projects not-applicable + reason for display', () => {
+    expect(projectApplicability({
+      applicability: 'not-applicable',
+      'applicability-reason': 'no HTTP API surface',
+    })).toEqual({ status: 'not-applicable', reason: 'no HTTP API surface' });
+  });
+
+  it('strips surrounding quotes from a quoted reason', () => {
+    expect(projectApplicability({
+      applicability: 'not-applicable',
+      'applicability-reason': '"no HTTP API surface"',
+    }).reason).toBe('no HTTP API surface');
+  });
+
+  it('flags not-applicable with a missing reason as invalid', () => {
+    const result = projectApplicability({ applicability: 'not-applicable' });
+    expect(result.status).toBe('invalid');
+    expect(result.error).toMatch(/applicability-reason/i);
+  });
+
+  it('flags an unrecognized applicability value as invalid', () => {
+    const result = projectApplicability({ applicability: 'not-applicable-typo', 'applicability-reason': 'x' });
+    expect(result.status).toBe('invalid');
+    expect(result.error).toMatch(/unrecognized applicability value/i);
   });
 });
 

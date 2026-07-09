@@ -13,6 +13,8 @@ import sys
 import re
 from pathlib import Path
 
+from applicability import classify_file
+
 VALID_METHODS = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'}
 VALID_AUTH = {'required', 'optional', 'admin', 'none', 'public'}
 
@@ -99,6 +101,17 @@ def main() -> None:
     if not contract.exists():
         print(f'API contract not found: {CONTRACT_PATH}')
         sys.exit(1)
+
+    # ADR 0011: a contract marked applicability: not-applicable self-skips the
+    # whole semantic chain (AC-1); an invalid marker (no reason / unknown
+    # value) is a hard error (AC-3), never a silent pass.
+    applicability = classify_file(contract)
+    if applicability.status == 'invalid':
+        print(f'API contract: invalid applicability marker: {applicability.error}')
+        sys.exit(1)
+    if applicability.status == 'not-applicable':
+        print(f'API contract marked applicability: not-applicable ({applicability.reason}) — semantic check skipped.')
+        sys.exit(0)
 
     try:
         raw = contract.read_text(encoding='utf-8', errors='ignore')

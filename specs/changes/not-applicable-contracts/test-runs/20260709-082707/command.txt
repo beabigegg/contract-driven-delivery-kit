@@ -1,0 +1,1 @@
+node bin/cdd.js validate --contracts --env --ci

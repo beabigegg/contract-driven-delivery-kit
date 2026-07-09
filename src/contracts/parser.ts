@@ -82,6 +82,58 @@ export function stripFrontmatter(text: string): { body: string; frontmatter: Rec
   return { body: text, frontmatter: fm };
 }
 
+export interface ApplicabilityProjection {
+  status: 'applicable' | 'not-applicable' | 'invalid';
+  /** Set only when `status === 'not-applicable'`. */
+  reason?: string;
+  /** Set only when `status === 'invalid'`. */
+  error?: string;
+}
+
+function unquoteFrontmatterValue(value: string): string {
+  const v = value.trim();
+  if (v.length >= 2 && v[0] === v[v.length - 1] && (v[0] === '"' || v[0] === "'")) {
+    return v.slice(1, -1).trim();
+  }
+  return v;
+}
+
+/**
+ * Read-only projection of the `applicability` / `applicability-reason`
+ * frontmatter marker (ADR 0011) off `stripFrontmatter().frontmatter`, for
+ * DISPLAY in `cdd-kit doctor` only. This mirrors
+ * `.claude/skills/contract-driven-delivery/scripts/applicability.py`'s
+ * classification exactly (AC-6 agreement), but carries NO pass/fail
+ * authority of its own — the Python reader is the sole authority
+ * (design.md decision 2); this function must never gate a validator's
+ * exit code.
+ */
+export function projectApplicability(frontmatter: Record<string, string>): ApplicabilityProjection {
+  const raw = frontmatter['applicability'];
+  if (raw === undefined || raw.trim() === '') return { status: 'applicable' };
+
+  const value = unquoteFrontmatterValue(raw);
+
+  if (value === 'applicable') return { status: 'applicable' };
+
+  if (value === 'not-applicable') {
+    const rawReason = frontmatter['applicability-reason'];
+    const reason = rawReason !== undefined ? unquoteFrontmatterValue(rawReason) : '';
+    if (!reason) {
+      return {
+        status: 'invalid',
+        error: 'applicability: not-applicable requires a non-empty applicability-reason (ADR 0011).',
+      };
+    }
+    return { status: 'not-applicable', reason };
+  }
+
+  return {
+    status: 'invalid',
+    error: `unrecognized applicability value "${raw.trim()}" — expected "applicable" or "not-applicable" (ADR 0011).`,
+  };
+}
+
 export function parseRow(line: string): string[] {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
 }

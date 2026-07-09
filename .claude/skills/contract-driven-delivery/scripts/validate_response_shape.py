@@ -47,7 +47,10 @@ import re
 import sys
 from pathlib import Path
 
+from applicability import classify_file
+
 OPENAPI_PATH = Path('contracts/api/openapi.json')
+API_CONTRACT_PATH = Path('contracts/api/api-contract.md')
 CONFIG_PATH = Path('.cdd/conformance.json')
 DEFAULT_MANIFEST = 'tests/contract/response-samples.json'
 
@@ -231,6 +234,18 @@ def main() -> None:
     if not cfg['enabled']:
         print('Response-shape: skipped (.cdd/conformance.json responseShape.enabled is false).')
         sys.exit(0)
+
+    # ADR 0011: defensive self-skip. An invalid marker is still a hard error;
+    # a missing API contract is left to the other validators to report.
+    if API_CONTRACT_PATH.exists():
+        applicability = classify_file(API_CONTRACT_PATH)
+        if applicability.status == 'invalid':
+            print('Response-shape validation failed:')
+            print(f'  {applicability.error}')
+            sys.exit(1)
+        if applicability.status == 'not-applicable':
+            print(f'Response-shape: skipped (API contract marked applicability: not-applicable — {applicability.reason}).')
+            sys.exit(0)
 
     if not OPENAPI_PATH.exists():
         print(f'Response-shape validation failed:')

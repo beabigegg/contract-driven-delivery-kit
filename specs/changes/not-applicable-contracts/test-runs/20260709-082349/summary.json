@@ -1,0 +1,15 @@
+{
+  "change_id": "not-applicable-contracts",
+  "phase": "targeted",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/contracts/applicability-reader.test.ts test/cli/validate-applicability.test.ts test/cli/gate.test.ts test/cli/doctor.test.ts test/contracts/parser.test.ts test/contracts/applicability-agreement.test.ts",
+  "duration_ms": 77616,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/not-applicable-contracts/test-runs/20260709-082349/summary.json",
+    "stdout": "specs/changes/not-applicable-contracts/test-runs/20260709-082349/stdout.log",
+    "stderr": "specs/changes/not-applicable-contracts/test-runs/20260709-082349/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

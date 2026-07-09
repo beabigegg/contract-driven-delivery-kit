@@ -11,7 +11,7 @@ import { checkCodeMapFreshness } from '../code-map/freshness.js';
 import { collectAgentViolations } from './lint-agents.js';
 import { detectChokepoints } from './chokepoints.js';
 import { staleMetadataReport, writeMetadataFiles } from './metadata.js';
-import { stripFrontmatter, parseEndpoints, parseContractSchemas, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH } from '../contracts/parser.js';
+import { stripFrontmatter, parseEndpoints, parseContractSchemas, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH, projectApplicability } from '../contracts/parser.js';
 
 export interface DoctorOptions {
   strict?: boolean;
@@ -445,6 +445,76 @@ function checkResponseShapeCoverage(cwd: string): Finding[] {
   return findings;
 }
 
+/** Same REQUIRED contract-family surfaces validate_contracts.py enforces (ADR 0011). */
+const APPLICABILITY_SURFACES: Array<{ path: string; label: string }> = [
+  { path: 'contracts/api/api-contract.md', label: 'API' },
+  { path: 'contracts/css/css-contract.md', label: 'CSS/UI' },
+  { path: 'contracts/env/env-contract.md', label: 'Env' },
+  { path: 'contracts/data/data-shape-contract.md', label: 'Data shape' },
+  { path: 'contracts/business/business-rules.md', label: 'Business' },
+  { path: 'contracts/ci/ci-gate-contract.md', label: 'CI/CD' },
+];
+
+const APPLICABILITY_PLACEHOLDER_THRESHOLD = 470;
+
+/** Mirrors validate_contracts.py's `meaningful_chars` (markdown headings,
+ * blank lines, table borders, and comment-opener lines stripped). Kept as its
+ * own copy (not shared with the Python metric) since it feeds an advisory
+ * display-only finding, not a pass/fail decision. */
+function meaningfulChars(text: string): string {
+  const filtered: string[] = [];
+  for (const rawLine of text.split('\n')) {
+    const s = rawLine.trim();
+    if (!s) continue;
+    if (s.startsWith('#')) continue;
+    if (/^[|\s\-:]+$/.test(s)) continue;
+    if (s.startsWith('<!--')) continue;
+    filtered.push(s);
+  }
+  return filtered.join('');
+}
+
+/**
+ * Read-only display of the applicability marker (ADR 0011): lists every
+ * contract marked `applicability: not-applicable` with its recorded reason
+ * (AC-4), and warns when a marked contract's BODY now looks filled — the mark
+ * may be stale (AC-7, drift). This NEVER makes a pass/fail decision;
+ * `applicability.py` (the Python validators) is the sole authority (design.md
+ * decision 2) — this is display only.
+ */
+function checkContractApplicability(cwd: string): Finding[] {
+  const findings: Finding[] = [];
+  for (const { path: relPath, label } of APPLICABILITY_SURFACES) {
+    const full = join(cwd, relPath);
+    if (!existsSync(full)) continue;
+    let frontmatter: Record<string, string>;
+    let body: string;
+    try {
+      const raw = readFileSync(full, 'utf8');
+      const parsed = stripFrontmatter(raw);
+      frontmatter = parsed.frontmatter;
+      body = parsed.body;
+    } catch {
+      continue; // a malformed/unreadable contract is the structural validators' concern
+    }
+    const projection = projectApplicability(frontmatter);
+    if (projection.status !== 'not-applicable') continue;
+
+    findings.push({
+      level: 'ok',
+      message: `${label} contract (${relPath}) marked applicability: not-applicable — ${projection.reason}`,
+    });
+
+    if (meaningfulChars(body).length >= APPLICABILITY_PLACEHOLDER_THRESHOLD) {
+      findings.push({
+        level: 'warning',
+        message: `${label} contract (${relPath}) is marked applicability: not-applicable but its body now looks filled — the mark may be stale; reconsider it (ADR 0011).`,
+      });
+    }
+  }
+  return findings;
+}
+
 function checkMcpRegistration(cwd: string, provider: string): Finding[] {
   // Observability for the silent-degradation failure mode: if the cdd-kit MCP
   // server is not registered, agents never see the graph/index tools and
@@ -563,6 +633,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   findings.push(...checkCodeMap(cwd));
   findings.push(...checkApiConformance(cwd));
   findings.push(...checkResponseShapeCoverage(cwd));
+  findings.push(...checkContractApplicability(cwd));
   findings.push(...checkMcpRegistration(cwd, provider));
   findings.push(...checkChangeMetadata(staleMetadataReport(cwd)));
   findings.push(...checkChokepoints(cwd));

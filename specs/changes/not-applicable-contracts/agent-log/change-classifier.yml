@@ -1,0 +1,11 @@
+agent: change-classifier
+status: complete
+next-action: proceed-to-spec-architect
+artifacts:
+  - { type: tier, pointer: "specs/changes/not-applicable-contracts/change-classification.md", notes: "Tier 2, medium / module-level, safe-direction gate change" }
+  - { type: required-agents, pointer: "specs/changes/not-applicable-contracts/change-classification.md", notes: "spec-architect, implementation-planner, backend-engineer, test-strategist, contract-reviewer, ci-cd-gatekeeper, qa-reviewer" }
+  - { type: context-manifest, pointer: "specs/changes/not-applicable-contracts/context-manifest.md", notes: "CER-001 (.claude/skills scripts) + CER-002 (src/schemas) approved" }
+notes:
+  - "Invariant to protect: not-applicable must NEVER be a silent bypass of a real unfilled contract (AC-2/AC-3)."
+  - "design.md required: source-of-truth decision (frontmatter vs .cdd config) + TS<->Python read contract."
+  - "No atomic split (single focused concern)."

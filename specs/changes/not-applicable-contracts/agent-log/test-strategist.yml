@@ -1,0 +1,8 @@
+artifacts:
+  - { type: test-plan-path, pointer: "specs/changes/not-applicable-contracts/test-plan.md" }
+  - { type: tdd-pairs, pointer: "test/contracts/applicability-reader.test.ts -> .claude/skills/contract-driven-delivery/scripts/applicability.py" }
+  - { type: tdd-pairs, pointer: "test/cli/validate-applicability.test.ts -> src/commands/validate.ts + validate_contracts.py/validate_api_semantic.py" }
+  - { type: tdd-pairs, pointer: "test/contracts/applicability-agreement.test.ts -> src/contracts/parser.ts + applicability.py (cross-reader agreement)" }
+  - { type: tdd-pairs, pointer: "test/cli/doctor.test.ts -> src/commands/doctor.ts (AC-4 listing, AC-7 drift warning)" }
+  - { type: coverage-tiers, pointer: "unit, contract, integration" }
+  - { type: mapping-completeness, pointer: "AC-1..AC-7 all mapped, each with a concrete existing-or-new bare test file path in the AC mapping table" }

@@ -9,6 +9,7 @@ import {
   scanDriverForHardcodedExpect,
   findAcceptanceDriverFiles,
   scanAcceptanceDrivers,
+  driverBelongsToChange,
 } from '../../src/utils/mock-of-sut-scan.js';
 
 describe('scanDriverForMockOfSut', () => {
@@ -311,29 +312,31 @@ describe('findAcceptanceDriverFiles + scanAcceptanceDrivers (end-to-end)', () =>
 
   it('returns no findings when no driver files exist', () => {
     const cases = [{ id: 'c1', expect: { status: 'rejected' } }];
-    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, cases);
+    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, 'my-change', cases);
     expect(findings).toHaveLength(0);
   });
 
   it('flags a pytest driver mocking the resolved SUT end-to-end', () => {
     mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
-    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'test_over_limit.py'), [
+    // Named per the `<change-id>.driver.*` convention so the cross-change
+    // isolation filter (BUG 1) recognizes it as belonging to 'my-change'.
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'my-change.driver.py'), [
       'def test_over_limit(mocker):',
       '    mocker.patch("src.orders.service.reject_order")',
     ].join('\n'), 'utf8');
     const cases = [{ id: 'over-limit', expect: { status: 'rejected' } }];
-    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, cases);
+    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, 'my-change', cases);
     expect(findings.some((f) => f.kind === 'mock-of-sut')).toBe(true);
   });
 
   it('flags a driver hardcoding the expect literal end-to-end', () => {
     mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
-    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'test_over_limit.py'), [
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'my-change.driver.py'), [
       'def test_over_limit():',
       '    assert real_sut() == "credit-limit-exceeded"',
     ].join('\n'), 'utf8');
     const cases = [{ id: 'over-limit', expect: 'credit-limit-exceeded' }];
-    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, cases);
+    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, 'my-change', cases);
     expect(findings.some((f) => f.kind === 'hardcoded-expect')).toBe(true);
   });
 
@@ -348,7 +351,77 @@ describe('findAcceptanceDriverFiles + scanAcceptanceDrivers (end-to-end)', () =>
       '    assert reject_order(case["input"]) == case["expect"]',
     ].join('\n'), 'utf8');
     const cases = [{ id: 'over-limit', expect: { status: 'rejected', reason: 'credit-limit-exceeded' } }];
-    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, cases);
+    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, 'my-change', cases);
     expect(findings).toHaveLength(0);
+  });
+
+  // ── BUG 1: cross-change isolation ───────────────────────────────────────────
+  it('does not scan a driver written for a DIFFERENT change against this change\'s cases (cross-change isolation)', () => {
+    mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
+    // A driver for an unrelated change ('other-change') that both mocks a
+    // module named the same as THIS change's SUT and hardcodes THIS change's
+    // expect literal -- neither should be attributed to 'my-change' because
+    // this driver is not for 'my-change' (different filename convention, and
+    // its loader call resolves to a different change id).
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'other-change.driver.py'), [
+      'from acceptance_loader import load_case',
+      '',
+      'def test_unrelated(mocker):',
+      '    mocker.patch("src.orders.service.reject_order")',
+      '    case = load_case("other-change", "some-case")',
+      '    assert real_sut() == "credit-limit-exceeded"',
+    ].join('\n'), 'utf8');
+    const cases = [{ id: 'over-limit', expect: 'credit-limit-exceeded' }];
+    const findings = scanAcceptanceDrivers(tmpRepo, changeDir, 'my-change', cases);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('driverBelongsToChange recognizes the filename convention and the loader content-reference, and rejects neither', () => {
+    expect(driverBelongsToChange('', 'test/acceptance/my-change.driver.ts', 'my-change')).toBe(true);
+    expect(driverBelongsToChange(
+      "const CHANGE_ID = 'my-change';\nloadCase(CHANGE_ID, 'x');\n",
+      'test/acceptance/whatever.test.ts',
+      'my-change',
+    )).toBe(true);
+    expect(driverBelongsToChange(
+      'load_case("my-change", "x")',
+      'tests/acceptance/test_whatever.py',
+      'my-change',
+    )).toBe(true);
+    expect(driverBelongsToChange(
+      "const CHANGE_ID = 'some-other-change';\nloadCase(CHANGE_ID, 'x');\n",
+      'test/acceptance/whatever.test.ts',
+      'my-change',
+    )).toBe(false);
+  });
+});
+
+// ── BUG 2: generic-word substring false positive (word-boundary matching) ────
+describe('scanDriverForHardcodedExpect -- word-boundary substring safety', () => {
+  const cases = [
+    { id: 'marker-without-reason-is-rejected', expect: { validation: 'hard-fail', reason_contains: 'reason' } },
+  ];
+
+  it('does NOT flag the leaf "reason" merely because it is a substring of the SUT\'s own field name', () => {
+    const content = [
+      "it('marker-without-reason-is-rejected', () => {",
+      "  const fixture = buildContract(['applicability-reason: no CSS/UI surface']);",
+      '  const r = runReal(fixture);',
+      "  expect(r.status).not.toBe(0);",
+      '});',
+    ].join('\n');
+    const violations = scanDriverForHardcodedExpect(content, cases);
+    expect(violations).toHaveLength(0);
+  });
+
+  it('STILL flags a genuine standalone hardcode of that same leaf value', () => {
+    const content = [
+      "it('marker-without-reason-is-rejected', () => {",
+      "  const needle = 'reason'; // hardcoded, not read from the loader",
+      '  expect(realOutput.toLowerCase()).toContain(needle);',
+      '});',
+    ].join('\n');
+    const violations = scanDriverForHardcodedExpect(content, cases);
+    expect(violations.length).toBeGreaterThan(0);
   });
 });

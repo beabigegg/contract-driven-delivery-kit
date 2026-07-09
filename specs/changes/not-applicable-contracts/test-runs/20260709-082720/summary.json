@@ -1,0 +1,15 @@
+{
+  "change_id": "not-applicable-contracts",
+  "phase": "full",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run",
+  "duration_ms": 105689,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/not-applicable-contracts/test-runs/20260709-082720/summary.json",
+    "stdout": "specs/changes/not-applicable-contracts/test-runs/20260709-082720/stdout.log",
+    "stderr": "specs/changes/not-applicable-contracts/test-runs/20260709-082720/stderr.log"
+  },
+  "next_action": "all phases green"
+}

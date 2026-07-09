@@ -1,0 +1,43 @@
+change-id: not-applicable-contracts
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+  - contract
+runs:
+  - phase: collect
+    status: passed
+    command: >-
+      npm test -- --run test/contracts/applicability-reader.test.ts test/cli/validate-applicability.test.ts
+      test/cli/gate.test.ts test/cli/doctor.test.ts test/contracts/parser.test.ts
+      test/contracts/applicability-agreement.test.ts
+    summary: specs/changes/not-applicable-contracts/test-runs/20260709-082224/summary.json
+  - phase: targeted
+    status: passed
+    command: >-
+      npm test -- --run test/contracts/applicability-reader.test.ts test/cli/validate-applicability.test.ts
+      test/cli/gate.test.ts test/cli/doctor.test.ts test/contracts/parser.test.ts
+      test/contracts/applicability-agreement.test.ts
+    summary: specs/changes/not-applicable-contracts/test-runs/20260709-082349/summary.json
+  - phase: changed-area
+    status: passed
+    command: >-
+      npm test -- --run test/contracts/applicability-reader.test.ts test/cli/validate-applicability.test.ts
+      test/cli/gate.test.ts test/cli/doctor.test.ts test/contracts/parser.test.ts
+      test/contracts/applicability-agreement.test.ts
+    summary: specs/changes/not-applicable-contracts/test-runs/20260709-082516/summary.json
+  - phase: contract
+    status: passed
+    command: node bin/cdd.js validate --contracts --env --ci
+    summary: specs/changes/not-applicable-contracts/test-runs/20260709-082707/summary.json
+  - phase: full
+    status: passed
+    command: npm test -- --run
+    summary: specs/changes/not-applicable-contracts/test-runs/20260709-082720/summary.json
+  - phase: acceptance
+    status: passed
+    command: npm test -- --run test/acceptance
+    summary: specs/changes/not-applicable-contracts/test-runs/20260709-090848/summary.json
+final-status: passed

@@ -4,6 +4,8 @@ import {
   mkdirSync,
   rmSync,
   existsSync,
+  readFileSync,
+  writeFileSync,
 } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -74,6 +76,37 @@ const copy = (src, dest) => {
 copy('.claude/agents',  'assets/agents');
 copy('.claude/skills', 'assets/skills');
 copy('contracts',      'assets/contracts');
+
+// contracts/ is dual-purpose: it is BOTH this repo's own dogfooded contracts
+// (what `cdd-kit validate`/`gate` enforce when run from the kit's own repo
+// root) AND the master template `cdd-kit init` copies into every new project
+// (src/commands/init.ts copies ASSET.contracts verbatim into <project>/contracts/).
+// ADR 0011 marks the kit's own contracts/{api,css,business,data} as
+// `applicability: not-applicable` because a CLI genuinely has none of those
+// surfaces — but that reason does not hold for an arbitrary new project a
+// user is about to build (most have an API/CSS/business-logic surface). The
+// asset copy strips the marker so a fresh `cdd-kit init` still ships neutral,
+// unmarked stub contracts that fail validate/gate until the adopter actually
+// fills them in (or makes their own informed not-applicable decision) — the
+// safety net `test/cli/validate.test.ts` / `test/cli/gate.test.ts` pin.
+const APPLICABILITY_MARKED_TEMPLATES = [
+  'assets/contracts/api/api-contract.md',
+  'assets/contracts/css/css-contract.md',
+  'assets/contracts/business/business-rules.md',
+  'assets/contracts/data/data-shape-contract.md',
+];
+for (const rel of APPLICABILITY_MARKED_TEMPLATES) {
+  const abs = join(__dirname, rel);
+  if (!existsSync(abs)) continue;
+  const before = readFileSync(abs, 'utf8');
+  const after = before
+    .replace(/^applicability:.*\n/m, '')
+    .replace(/^applicability-reason:.*\n/m, '');
+  if (after !== before) {
+    writeFileSync(abs, after, 'utf8');
+    console.log(`Stripped applicability marker from shipped template: ${rel}`);
+  }
+}
 copy('specs/templates',                         'assets/specs-templates');
 copy('tests/templates',                         'assets/tests-templates');
 copy('contract-harness',                        'assets/contract-harness');

@@ -1,0 +1,36 @@
+# Acceptance oracle for the not-applicable-contracts change (ADR 0011).
+#
+# HUMAN-AUTHORED (dictated by the maintainer, transcribed by the orchestrator).
+# The SUT is the contract-applicability mechanism (the applicability.py reader +
+# the validators that consult it). Each case states, in business terms, how the
+# marker must behave and the exact observable outcome; the driver reads `expect`
+# from the emitted loader and exercises the real reader/validator.
+
+oracle-version: 0.1.0
+authored-by: human
+
+cases:
+  - id: marked-not-applicable-is-skipped
+    given: "a contract family the project does not have, marked applicability: not-applicable with a non-empty reason"
+    when: "cdd-kit validate runs over the contracts"
+    then: "that contract's semantic validation is skipped and reported as an informational note, not a failure"
+    input: { scenario: "contract marked applicability:not-applicable with a real reason" }
+    expect: { validation: "skipped", surfaced_as: "info" }
+
+  - id: unmarked-empty-stub-still-fails
+    given: "an empty/placeholder contract stub with NO applicability marker"
+    when: "cdd-kit validate runs over the contracts"
+    then: "the contract still hard-fails exactly as before this change"
+    input: { scenario: "empty stub contract, no applicability marker" }
+    expect: { validation: "hard-fail" }
+
+  - id: marker-without-reason-is-rejected
+    given: "a contract marked applicability: not-applicable but with a missing or empty reason"
+    when: "cdd-kit validate runs over the contracts"
+    then: "the contract hard-fails demanding a justification (a bare skip is never allowed)"
+    input: { scenario: "applicability:not-applicable with empty/missing reason" }
+    expect: { validation: "hard-fail", reason_contains: "reason" }
+
+rules:
+  - id: not-applicable-never-a-silent-bypass
+    statement: "the not-applicable marker may only suppress its own contract family's check and only when accompanied by a non-empty reason; it can never cause an unmarked stub, a reason-less marker, or an unrecognized value to pass validation"

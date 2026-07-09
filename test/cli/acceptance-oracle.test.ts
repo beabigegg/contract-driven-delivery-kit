@@ -333,7 +333,10 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     mkdirSync(join(tmpRepo, '.cdd'), { recursive: true });
     writeFileSync(join(tmpRepo, '.cdd', 'code-map.yml'), 'src/api/orders.ts:\n  total_lines: 10\n', 'utf8');
     mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
-    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'test_over_limit.py'), [
+    // Named per the `<change-id>.driver.*` convention so the cross-change
+    // isolation filter (BUG 1, src/utils/mock-of-sut-scan.ts) recognizes this
+    // fixture as belonging to acc-mock-sut.
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'acc-mock-sut.driver.py'), [
       'def test_over_limit_order_rejected(mocker):',
       '    mocker.patch("src.api.orders.create_order")',
     ].join('\n'), 'utf8');
@@ -352,7 +355,7 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     writeAcceptanceLock(tmpRepo, 'acc-hardcoded', computeAcceptanceHash(oracle));
 
     mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
-    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'test_over_limit.py'), [
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'acc-hardcoded.driver.py'), [
       'def test_over_limit_order_rejected():',
       '    actual = real_system_under_test({"customer_limit": 1000, "order_amount": 1500})',
       '    assert actual["reason"] == "credit-limit-exceeded"',
@@ -377,7 +380,7 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     // Case-insensitive on the case id/wording deliberately: uses a name that
     // shares no substring with the case's expect leaves ("rejected",
     // "credit-limit-exceeded") so this test isolates the network-fake path.
-    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'test_boundary.py'), [
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'acc-fake-network.driver.py'), [
       'def test_boundary_case(mocker):',
       '    mocker.patch("requests.get")',
     ].join('\n'), 'utf8');

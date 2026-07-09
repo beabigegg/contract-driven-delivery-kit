@@ -320,4 +320,61 @@ describe('cdd-kit doctor', () => {
     const acceptanceFinding = report.findings.find((f: { message: string }) => /chokepoint acceptance-write hook: dormant/.test(f.message));
     expect(acceptanceFinding?.level).toBe('warning');
   });
+
+  // ── Applicability marker (ADR 0011): AC-4 listing + AC-7 drift warning ──────
+  describe('contract applicability marker (ADR 0011)', () => {
+    function writeCssContract(extraFrontmatter: string[], body: string): string {
+      return [
+        '---',
+        'contract: css',
+        'schema-version: 0.1.0',
+        'last-changed: 2026-04-27',
+        ...extraFrontmatter,
+        '---',
+        '',
+        '# CSS / UI Contract',
+        '',
+        body,
+      ].join('\n');
+    }
+
+    it('lists a not-applicable surface with its reason as informational output (AC-4, no failure)', () => {
+      const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+      expect(init.status, init.stderr).toBe(0);
+
+      writeFileSync(
+        join(tmpRepo, 'contracts', 'css', 'css-contract.md'),
+        writeCssContract(['applicability: not-applicable', 'applicability-reason: no CSS/UI surface'], ''),
+        'utf8',
+      );
+
+      const r = runCli(['doctor', '--json'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+      const report = JSON.parse(r.stdout);
+      const finding = report.findings.find((f: { message: string }) => /CSS\/UI contract .* marked applicability: not-applicable/.test(f.message));
+      expect(finding).toBeTruthy();
+      expect(finding.level).toBe('ok');
+      expect(finding.message).toMatch(/no CSS\/UI surface/);
+    });
+
+    it('warns (never fails) when a not-applicable contract body now looks filled (AC-7 drift)', () => {
+      const init = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+      expect(init.status, init.stderr).toBe(0);
+
+      const filledBody = Array.from({ length: 20 }, (_, i) =>
+        `Real substantive rule number ${i}: this line pretends the CSS contract body was actually filled in by a human.`,
+      ).join('\n');
+      writeFileSync(
+        join(tmpRepo, 'contracts', 'css', 'css-contract.md'),
+        writeCssContract(['applicability: not-applicable', 'applicability-reason: no CSS/UI surface'], filledBody),
+        'utf8',
+      );
+
+      const r = runCli(['doctor', '--json'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
+      const report = JSON.parse(r.stdout);
+      const drift = report.findings.find((f: { message: string }) => /looks filled/.test(f.message));
+      expect(drift).toBeTruthy();
+      expect(drift.level).toBe('warning');
+      expect(r.status).toBe(0); // drift is advisory — never fails doctor
+    });
+  });
 });
