@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "acceptance",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/acceptance/interaction-design-loop.driver.test.ts",
+  "duration_ms": 5161,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-183959/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-183959/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-183959/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

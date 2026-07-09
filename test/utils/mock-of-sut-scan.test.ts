@@ -10,6 +10,7 @@ import {
   findAcceptanceDriverFiles,
   scanAcceptanceDrivers,
   driverBelongsToChange,
+  findUnboundRules,
 } from '../../src/utils/mock-of-sut-scan.js';
 
 describe('scanDriverForMockOfSut', () => {
@@ -393,6 +394,75 @@ describe('findAcceptanceDriverFiles + scanAcceptanceDrivers (end-to-end)', () =>
       'test/acceptance/whatever.test.ts',
       'my-change',
     )).toBe(false);
+  });
+});
+
+// ── rules[] invariant-binding scan (ADR 0010 §4; ci-gate-contract.md
+// enforceAcceptanceOracle condition 6; interaction-design-loop scope
+// expansion 2) -- reuses driverBelongsToChange (BUG 1 fix) and
+// isWordBoundaryOccurrence (BUG 2 fix), unit-level coverage complementing the
+// CLI end-to-end coverage in test/cli/gate-acceptance-rules.test.ts.
+describe('findUnboundRules', () => {
+  let tmpRepo: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-sut-rules-');
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+  });
+
+  it('returns an empty array (nothing to bind) when there are zero rule ids', () => {
+    expect(findUnboundRules(tmpRepo, 'my-change', [])).toEqual([]);
+  });
+
+  it('returns every rule id unbound when no driver files exist at all', () => {
+    expect(findUnboundRules(tmpRepo, 'my-change', ['refund-never-exceeds-payment'])).toEqual([
+      'refund-never-exceeds-payment',
+    ]);
+  });
+
+  it('a rule id present in a same-change driver test title is bound', () => {
+    mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'my-change.driver.py'), [
+      'def test_rule_refund_never_exceeds_payment():',
+      '    """rule refund-never-exceeds-payment: a refund can never exceed the payment."""',
+      '    pass',
+    ].join('\n'), 'utf8');
+    expect(findUnboundRules(tmpRepo, 'my-change', ['refund-never-exceeds-payment'])).toEqual([]);
+  });
+
+  // ── BUG 1 reuse: cross-change contamination guard ─────────────────────────
+  it('a rule id present only in a DIFFERENT change\'s driver is still unbound (cross-change guard)', () => {
+    mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'other-change.driver.py'), [
+      'def test_rule():',
+      '    """rule shared-rule-id: bound here, but for the wrong change."""',
+      '    pass',
+    ].join('\n'), 'utf8');
+    expect(findUnboundRules(tmpRepo, 'my-change', ['shared-rule-id'])).toEqual(['shared-rule-id']);
+  });
+
+  // ── BUG 2 reuse: whole-token / word-boundary guard ────────────────────────
+  it('a rule id that only occurs as a substring of a longer token is still unbound (word-boundary guard)', () => {
+    mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'my-change.driver.py'), [
+      'def test_rule():',
+      '    """rule refund-never-exceeds-payment-cap: an unrelated, longer rule id."""',
+      '    pass',
+    ].join('\n'), 'utf8');
+    expect(findUnboundRules(tmpRepo, 'my-change', ['refund-never-exceeds'])).toEqual(['refund-never-exceeds']);
+  });
+
+  it('reports only the unbound subset when some rules are bound and others are not', () => {
+    mkdirSync(join(tmpRepo, 'tests', 'acceptance'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'tests', 'acceptance', 'my-change.driver.py'), [
+      'def test_rule():',
+      '    """rule bound-rule: this one is bound."""',
+      '    pass',
+    ].join('\n'), 'utf8');
+    expect(findUnboundRules(tmpRepo, 'my-change', ['bound-rule', 'unbound-rule'])).toEqual(['unbound-rule']);
   });
 });
 

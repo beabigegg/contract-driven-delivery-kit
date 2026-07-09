@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "targeted",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/utils/design-hash.test.ts test/cli/design-confirm.test.ts test/cli/design-write-hook.test.ts test/cli/gate-design.test.ts test/utils/design-provenance.test.ts",
+  "duration_ms": 18252,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-144235/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-144235/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-144235/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

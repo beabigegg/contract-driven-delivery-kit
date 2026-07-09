@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "3.9.0",
+  "version": "3.10.0",
   "description": "Contract-driven delivery kit for AI coding agents with deterministic context indexes, manifest-backed read-scope governance, and orchestrated contracts-first delivery.",
   "keywords": [
     "contract-driven",
@@ -44,7 +44,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "node build.js && tsc --noEmit && vitest run",
-    "postinstall": "node bin/postinstall.js"
+    "postinstall": "node bin/postinstall.js",
+    "contract:client": "cdd-kit openapi export --out contracts/api/openapi.json && npx --yes openapi-typescript contracts/api/openapi.json -o src/api/types.ts",
+    "contract:client:check": "cdd-kit openapi export --check --out contracts/api/openapi.json"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,0 +1,1 @@
+npm test -- --run test/cli/design-confirm.test.ts test/cli/design-write-hook.test.ts test/cli/gate-design.test.ts test/cli/gate.test.ts test/cli/install-agent-hooks.test.ts test/contracts/applicability-agreement.test.ts test/schemas/design-lock.schema.test.ts test/utils/design-hash.test.ts test/utils/design-provenance.test.ts

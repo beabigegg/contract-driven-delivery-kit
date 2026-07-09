@@ -1,0 +1,42 @@
+change-id: interaction-design-loop
+status: in-progress
+tier: 1
+context-governance: v1
+archive-tasks:
+  - "7.1"
+  - "7.2"
+depends-on: []
+tier-floor-override: "The tier floor matched the word migration/migrate in change-request.md, but in this change that word appears ONLY as (a) the isNewChange || strict gate migration window for a newly required check and (b) the upgrade path for legacy change directories. There is no production database, no schema or data migration, no concurrency, no secrets, no auth, and no payment surface. All artifacts (agent prompts, CLI validators, a gate check behind a migration window) are fully reversible dev tooling. Classified Tier 1 per the classifier: high risk + system-wide authority, but no irreversible/production-outage blast radius."
+
+tasks:
+  # status: pending | done | skipped   (optional: note: "reason or context")
+  - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: done }
+  - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: done, note: "only contracts/ci/ci-gate-contract.md (0.3.0 -> 0.4.0); api + data-shape stay read-only join targets" }
+  - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: done, note: "ADR 0012 + design.md; state-discriminator decided HARD; Never Gated prohibition recorded" }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: done, note: "ci-gates.md; gatekeeper signed off required-from-day-one exception; found that CI never invoked cdd-kit gate at all — maintainer approved scope expansion to fix both workflow files + init.ts version pinning in this change" }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: done, note: "implementation-plan.md IP-1..IP-13; top risk = isNewChange threading" }
+  - { id: "2.1", section: "Contract Updates", title: "API contract", status: skipped, note: "read-only provenance join target; not modified" }
+  - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "repo ships no UI; contracts/css stays not-applicable" }
+  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: skipped, note: "no env change" }
+  - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: skipped, note: "read-only provenance join target; not modified" }
+  - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: skipped, note: "none" }
+  - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: done, note: "ci-gate-contract 0.4.0 + CHANGELOG [ci 0.4.0]; written by main Claude for read-only contract-reviewer" }
+  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: done, note: "design-hash, design-provenance, design-lock schema, gate-design, agent-prompt-content, skill-workflow-order, interaction-design-template, ci-workflow" }
+  - { id: "3.2", section: "Tests First", title: "Integration tests", status: done, note: "design-confirm, design-write-hook, gate composition, new/migrate/init CLI, acceptance driver against real gate" }
+  - { id: "3.3", section: "Tests First", title: "E2E/resilience tests", status: skipped, note: "CLI E2E covered by integration tests; no runtime service surface" }
+  - { id: "3.4", section: "Tests First", title: "Data-boundary/monkey tests", status: skipped, note: "no data surface of its own" }
+  - { id: "3.5", section: "Tests First", title: "Stress/soak tests if required", status: skipped, note: "explicit non-goal" }
+  - { id: "4.1", section: Implementation, title: "Backend", status: done, note: "IP-1..IP-12 across 4 batches; plus regression fix to both acceptance-driver loaders (archived change resolution)" }
+  - { id: "4.2", section: Implementation, title: "Frontend", status: skipped, note: "repo ships no UI; this change builds UI-design machinery but renders nothing" }
+  - { id: "4.3", section: Implementation, title: "Env/deploy", status: skipped, note: "no env change" }
+  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: done, note: "both workflow files now derive touched change dirs and run cdd-kit gate; init.ts pins {{cdd-kit-version}}" }
+  - { id: "5.1", section: Review, title: "UI/UX review", status: skipped, note: "no UI rendered by this repo" }
+  - { id: "5.2", section: Review, title: "Visual review", status: skipped, note: "no UI rendered by this repo" }
+  - { id: "5.3", section: Review, title: "Contract review", status: done, note: "contract-reviewer changes-required -> all three findings applied; ci-gate-contract 0.4.0 written" }
+  - { id: "5.4", section: Review, title: "QA review", status: done, note: "approved-with-risk; see qa-report.md; 9 claims re-verified to file:line by qa-reviewer" }
+  - { id: "6.1", section: Verification, title: "Local gates", status: done, note: "gate exit 0; validate exit 0; full suite 1350 passed 0 failed" }
+  - { id: "6.2", section: Verification, title: "PR required gates", status: skipped, note: "runs in CI on PR (now actually wired, per this change)" }
+  - { id: "6.3", section: Verification, title: "Informational gates", status: skipped, note: "doctor over-fetch report is local/manual by design" }
+  - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: skipped, note: "none required" }
+  - { id: "7.1", section: Archive, title: "Archive change", status: pending }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: pending }

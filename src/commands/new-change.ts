@@ -88,6 +88,12 @@ const REQUIRED_TEMPLATES = [
   // human replaces the placeholder case with real ones, so it is never
   // silently skipped.
   'acceptance.yml',
+  // ADR 0012 (interaction-design-loop): every new change also gets a
+  // placeholder-plus-instructions interaction-design.md, same discipline as
+  // acceptance.yml immediately above — `enforceInteractionDesign` fails it
+  // (findPlaceholders + no human ## Confirmed) until a human confirms a real
+  // design, or marks it `applicability: not-applicable` with a reason.
+  'interaction-design.md',
 ];
 
 // Templates that ship in specs/templates/ as the canonical shape but must never

@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { rmSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
-import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME } from '../utils/paths.js';
+import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME, readKitVersion } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
@@ -298,21 +298,38 @@ export async function init(opts: InitOptions): Promise<void> {
       // Patch the fast-gate step in the generated CI yml
       const ciYmlDest = join(cwd, '.github', 'workflows', 'contract-driven-gates.yml');
       if (existsSync(ciYmlDest)) {
+        let current = readFileSync(ciYmlDest, 'utf8');
+        let modified = false;
+
         const template = loadCiTemplate(detection.primary);
         if (template) {
-          const original = readFileSync(ciYmlDest, 'utf8');
-          let patched  = patchFastGateYml(original, template, detection.primary);
-          // Replace conda env name placeholder with the actual name from environment.yml
-          if (detection.primary === 'conda' && patched.includes('{{conda-env-name}}')) {
-            const envName = readCondaEnvName(cwd);
-            patched = patched.replace(/\{\{conda-env-name\}\}/g, envName);
-            log.ok(`Conda environment name set to: ${envName}`);
-          }
-          if (patched !== original) {
-            writeFileSync(ciYmlDest, patched, 'utf8');
+          const patched = patchFastGateYml(current, template, detection.primary);
+          if (patched !== current) {
+            current = patched;
+            modified = true;
             log.ok(`CI fast-gate patched for stack: ${detection.primary}`);
           }
         }
+
+        // Replace conda env name placeholder with the actual name from environment.yml
+        if (detection.primary === 'conda' && current.includes('{{conda-env-name}}')) {
+          const envName = readCondaEnvName(cwd);
+          current = current.replace(/\{\{conda-env-name\}\}/g, envName);
+          modified = true;
+          log.ok(`Conda environment name set to: ${envName}`);
+        }
+
+        // Pin the adopter workflow's `npm install -g contract-driven-delivery`
+        // step to this running CLI's own version (ci-gates.md § Workflow
+        // Changes 3) -- same token-substitution mechanism as
+        // {{conda-env-name}} above, independent of stack detection so it
+        // always resolves even when no stack-specific template was found.
+        if (current.includes('{{cdd-kit-version}}')) {
+          current = current.replace(/\{\{cdd-kit-version\}\}/g, readKitVersion());
+          modified = true;
+        }
+
+        if (modified) writeFileSync(ciYmlDest, current, 'utf8');
       }
 
       // ── Contract→client codegen wiring (consumer half of the OpenAPI seam) ──

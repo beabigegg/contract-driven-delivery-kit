@@ -1,0 +1,17 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "full",
+  "status": "failed",
+  "exit_code": 1,
+  "command": "npm test -- --run",
+  "duration_ms": 154268,
+  "first_failure": {
+    "kind": "fixture-error"
+  },
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-152126/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-152126/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-152126/stderr.log"
+  },
+  "next_action": "fix the first failure before running broader phases; do not waive it"
+}

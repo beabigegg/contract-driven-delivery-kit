@@ -1,0 +1,1 @@
+npm test -- --run test/utils/design-hash.test.ts test/utils/design-provenance.test.ts test/schemas/design-lock.schema.test.ts

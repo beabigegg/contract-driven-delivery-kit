@@ -76,4 +76,29 @@ describe.skipIf(!hasPython())('applicability: TS projection <-> Python reader ag
       expect(!!tsResult.error).toBe(!!pyResult.error);
     });
   }
+
+  // AC-8 (interaction-design-loop, ADR 0012 §7): applicability.py is reused
+  // as-is for a SECOND consumer -- a per-change spec artifact
+  // (`interaction-design.md`) rather than a `contracts/` family file. The
+  // reader is path-agnostic (`classify_file` only reads frontmatter, it never
+  // special-cases the `contracts/` directory), so the same agreement holds
+  // for a file literally named `interaction-design.md`; no second TypeScript
+  // authority is introduced for this node either (src/commands/gate-design.ts
+  // `classifyDesignApplicability` calls this exact script, it never
+  // re-implements the classification).
+  for (const fixture of FIXTURES) {
+    it(`agrees on (per-change artifact node): ${fixture.name}`, () => {
+      const raw = ['---', ...fixture.frontmatterLines, '---', '', '# Interaction Design', ''].join('\n');
+      const path = join(tmp, 'interaction-design.md');
+      writeFileSync(path, raw, 'utf8');
+
+      const { frontmatter } = stripFrontmatter(raw);
+      const tsResult = projectApplicability(frontmatter);
+      const pyResult = classifyPython(path);
+
+      expect(tsResult.status).toBe(pyResult.status);
+      expect(tsResult.reason ?? null).toBe(pyResult.reason);
+      expect(!!tsResult.error).toBe(!!pyResult.error);
+    });
+  }
 });

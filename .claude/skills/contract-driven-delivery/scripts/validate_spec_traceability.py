@@ -2,10 +2,69 @@
 """Coarse traceability check for a change folder."""
 from pathlib import Path
 import argparse, sys
+from applicability import parse_frontmatter, _unquote
 REQUIRED=['change-classification.md','implementation-plan.md','test-plan.md','ci-gates.md','tasks.yml']
+
+def _tasks_field(fm, key):
+    """Extract and unquote a top-level tasks.yml scalar field already parsed
+    by applicability.parse_frontmatter. Reuses applicability._unquote for the
+    double-quoted/plain cases; additionally undoes YAML's single-quoted `''`
+    escape (js-yaml's default emission style for a value containing a literal
+    apostrophe or colon -- e.g. `abandon.ts`'s --reason text), which _unquote
+    does not handle since it was built for simpler hand-written markdown
+    frontmatter. This is a minimal local supplement to the reused reader, not
+    a competing third parser."""
+    raw = fm.get(key, '')
+    v = raw.strip()
+    if len(v) >= 2 and v[0] == v[-1] == "'":
+        return v[1:-1].replace("''", "'")
+    return _unquote(raw)
+
+def _read_abandoned_marker(d):
+    """Read tasks.yml's top-level `status` + `abandoned-reason` fields, if any.
+
+    tasks.yml is plain YAML with no `---` frontmatter fences (unlike the
+    contract .md files applicability.py's `parse_frontmatter` was built for),
+    so its raw text is wrapped in synthetic fences before reuse of that
+    function -- this reuses the exact field-matching regex instead of writing
+    a third frontmatter parser (ADR 0011's discipline, applied to a second
+    marker). Nested/indented YAML (the `tasks:` list rows `abandon.ts` writes)
+    never matches the flush-left field regex, so only top-level scalar keys
+    are read. Returns (status, reason) as unquoted strings ('' when
+    absent/missing/unreadable)."""
+    tasks_path = d / 'tasks.yml'
+    if not tasks_path.exists():
+        return ('', '')
+    try:
+        text = tasks_path.read_text(encoding='utf-8', errors='ignore')
+    except OSError:
+        return ('', '')
+    fm = parse_frontmatter('---\n' + text + '\n---\n')
+    return (_tasks_field(fm, 'status'), _tasks_field(fm, 'abandoned-reason'))
+
 def check_change_dir(d):
     """Check one change directory. Returns list of error strings (empty = pass)."""
     errors=[]
+
+    # ADR 0011 discipline extended to a second marker (mirrors applicability.py
+    # exactly): tasks.yml `status: abandoned` + a non-empty `abandoned-reason`
+    # SKIPS the required-artifact check below with an informational note; the
+    # same status with a missing/empty reason is a HARD error (a bare skip
+    # with no justification is never allowed); any other status, or no
+    # tasks.yml at all, falls through unchanged to the required-artifact check
+    # -- an unmarked incomplete directory still HARD-FAILS.
+    status, reason = _read_abandoned_marker(d)
+    if status == 'abandoned':
+        if not reason:
+            errors.append(
+                f'{d.name}: tasks.yml status: abandoned requires a non-empty '
+                f'abandoned-reason (ADR 0011 discipline) — a bare skip with no '
+                f'justification is never allowed.'
+            )
+            return errors
+        print(f'Info: {d.name} marked tasks.yml status: abandoned ({reason}) — required-artifact check skipped.')
+        return errors
+
     missing=[f for f in REQUIRED if not (d/f).exists()]
     if missing:
         errors.append(f'{d.name}: missing required artifacts: '+', '.join(missing))

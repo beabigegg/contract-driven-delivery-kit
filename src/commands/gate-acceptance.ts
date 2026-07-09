@@ -5,10 +5,14 @@
 //
 // Enforces AC-1 (existence/placeholder/case-count), AC-2 (hash-lock reconcile),
 // AC-4 (mock-of-SUT + hardcoded-expect driver scan, src/utils/mock-of-sut-scan.ts),
-// and AC-5 (executed, passed `acceptance`-phase test-evidence). AC-7 needs no
-// separate code: once `acceptance.yml` is backfilled (IP-11) into a migrated
-// change, the AC-1 placeholder check below already fails it until real cases
-// are supplied.
+// AC-5 (executed, passed `acceptance`-phase test-evidence), and -- `--strict`
+// only -- the `rules[]` invariant-binding scan (ci-gate-contract.md
+// `enforceAcceptanceOracle` condition 6; ADR 0010 §4; findUnboundRules in
+// src/utils/mock-of-sut-scan.ts, added by interaction-design-loop scope
+// expansion 2 -- this contract line was previously undocumented-but-absent).
+// AC-7 needs no separate code: once `acceptance.yml` is backfilled (IP-11) into
+// a migrated change, the AC-1 placeholder check below already fails it until
+// real cases are supplied.
 //
 // Missing-artifact semantics (both the file itself, AC-1, and the executed
 // evidence, AC-5) deliberately mirror `enforceTestEvidence` (gate-evidence.ts)
@@ -28,7 +32,7 @@ import {
   readAcceptanceLock,
   type AcceptanceFile,
 } from '../utils/acceptance-hash.js';
-import { scanAcceptanceDrivers } from '../utils/mock-of-sut-scan.js';
+import { findUnboundRules, scanAcceptanceDrivers } from '../utils/mock-of-sut-scan.js';
 
 const validateAcceptance = ajv.compile(acceptanceSchema);
 
@@ -152,6 +156,27 @@ export function enforceAcceptanceOracle(
       errors.push(
         `${finding.file}: acceptance driver ${finding.detail} — read it from the acceptance loader instead ` +
         'of hardcoding the answer key (AC-4; design.md Q2).',
+      );
+    }
+  }
+
+  // ADR 0010 §4 / ci-gate-contract.md `enforceAcceptanceOracle` condition 6 --
+  // `--strict` only (never the default mode): every `rules[]` invariant must
+  // have >=1 bound driver test. `rules: []` (or no `rules` key at all -- true
+  // for every pre-existing change dir today, verified: none but this change's
+  // own acceptance.yml declares any) passes trivially -- there is nothing to
+  // bind, so this newly-implemented check cannot regress a legacy change dir
+  // that has never used `rules[]`. See src/utils/mock-of-sut-scan.ts
+  // findUnboundRules for the binding convention and the two anti-false-
+  // positive guards it reuses from the AC-4 scan above.
+  if (strict) {
+    const rules = Array.isArray(data.rules) ? data.rules : [];
+    const ruleIds = rules
+      .map((r) => r?.id)
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+    for (const ruleId of findUnboundRules(cwd, changeId, ruleIds)) {
+      errors.push(
+        `acceptance rule "${ruleId}" has no bound test in test/acceptance/ (--strict; ADR 0010 §4).`,
       );
     }
   }

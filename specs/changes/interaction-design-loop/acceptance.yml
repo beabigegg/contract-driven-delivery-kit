@@ -1,0 +1,79 @@
+# Acceptance oracle for this change (ADR 0010).
+#
+# HUMAN-AUTHORED. Authored by the maintainer on 2026-07-09 and transcribed into
+# input/expect form by main Claude at his direction. An implementation agent must
+# not write this file (see pre-tool-use-acceptance-write.sh) -- an agent may only
+# READ it to build a driver that feeds `input` into the real system and compares
+# the result to `expect`; it must never invent or edit the answer key.
+#
+# System under test: `cdd-kit gate <change-id>` (specifically the new
+# enforceInteractionDesign check, ADR 0012 §6).
+#
+# `input` describes the state of a change directory. `expect` describes what the
+# gate must do about it. A driver constructs the described directory state in a
+# temp repo, runs the real gate, and asserts the outcome -- it must NOT mock the
+# gate itself (mock-of-SUT scan enforces this).
+
+oracle-version: 0.1.0
+authored-by: human
+
+cases:
+  - id: unanswered-open-decision-blocks
+    given: "a new change whose interaction design still has a question the human never answered"
+    when: "the gate runs on that change"
+    then: "the gate blocks the change and names which question is unanswered, instead of letting the AI's own guess become the design"
+    input:
+      change-dir-state: new
+      interaction-design:
+        open-decisions:
+          - id: OD-1
+            question: "Should the filter state persist across reload?"
+            answered: false
+        confirmed: false
+    expect:
+      gate: blocked
+      error-cites: OD-1
+      reason: unresolved-open-decisions
+
+  - id: tampered-after-confirmation-blocks
+    given: "a human has confirmed and locked the interaction design"
+    when: "an agent afterwards changes what the interaction does, and the gate runs"
+    then: "the gate blocks and tells the human the design was modified after they confirmed it, so no agent can silently redesign what was agreed"
+    input:
+      change-dir-state: new
+      interaction-design:
+        confirmed: true
+        locked: true
+        edited-after-confirm: true
+        edit-kind: semantic
+    expect:
+      gate: blocked
+      error-message: "interaction design modified after confirmation — human must re-confirm."
+      reason: design-lock-mismatch
+
+  - id: two-states-sharing-one-discriminator-blocks
+    given: "the design says the screen must tell 'nothing is wrong' apart from 'no data was received', but both states point at the same thing to tell them apart"
+    when: "the gate runs provenance reconciliation"
+    then: "the gate blocks and names both states, because the backend cannot actually distinguish them and the frontend would render them identically"
+    input:
+      change-dir-state: new
+      interaction-design:
+        confirmed: true
+        locked: true
+        states:
+          - id: all-clear
+            meaning: "no line reported an anomaly"
+            discriminator: "GET /lines → items"
+          - id: no-data-received
+            meaning: "no line reported at all"
+            discriminator: "GET /lines → items"
+    expect:
+      gate: blocked
+      error-cites: [all-clear, no-data-received]
+      reason: shared-discriminator-for-meaning-distinct-states
+
+rules:
+  - id: aesthetics-never-blocks
+    statement: "The gate must never block a change because of visual appearance, animation, layout taste, typography, or color. Only derivation, provenance, referential integrity, and tamper-evidence may block."
+  - id: human-answer-never-invented
+    statement: "No agent may author or alter the Confirmed section of an interaction design, or the acceptance oracle. Only a human's answer, transcribed, may appear there."

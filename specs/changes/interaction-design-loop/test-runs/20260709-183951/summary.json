@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "contract",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node dist/cli/index.js validate --contracts --ci",
+  "duration_ms": 655,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-183951/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-183951/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-183951/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "targeted",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/utils/mock-of-sut-scan.test.ts test/cli/gate-acceptance-rules.test.ts test/cli/abandon.test.ts",
+  "duration_ms": 8405,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-193052/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-193052/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-193052/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

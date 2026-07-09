@@ -46,14 +46,24 @@ exist and be filled before you plan. If it is missing or still a scaffold,
 report `blocked` and route back to `spec-architect`. Do not create or repair
 `design.md` yourself.
 
+If this change has a UI surface, `specs/changes/<change-id>/interaction-design.md`
+must exist with a real, human-authored `## Confirmed` section (ADR 0012) before
+you plan frontend work. Reference it explicitly in your plan by path and
+section (e.g. "states per `interaction-design.md` `## States`", "controls per
+`## Controls`") — do not restate its derivation chain. If it is missing, still
+a scaffold, or unconfirmed, report `blocked` and route back to
+`interaction-designer` (the human still needs to answer `## Open Decisions`).
+A change legitimately marked `applicability: not-applicable` is not blocked by
+this check. Never author or repair `interaction-design.md` yourself.
+
 ## Planning Rules
 
 - Write an execution plan, not a rationale document.
 - Include only the background needed to execute safely.
 - Name concrete files, directories, contracts, and tests whenever known.
-- Reference `test-plan.md`, `ci-gates.md`, `design.md`, and contract files by
-  path, section, criterion id, decision id, or gate name. Do not copy their full
-  prose into this plan.
+- Reference `test-plan.md`, `ci-gates.md`, `design.md`, `interaction-design.md`,
+  and contract files by path, section, criterion id, decision id, or gate name.
+  Do not copy their full prose into this plan.
 - State non-goals clearly so implementation agents do not opportunistically refactor.
 - Map every required change to an owner agent.
 - Map acceptance criteria to tests or verification commands.

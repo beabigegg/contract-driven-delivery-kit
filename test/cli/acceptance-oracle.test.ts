@@ -79,6 +79,22 @@ function buildTasksYaml(opts: { changeId: string; contextGovernance?: 'v1' }): s
 function writeValidChangeArtifacts(changeDir: string, changeId: string): void {
   const filler = 'This is a meaningful description of the change. '.repeat(4);
 
+  // `cdd-kit new` scaffolds a placeholder interaction-design.md (ADR 0012), which
+  // enforceInteractionDesign correctly rejects. These fixtures exercise the
+  // acceptance oracle, not the design loop, so take the sanctioned ADR 0011 skip
+  // instead of filling in a design this change does not have.
+  writeFileSync(join(changeDir, 'interaction-design.md'), [
+    '---',
+    'applicability: not-applicable',
+    'applicability-reason: "test fixture for the acceptance oracle; this change has no UI surface to design"',
+    '---',
+    '',
+    '# Interaction Design: ' + changeId,
+    '',
+    'Not applicable — see frontmatter.',
+    '',
+  ].join('\n'), 'utf8');
+
   writeFileSync(join(changeDir, 'change-request.md'), '# Change Request\n\n' + filler + '\n\nMotivation: We need to add this feature to support the new requirements from the product team. The change is scoped to the order module and will not affect other systems.\n', 'utf8');
   writeFileSync(join(changeDir, 'change-classification.md'), '# Change Classification\n\n**Risk Level:** medium\n**Tier:** Tier 1\n\n' + filler + '\n\nThis change is classified as low risk because it is additive only, with no breaking changes to existing APIs or data schemas. Rollback is straightforward by reverting the feature flag.\n', 'utf8');
   writeFileSync(join(changeDir, 'implementation-plan.md'), [

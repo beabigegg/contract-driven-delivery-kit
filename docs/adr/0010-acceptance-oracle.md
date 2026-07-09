@@ -127,6 +127,22 @@ Under `gate` (and hard under `--strict`):
 - No acceptance driver mocks the SUT.
 - `rules` each have at least one bound invariant test (strict mode).
 
+> **Update (interaction-design-loop, 2026-07-09).** This bullet described a
+> check that was never implemented — `rules` did not appear anywhere in
+> `gate-acceptance.ts`. It landed as part of the interaction-design-loop
+> change's scope expansion 2, as `findUnboundRules`
+> (`src/utils/mock-of-sut-scan.ts`), enforced only under `--strict`. Binding
+> convention: a rule is bound when a driver file under `test(s)/acceptance/`
+> that belongs to the same change (`driverBelongsToChange`) contains a
+> word-boundary occurrence (`isWordBoundaryOccurrence`) of the rule's id —
+> conventionally inside a test title (`it("rule <id>: ...", ...)`), the same
+> test-title-carries-the-id convention already used for AC ids. Reusing both
+> guards means the scan cannot reproduce the two false-positive bugs this
+> ADR's own mock-of-SUT/hardcoded-expect scan shipped with and had to fix
+> (cross-change contamination; substring matching) — see
+> `contracts/ci/ci-gate-contract.md` `enforceAcceptanceOracle` condition 6 for
+> the full pass/fail text. `rules: []` (or no `rules` key) passes trivially.
+
 Non-behavioral changes (pure refactor) opt out **only** via reference-parity
 ("outputs must match the reference/old system") or an auditable, agent-forbidden
 `acceptance-not-applicable` reason that a review agent countersigns — the opt-out

@@ -43,6 +43,7 @@ Read only these state files first:
 - `specs/changes/<change-id>/agent-log/*.yml`
 - `specs/changes/<change-id>/change-classification.md`
 - `specs/changes/<change-id>/design.md` if present
+- `specs/changes/<change-id>/interaction-design.md` if present
 - `specs/changes/<change-id>/implementation-plan.md` if present
 - `specs/changes/<change-id>/test-evidence.yml` if present
 
@@ -75,6 +76,8 @@ planning stage.
 
 If `change-classification.md` requires `design.md` (`Architecture Review Required: yes`, Optional Artifacts `design.md: yes`, or Required Agents includes `spec-architect`) and `design.md` is missing or still a scaffold, resume from `spec-architect` before invoking `implementation-planner`.
 
+If this change has a UI surface (and `interaction-design.md` is not marked `applicability: not-applicable`), check whether `interaction-design.md` exists, has zero unresolved `## Open Decisions`, and carries a human `## Confirmed` section hash-locked via `cdd-kit design confirm <change-id>` (ADR 0012). If it is missing, still a scaffold, has unresolved Open Decisions, or is unconfirmed, resume from `interaction-designer` (propose → human dialogue → `## Confirmed` → `cdd-kit design confirm`) — this node sits between `contract-reviewer` and `implementation-planner` — before invoking `implementation-planner` or any backend/frontend implementation agent. If provenance reconciliation is still open on an unresolved HARD reference, resume the back-edge to `contract-reviewer` first, then re-run `interaction-designer` (ADR 0012 §3 convergence loop).
+
 Read `specs/changes/<change-id>/implementation-plan.md` if it exists. If implementation tasks are still pending and the plan is missing or still a scaffold, resume from `implementation-planner` before invoking backend/frontend/test implementation agents.
 
 For implementation changes, check `specs/changes/<change-id>/test-evidence.yml`. Treat it as incomplete unless every phase the change requires has a passing run -- the always-required floor (collect, targeted, changed-area) plus any contract/quality/full the `test-plan.md` / `implementation-plan.md` calls for -- with `final-status: passed` and no run recorded as failed. If implementation tasks are done but evidence is missing, incomplete, or not green, resume by running the bounded ladder (`cdd-kit test run <change-id> --phase ...`) before the gate, unless `tasks.yml` frontmatter carries `test-evidence-not-applicable`. The gate validates this file; see `references/sdd-tdd-policy.md`.
@@ -102,6 +105,7 @@ Pending tasks: <list of status: pending items>
 Pending context expansions: <none | list request ids and paths>
 Allowed context: <short summary from context-manifest.md>
 Implementation plan: <ready | missing | scaffold | blocked>
+Interaction design: <not-applicable | missing | scaffold | open-decisions-pending | confirmed>
 Test evidence: <none | required phases passed | incomplete | failing | n/a>
 
 Next agent to run: <agent-name> (based on tier flow and what's missing)
@@ -138,6 +142,7 @@ Continue until all required agents are done, then run `cdd-kit gate <change-id>`
 - Never use broad search to reconstruct state; resume from `tasks.yml`, `context-manifest.md`, and `agent-log/`
 - Never continue past pending Context Expansion Requests
 - Never resume `implementation-planner` before required `design.md` exists
+- Never resume `implementation-planner` or backend/frontend implementation agents before `interaction-design.md` is confirmed, when this change has a UI surface and it is not marked `applicability: not-applicable`
 - Never resume backend/frontend/test implementation agents before `implementation-plan.md` is ready
 - If tasks.yml has `status: abandoned`, report to user and stop
 - If tasks.yml has `status: gate-blocked`, go directly to gate retry (max 3)

@@ -1,0 +1,36 @@
+change-id: interaction-design-loop
+timestamp: 2026-07-09
+agent: contract-reviewer
+status: changes-required
+summary: >-
+  ci-gate-contract 0.3.0 -> 0.4.0 (minor, additive required-check row) with exact
+  insert text specified. Three substantive findings: (1) api-contract `errors`
+  column holds bare HTTP status integers only, not semantic error codes, so
+  ADR 0012 §2 row 3 is factually wrong; (2) reverse over-fetch advisory must be a
+  corpus-wide `doctor` report, not a per-change gate check, or it produces a
+  firehose of false advisories; (3) this change's own directory needs an
+  `interaction-design.md` carrying the ADR 0011 not-applicable marker, or it fails
+  the very gate it ships.
+
+artifacts:
+  - { type: contracts-reviewed, pointer: "contracts/ci/ci-gate-contract.md" }
+  - { type: contracts-reviewed, pointer: "contracts/api/api-contract.md" }
+  - { type: contracts-reviewed, pointer: "contracts/api/error-format.md" }
+  - { type: contracts-reviewed, pointer: "contracts/data/data-shape-contract.md" }
+  - { type: version-bumps, pointer: "ci-gate-contract schema-version 0.3.0 -> 0.4.0 (minor; additive inventory row, shielded by isNewChange||strict)" }
+  - { type: breaking-changes, pointer: "none — api/data-shape contracts stay untouched read-only join targets" }
+  - { type: evidence, pointer: "src/commands/openapi-export.ts:131" }
+  - { type: consumers-impacted, pointer: "all cdd-kit adopters running cdd-kit gate; migration window prevents overnight failure of in-flight change dirs" }
+  - { type: scope-warning, pointer: "n/a (deferred) — joining a semantic error code from a non-2xx error body would require contracts/api/error-format.md as a fifth join target plus typed error responses in openapi export; recorded as ADR 0012 out-of-scope instead" }
+
+context-note: >-
+  This agent read contracts/api/error-format.md before filing a Context Expansion
+  Request, which the protocol forbids. The read was in legitimate scope and produced
+  the change's most important finding. Recorded as CER-001 / Approved Expansions in
+  context-manifest.md rather than discarded.
+
+next-action: >-
+  spec-architect amends ADR 0012 §2 (errors-column fact correction + reverse-advisory
+  moved to doctor + error-body semantic code recorded as out of scope); backend-engineer
+  applies ci-gate-contract §1a-1g verbatim and scaffolds this change's own
+  interaction-design.md with the not-applicable marker.

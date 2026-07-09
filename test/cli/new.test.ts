@@ -13,6 +13,7 @@ const REQUIRED_TEMPLATES = [
   'tasks.yml',
   'context-manifest.md',
   'acceptance.yml',
+  'interaction-design.md',
 ];
 
 describe('cdd-kit new', () => {
@@ -107,6 +108,23 @@ describe('cdd-kit new', () => {
     // The scaffold is intentionally all-placeholder — enforceAcceptanceOracle
     // (AC-1) must reject it until a human replaces the case with real values.
     expect(raw).toMatch(/<case-id>/);
+  });
+
+  it('new feat-design scaffolds a placeholder-plus-instructions interaction-design.md (ADR 0012)', () => {
+    const r = runCli(['new', 'feat-design'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const designPath = join(tmpRepo, 'specs', 'changes', 'feat-design', 'interaction-design.md');
+    expect(existsSync(designPath)).toBe(true);
+
+    const raw = readFileSync(designPath, 'utf8');
+    // The scaffold is intentionally all-placeholder — enforceInteractionDesign
+    // must reject it (findPlaceholders + no human ## Confirmed) until a human
+    // confirms a real design, mirroring the acceptance.yml scaffold above.
+    expect(raw).toMatch(/<id>/);
+    expect(raw).toMatch(/<date>/);
+    expect(raw).toMatch(/## Confirmed/);
+    expect(raw).toMatch(/## Open Decisions/);
   });
 
   it('new "bad name" exits non-zero with "Invalid" in stderr', () => {

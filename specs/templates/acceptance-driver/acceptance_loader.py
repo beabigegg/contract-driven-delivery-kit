@@ -23,13 +23,33 @@ from pathlib import Path
 import yaml
 
 
-def _acceptance_yml_path(change_id: str) -> Path:
-    return Path("specs") / "changes" / change_id / "acceptance.yml"
+def resolve_acceptance_path(change_id: str) -> Path:
+    """Locate a change's acceptance.yml.
+
+    A change's acceptance.yml lives under specs/changes/<id>/ while the change is
+    active, and moves to specs/archive/<year>/<id>/ when `cdd-kit archive` closes
+    it. The driver must keep proving the oracle after the change is archived, so
+    resolve both locations instead of hardcoding the active one.
+    """
+    active = Path("specs") / "changes" / change_id / "acceptance.yml"
+    if active.exists():
+        return active
+
+    archive_root = Path("specs") / "archive"
+    if archive_root.exists():
+        for year in sorted(archive_root.iterdir()):
+            archived = year / change_id / "acceptance.yml"
+            if archived.exists():
+                return archived
+
+    raise FileNotFoundError(
+        'no acceptance.yml for change "' + change_id + '" under specs/changes/ or specs/archive/*/'
+    )
 
 
 def load_all_cases(change_id: str) -> dict:
     """Return {case_id: {"input": ..., "expect": ...}} for the given change."""
-    path = _acceptance_yml_path(change_id)
+    path = resolve_acceptance_path(change_id)
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     cases = data.get("cases") or []
     return {c["id"]: {"input": c.get("input"), "expect": c.get("expect")} for c in cases}
@@ -39,5 +59,5 @@ def load_case(change_id: str, case_id: str) -> dict:
     """Return {"input": ..., "expect": ...} for one case."""
     cases = load_all_cases(change_id)
     if case_id not in cases:
-        raise KeyError("no case '" + case_id + "' in specs/changes/" + change_id + "/acceptance.yml")
+        raise KeyError("no case '" + case_id + "' in " + str(resolve_acceptance_path(change_id)))
     return cases[case_id]

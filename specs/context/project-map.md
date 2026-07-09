@@ -3,8 +3,8 @@ artifact: project-map
 generated-by: cdd-kit context-scan
 schema-version: 1
 root: contract-driven-delivery-kit
-visible-dirs: 60
-visible-files: 316
+visible-dirs: 64
+visible-files: 327
 omitted-dirs: 0
 truncated-dirs: 2
 inputs-digest: 26c6e3e2932cb41c80b71b0144466de658bc08d429ce0d6b001359b2e24db2f0
@@ -35,6 +35,7 @@ Use this deterministic map to choose candidate context paths before reading file
 contract-driven-delivery-kit/
 |-- .agents/
 |-- .cdd/
+|   |-- asset-manifest.json
 |   |-- code-graph.index.json
 |   |-- code-map.index.json
 |   |-- code-map.yml
@@ -44,7 +45,10 @@ contract-driven-delivery-kit/
 |   \-- tier-policy.json
 |-- .github/
 |   \-- workflows/
+|       |-- contract-driven-gates.yml
 |       \-- test.yml
+|-- .tmp.drivedownload/
+|-- .tmp.driveupload/
 |-- bin/
 |   |-- cdd.js
 |   \-- postinstall.js
@@ -96,7 +100,8 @@ contract-driven-delivery-kit/
 |   |   |-- 0007-data-shape-conformance.md
 |   |   |-- 0008-required-agent-evidence.md
 |   |   |-- 0009-parallel-change-integration.md
-|   |   \-- 0010-acceptance-oracle.md
+|   |   |-- 0010-acceptance-oracle.md
+|   |   \-- 0011-not-applicable-contract-marker.md
 |   |-- examples/
 |   |   \-- bug-fix/
 |   |       |-- bug-fix-engineer.sample.yml
@@ -277,7 +282,8 @@ contract-driven-delivery-kit/
 |       \-- tier-floor.ts
 |-- test/
 |   |-- acceptance/
-|   |   \-- acceptance-oracle.driver.test.ts
+|   |   |-- acceptance-oracle.driver.test.ts
+|   |   \-- not-applicable-contracts.driver.test.ts
 |   |-- agents/
 |   |   \-- code-map-rule.test.ts
 |   |-- cli/
@@ -331,7 +337,7 @@ contract-driven-delivery-kit/
 |   |   |-- new.test.ts
 |   |   |-- no-bom.test.ts
 |   |   |-- openapi-check.test.ts
-|   |   \-- ... (18 more entries truncated; cap=50)
+|   |   \-- ... (19 more entries truncated; cap=50)
 |   |-- code-graph/
 |   |   \-- queries.test.ts
 |   |-- code-map/
@@ -348,6 +354,8 @@ contract-driven-delivery-kit/
 |   |   |-- reserve-integrate.test.ts
 |   |   \-- test-impact-build.test.ts
 |   |-- contracts/
+|   |   |-- applicability-agreement.test.ts
+|   |   |-- applicability-reader.test.ts
 |   |   \-- parser.test.ts
 |   |-- fixtures/
 |   |   \-- code-map/
@@ -374,6 +382,11 @@ contract-driven-delivery-kit/
 |   |-- helpers.ts
 |   \-- setup-git-env.ts
 |-- tests/
+|   |-- contract/
+|   |   |-- samples/
+|   |   |   \-- .gitkeep
+|   |   |-- README.md
+|   |   \-- response-samples.example.json
 |   \-- templates/
 |       |-- data-boundary/
 |       |   \-- malformed-data.spec.md
@@ -397,9 +410,11 @@ contract-driven-delivery-kit/
 |-- .cdd-retest.log
 |-- .gitattributes
 |-- .gitignore
+|-- AGENTS.md
 |-- AGENTS.template.md
 |-- build.js
 |-- CHANGELOG.md
+|-- CLAUDE.md
 |-- CLAUDE.template.md
 |-- CODEX.template.md
 |-- install.md

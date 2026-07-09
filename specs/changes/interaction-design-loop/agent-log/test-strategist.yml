@@ -1,0 +1,20 @@
+change-id: interaction-design-loop
+agent: test-strategist
+timestamp: "2026-07-09T00:00:00Z"
+status: complete
+artifacts:
+  - { type: test-plan-path, pointer: "specs/changes/interaction-design-loop/test-plan.md" }
+  - { type: tdd-pairs, pointer: "test/utils/design-hash.test.ts → src/utils/design-hash.ts" }
+  - { type: tdd-pairs, pointer: "test/utils/design-provenance.test.ts → src/commands/gate-design.ts" }
+  - { type: tdd-pairs, pointer: "test/cli/design-confirm.test.ts → src/commands/design.ts" }
+  - { type: tdd-pairs, pointer: "test/cli/design-write-hook.test.ts → hooks/pre-tool-use-design-write.sh" }
+  - { type: tdd-pairs, pointer: "test/cli/gate-design.test.ts → src/commands/gate-design.ts + gate.ts" }
+  - { type: coverage-tiers, pointer: "unit, contract, integration (no e2e/visual/monkey/stress/soak — no UI in repo)" }
+  - { type: mapping-completeness, pointer: "AC-1..AC-10 all mapped; all contract-reviewer-required test cases (provenance join/degrade/state-discriminator, referential integrity, tamper-evidence, migration window, skip path, reverse-advisory asymmetry, contract-level) present in AC mapping table" }
+next-action: none
+notes: >
+  Mirrored ADR 0010/0011 precedent files (acceptance-hash, acceptance.schema,
+  acceptance-oracle, accept-relock, acceptance-write-hook, install-agent-hooks)
+  rather than inventing a new harness shape. Read scope stayed within the
+  packet: test/cli, test/acceptance, test/utils, test/schemas plus the three
+  named source files and the change/ADR/design docs.

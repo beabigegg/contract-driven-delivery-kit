@@ -30,6 +30,22 @@ describe('acceptance-driver loader templates (IP-10, block 6)', () => {
     expect(content).toContain('tests/acceptance/');
     expect(content).toContain('test/acceptance/');
   });
+
+  // Regression: `cdd-kit archive` moves specs/changes/<id>/ to
+  // specs/archive/<year>/<id>/. Both loaders hardcoded the active path, so every
+  // acceptance driver silently broke the moment its change was closed -- the
+  // oracle rotted exactly when it became history. Caught by this repo's own
+  // archive commit (05fcc0b) breaking test/acceptance/*.driver.test.ts.
+  it('both loaders resolve an archived change, not just an active one', () => {
+    const ts = readFileSync(join(TEMPLATE_DIR, 'acceptance.loader.ts'), 'utf8');
+    expect(ts).toContain('export function resolveAcceptancePath');
+    expect(ts).toContain(`join('specs', 'archive')`);
+    expect(ts).not.toMatch(/const path = join\('specs', 'changes', changeId/);
+
+    const py = readFileSync(join(TEMPLATE_DIR, 'acceptance_loader.py'), 'utf8');
+    expect(py).toContain('def resolve_acceptance_path');
+    expect(py).toContain('Path("specs") / "archive"');
+  });
 });
 
 describe.skipIf(!hasPython())('acceptance_loader.py (functional smoke test)', () => {

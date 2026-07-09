@@ -42,6 +42,31 @@ describe('cdd-kit init', () => {
     expect(existsSync(join(tmpRepo, 'AGENTS.md')), 'AGENTS.md missing').toBe(true);
   });
 
+  it('--local-only pins the adopter workflow\'s cdd-kit install to this running CLI\'s own version (ci-gates.md § Workflow Changes 3)', () => {
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const ciYmlPath = join(tmpRepo, '.github', 'workflows', 'contract-driven-gates.yml');
+    const content = readFileSync(ciYmlPath, 'utf8');
+
+    expect(content).not.toMatch(/\{\{cdd-kit-version\}\}/);
+    expect(content).toMatch(new RegExp(`npm install -g contract-driven-delivery@${PKG_VERSION.replace(/\./g, '\\.')}`));
+  });
+
+  it('pins the version even when stack detection is unknown (no fast-gate template found)', () => {
+    // No package.json / environment.yml / lockfiles in tmpRepo — stack detects
+    // as 'unknown', so loadCiTemplate returns null and the fast-gate patch
+    // block never runs. The {{cdd-kit-version}} substitution must still fire
+    // (it is independent of stack detection), or an "unknown stack" project
+    // would ship an unresolved token in its CI workflow forever.
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+
+    const ciYmlPath = join(tmpRepo, '.github', 'workflows', 'contract-driven-gates.yml');
+    const content = readFileSync(ciYmlPath, 'utf8');
+    expect(content).not.toMatch(/\{\{cdd-kit-version\}\}/);
+  });
+
   it('--global-only installs agents and skill into home dir', () => {
     const r = runCli(['init', '--global-only'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);

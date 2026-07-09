@@ -17,6 +17,8 @@ export interface InstallAgentHooksOptions {
   testRunner?: HookMode;
   /** Arm the acceptance-write Edit/Write hook at this mode (ADR 0010 §3.2). */
   acceptanceWrite?: HookMode;
+  /** Arm the design-write Edit/Write hook at this mode (ADR 0012 §5). */
+  designWrite?: HookMode;
   /**
    * When invoked from `cdd-kit init`, recoverable problems (missing asset,
    * malformed settings.json) warn and return instead of hard-exiting — arming
@@ -37,6 +39,7 @@ export const GRAPH_FIRST_MARKER = 'pre-tool-use-graph-first';
 export const CONTRACT_WRITE_MARKER = 'pre-tool-use-contract-write';
 export const TEST_RUNNER_MARKER = 'pre-tool-use-test-runner';
 export const ACCEPTANCE_WRITE_MARKER = 'pre-tool-use-acceptance-write';
+export const DESIGN_WRITE_MARKER = 'pre-tool-use-design-write';
 
 /** Static description of one agent PreToolUse hook the kit can arm. */
 interface HookDef {
@@ -99,6 +102,18 @@ const ACCEPTANCE_WRITE: HookDef = {
   describe: (mode) => mode === 'advisory'
     ? 'advisory mode: reminds agents that acceptance.yml (and .cdd/acceptance-lock.json) is a human-owned answer key; does not block.'
     : "strict mode: blocks the agent's Edit/Write of acceptance.yml and .cdd/acceptance-lock.json (ADR 0010 §3.2).",
+};
+
+const DESIGN_WRITE: HookDef = {
+  id: 'design-write',
+  filename: 'pre-tool-use-design-write.sh',
+  // The agent's file-mutation tools; a human's editor is unaffected.
+  matcher: 'Write|Edit|MultiEdit',
+  marker: DESIGN_WRITE_MARKER,
+  strictEnv: 'CDD_DESIGN_WRITE_STRICT',
+  describe: (mode) => mode === 'advisory'
+    ? 'advisory mode: reminds agents that interaction-design.md\'s ## Confirmed section (and .cdd/design-lock.json) is a human-confirmed answer key; does not block.'
+    : "strict mode: blocks the agent's Edit/Write of interaction-design.md and .cdd/design-lock.json (ADR 0012 §5).",
 };
 
 /** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
@@ -175,6 +190,9 @@ function withoutHandler(preTool: HookEntry[], def: HookDef): HookEntry[] {
  *  - acceptance-write (`Edit`/`Write`) → block/advise against agent writes to
  *    the human-owned `acceptance.yml` oracle and its `.cdd/acceptance-lock.json`
  *    baseline (ADR 0010 §3.2).
+ *  - design-write (`Edit`/`Write`) → block/advise against agent writes to the
+ *    human-confirmed `interaction-design.md` and its `.cdd/design-lock.json`
+ *    baseline (ADR 0012 §5).
  *
  * With no hook flag at all, defaults to graph-first advisory — the historical
  * behavior of a bare `install-agent-hooks` and of `init`'s arming step. Naming a
@@ -186,7 +204,7 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   const requested: Array<{ def: HookDef; mode: HookMode }> = [];
   if (
     opts.graphFirst === undefined && opts.contractWrite === undefined &&
-    opts.testRunner === undefined && opts.acceptanceWrite === undefined
+    opts.testRunner === undefined && opts.acceptanceWrite === undefined && opts.designWrite === undefined
   ) {
     requested.push({ def: GRAPH_FIRST, mode: 'advisory' });
   } else {
@@ -194,6 +212,7 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
     if (opts.contractWrite !== undefined) requested.push({ def: CONTRACT_WRITE, mode: opts.contractWrite });
     if (opts.testRunner !== undefined) requested.push({ def: TEST_RUNNER, mode: opts.testRunner });
     if (opts.acceptanceWrite !== undefined) requested.push({ def: ACCEPTANCE_WRITE, mode: opts.acceptanceWrite });
+    if (opts.designWrite !== undefined) requested.push({ def: DESIGN_WRITE, mode: opts.designWrite });
   }
 
   for (const { def, mode } of requested) {

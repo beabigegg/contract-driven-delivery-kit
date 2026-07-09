@@ -470,3 +470,101 @@ describe('cdd-kit install-agent-hooks --acceptance-write (ADR 0010 SS3.2)', () =
     expect(manifest['.claude/hooks/pre-tool-use-acceptance-write.sh'].digest).toMatch(/^[a-f0-9]{64}$/);
   });
 });
+
+describe('cdd-kit install-agent-hooks --design-write (ADR 0012 §5)', () => {
+  const DW_SCRIPT = './.claude/hooks/pre-tool-use-design-write.sh';
+  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+
+  /** The PreToolUse entry whose nested command names the given hook script. */
+  function entryFor(marker: string): HookEntry | undefined {
+    return preTool().find(e => cmdOf(e)?.includes(marker));
+  }
+
+  it('installs the advisory design-write hook and copies the script', () => {
+    const r = runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-design-write.sh'))).toBe(true);
+    const entry = entryFor('pre-tool-use-design-write');
+    expect(entry).toBeDefined();
+    expect(entry?.matcher).toBe('Write|Edit|MultiEdit');
+    expect(entry?.command).toBeUndefined(); // nested handler shape, not top-level
+    expect(entry?.hooks?.[0]).toMatchObject({ type: 'command' });
+    expect(cmdOf(entry!)).toBe(CD + DW_SCRIPT);
+    expect(cmdOf(entry!)).not.toContain('CDD_DESIGN_WRITE_STRICT');
+  });
+
+  it('installs the strict design-write hook with the CDD_DESIGN_WRITE_STRICT flag', () => {
+    const r = runCli(['install-agent-hooks', '--design-write', 'strict'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(CD + `CDD_DESIGN_WRITE_STRICT=1 ${DW_SCRIPT}`);
+  });
+
+  it('a bare install-agent-hooks does NOT arm design-write (opt-in)', () => {
+    const r = runCli(['install-agent-hooks'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(entryFor('pre-tool-use-design-write')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-design-write.sh'))).toBe(false);
+  });
+
+  it('arming design-write does NOT install or disturb graph-first (opt-in, independent)', () => {
+    const r = runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(1);
+    expect(entryFor('pre-tool-use-graph-first')).toBeUndefined();
+    expect(existsSync(join(repo, '.claude', 'hooks', 'pre-tool-use-graph-first.sh'))).toBe(false);
+  });
+
+  it('arms all five hooks in a single invocation', () => {
+    const r = runCli(
+      [
+        'install-agent-hooks',
+        '--graph-first', 'strict',
+        '--contract-write', 'advisory',
+        '--test-runner', 'strict',
+        '--acceptance-write', 'strict',
+        '--design-write', 'strict',
+      ],
+      { cwd: repo, home },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(preTool()).toHaveLength(5);
+    expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(CD + `CDD_GRAPH_FIRST_STRICT=1 ${GF_SCRIPT}`);
+    expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(CD + `CDD_DESIGN_WRITE_STRICT=1 ${DW_SCRIPT}`);
+  });
+
+  it('is idempotent and switches design-write mode without duplicating entries', () => {
+    runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--design-write', 'strict'], { cwd: repo, home });
+    runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+
+    const ours = preTool().filter(e => cmdOf(e)?.includes('pre-tool-use-design-write'));
+    expect(ours).toHaveLength(1); // replaced each time, never appended
+    expect(cmdOf(ours[0])).toBe(CD + DW_SCRIPT);
+  });
+
+  it('rejects an invalid design-write mode', () => {
+    const r = runCli(['install-agent-hooks', '--design-write', 'bogus'], { cwd: repo, home });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/invalid.*mode/i);
+  });
+
+  it('writes an executable design-write hook script', () => {
+    runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+    const mode = statSync(join(repo, '.claude', 'hooks', 'pre-tool-use-design-write.sh')).mode;
+    if (process.platform !== 'win32') {
+      expect(mode & 0o100).toBeTruthy();
+    }
+  });
+
+  it('stamps .cdd/asset-manifest.json for the armed hook script (AC-3)', () => {
+    const r = runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+    expect(r.status, r.stderr).toBe(0);
+
+    const manifestPath = join(repo, '.cdd', 'asset-manifest.json');
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    expect(manifest['.claude/hooks/pre-tool-use-design-write.sh']).toBeDefined();
+    expect(manifest['.claude/hooks/pre-tool-use-design-write.sh'].digest).toMatch(/^[a-f0-9]{64}$/);
+  });
+});

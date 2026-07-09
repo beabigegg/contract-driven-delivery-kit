@@ -21,7 +21,7 @@
  * -- only fake external I/O boundaries (network, clock) if needed. cdd-kit
  * gate scans drivers under test/acceptance/ for both violations (AC-4).
  */
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 
@@ -36,8 +36,31 @@ interface AcceptanceCaseRow {
   expect?: unknown;
 }
 
+/**
+ * A change's acceptance.yml lives under specs/changes/<id>/ while the change is
+ * active, and moves to specs/archive/<year>/<id>/ when `cdd-kit archive` closes
+ * it. The driver must keep proving the oracle after the change is archived, so
+ * resolve both locations instead of hardcoding the active one.
+ */
+export function resolveAcceptancePath(changeId: string): string {
+  const active = join('specs', 'changes', changeId, 'acceptance.yml');
+  if (existsSync(active)) return active;
+
+  const archiveRoot = join('specs', 'archive');
+  if (existsSync(archiveRoot)) {
+    for (const year of readdirSync(archiveRoot)) {
+      const archived = join(archiveRoot, year, changeId, 'acceptance.yml');
+      if (existsSync(archived)) return archived;
+    }
+  }
+
+  throw new Error(
+    'no acceptance.yml for change "' + changeId + '" under specs/changes/ or specs/archive/*/',
+  );
+}
+
 export function loadAllCases(changeId: string): Record<string, AcceptanceCaseValue> {
-  const path = join('specs', 'changes', changeId, 'acceptance.yml');
+  const path = resolveAcceptancePath(changeId);
   const data = yaml.load(readFileSync(path, 'utf8')) as { cases?: AcceptanceCaseRow[] };
   const cases = data?.cases ?? [];
   const out: Record<string, AcceptanceCaseValue> = {};
@@ -48,6 +71,6 @@ export function loadAllCases(changeId: string): Record<string, AcceptanceCaseVal
 export function loadCase(changeId: string, caseId: string): AcceptanceCaseValue {
   const cases = loadAllCases(changeId);
   const found = cases[caseId];
-  if (!found) throw new Error('no case ' + caseId + ' in specs/changes/' + changeId + '/acceptance.yml');
+  if (!found) throw new Error('no case ' + caseId + ' in ' + resolveAcceptancePath(changeId));
   return found;
 }

@@ -1,0 +1,18 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "contract",
+  "status": "failed",
+  "exit_code": 1,
+  "command": "node dist/cli/index.js validate --contracts --ci",
+  "duration_ms": 625,
+  "first_failure": {
+    "kind": "contract-drift",
+    "message": "\u001b[31m✗\u001b[0m  One or more validations failed."
+  },
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-144444/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-144444/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-144444/stderr.log"
+  },
+  "next_action": "fix the first failure before running broader phases; do not waive it"
+}

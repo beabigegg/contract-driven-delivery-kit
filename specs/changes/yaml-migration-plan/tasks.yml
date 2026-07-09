@@ -1,0 +1,5 @@
+change-id: yaml-migration-plan
+status: abandoned
+abandoned-reason: 'Work already shipped by commit a6b624f (2026-04-30, ''feat: migrate tasks and agent logs to structured yaml''). This directory is a leftover planning document that was never converted into a tracked CDD change: its plan.md frontmatter still reads status: ready-to-execute while the migration it describes is live in the codebase. Abandoned rather than backfilled, because authoring five retroactive artifacts for work completed three months ago would be exactly the ceremony-without-evidence this kit exists to prevent.'
+abandoned-at: '2026-07-09'
+tasks: []

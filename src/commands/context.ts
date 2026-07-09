@@ -37,6 +37,10 @@ const DEFAULT_FORBIDDEN_PATHS = [
   // entry or was deleted/corrupted (defaultPolicy() below falls back to this
   // same list).
   '.cdd/acceptance-lock.json',
+  // ADR 0012 (interaction-design-loop) mirrors the same discipline for the
+  // design-side hash-lock baseline: an agent may never write or re-stamp it
+  // (only a human-run `cdd-kit design confirm` may).
+  '.cdd/design-lock.json',
 ];
 
 function normalizePath(path: string): string {

@@ -3,7 +3,7 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.3.0
+schema-version: 0.4.0
 last-changed: 2026-07-09
 breaking-change-policy: deprecate-2-minors
 ---
@@ -14,6 +14,23 @@ breaking-change-policy: deprecate-2-minors
 | gate | tier | trigger | required | command/workflow | owner | artifact |
 |---|---:|---|---:|---|---|---|
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
+| enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
+
+### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
+
+Before this change, the `pull_request` half of `enforceAcceptanceOracle`'s trigger
+cell was **false**: the shipped workflow ran `cdd-kit validate` only and never
+invoked `cdd-kit gate <id>`, so every required check above ran solely in the local
+`.git/hooks/pre-commit` hook — which `--no-verify` bypasses. This change adds the
+change-id derivation + `cdd-kit gate` steps to both
+`github-workflows/contract-driven-gates.yml` (adopter template) and this repo's
+`.github/workflows/contract-driven-gates.yml`, making the `pull_request` trigger
+true for **both** rows above. `enforceAcceptanceOracle` is the only other check
+with an inventory row, so no other claim needed correcting.
+
+`--strict` is applied on `push` to the default branch, not on `pull_request`: a PR
+is legitimately opened mid-change with tasks still pending, whereas a merged change
+with pending tasks is a defect.
 
 ## Required Check Policy
 
@@ -45,11 +62,115 @@ Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
    instructions `acceptance.yml`) fails this check until the author supplies
    real, non-placeholder cases; never silently skipped.
 6. `--strict` mode additionally requires each `rules[]` invariant to have >=1
-   bound test (ADR 0010 §4).
+   bound test (ADR 0010 §4; implemented by `findUnboundRules`,
+   `src/utils/mock-of-sut-scan.ts`, added by interaction-design-loop scope
+   expansion 2 — this condition previously named a check that did not exist
+   in code). **Binding convention:** a rule is bound when a driver file under
+   `test(s)/acceptance/` that belongs to THIS change (`driverBelongsToChange`
+   — filename `<change-id>.driver.*`, or its source resolves the emitted
+   loader to this change id) contains a word-boundary occurrence
+   (`isWordBoundaryOccurrence`) of the rule's id — conventionally inside a
+   test title, e.g. `it("rule <id>: ...", ...)`, the same test-title-carries-
+   the-id convention this codebase already uses for AC ids. An unbound rule
+   fails with `acceptance rule "<id>" has no bound test in test/acceptance/
+   (--strict; ADR 0010 §4).` naming the rule id. `rules: []` (or no `rules`
+   key) passes trivially — there is nothing to bind, so a change dir that has
+   never declared `rules[]` is unaffected. This scan reuses the same two
+   guards AC-4's mock-of-SUT/hardcoded-expect scan above already enforces, so
+   it cannot reproduce the two false-positive bugs that scan's own dogfooding
+   exposed: a driver written for a **different** change never counts toward
+   this change's binding (change-scoped), and a rule id that is only a
+   substring of a longer token never counts as a match (whole-token).
 
 Non-behavioral (pure refactor) opt-out is permitted only via reference-parity
 evidence or an agent-forbidden, review-countersigned `acceptance-not-applicable`
 reason — deliberately stricter than the ADR 0005 test-evidence opt-out.
+
+### enforceInteractionDesign (added by interaction-design-loop, ADR 0012)
+
+`enforceInteractionDesign` ships as a REQUIRED (blocking) check for every change
+created after this gate lands — it is **not** phased in as purely informational,
+for the same reason `enforceAcceptanceOracle` was not: a silently-passable design
+gate defeats the mechanism it exists to enforce (ADR 0012 §6). Unlike
+`enforceAcceptanceOracle`'s registration above, this row states the migration
+device explicitly rather than leaving it to code comments: the check gates on
+`isNewChange || strict` — a NEW change directory (`tasks.yml` frontmatter
+`context-governance: v1`, per `isContextGovernedChange`) or a `--strict` run must
+pass all conditions below unconditionally; a PRE-EXISTING change directory is
+exempt from the missing-artifact / missing-confirmation branches until migrated,
+exactly as `enforceTestEvidence` / `enforceAcceptanceOracle` are exempted, so no
+in-flight change directory fails overnight on introduction. `ci-cd-gatekeeper` has
+signed off this required-from-day-one-for-new-changes status.
+
+Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
+
+1. **AC-2** — `specs/changes/<id>/interaction-design.md` exists and is
+   non-placeholder (existing `meaningfulChars`/placeholder detection).
+2. **AC-4** — zero unresolved `## Open Decisions` entries.
+3. **AC-4** — a human `## Confirmed` section is present.
+4. **AC-4 / AC-9** — referential integrity holds: every control cites exactly one
+   intent id; every intent has exactly one path; every deleted control records its
+   reason.
+5. **AC-5** — provenance reconciliation (see `## Provenance Reconciliation Policy`
+   below) has zero HARD failures. Reverse-direction findings (a contract field or
+   row with zero citing information items) are corpus-wide, `doctor`-reported,
+   ADVISORY only, and are never evaluated or blocked by this per-change gate.
+6. **AC-3 / AC-6** — the confirmed-region canonical-projection sha256 in
+   `.cdd/design-lock.json` matches the parsed `## Confirmed` region; a mismatch
+   fails with "interaction design modified after confirmation — human must
+   re-confirm."
+7. **AC-8** — a change whose `interaction-design.md` carries
+   `applicability: not-applicable` with a non-empty `applicability-reason` SKIPS
+   conditions 1–6 entirely. `applicability.py` remains the sole pass/fail authority
+   for this marker, applied here to a per-change spec artifact rather than a
+   `contracts/` family file (see the `## Contract Applicability Marker (ADR 0011)`
+   addendum below) — no second authority is introduced.
+8. **AC-7** — a change migrated by `cdd-kit migrate` (placeholder-plus-instructions
+   `interaction-design.md`) fails this check until the author supplies a real,
+   human-confirmed design; never silently skipped, mirroring
+   `enforceAcceptanceOracle` AC-7.
+
+Non-behavioral (pure copy/color) opt-out is permitted only via condition 7 above —
+the same discipline `enforceAcceptanceOracle` applies to non-behavioral refactors,
+applied here to design instead of function.
+
+**Never gated (ADR 0012 § Never Gated).** This check must never fail a change on
+visual aesthetics, animation or motion, layout taste, typography, colour, or
+latency / round-trip count. Only derivation, provenance, referential integrity, and
+tamper-evidence may block. A rule over taste has no oracle to consult and would
+manufacture the very defect this gate exists to prevent.
+
+## Provenance Reconciliation Policy (ADR 0012 §2)
+
+Every information item and UI state in `interaction-design.md` must cite a supplier
+resolvable against `contracts/api/api-contract.md` (endpoint + `## Schemas` field,
+its `errors`-column HTTP status, or an implicit HTTP status) or
+`contracts/data/data-shape-contract.md` (`## Invalid Data Behavior` row, keyed by
+its `condition` column). The `errors` column holds bare comma-separated HTTP-status
+integers only, never a semantic error code; `contracts/api/error-format.md` is
+deliberately NOT a join target (ADR 0012 § Out of scope).
+
+Field-existence resolution reuses the ADR 0007 `contracts/api/openapi.json`
+projection and does not re-derive it. If that projection is missing or stale
+(`openapi export --check` would fail), OR the cited endpoint's `response schema`
+cell is unresolved prose with no matching `## Schemas` entry, then any
+endpoint+field citation is a HARD failure naming the fix — it never silently
+passes: a citation asserting a field exists is a positive claim, and an
+unverifiable positive claim must not pass a required blocking gate. Citations of a
+bare HTTP status or an `errors`-column status do not require the projection and
+remain checkable when `## Schemas` is empty.
+
+If `contracts/api/api-contract.md` or `contracts/data/data-shape-contract.md`
+itself carries `applicability: not-applicable`, citing that family's supplier kinds
+is its own HARD failure category, with a marker-aware message naming the marker and
+its reason — distinct from a bare "reference not found". Citing a family the
+project has declared it does not have is a different, more actionable error.
+
+Two UI states that differ in meaning MUST cite distinct discriminators. A state
+citing a discriminator absent from the contract is a HARD error that drives the
+convergence back-edge to `contract-reviewer`: the contract must supply the
+discriminator (a field, a distinct HTTP status, an enum-pinned success-envelope
+value) before either side freezes.
 
 ## Informational Gate Promotion Policy
 
@@ -58,6 +179,15 @@ promotion-policy entry — it does not go through an informational period. This
 is a deliberate exception to `ci/required-check-policy.md`'s general "new gates
 begin as informational" guidance; the exception rationale is recorded above and
 requires `ci-cd-gatekeeper` sign-off, not silent adoption.
+
+`enforceInteractionDesign` is a second deliberate exception, bounded by
+`isNewChange || strict` rather than being an unconditional day-one requirement.
+
+The reverse/over-fetch advisory (a contract field with zero citing information
+items) is a corpus-wide `cdd-kit doctor` report, permanently informational. It may
+never be promoted to a gate finding: a per-change artifact cannot see sibling
+screens, so a per-change computation would emit false advisories — the
+context-blind failure ADR 0012 § Never Gated condemns.
 
 ## Artifact Retention Policy
 
@@ -68,6 +198,11 @@ requires `ci-cd-gatekeeper` sign-off, not silent adoption.
   `.cdd/asset-manifest.json` (install/refresh digest stamps) are regenerable
   sidecars, not source of record — safe to delete/regenerate, no retention
   requirement beyond current state (design.md Migration/Rollback).
+- `specs/changes/<id>/interaction-design.md` is a first-class spec artifact:
+  retained indefinitely, same class as `acceptance.yml`.
+- `.cdd/design-lock.json` is a regenerable sidecar (per-change hash baseline), not
+  source of record — safe to delete/regenerate, same class as
+  `.cdd/acceptance-lock.json`.
 
 ## Rollback Policy
 
@@ -76,6 +211,11 @@ check, the `acceptance.yml` template, `pre-tool-use-acceptance-write.sh`, and
 digest stamping, with no data migration required. The `.cdd/acceptance-lock.json`
 and `.cdd/asset-manifest.json` sidecars are regenerable and safe to delete on
 rollback (design.md Migration/Rollback).
+
+`enforceInteractionDesign` is additive: reverting the change removes the gate
+check, the `interaction-design.md` template, `pre-tool-use-design-write.sh`, the
+`design confirm` CLI, and the CI gate steps, with no data migration required.
+`.cdd/design-lock.json` is regenerable and safe to delete on rollback.
 
 ## Contract Applicability Marker (ADR 0011)
 
@@ -122,3 +262,9 @@ First consumers: the kit's own `contracts/{api,css,business,data}` are marked
 does not have) so `cdd-kit gate` on the kit itself goes green on those four
 surfaces; `contracts/{ci,env}` are filled and remain unmarked, validated as
 today.
+
+Second consumer (ADR 0012): `specs/changes/<id>/interaction-design.md` — a
+per-change spec artifact, not a `contracts/` family file — now also carries this
+marker. `enforceInteractionDesign` reads it via the same `applicability.py` sole
+authority, applied per-change rather than per-contract-family. This does not create
+a second authority; it is a second file type read by the one existing reader.

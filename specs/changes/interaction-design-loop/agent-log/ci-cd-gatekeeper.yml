@@ -1,0 +1,31 @@
+change-id: interaction-design-loop
+agent: ci-cd-gatekeeper
+timestamp: "2026-07-09T01:00:00Z"
+status: needs-review
+summary: >-
+  Round 2 (maintainer-approved scope expansion): rewrote ci-gates.md Required Gates
+  and Workflow Changes to make `cdd-kit gate` actually run in CI, for both the
+  adopter template (github-workflows/contract-driven-gates.yml) and this repo's own
+  instance (.github/workflows/contract-driven-gates.yml). Corrected the coordinator's
+  "every upgrade breaks adopters" premise against upgrade.ts:22-35 (planMissingFiles
+  is additive-only, never overwrites an existing adopter workflow file) -- no
+  continue-on-error / opt-out needed. Kept the round-1 sign-off text unchanged as
+  instructed.
+artifacts:
+  - { type: workflow-files-changed, pointer: "n/a (specified for backend-engineer; ci-cd-gatekeeper does not edit workflow YAML directly per scope)" }
+  - { type: required-status-checks, pointer: "lint, typecheck, unit, contract, enforceInteractionDesign (now CI-invoked), integration" }
+  - { type: gate-promotions, pointer: "enforceAcceptanceOracle + enforceInteractionDesign: pull_request trigger claim goes from false to true once CI invokes cdd-kit gate" }
+  - { type: evidence, pointer: "src/commands/upgrade.ts:22-35 (planMissingFiles adds-only, never overwrites existing dest files)" }
+  - { type: evidence, pointer: "src/commands/init.ts:298-316 (existing {{conda-env-name}} token-substitution precedent for the new {{cdd-kit-version}} token)" }
+  - { type: evidence, pointer: "src/cli/index.ts:19 (pkg.version read from package.json at CLI runtime)" }
+  - { type: evidence, pointer: "hooks/pre-commit:17 (cdd-kit gate \"$id\" --strict precedent for the push/strict decision)" }
+next-action: >-
+  backend-engineer implements: (1) github-workflows/contract-driven-gates.yml --
+  add fetch-depth:0, change-id-derivation step, cdd-kit gate step with pull_request
+  (non-strict) vs push (--strict) branching, and the {{cdd-kit-version}} pin token;
+  (2) init.ts -- add {{cdd-kit-version}} token substitution mirroring the
+  {{conda-env-name}} pattern; (3) .github/workflows/contract-driven-gates.yml --
+  replace the global npm install with npm ci && npm run build, and run
+  node dist/cli/index.js validate / gate <id> against this commit's own build.
+  status is needs-review (not complete) until backend-engineer applies these and
+  qa-reviewer confirms the new CI job actually gates a real PR.

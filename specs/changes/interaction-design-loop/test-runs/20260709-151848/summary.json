@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "changed-area",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/contracts/ci-workflow.test.ts test/cli/gate.test.ts test/cli/design-confirm.test.ts test/cli/design-write-hook.test.ts test/cli/gate-design.test.ts test/cli/init.test.ts test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/contracts/applicability-agreement.test.ts test/contracts/interaction-design-template.test.ts test/schemas/design-lock.schema.test.ts test/utils/design-hash.test.ts test/utils/design-provenance.test.ts",
+  "duration_ms": 119352,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-151848/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-151848/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-151848/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

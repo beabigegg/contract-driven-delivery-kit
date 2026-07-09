@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "changed-area",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/acceptance/interaction-design-loop.driver.test.ts test/cli/agent-prompts-shape.test.ts test/cli/design-confirm.test.ts test/cli/design-write-hook.test.ts test/cli/gate-acceptance-rules.test.ts test/cli/gate-design.test.ts test/cli/gate.test.ts test/cli/init.test.ts test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/cli/abandon.test.ts test/contracts/agent-prompt-content.test.ts test/contracts/applicability-agreement.test.ts test/contracts/ci-workflow.test.ts test/contracts/interaction-design-template.test.ts test/contracts/skill-workflow-order.test.ts test/schemas/design-lock.schema.test.ts test/utils/acceptance-driver-templates.test.ts test/utils/design-hash.test.ts test/utils/design-provenance.test.ts test/utils/mock-of-sut-scan.test.ts",
+  "duration_ms": 122776,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-193110/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-193110/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-193110/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

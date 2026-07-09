@@ -1,0 +1,1 @@
+npm test -- --run test/contracts/interaction-design-template.test.ts test/cli/design-confirm.test.ts test/cli/design-write-hook.test.ts test/cli/gate-design.test.ts test/utils/design-provenance.test.ts test/utils/design-hash.test.ts

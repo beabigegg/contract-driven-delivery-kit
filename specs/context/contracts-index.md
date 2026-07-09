@@ -4,7 +4,7 @@ generated-by: cdd-kit context-scan
 schema-version: 1
 contract-count: 9
 missing-summary-count: 0
-inputs-digest: e454a4d29bb97d90af49fc9bcf867cdba3070b59bd73b0aae9fbc7f4dfa0534a
+inputs-digest: 9b5061b8133d041c508139cfb1b35c63c93ccd787803543c4cc6cae1cc5fe0a6
 ---
 
 # Contracts Index
@@ -35,8 +35,10 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - owner: application-team
 - surface: api
 - schema-version: 0.1.0
-- last-changed: 2026-04-27
+- last-changed: 2026-07-09
 - breaking-change-policy: deprecate-2-minors
+- applicability: not-applicable
+- applicability-reason: cdd-kit is a CLI/agent-orchestration tool with no HTTP API surface of its own; it validates other projects' API contracts, it does not serve one.
 - summary: API behavior, compatibility rules, and endpoint contract requirements.
 
 
@@ -68,8 +70,10 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - owner: application-team
 - surface: domain-behavior
 - schema-version: 0.1.0
-- last-changed: 2026-04-27
+- last-changed: 2026-07-09
 - breaking-change-policy: deprecate-2-minors
+- applicability: not-applicable
+- applicability-reason: cdd-kit is a CLI/agent-orchestration tool with no business-domain logic of its own (no decision tables, no domain rule inventory); its own behavior is the CLI/gate/validator logic covered by the other contracts.
 - summary: Business decision tables, rule inventory, and change policy for behavior updates.
 
 
@@ -80,8 +84,8 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - title: CI/CD Gate Contract
 - owner: platform-team
 - surface: delivery-pipeline
-- schema-version: 0.2.0
-- last-changed: 2026-07-08
+- schema-version: 0.3.0
+- last-changed: 2026-07-09
 - breaking-change-policy: deprecate-2-minors
 - summary: CI gate inventory, artifact retention, and rollback requirements.
 
@@ -94,8 +98,10 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - owner: application-team
 - surface: ui
 - schema-version: 0.1.0
-- last-changed: 2026-04-27
+- last-changed: 2026-07-09
 - breaking-change-policy: deprecate-2-minors
+- applicability: not-applicable
+- applicability-reason: cdd-kit is a CLI tool with no CSS/UI rendering surface of its own; it validates other projects' CSS contracts, it does not ship one.
 - summary: UI token policy, component styling rules, and visual review constraints.
 
 
@@ -117,8 +123,10 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - owner: application-team
 - surface: data
 - schema-version: 0.1.0
-- last-changed: 2026-04-27
+- last-changed: 2026-07-09
 - breaking-change-policy: deprecate-2-minors
+- applicability: not-applicable
+- applicability-reason: cdd-kit is a CLI tool that reads/writes spec and contract markdown, JSON, and YAML files directly; it has no tabular/row-shaped data surface (no database, no data export/import) of its own to describe.
 - summary: Data schema, invalid-data handling, and row-level compatibility rules.
 
 

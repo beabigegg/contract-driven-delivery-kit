@@ -1,0 +1,18 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "changed-area",
+  "status": "failed",
+  "exit_code": 1,
+  "command": "npm test -- --run test/cli/design-confirm.test.ts test/cli/design-write-hook.test.ts test/cli/gate-design.test.ts test/cli/gate.test.ts test/cli/init.test.ts test/cli/install-agent-hooks.test.ts test/cli/migrate.test.ts test/cli/new.test.ts test/contracts/applicability-agreement.test.ts test/contracts/ci-workflow.test.ts test/contracts/interaction-design-template.test.ts test/schemas/design-lock.schema.test.ts test/utils/design-hash.test.ts test/utils/design-provenance.test.ts",
+  "duration_ms": 119733,
+  "first_failure": {
+    "kind": "assertion-failure",
+    "message": "\u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯\u001b[22m\u001b[39m"
+  },
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-151428/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-151428/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-151428/stderr.log"
+  },
+  "next_action": "fix the first failure before running broader phases; do not waive it"
+}

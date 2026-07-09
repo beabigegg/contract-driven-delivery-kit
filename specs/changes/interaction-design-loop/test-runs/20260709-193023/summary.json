@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "changed-area",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm test -- --run test/cli/abandon.test.ts",
+  "duration_ms": 6909,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-193023/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-193023/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-193023/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

@@ -13,6 +13,7 @@ import { installAgentHooks } from '../commands/install-agent-hooks.js';
 import { openapiExport } from '../commands/openapi-export.js';
 import { DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH } from '../contracts/parser.js';
 import { detectStack } from '../utils/stack-detect.js';
+import { log } from '../utils/logger.js';
 import type { ProviderOption } from '../utils/provider.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -497,11 +498,33 @@ program
 program
   .command('abandon <change-id>')
   .description('Mark a change as abandoned (updates tasks.yml status, records in INDEX.md)')
-  .option('--reason <text>', 'reason for abandonment')
+  .option('--reason <text>', 'reason for abandonment (required)')
   .option('--json', 'Print machine-readable JSON', false)
   .action(async (changeId: string, opts: { reason?: string; json?: boolean }) => {
     const { abandon } = await import('../commands/abandon.js');
-    await abandon(changeId, opts);
+    const result = await abandon(changeId, { reason: opts.reason });
+
+    if (result.status === 'error') {
+      if (opts.json) {
+        console.log(JSON.stringify({ changeId, error: result.message }, null, 2));
+      } else {
+        log.error(result.message);
+      }
+      process.exit(1);
+    }
+
+    // Print what actually happened — never a fixed success sentence — so a
+    // freshly-created tasks.yml is distinguishable from an updated one.
+    if (opts.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    log.ok(result.tasksFileCreated
+      ? `Change ${changeId} marked as abandoned (created tasks.yml — none existed).`
+      : `Change ${changeId} marked as abandoned (tasks.yml updated).`);
+    log.info(`specs/changes/${changeId}/ remains on disk (git history preserved).`);
+    log.info(`Run \`cdd-kit archive ${changeId}\` to physically move it, or leave it for git history.`);
   });
 
 // ── cdd migrate ───────────────────────────────────────────────────────────────
@@ -553,17 +576,19 @@ program
 // ── cdd install-agent-hooks ───────────────────────────────────────────────────
 program
   .command('install-agent-hooks')
-  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration; contract-write routing; test-runner ladder; acceptance-write block)')
+  .description('Install Claude Code agent hooks into .claude/settings.json (graph-first exploration; contract-write routing; test-runner ladder; acceptance-write block; design-write block)')
   .option('--graph-first <mode>', "Arm the graph-first PreToolUse hook: 'advisory' or 'strict' (default when no hook flag is given)")
   .option('--contract-write <mode>', "Arm the contract-write PreToolUse hook (ADR 0004 §6): 'advisory' or 'strict'")
   .option('--test-runner <mode>', "Arm the test-runner PreToolUse hook (ADR 0005 §10): 'advisory' or 'strict'")
   .option('--acceptance-write <mode>', "Arm the acceptance-write PreToolUse hook (ADR 0010 §3.2): 'advisory' or 'strict'")
-  .action(async (opts: { graphFirst?: string; contractWrite?: string; testRunner?: string; acceptanceWrite?: string }) => {
+  .option('--design-write <mode>', "Arm the design-write PreToolUse hook (ADR 0012 §5): 'advisory' or 'strict'")
+  .action(async (opts: { graphFirst?: string; contractWrite?: string; testRunner?: string; acceptanceWrite?: string; designWrite?: string }) => {
     await installAgentHooks({
       graphFirst: opts.graphFirst as 'advisory' | 'strict' | undefined,
       contractWrite: opts.contractWrite as 'advisory' | 'strict' | undefined,
       testRunner: opts.testRunner as 'advisory' | 'strict' | undefined,
       acceptanceWrite: opts.acceptanceWrite as 'advisory' | 'strict' | undefined,
+      designWrite: opts.designWrite as 'advisory' | 'strict' | undefined,
     });
   });
 
@@ -578,6 +603,19 @@ accept
   .action(async (changeId: string) => {
     const { acceptRelock } = await import('../commands/accept.js');
     await acceptRelock(changeId);
+  });
+
+// ── cdd design confirm ────────────────────────────────────────────────────────
+const design = program
+  .command('design')
+  .description('Human-only interaction-design lock commands (ADR 0012)');
+
+design
+  .command('confirm <change-id>')
+  .description('Compute the interaction-design hash from interaction-design.md\'s ## Confirmed section and write .cdd/design-lock.json (the only sanctioned way to lock/re-lock after a human confirms)')
+  .action(async (changeId: string) => {
+    const { designConfirm } = await import('../commands/design.js');
+    await designConfirm(changeId);
   });
 
 // ── cdd openapi export ────────────────────────────────────────────────────────

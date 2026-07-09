@@ -1,288 +1,6 @@
-# generated: 2026-07-08T13:46:20Z by cdd-kit 2.2.1
-# files: 226, src-lines: 42752, map-lines: 3351, compression: 12.8x
-# sources-digest: 7f79e99ec917f524479102161b86054c0ae5d115cc5b8d6289d8b7829585f106
-assets/code-map/python_scanner.py:  # 206 lines
-  imports:
-    - { module: __future__, items: [annotations], line: 2 }
-    - { module: ast, items: [], line: 4 }
-    - { module: json, items: [], line: 5 }
-    - { module: os, items: [], line: 6 }
-    - { module: sys, items: [], line: 7 }
-    - { module: traceback, items: [], line: 8 }
-  functions:
-    - { name: _check_python_version, lines: 11-18 }
-    - { name: _rel_path, lines: 21-27 }
-    - { name: _is_all_caps, lines: 30-38 }
-    - { name: _expr_name, lines: 41-51 }
-    - { name: _calls_in, lines: 54-65 }
-    - { name: scan_file, lines: 68-180 }
-    - { name: main, lines: 183-202 }
-
-assets/skills/contract-driven-delivery/scripts/detect_project_profile.py:  # 128 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-  constants:
-    - { name: FRONTEND_MARKERS, line: 6 }
-    - { name: BACKEND_MARKERS, line: 7 }
-    - { name: CI_MARKERS, line: 8 }
-    - { name: CONTRACT_DIRS, line: 9 }
-    - { name: CDD_KIT_SKILL, line: 12 }
-  functions:
-    - { name: exists, lines: 14-15 }
-    - { name: list_existing, lines: 17-18 }
-    - { name: cdd_kit_installed, lines: 20-22 }
-    - { name: classify_agents, lines: 24-42 }
-    - { name: classify_skills, lines: 44-57 }
-    - { name: detect_commands, lines: 59-69 }
-    - { name: main, lines: 71-125 }
-
-assets/skills/contract-driven-delivery/scripts/generate_change_scaffold.py:  # 48 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: shutil, items: [], line: 5 }
-  functions:
-    - { name: main, lines: 7-46 }
-
-assets/skills/contract-driven-delivery/scripts/validate_api_conformance.py:  # 671 lines
-  imports:
-    - { module: json, items: [], line: 56 }
-    - { module: os, items: [], line: 57 }
-    - { module: re, items: [], line: 58 }
-    - { module: sys, items: [], line: 59 }
-    - { module: pathlib, items: [Path], line: 60 }
-  constants:
-    - { name: CONTRACT_PATH, line: 62 }
-    - { name: CONFIG_PATH, line: 63 }
-    - { name: VALID_METHODS, line: 65 }
-    - { name: DEFAULT_CONFIG, line: 67 }
-    - { name: AUTO_ROOTS, line: 91 }
-    - { name: PARAM_PATTERNS, line: 145 }
-    - { name: NEST_CONTROLLER_RE, line: 210 }
-    - { name: NEST_METHOD_RE, line: 211 }
-    - { name: BACKEND_PATTERNS_BY_EXT, line: 242 }
-    - { name: FLASK_METHODS_RE, line: 251 }
-    - { name: SPRING_METHOD_RE, line: 252 }
-    - { name: BLUEPRINT_CTOR_RE, line: 265 }
-    - { name: BLUEPRINT_REG_RE, line: 271 }
-    - { name: PREFIX_KWARG_RE, line: 273 }
-    - { name: FRONTEND_PATTERNS, line: 281 }
-    - { name: OBJECT_METHOD_RE, line: 295 }
-    - { name: OBJECT_METHOD_WINDOW, line: 296 }
-  functions:
-    - { name: strip_frontmatter, lines: 96-101 }
-    - { name: parse_table_row, lines: 104-105 }
-    - { name: is_separator_row, lines: 108-109 }
-    - { name: find_contract_endpoints, lines: 112-140 }
-    - { name: normalize_path, lines: 154-169 }
-    - { name: matches_ignore, lines: 172-180 }
-    - { name: under_api_prefix, lines: 183-190 }
-    - { name: iter_source_files, lines: 299-315 }
-    - { name: looks_like_test, lines: 318-321 }
-    - { name: _join_route, lines: 324-326 }
-    - { name: _prefix_kwargs, lines: 329-340 }
-    - { name: _apply_prefix, lines: 343-370 }
-    - { name: scan_nestjs, lines: 373-391 }
-    - { name: scan_backend, lines: 394-489 }
-    - { name: scan_frontend, lines: 492-530 }
-    - { name: contract_has, lines: 535-545 }
-    - { name: load_config, lines: 548-562 }
-    - { name: resolve_roots, lines: 565-569 }
-    - { name: severity, lines: 572-576 }
-    - { name: main, lines: 579-667 }
-
-assets/skills/contract-driven-delivery/scripts/validate_api_semantic.py:  # 169 lines
-  imports:
-    - { module: sys, items: [], line: 12 }
-    - { module: re, items: [], line: 13 }
-    - { module: pathlib, items: [Path], line: 14 }
-  constants:
-    - { name: VALID_METHODS, line: 16 }
-    - { name: VALID_AUTH, line: 17 }
-    - { name: CONTRACT_PATH, line: 19 }
-  functions:
-    - { name: strip_frontmatter, lines: 22-28 }
-    - { name: parse_table_row, lines: 31-35 }
-    - { name: is_separator_row, lines: 38-40 }
-    - { name: find_endpoint_table, lines: 43-92 }
-    - { name: main, lines: 95-165 }
-
-assets/skills/contract-driven-delivery/scripts/validate_ci_gates.py:  # 42 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED_TERMS, line: 5 }
-  functions:
-    - { name: check_file, lines: 6-15 }
-    - { name: main, lines: 16-41 }
-
-assets/skills/contract-driven-delivery/scripts/validate_contract_versions.py:  # 389 lines
-  imports:
-    - { module: argparse, items: [], line: 13 }
-    - { module: hashlib, items: [], line: 14 }
-    - { module: re, items: [], line: 15 }
-    - { module: subprocess, items: [], line: 16 }
-    - { module: sys, items: [], line: 17 }
-    - { module: pathlib, items: [Path], line: 18 }
-  constants:
-    - { name: CONTRACT_FILES, line: 22 }
-    - { name: VALID_CONTRACT_TYPES, line: 31 }
-    - { name: VALID_BREAKING_POLICIES, line: 32 }
-    - { name: SEMVER_RE, line: 33 }
-    - { name: DATE_RE, line: 34 }
-    - { name: CHANGELOG_PATH, line: 36 }
-  functions:
-    - { name: parse_frontmatter, lines: 40-62 }
-    - { name: strip_frontmatter, lines: 65-68 }
-    - { name: sha256_of, lines: 71-72 }
-    - { name: parse_semver, lines: 77-83 }
-    - { name: is_pre_1_0, lines: 86-87 }
-    - { name: parse_changelog, lines: 92-123 }
-    - { name: git_available, lines: 128-141 }
-    - { name: git_show_head, lines: 144-163 }
-    - { name: validate_format, lines: 168-227 }
-    - { name: validate_file, lines: 230-353 }
-    - { name: main, lines: 358-385 }
-
-assets/skills/contract-driven-delivery/scripts/validate_contracts.py:  # 37 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-    - { module: re, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED, line: 5 }
-    - { name: PLACEHOLDER_THRESHOLD, line: 6 }
-  functions:
-    - { name: meaningful_chars, lines: 8-19 }
-    - { name: main, lines: 21-36 }
-
-assets/skills/contract-driven-delivery/scripts/validate_env_contract.py:  # 18 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED_COLUMNS, line: 5 }
-  functions:
-    - { name: main, lines: 6-17 }
-
-assets/skills/contract-driven-delivery/scripts/validate_env_semantic.py:  # 182 lines
-  imports:
-    - { module: sys, items: [], line: 14 }
-    - { module: re, items: [], line: 15 }
-    - { module: pathlib, items: [Path], line: 16 }
-  constants:
-    - { name: CONTRACT_PATH, line: 18 }
-    - { name: COL_NAME, line: 21 }
-    - { name: COL_REQUIRED, line: 22 }
-    - { name: COL_SECRET, line: 23 }
-    - { name: COL_DEFAULT, line: 24 }
-  functions:
-    - { name: strip_frontmatter, lines: 27-33 }
-    - { name: parse_table_row, lines: 36-39 }
-    - { name: is_separator_row, lines: 42-44 }
-    - { name: is_truthy, lines: 47-49 }
-    - { name: is_empty_default, lines: 52-54 }
-    - { name: find_variable_table, lines: 57-104 }
-    - { name: main, lines: 107-178 }
-
-assets/skills/contract-driven-delivery/scripts/validate_response_shape.py:  # 362 lines
-  imports:
-    - { module: json, items: [], line: 45 }
-    - { module: re, items: [], line: 46 }
-    - { module: sys, items: [], line: 47 }
-    - { module: pathlib, items: [Path], line: 48 }
-  constants:
-    - { name: OPENAPI_PATH, line: 50 }
-    - { name: CONFIG_PATH, line: 51 }
-    - { name: DEFAULT_MANIFEST, line: 52 }
-    - { name: VALID_METHODS, line: 54 }
-    - { name: IDENTIFIER_RE, line: 167 }
-  functions:
-    - { name: load_response_shape_config, lines: 59-75 }
-    - { name: normalize_path, lines: 80-91 }
-    - { name: parse_endpoint_key, lines: 94-102 }
-    - { name: success_response_schema, lines: 107-122 }
-    - { name: build_endpoint_schema_map, lines: 125-142 }
-    - { name: build_unresolved_cell_map, lines: 145-164 }
-    - { name: near_miss_schema, lines: 170-187 }
-    - { name: drill, lines: 192-200 }
-    - { name: validate_one, lines: 203-216 }
-    - { name: main, lines: 219-358 }
-
-assets/skills/contract-driven-delivery/scripts/validate_spec_traceability.py:  # 44 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 3 }
-    - { module: argparse, items: [], line: 4 }
-    - { module: sys, items: [], line: 4 }
-  constants:
-    - { name: REQUIRED, line: 5 }
-  functions:
-    - { name: check_change_dir, lines: 6-19 }
-    - { name: main, lines: 20-43 }
-
-assets/specs-templates/acceptance-driver/acceptance.loader.ts:  # 53 lines
-  imports:
-    - { module: fs, items: [readFileSync], line: 24 }
-    - { module: path, items: [join], line: 25 }
-    - { module: js-yaml, items: ['default:yaml'], line: 26 }
-  functions:
-    - { name: loadAllCases, lines: 39-46 }
-    - { name: loadCase, lines: 48-53 }
-  interfaces:
-    - { name: AcceptanceCaseValue, lines: 28-31 }
-    - { name: AcceptanceCaseRow, lines: 33-37 }  # local
-
-assets/specs-templates/acceptance-driver/acceptance_loader.py:  # 43 lines
-  imports:
-    - { module: pathlib, items: [Path], line: 22 }
-    - { module: yaml, items: [], line: 23 }
-  functions:
-    - { name: _acceptance_yml_path, lines: 26-27 }
-    - { name: load_all_cases, lines: 30-35 }
-    - { name: load_case, lines: 38-43 }
-
-assets/tests-templates/soak/k6-example.js:  # 19 lines
-  imports:
-    - { module: k6/http, items: ['default:http'], line: 1 }
-    - { module: k6, items: [check, sleep], line: 2 }
-  constants:
-    - { name: BASE_URL, line: 13 }
-  functions:
-    - { name: default, lines: 15-19 }
-
-assets/tests-templates/soak/locust-example.py:  # 21 lines
-  imports:
-    - { module: locust, items: [HttpUser, task, between], line: 11 }
-  classes:
-    - name: SoakUser
-      lines: 14-21
-      methods:
-        - { name: health_check, lines: 18-21 }
-
-assets/tests-templates/stress/k6-example.js:  # 22 lines
-  imports:
-    - { module: k6/http, items: ['default:http'], line: 1 }
-    - { module: k6, items: [check, sleep], line: 2 }
-  constants:
-    - { name: BASE_URL, line: 16 }
-  functions:
-    - { name: default, lines: 18-22 }
-
-assets/tests-templates/stress/locust-example.py:  # 21 lines
-  imports:
-    - { module: locust, items: [HttpUser, task, between], line: 7 }
-  classes:
-    - name: StressUser
-      lines: 10-21
-      methods:
-        - { name: health_check, lines: 14-17 }
-        - { name: list_items, lines: 20-21 }
-
+# generated: 2026-07-09T11:47:07Z by cdd-kit 3.9.0
+# files: 231, src-lines: 45792, map-lines: 3468, compression: 13.2x
+# sources-digest: 569c473844af7bf40749ed9c6e2ca1a9890e7105f79b7c76b47937a5d1145b33
 bin/cdd.js:  # 2 lines
   imports:
     - { module: '../dist/cli/index.js', items: [], line: 2 }
@@ -294,17 +12,19 @@ bin/postinstall.js:  # 20 lines
     - { module: 'node:path', items: [join, dirname], line: 4 }
     - { module: 'node:url', items: [fileURLToPath], line: 5 }
 
-build.js:  # 100 lines
+build.js:  # 133 lines
   imports:
     - { module: esbuild, items: [build], line: 1 }
-    - { module: fs, items: [cpSync, mkdirSync, rmSync, existsSync], line: 2 }
-    - { module: path, items: [join, dirname], line: 8 }
-    - { module: url, items: [fileURLToPath], line: 9 }
+    - { module: fs, items: [cpSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join, dirname], line: 10 }
+    - { module: url, items: [fileURLToPath], line: 11 }
+  constants:
+    - { name: APPLICABILITY_MARKED_TEMPLATES, line: 92 }
   functions:
-    - { name: shouldCopyAsset, lines: 51-60 }
-    - { name: copy, lines: 62-72 }
+    - { name: shouldCopyAsset, lines: 53-62 }
+    - { name: copy, lines: 64-74 }
 
-src/cli/index.ts:  # 984 lines
+src/cli/index.ts:  # 1022 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: os, items: ['default:os'], line: 2 }
@@ -321,12 +41,13 @@ src/cli/index.ts:  # 984 lines
     - { module: '../commands/openapi-export.js', items: [openapiExport], line: 13 }
     - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH], line: 14 }
     - { module: '../utils/stack-detect.js', items: [detectStack], line: 15 }
-    - { module: '../utils/provider.js', items: [ProviderOption], line: 16 }
+    - { module: '../utils/logger.js', items: [log], line: 16 }
+    - { module: '../utils/provider.js', items: [ProviderOption], line: 17 }
   functions:
-    - { name: collectRepeatable, lines: 196-199 }
-    - { name: resolveWorkers, lines: 212-219 }
+    - { name: collectRepeatable, lines: 197-200 }
+    - { name: resolveWorkers, lines: 213-220 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 201-209 }  # local
+    - { name: CodeMapCliOpts, lines: 202-210 }  # local
 
 src/code-graph/builder.ts:  # 399 lines
   imports:
@@ -680,14 +401,17 @@ src/code-map/yaml-writer.ts:  # 184 lines
   interfaces:
     - { name: RenderOptions, lines: 78-94 }
 
-src/commands/abandon.ts:  # 54 lines
+src/commands/abandon.ts:  # 86 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync], line: 2 }
     - { module: js-yaml, items: ['default:yaml'], line: 3 }
     - { module: '../utils/logger.js', items: [log], line: 4 }
+    - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 5 }
   functions:
-    - { name: async abandon, lines: 6-54 }
+    - { name: async abandon, lines: 21-86 }
+  types:
+    - { name: AbandonResult, lines: 17-19 }
 
 src/commands/accept.ts:  # 75 lines
   imports:
@@ -885,7 +609,7 @@ src/commands/context-scan.ts:  # 324 lines
     - { name: TreeStats, lines: 107-112 }  # local
     - { name: ContextScanOptions, lines: 199-201 }
 
-src/commands/context.ts:  # 562 lines
+src/commands/context.ts:  # 566 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -896,36 +620,36 @@ src/commands/context.ts:  # 562 lines
   constants:
     - { name: DEFAULT_FORBIDDEN_PATHS, line: 23 }
   functions:
-    - { name: normalizePath, lines: 42-44 }
-    - { name: validateRepoRelativePath, lines: 46-54 }
-    - { name: manifestPathFor, lines: 56-58 }
-    - { name: readManifest, lines: 60-67 }
-    - { name: writeManifest, lines: 69-71 }
-    - { name: parseListSection, lines: 73-79 }
-    - { name: pathMatches, lines: 81-105 }
-    - { name: defaultPolicy, lines: 113-115 }
-    - { name: loadContextPolicy, lines: 122-141 }
-    - { name: autoApprovablePaths, lines: 149-157 }
-    - { name: parseRequests, lines: 159-197 }
-    - { name: approvedExpansionSet, lines: 199-209 }
-    - { name: replaceSection, lines: 211-216 }
-    - { name: renderRequests, lines: 218-231 }
-    - { name: setRequestStatus, lines: 233-247 }
-    - { name: async requestContextExpansion, lines: 249-301 }
-    - { name: async listContextExpansions, lines: 303-321 }
-    - { name: async checkContextPaths, lines: 323-364 }
-    - { name: applyApproval, lines: 366-379 }
-    - { name: async approveContextExpansion, lines: 381-398 }
-    - { name: async approveAllPending, lines: 400-425 }
-    - { name: async autoApproveContextExpansions, lines: 434-476 }
-    - { name: describePathForHuman, lines: 479-484 }
-    - { name: async approveContextExpansionsInteractive, lines: 492-542 }
-    - { name: async rejectContextExpansion, lines: 544-548 }
-    - { name: async rejectAllPending, lines: 550-562 }
+    - { name: normalizePath, lines: 46-48 }
+    - { name: validateRepoRelativePath, lines: 50-58 }
+    - { name: manifestPathFor, lines: 60-62 }
+    - { name: readManifest, lines: 64-71 }
+    - { name: writeManifest, lines: 73-75 }
+    - { name: parseListSection, lines: 77-83 }
+    - { name: pathMatches, lines: 85-109 }
+    - { name: defaultPolicy, lines: 117-119 }
+    - { name: loadContextPolicy, lines: 126-145 }
+    - { name: autoApprovablePaths, lines: 153-161 }
+    - { name: parseRequests, lines: 163-201 }
+    - { name: approvedExpansionSet, lines: 203-213 }
+    - { name: replaceSection, lines: 215-220 }
+    - { name: renderRequests, lines: 222-235 }
+    - { name: setRequestStatus, lines: 237-251 }
+    - { name: async requestContextExpansion, lines: 253-305 }
+    - { name: async listContextExpansions, lines: 307-325 }
+    - { name: async checkContextPaths, lines: 327-368 }
+    - { name: applyApproval, lines: 370-383 }
+    - { name: async approveContextExpansion, lines: 385-402 }
+    - { name: async approveAllPending, lines: 404-429 }
+    - { name: async autoApproveContextExpansions, lines: 438-480 }
+    - { name: describePathForHuman, lines: 483-488 }
+    - { name: async approveContextExpansionsInteractive, lines: 496-546 }
+    - { name: async rejectContextExpansion, lines: 548-552 }
+    - { name: async rejectAllPending, lines: 554-566 }
   interfaces:
     - { name: ContextRequest, lines: 8-13 }  # local
     - { name: ContextPolicy, lines: 15-21 }  # local
-    - { name: RawContextPolicy, lines: 117-120 }  # local
+    - { name: RawContextPolicy, lines: 121-124 }  # local
 
 src/commands/contract-locate.ts:  # 192 lines
   imports:
@@ -1018,7 +742,18 @@ src/commands/contract-set.ts:  # 518 lines
     - { name: EndpointTableBlock, lines: 110-116 }  # local
     - { name: FieldSpec, lines: 316-322 }  # local
 
-src/commands/doctor.ts:  # 817 lines
+src/commands/design.ts:  # 62 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: '../utils/logger.js', items: [log], line: 13 }
+    - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 14 }
+    - { module: './gate-artifacts.js', items: [meaningfulChars], line: 15 }
+    - { module: '../utils/design-hash.js', items: [computeDesignHash, extractConfirmedRegion, readDesignLock, writeDesignLock], line: 16 }
+  functions:
+    - { name: async designConfirm, lines: 23-62 }
+
+src/commands/doctor.ts:  # 888 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, mkdirSync, writeFileSync], line: 1 }
     - { module: child_process, items: [spawnSync], line: 2 }
@@ -1033,9 +768,12 @@ src/commands/doctor.ts:  # 817 lines
     - { module: './lint-agents.js', items: [collectAgentViolations], line: 11 }
     - { module: './chokepoints.js', items: [detectChokepoints], line: 12 }
     - { module: './metadata.js', items: [staleMetadataReport, writeMetadataFiles], line: 13 }
-    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpoints, parseContractSchemas, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH], line: 14 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpoints, parseContractSchemas, detectSchemaCellNearMiss, SCHEMA_NAME_RE, DEFAULT_CONTRACT_PATH, projectApplicability], line: 14 }
     - { module: '../utils/digest.js', items: [inputsDigest], line: 50 }
     - { module: '../utils/context-inputs.js', items: [findContractFiles, projectMapInputs], line: 51 }
+  constants:
+    - { name: APPLICABILITY_SURFACES, line: 449 }
+    - { name: APPLICABILITY_PLACEHOLDER_THRESHOLD, line: 458 }
   functions:
     - { name: fileExists, lines: 43-45 }
     - { name: readContextIndexMetadata, lines: 53-62 }
@@ -1049,30 +787,32 @@ src/commands/doctor.ts:  # 817 lines
     - { name: conformanceApplicable, lines: 327-334 }
     - { name: checkApiConformance, lines: 336-370 }
     - { name: checkResponseShapeCoverage, lines: 380-446 }
-    - { name: checkMcpRegistration, lines: 448-504 }
-    - { name: checkChangeMetadata, lines: 513-518 }
-    - { name: checkChokepoints, lines: 520-531 }
-    - { name: async buildDoctorReport, lines: 533-581 }
-    - { name: enableConformanceIfApplicable, lines: 591-620 }
-    - { name: async attemptAutoFixes, lines: 622-731 }
-    - { name: renderSimpleReport, lines: 739-763 }
-    - { name: async doctor, lines: 765-817 }
+    - { name: meaningfulChars, lines: 464-475 }
+    - { name: checkContractApplicability, lines: 485-516 }
+    - { name: checkMcpRegistration, lines: 518-574 }
+    - { name: checkChangeMetadata, lines: 583-588 }
+    - { name: checkChokepoints, lines: 590-601 }
+    - { name: async buildDoctorReport, lines: 603-652 }
+    - { name: enableConformanceIfApplicable, lines: 662-691 }
+    - { name: async attemptAutoFixes, lines: 693-802 }
+    - { name: renderSimpleReport, lines: 810-834 }
+    - { name: async doctor, lines: 836-888 }
   interfaces:
     - { name: DoctorOptions, lines: 16-27 }
     - { name: Finding, lines: 29-32 }  # local
     - { name: DoctorReport, lines: 34-41 }  # local
 
-src/commands/gate-acceptance.ts:  # 183 lines
+src/commands/gate-acceptance.ts:  # 208 lines
   imports:
-    - { module: fs, items: [existsSync], line: 22 }
-    - { module: path, items: [join], line: 23 }
-    - { module: './gate-shared.js', items: [ajv, ajvErrorsToMessages, loadYamlFile], line: 24 }
-    - { module: '../schemas/acceptance.schema.js', items: [acceptanceSchema], line: 25 }
-    - { module: '../utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, AcceptanceFile], line: 26 }
-    - { module: '../utils/mock-of-sut-scan.js', items: [scanAcceptanceDrivers], line: 31 }
+    - { module: fs, items: [existsSync], line: 26 }
+    - { module: path, items: [join], line: 27 }
+    - { module: './gate-shared.js', items: [ajv, ajvErrorsToMessages, loadYamlFile], line: 28 }
+    - { module: '../schemas/acceptance.schema.js', items: [acceptanceSchema], line: 29 }
+    - { module: '../utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, AcceptanceFile], line: 30 }
+    - { module: '../utils/mock-of-sut-scan.js', items: [findUnboundRules, scanAcceptanceDrivers], line: 35 }
   functions:
-    - { name: isMeaningfulValue, lines: 46-58 }
-    - { name: enforceAcceptanceOracle, lines: 70-183 }
+    - { name: isMeaningfulValue, lines: 50-62 }
+    - { name: enforceAcceptanceOracle, lines: 74-208 }
 
 src/commands/gate-agents.ts:  # 129 lines
   imports:
@@ -1131,6 +871,36 @@ src/commands/gate-dependencies.ts:  # 82 lines
     - { name: isArchivedChange, lines: 5-11 }
     - { name: detectDependencyCycle, lines: 13-40 }
     - { name: validateDependencies, lines: 42-82 }
+
+src/commands/gate-design.ts:  # 362 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 31 }
+    - { module: path, items: [join], line: 32 }
+    - { module: child_process, items: [spawnSync], line: 33 }
+    - { module: '../utils/paths.js', items: [ASSET], line: 34 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter], line: 35 }
+    - { module: '../utils/markdown-section.js', items: [sectionBody], line: 36 }
+    - { module: './gate-artifacts.js', items: [meaningfulChars, findPlaceholders], line: 37 }
+    - { module: '../utils/design-hash.js', items: [computeDesignHash, readDesignLock], line: 38 }
+    - { module: '../utils/design-provenance.js', items: [parseTable, tableCell, reconcileProvenance, InfoItemInput, StateDiscriminatorInput], line: 39 }
+  constants:
+    - { name: MIN_MEANINGFUL_CHARS, line: 47 }
+  functions:
+    - { name: resolvePython, lines: 55-61 }
+    - { name: classifyDesignApplicability, lines: 73-104 }
+    - { name: parseOpenDecisions, lines: 112-122 }
+    - { name: parseIntents, lines: 130-136 }
+    - { name: parseControls, lines: 154-175 }
+    - { name: parsePresentedInformation, lines: 178-184 }
+    - { name: parseStates, lines: 187-194 }
+    - { name: checkReferentialIntegrity, lines: 201-238 }
+    - { name: async enforceInteractionDesign, lines: 258-362 }
+  interfaces:
+    - { name: ApplicabilityResult, lines: 49-53 }  # local
+    - { name: OpenDecision, lines: 106-109 }  # local
+    - { name: IntentRow, lines: 124-127 }  # local
+    - { name: ControlRow, lines: 138-142 }  # local
+    - { name: DeletedControlRow, lines: 144-147 }  # local
 
 src/commands/gate-evidence.ts:  # 823 lines
   imports:
@@ -1198,7 +968,7 @@ src/commands/gate-tier.ts:  # 311 lines
     - { name: TierResolution, lines: 18-23 }
     - { name: TierFloorOverrideAudit, lines: 243-252 }  # local
 
-src/commands/gate.ts:  # 221 lines
+src/commands/gate.ts:  # 225 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -1213,12 +983,13 @@ src/commands/gate.ts:  # 221 lines
     - { module: './gate-evidence.js', items: [enforceTestEvidence, enforceBugFixEvidence], line: 20 }
     - { module: './gate-agents.js', items: [enforceRequiredAgentEvidence], line: 21 }
     - { module: './gate-acceptance.js', items: [enforceAcceptanceOracle], line: 22 }
-    - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 23 }
+    - { module: './gate-design.js', items: [enforceInteractionDesign], line: 23 }
+    - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 24 }
   functions:
-    - { name: reportGateFailure, lines: 38-60 }
-    - { name: async gate, lines: 62-221 }
+    - { name: reportGateFailure, lines: 39-61 }
+    - { name: async gate, lines: 63-225 }
   interfaces:
-    - { name: GateOptions, lines: 25-29 }
+    - { name: GateOptions, lines: 26-30 }
 
 src/commands/graph.ts:  # 568 lines
   imports:
@@ -1319,11 +1090,11 @@ src/commands/index-query.ts:  # 365 lines
     - { name: QueryResult, lines: 51-60 }
     - { name: QueryPayload, lines: 62-73 }
 
-src/commands/init.ts:  # 413 lines
+src/commands/init.ts:  # 430 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [rmSync, readFileSync, writeFileSync, existsSync, readdirSync], line: 2 }
-    - { module: '../utils/paths.js', items: [ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME], line: 3 }
+    - { module: '../utils/paths.js', items: [ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME, readKitVersion], line: 3 }
     - { module: '../utils/copy.js', items: [copyDirTracked, copyFileTracked], line: 4 }
     - { module: '../utils/logger.js', items: [log], line: 5 }
     - { module: '../utils/stack-detect.js', items: [detectStack, StackKind], line: 6 }
@@ -1333,11 +1104,11 @@ src/commands/init.ts:  # 413 lines
     - { name: readCondaEnvName, lines: 37-47 }
     - { name: loadCiTemplate, lines: 53-62 }
     - { name: patchFastGateYml, lines: 76-119 }
-    - { name: async init, lines: 121-413 }
+    - { name: async init, lines: 121-430 }
   interfaces:
     - { name: InitOptions, lines: 10-31 }
 
-src/commands/install-agent-hooks.ts:  # 289 lines
+src/commands/install-agent-hooks.ts:  # 308 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, copyFileSync, chmodSync, mkdirSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -1345,25 +1116,27 @@ src/commands/install-agent-hooks.ts:  # 289 lines
     - { module: '../utils/logger.js', items: [log], line: 4 }
     - { module: '../utils/asset-manifest.js', items: [stampAssetManifest], line: 5 }
   constants:
-    - { name: SETTINGS_REL_PATH, line: 28 }
-    - { name: GRAPH_FIRST_MARKER, line: 36 }
-    - { name: CONTRACT_WRITE_MARKER, line: 37 }
-    - { name: TEST_RUNNER_MARKER, line: 38 }
-    - { name: ACCEPTANCE_WRITE_MARKER, line: 39 }
-    - { name: GRAPH_FIRST, line: 57 }
-    - { name: CONTRACT_WRITE, line: 68 }
-    - { name: TEST_RUNNER, line: 80 }
-    - { name: ACCEPTANCE_WRITE, line: 92 }
+    - { name: SETTINGS_REL_PATH, line: 30 }
+    - { name: GRAPH_FIRST_MARKER, line: 38 }
+    - { name: CONTRACT_WRITE_MARKER, line: 39 }
+    - { name: TEST_RUNNER_MARKER, line: 40 }
+    - { name: ACCEPTANCE_WRITE_MARKER, line: 41 }
+    - { name: DESIGN_WRITE_MARKER, line: 42 }
+    - { name: GRAPH_FIRST, line: 60 }
+    - { name: CONTRACT_WRITE, line: 71 }
+    - { name: TEST_RUNNER, line: 83 }
+    - { name: ACCEPTANCE_WRITE, line: 95 }
+    - { name: DESIGN_WRITE, line: 107 }
   functions:
-    - { name: hookRelPath, lines: 130-132 }
-    - { name: withoutHandler, lines: 142-162 }
-    - { name: async installAgentHooks, lines: 185-289 }
+    - { name: hookRelPath, lines: 145-147 }
+    - { name: withoutHandler, lines: 157-177 }
+    - { name: async installAgentHooks, lines: 203-308 }
   interfaces:
-    - { name: InstallAgentHooksOptions, lines: 11-26 }
-    - { name: HookDef, lines: 42-55 }  # local
-    - { name: HookHandler, lines: 105-109 }  # local
-    - { name: HookEntry, lines: 111-121 }  # local
-    - { name: SettingsShape, lines: 123-126 }  # local
+    - { name: InstallAgentHooksOptions, lines: 11-28 }
+    - { name: HookDef, lines: 45-58 }  # local
+    - { name: HookHandler, lines: 120-124 }  # local
+    - { name: HookEntry, lines: 126-136 }  # local
+    - { name: SettingsShape, lines: 138-141 }  # local
   types:
     - { name: HookMode, lines: 7-7 }
     - { name: GraphFirstMode, lines: 9-9 }
@@ -1500,7 +1273,7 @@ src/commands/metadata.ts:  # 429 lines
     - { name: MetadataOptions, lines: 346-350 }
     - { name: MetadataResult, lines: 352-358 }  # local
 
-src/commands/migrate.ts:  # 557 lines
+src/commands/migrate.ts:  # 592 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync], line: 2 }
@@ -1520,9 +1293,10 @@ src/commands/migrate.ts:  # 557 lines
     - { name: migrateAgentLogs, lines: 289-312 }
     - { name: ensureImplementationPlanScaffold, lines: 314-336 }
     - { name: ensureAcceptanceOracleScaffold, lines: 348-367 }
-    - { name: migrateOne, lines: 369-433 }
-    - { name: commitWritesAtomically, lines: 435-455 }
-    - { name: async migrate, lines: 457-556 }
+    - { name: ensureInteractionDesignScaffold, lines: 380-399 }
+    - { name: migrateOne, lines: 401-468 }
+    - { name: commitWritesAtomically, lines: 470-490 }
+    - { name: async migrate, lines: 492-591 }
   interfaces:
     - { name: MigrateOptions, lines: 8-13 }  # local
     - { name: MigrateResult, lines: 15-18 }  # local
@@ -1530,7 +1304,7 @@ src/commands/migrate.ts:  # 557 lines
     - { name: PendingDelete, lines: 25-27 }  # local
     - { name: LegacyTaskRow, lines: 144-149 }  # local
 
-src/commands/new-change.ts:  # 200 lines
+src/commands/new-change.ts:  # 206 lines
   imports:
     - { module: path, items: [join, relative], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -1542,17 +1316,17 @@ src/commands/new-change.ts:  # 200 lines
     - { module: '../utils/digest.js', items: ['sha256OfFileNormalized:sha256OfFile'], line: 17 }
   constants:
     - { name: REQUIRED_TEMPLATES, line: 75 }
-    - { name: NEVER_SCAFFOLD, line: 97 }
-    - { name: SAFE_NAME, line: 108 }
+    - { name: NEVER_SCAFFOLD, line: 103 }
+    - { name: SAFE_NAME, line: 114 }
   functions:
     - { name: inputsDigest, lines: 19-28 }
     - { name: findContractFiles, lines: 30-40 }
     - { name: readIndexDigest, lines: 42-46 }
     - { name: async ensureFreshContextIndexes, lines: 48-73 }
-    - { name: listOptional, lines: 99-106 }
-    - { name: parseDependsOn, lines: 110-116 }
-    - { name: applyScaffoldMetadata, lines: 118-133 }
-    - { name: async newChange, lines: 135-200 }
+    - { name: listOptional, lines: 105-112 }
+    - { name: parseDependsOn, lines: 116-122 }
+    - { name: applyScaffoldMetadata, lines: 124-139 }
+    - { name: async newChange, lines: 141-206 }
   interfaces:
     - { name: NewChangeOptions, lines: 9-14 }
 
@@ -1733,7 +1507,7 @@ src/commands/test-impact.ts:  # 218 lines
   types:
     - { name: AffectedReason, lines: 27-27 }
 
-src/commands/test-run.ts:  # 689 lines
+src/commands/test-run.ts:  # 695 lines
   imports:
     - { module: fs, items: [createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [join, relative, resolve], line: 2 }
@@ -1744,55 +1518,55 @@ src/commands/test-run.ts:  # 689 lines
     - { module: '../schemas/test-evidence.schema.js', items: [DEFAULT_REQUIRED_PHASES], line: 7 }
     - { module: '../utils/change-id.js', items: [SAFE_CHANGE_ID], line: 8 }
   constants:
-    - { name: PHASES, line: 17 }
-    - { name: SCHEMA_VERSION, line: 20 }
-    - { name: GENERATED_BY, line: 21 }
-    - { name: OUTPUT_CAP_CHARS, line: 22 }
-    - { name: MAX_MESSAGE_CHARS, line: 23 }
-    - { name: TAIL_CAPTURE_BYTES, line: 26 }
+    - { name: PHASES, line: 23 }
+    - { name: SCHEMA_VERSION, line: 26 }
+    - { name: GENERATED_BY, line: 27 }
+    - { name: OUTPUT_CAP_CHARS, line: 28 }
+    - { name: MAX_MESSAGE_CHARS, line: 29 }
+    - { name: TAIL_CAPTURE_BYTES, line: 32 }
   functions:
-    - { name: isPytestCommand, lines: 74-83 }
-    - { name: hasShellControl, lines: 90-92 }
-    - { name: shellQuote, lines: 95-98 }
-    - { name: effectiveMaxfail, lines: 102-108 }
-    - { name: effectiveTb, lines: 110-116 }
-    - { name: augmentPytestCommand, lines: 125-140 }
-    - { name: attrVal, lines: 144-148 }
-    - { name: clip, lines: 150-153 }
-    - { name: decodeXml, lines: 155-163 }
-    - { name: classifyErrorMessage, lines: 165-169 }
-    - { name: parseJunitFirstFailure, lines: 177-210 }
-    - { name: extractNodeFromSummary, lines: 212-216 }
-    - { name: lastMeaningfulLine, lines: 218-221 }
-    - { name: classifyFailure, lines: 223-265 }
-    - { name: defaultRequired, lines: 273-277 }
-    - { name: blankEvidence, lines: 279-288 }
-    - { name: computeFinalStatus, lines: 290-294 }
-    - { name: updateEvidence, lines: 296-336 }
-    - { name: defaultRunId, lines: 340-343 }
-    - { name: reserveGeneratedRunDir, lines: 350-366 }
-    - { name: isSafeRunId, lines: 370-372 }
-    - { name: nextAction, lines: 374-382 }
-    - { name: capTail, lines: 384-387 }
-    - { name: report, lines: 401-427 }
-    - { name: emitError, lines: 429-432 }
-    - { name: killTree, lines: 452-462 }
-    - { name: appendTail, lines: 464-467 }
-    - { name: runCommand, lines: 469-539 }
-    - { name: async testRun, lines: 543-681 }
-    - { name: safeRead, lines: 683-689 }
+    - { name: isPytestCommand, lines: 80-89 }
+    - { name: hasShellControl, lines: 96-98 }
+    - { name: shellQuote, lines: 101-104 }
+    - { name: effectiveMaxfail, lines: 108-114 }
+    - { name: effectiveTb, lines: 116-122 }
+    - { name: augmentPytestCommand, lines: 131-146 }
+    - { name: attrVal, lines: 150-154 }
+    - { name: clip, lines: 156-159 }
+    - { name: decodeXml, lines: 161-169 }
+    - { name: classifyErrorMessage, lines: 171-175 }
+    - { name: parseJunitFirstFailure, lines: 183-216 }
+    - { name: extractNodeFromSummary, lines: 218-222 }
+    - { name: lastMeaningfulLine, lines: 224-227 }
+    - { name: classifyFailure, lines: 229-271 }
+    - { name: defaultRequired, lines: 279-283 }
+    - { name: blankEvidence, lines: 285-294 }
+    - { name: computeFinalStatus, lines: 296-300 }
+    - { name: updateEvidence, lines: 302-342 }
+    - { name: defaultRunId, lines: 346-349 }
+    - { name: reserveGeneratedRunDir, lines: 356-372 }
+    - { name: isSafeRunId, lines: 376-378 }
+    - { name: nextAction, lines: 380-388 }
+    - { name: capTail, lines: 390-393 }
+    - { name: report, lines: 407-433 }
+    - { name: emitError, lines: 435-438 }
+    - { name: killTree, lines: 458-468 }
+    - { name: appendTail, lines: 470-473 }
+    - { name: runCommand, lines: 475-545 }
+    - { name: async testRun, lines: 549-687 }
+    - { name: safeRead, lines: 689-695 }
   interfaces:
-    - { name: FirstFailure, lines: 30-36 }
-    - { name: TestRunOptions, lines: 38-46 }
-    - { name: EvidenceRun, lines: 48-54 }  # local
-    - { name: EvidenceFile, lines: 56-63 }  # local
-    - { name: RunSummary, lines: 389-399 }  # local
-    - { name: CommandResult, lines: 436-443 }  # local
+    - { name: FirstFailure, lines: 36-42 }
+    - { name: TestRunOptions, lines: 44-52 }
+    - { name: EvidenceRun, lines: 54-60 }  # local
+    - { name: EvidenceFile, lines: 62-69 }  # local
+    - { name: RunSummary, lines: 395-405 }  # local
+    - { name: CommandResult, lines: 442-449 }  # local
   types:
-    - { name: Phase, lines: 18-18 }
-    - { name: RunStatus, lines: 28-28 }
+    - { name: Phase, lines: 24-24 }
+    - { name: RunStatus, lines: 34-34 }
 
-src/commands/test-select.ts:  # 581 lines
+src/commands/test-select.ts:  # 619 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, statSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -1801,56 +1575,58 @@ src/commands/test-select.ts:  # 581 lines
     - { module: './test-run.js', items: [isPytestCommand], line: 5 }
     - { module: '../utils/stack-detect.js', items: [detectStack, StackKind], line: 6 }
     - { module: '../utils/change-id.js', items: [SAFE_CHANGE_ID], line: 7 }
+    - { module: '../utils/mock-of-sut-scan.js', items: [findAcceptanceDriverFiles], line: 8 }
   constants:
-    - { name: PYTEST, line: 29 }
-    - { name: PYTEST_TAIL, line: 30 }
-    - { name: JS_STACKS, line: 31 }
-    - { name: PHASE_ORDER, line: 34 }
-    - { name: PY_TARGET_FILE, line: 62 }
-    - { name: JS_TARGET_FILE, line: 63 }
-    - { name: PATHISH, line: 65 }
-    - { name: TARGET_COLUMN, line: 295 }
-    - { name: CRITERION_COLUMN, line: 296 }
-    - { name: QUALITY_GATES, line: 378 }
-    - { name: WORKFLOW_REF, line: 381 }
+    - { name: PYTEST, line: 30 }
+    - { name: PYTEST_TAIL, line: 31 }
+    - { name: JS_STACKS, line: 32 }
+    - { name: PHASE_ORDER, line: 35 }
+    - { name: PY_TARGET_FILE, line: 63 }
+    - { name: JS_TARGET_FILE, line: 64 }
+    - { name: PATHISH, line: 66 }
+    - { name: TARGET_COLUMN, line: 296 }
+    - { name: CRITERION_COLUMN, line: 297 }
+    - { name: QUALITY_GATES, line: 379 }
+    - { name: WORKFLOW_REF, line: 382 }
   functions:
-    - { name: hasTraversal, lines: 68-70 }
-    - { name: isBareTargetShape, lines: 77-81 }
-    - { name: targetKind, lines: 89-103 }
-    - { name: stripInlineCode, lines: 106-109 }
-    - { name: classifyCell, lines: 115-122 }
-    - { name: formatTarget, lines: 130-135 }
-    - { name: isPytestTestFile, lines: 138-141 }
-    - { name: isJsTestFile, lines: 144-146 }
-    - { name: targetDirectory, lines: 149-156 }
-    - { name: readPackageJson, lines: 158-164 }
-    - { name: stringRecord, lines: 166-173 }
-    - { name: detectRunnerPlan, lines: 175-191 }
-    - { name: appendTestArgs, lines: 193-200 }
-    - { name: looksLikeJsTestCommand, lines: 202-205 }
-    - { name: targetRunner, lines: 207-216 }
-    - { name: commandForTarget, lines: 218-231 }
-    - { name: fullCommand, lines: 233-238 }
-    - { name: splitTableRow, lines: 247-252 }
-    - { name: isSeparatorRow, lines: 254-257 }
-    - { name: parseMarkdownTable, lines: 264-285 }
-    - { name: columnIndex, lines: 287-293 }
-    - { name: extractMappedRows, lines: 304-322 }
-    - { name: detectContractAffected, lines: 334-373 }
-    - { name: extractQualityGates, lines: 390-411 }
-    - { name: deriveChangedArea, lines: 424-449 }
-    - { name: buildSelection, lines: 458-532 }
-    - { name: report, lines: 536-556 }
-    - { name: async testSelect, lines: 560-581 }
+    - { name: hasTraversal, lines: 69-71 }
+    - { name: isBareTargetShape, lines: 78-82 }
+    - { name: targetKind, lines: 90-104 }
+    - { name: stripInlineCode, lines: 107-110 }
+    - { name: classifyCell, lines: 116-123 }
+    - { name: formatTarget, lines: 131-136 }
+    - { name: isPytestTestFile, lines: 139-142 }
+    - { name: isJsTestFile, lines: 145-147 }
+    - { name: targetDirectory, lines: 150-157 }
+    - { name: readPackageJson, lines: 159-165 }
+    - { name: stringRecord, lines: 167-174 }
+    - { name: detectRunnerPlan, lines: 176-192 }
+    - { name: appendTestArgs, lines: 194-201 }
+    - { name: looksLikeJsTestCommand, lines: 203-206 }
+    - { name: targetRunner, lines: 208-217 }
+    - { name: commandForTarget, lines: 219-232 }
+    - { name: fullCommand, lines: 234-239 }
+    - { name: splitTableRow, lines: 248-253 }
+    - { name: isSeparatorRow, lines: 255-258 }
+    - { name: parseMarkdownTable, lines: 265-286 }
+    - { name: columnIndex, lines: 288-294 }
+    - { name: extractMappedRows, lines: 305-323 }
+    - { name: detectContractAffected, lines: 335-374 }
+    - { name: extractQualityGates, lines: 391-412 }
+    - { name: detectAcceptancePhase, lines: 426-446 }
+    - { name: deriveChangedArea, lines: 459-484 }
+    - { name: buildSelection, lines: 493-570 }
+    - { name: report, lines: 574-594 }
+    - { name: async testSelect, lines: 598-619 }
   interfaces:
-    - { name: SelectionEntry, lines: 36-40 }
-    - { name: TestSelectOptions, lines: 42-44 }
-    - { name: MappedRow, lines: 46-50 }  # local
-    - { name: RunnerPlan, lines: 52-56 }  # local
-    - { name: MarkdownTable, lines: 242-245 }
+    - { name: SelectionEntry, lines: 37-41 }
+    - { name: TestSelectOptions, lines: 43-45 }
+    - { name: MappedRow, lines: 47-51 }  # local
+    - { name: RunnerPlan, lines: 53-57 }  # local
+    - { name: MarkdownTable, lines: 243-246 }
   types:
-    - { name: Phase, lines: 33-33 }
-    - { name: Selection, lines: 453-456 }  # local
+    - { name: Phase, lines: 34-34 }
+    - { name: Selection, lines: 488-491 }  # local
 
 src/commands/update.ts:  # 181 lines
   imports:
@@ -1905,41 +1681,44 @@ src/commands/validate.ts:  # 120 lines
     - { name: ValidateOptions, lines: 7-13 }
     - { name: ValidatorEntry, lines: 15-22 }  # local
 
-src/contracts/parser.ts:  # 526 lines
+src/contracts/parser.ts:  # 578 lines
   constants:
     - { name: VALID_METHODS, line: 22 }
     - { name: SCHEMA_NAME_RE, line: 23 }
     - { name: DEFAULT_CONTRACT_PATH, line: 31 }
     - { name: DEFAULT_INVENTORY_PATH, line: 32 }
     - { name: PRIMITIVE_TYPES, line: 33 }
-    - { name: ENDPOINT_FIELD_ALIASES, line: 99 }
+    - { name: ENDPOINT_FIELD_ALIASES, line: 151 }
   functions:
     - { name: stripFrontmatter, lines: 69-83 }
-    - { name: parseRow, lines: 85-87 }
-    - { name: isSeparator, lines: 89-91 }
-    - { name: isEndpointHeaderRow, lines: 114-117 }
-    - { name: parseEndpointTableRows, lines: 134-169 }
-    - { name: parseEndpoints, lines: 175-193 }
-    - { name: parseSchemaCellRef, lines: 204-211 }
-    - { name: detectSchemaCellNearMiss, lines: 230-246 }
-    - { name: normalizeApiPath, lines: 259-264 }
-    - { name: extractSchemasSection, lines: 266-276 }
-    - { name: extractSection, lines: 284-298 }
-    - { name: parseSchemaSections, lines: 300-326 }
-    - { name: findFencedBlocks, lines: 340-347 }
-    - { name: parseJsonSchemaBlocks, lines: 349-367 }
-    - { name: findForeignFenceTag, lines: 379-382 }
-    - { name: parseFieldTable, lines: 384-417 }
-    - { name: compileType, lines: 419-446 }
-    - { name: compileFieldTable, lines: 448-465 }
-    - { name: parseContractSchemas, lines: 467-526 }
+    - { name: unquoteFrontmatterValue, lines: 93-99 }
+    - { name: projectApplicability, lines: 111-135 }
+    - { name: parseRow, lines: 137-139 }
+    - { name: isSeparator, lines: 141-143 }
+    - { name: isEndpointHeaderRow, lines: 166-169 }
+    - { name: parseEndpointTableRows, lines: 186-221 }
+    - { name: parseEndpoints, lines: 227-245 }
+    - { name: parseSchemaCellRef, lines: 256-263 }
+    - { name: detectSchemaCellNearMiss, lines: 282-298 }
+    - { name: normalizeApiPath, lines: 311-316 }
+    - { name: extractSchemasSection, lines: 318-328 }
+    - { name: extractSection, lines: 336-350 }
+    - { name: parseSchemaSections, lines: 352-378 }
+    - { name: findFencedBlocks, lines: 392-399 }
+    - { name: parseJsonSchemaBlocks, lines: 401-419 }
+    - { name: findForeignFenceTag, lines: 431-434 }
+    - { name: parseFieldTable, lines: 436-469 }
+    - { name: compileType, lines: 471-498 }
+    - { name: compileFieldTable, lines: 500-517 }
+    - { name: parseContractSchemas, lines: 519-578 }
   interfaces:
     - { name: EndpointRow, lines: 35-49 }
     - { name: SchemaSection, lines: 51-54 }
     - { name: SchemaParseResult, lines: 56-59 }
     - { name: FieldRow, lines: 61-67 }  # local
-    - { name: EndpointTableRow, lines: 127-131 }
-    - { name: FenceBlock, lines: 328-333 }  # local
+    - { name: ApplicabilityProjection, lines: 85-91 }
+    - { name: EndpointTableRow, lines: 179-183 }
+    - { name: FenceBlock, lines: 380-385 }  # local
   types:
     - { name: JsonSchema, lines: 20-20 }
 
@@ -1985,6 +1764,8 @@ src/schemas/bug-fix-evidence.schema.ts:  # 208 lines
     - { name: HYPOTHESIS_RESULTS, line: 42 }
 
 src/schemas/change-metadata.schema.ts:  # 58 lines
+
+src/schemas/design-lock.schema.ts:  # 34 lines
 
 src/schemas/reservations.schema.ts:  # 87 lines
   constants:
@@ -2065,6 +1846,69 @@ src/utils/copy.ts:  # 156 lines
     - { name: copyFile, lines: 110-130 }
     - { name: copyFileTracked, lines: 135-156 }
 
+src/utils/design-hash.ts:  # 101 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 24 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 25 }
+    - { module: path, items: [dirname, join], line: 26 }
+    - { module: './digest.js', items: [normalizeContentForHash], line: 27 }
+    - { module: './markdown-section.js', items: [sectionBody], line: 28 }
+  functions:
+    - { name: extractConfirmedRegion, lines: 31-33 }
+    - { name: projectConfirmedRegion, lines: 41-47 }
+    - { name: computeDesignHash, lines: 50-54 }
+    - { name: lockPath, lines: 63-65 }
+    - { name: readDesignLock, lines: 72-83 }
+    - { name: writeDesignLock, lines: 95-101 }
+  interfaces:
+    - { name: DesignLockEntry, lines: 56-59 }
+  types:
+    - { name: DesignLockFile, lines: 61-61 }
+
+src/utils/design-provenance.ts:  # 520 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 29 }
+    - { module: path, items: [join], line: 30 }
+    - { module: '../commands/openapi-export.js', items: [openapiExport], line: 31 }
+    - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpoints, normalizeApiPath, projectApplicability, DEFAULT_CONTRACT_PATH, parseRow, isSeparator, EndpointRow, JsonSchema, ApplicabilityProjection], line: 32 }
+    - { module: './markdown-section.js', items: [sectionBody], line: 44 }
+  constants:
+    - { name: DATA_SHAPE_CONTRACT_PATH, line: 46 }
+    - { name: OPENAPI_PATH, line: 47 }
+    - { name: CITATION_RE, line: 288 }
+    - { name: DATA_SHAPE_RE, line: 289 }
+    - { name: IMPLICIT_STATUS_RE, line: 290 }
+    - { name: BARE_STATUS_RE, line: 291 }
+    - { name: ENUM_PIN_RE, line: 292 }
+    - { name: FIELD_ONLY_RE, line: 293 }
+  functions:
+    - { name: checkStateDiscriminatorUniqueness, lines: 68-94 }
+    - { name: parseTable, lines: 111-123 }
+    - { name: tableCell, lines: 126-129 }
+    - { name: parseInvalidDataConditions, lines: 132-140 }
+    - { name: loadApiContract, lines: 164-179 }
+    - { name: loadDataShapeContract, lines: 181-196 }
+    - { name: async loadOpenapi, lines: 205-226 }
+    - { name: findEndpoint, lines: 228-231 }
+    - { name: findOpenapiOperation, lines: 233-237 }
+    - { name: getResponseSchema, lines: 239-243 }
+    - { name: deref, lines: 246-262 }
+    - { name: resolveDottedField, lines: 269-286 }
+    - { name: async resolveDataShapeCitation, lines: 295-322 }
+    - { name: async resolveEndpointCitation, lines: 324-443 }
+    - { name: async resolveCitation, lines: 452-474 }
+    - { name: async reconcileProvenance, lines: 488-520 }
+  interfaces:
+    - { name: CitationResult, lines: 49-52 }
+    - { name: StateDiscriminatorInput, lines: 54-58 }
+    - { name: ParsedTable, lines: 100-103 }
+    - { name: ApiContractEnv, lines: 144-148 }  # local
+    - { name: DataShapeEnv, lines: 150-154 }  # local
+    - { name: ProvenanceCache, lines: 158-162 }
+    - { name: InfoItemInput, lines: 476-479 }
+  types:
+    - { name: OpenapiEnv, lines: 156-156 }  # local
+
 src/utils/digest.ts:  # 65 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
@@ -2129,7 +1973,7 @@ src/utils/mcp-hint.ts:  # 10 lines
   functions:
     - { name: logRecommendedMcpSetup, lines: 3-10 }
 
-src/utils/mock-of-sut-scan.ts:  # 212 lines
+src/utils/mock-of-sut-scan.ts:  # 378 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 3 }
     - { module: path, items: [basename, join, relative], line: 4 }
@@ -2142,23 +1986,33 @@ src/utils/mock-of-sut-scan.ts:  # 212 lines
     - { name: VITEST_MOCK_RE, line: 65 }
     - { name: VITEST_SPYON_RE, line: 66 }
     - { name: JS_IMPORT_RE, line: 67 }
-    - { name: DRIVER_DIRS, line: 143 }
-    - { name: DRIVER_EXT_RE, line: 144 }
-    - { name: SKIP_DIR_NAMES, line: 145 }
+    - { name: GENERIC_LEAF_STOPWORDS, line: 112 }
+    - { name: WORD_CHAR_RE, line: 161 }
+    - { name: DRIVER_DIRS, line: 209 }
+    - { name: DRIVER_EXT_RE, line: 210 }
+    - { name: SKIP_DIR_NAMES, line: 211 }
+    - { name: LOADER_CALL_RE, line: 253 }
+    - { name: STRING_BINDING_RE, line: 255 }
   functions:
     - { name: resolveChangeSutFiles, lines: 9-34 }
     - { name: sutMatchTokens, lines: 36-46 }
     - { name: targetMatchesSut, lines: 48-56 }
     - { name: scanDriverForMockOfSut, lines: 69-100 }
-    - { name: collectLeafLiterals, lines: 107-124 }
-    - { name: scanDriverForHardcodedExpect, lines: 126-141 }
-    - { name: walkDriverFiles, lines: 147-163 }
-    - { name: findAcceptanceDriverFiles, lines: 165-172 }
-    - { name: scanAcceptanceDrivers, lines: 180-212 }
+    - { name: collectLeafLiterals, lines: 118-136 }
+    - { name: findAllOccurrences, lines: 139-148 }
+    - { name: isFullyContainedInAny, lines: 150-152 }
+    - { name: isWordBoundaryOccurrence, lines: 163-169 }
+    - { name: scanDriverForHardcodedExpect, lines: 186-207 }
+    - { name: walkDriverFiles, lines: 213-229 }
+    - { name: findAcceptanceDriverFiles, lines: 231-238 }
+    - { name: extractLoaderChangeIds, lines: 258-277 }
+    - { name: driverBelongsToChange, lines: 291-295 }
+    - { name: findUnboundRules, lines: 320-335 }
+    - { name: scanAcceptanceDrivers, lines: 337-378 }
   interfaces:
     - { name: MockOfSutViolation, lines: 58-61 }
     - { name: HardcodedExpectViolation, lines: 102-105 }
-    - { name: DriverScanFinding, lines: 174-178 }
+    - { name: DriverScanFinding, lines: 240-244 }
 
 src/utils/paths.ts:  # 48 lines
   imports:
@@ -2220,6 +2074,65 @@ src/utils/tier-floor.ts:  # 244 lines
     - { name: TierFloorMatch, lines: 34-41 }
     - { name: RawPolicy, lines: 82-85 }  # local
 
+test/acceptance/acceptance-oracle.driver.test.ts:  # 142 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 14 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 15 }
+    - { module: path, items: [join], line: 16 }
+    - { module: js-yaml, items: ['default:yaml'], line: 17 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 18 }
+    - { module: '../../specs/templates/acceptance-driver/acceptance.loader.js', items: [loadAllCases, loadCase], line: 19 }
+    - { module: '../../src/commands/gate-acceptance.js', items: [enforceAcceptanceOracle], line: 20 }
+    - { module: '../../src/utils/mock-of-sut-scan.js', items: [scanAcceptanceDrivers], line: 21 }
+    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, writeAcceptanceLock, AcceptanceFile], line: 22 }
+  constants:
+    - { name: CHANGE_ID, line: 24 }
+  functions:
+    - { name: makeChangeDir, lines: 41-45 }
+    - { name: outcomeOf, lines: 47-49 }
+  interfaces:
+    - { name: CaseAnswer, lines: 26-29 }  # local
+
+test/acceptance/interaction-design-loop.driver.test.ts:  # 267 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 28 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 29 }
+    - { module: child_process, items: [spawnSync], line: 30 }
+    - { module: path, items: [join], line: 31 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 32 }
+    - { module: '../../specs/templates/acceptance-driver/acceptance.loader.js', items: [loadAllCases, loadCase], line: 33 }
+  constants:
+    - { name: CHANGE_ID, line: 35 }
+  functions:
+    - { name: scaffold, lines: 55-66 }
+    - { name: buildDesign, lines: 72-114 }
+    - { name: writeDesign, lines: 116-118 }
+  interfaces:
+    - { name: OpenDecisionInput, lines: 37-41 }  # local
+    - { name: StateInput, lines: 43-47 }  # local
+    - { name: DesignOpts, lines: 49-53 }  # local
+
+test/acceptance/not-applicable-contracts.driver.test.ts:  # 237 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 26 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 27 }
+    - { module: path, items: [join], line: 28 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 29 }
+    - { module: '../../specs/templates/acceptance-driver/acceptance.loader.js', items: [loadAllCases, loadCase], line: 30 }
+  constants:
+    - { name: CHANGE_ID, line: 32 }
+    - { name: VALID_API_CONTRACT, line: 79 }
+    - { name: VALID_BUSINESS_CONTRACT, line: 99 }
+    - { name: VALID_DATA_CONTRACT, line: 112 }
+    - { name: VALID_CSS_FILLER, line: 125 }
+  functions:
+    - { name: extraExpectValue, lines: 50-53 }
+    - { name: writeContract, lines: 55-59 }
+    - { name: buildCssContract, lines: 64-77 }
+    - { name: writeOtherContractsValid, lines: 139-143 }
+  interfaces:
+    - { name: ValidationAnswer, lines: 34-38 }  # local
+
 test/agents/code-map-rule.test.ts:  # 61 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 13 }
@@ -2231,7 +2144,7 @@ test/agents/code-map-rule.test.ts:  # 61 lines
     - { name: REQUIRED_COMMAND_FORM, line: 22 }
     - { name: REQUIRED_MAP_FIRST, line: 26 }
 
-test/cli/abandon.test.ts:  # 95 lines
+test/cli/abandon.test.ts:  # 180 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, writeFileSync, readFileSync], line: 2 }
@@ -2252,7 +2165,7 @@ test/cli/accept-relock.test.ts:  # 133 lines
   functions:
     - { name: realOracle, lines: 8-23 }
 
-test/cli/acceptance-oracle.test.ts:  # 436 lines
+test/cli/acceptance-oracle.test.ts:  # 455 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, rmSync, writeFileSync], line: 2 }
@@ -2265,11 +2178,11 @@ test/cli/acceptance-oracle.test.ts:  # 436 lines
     - { name: buildEnvContract, lines: 22-29 }
     - { name: writeValidContracts, lines: 31-63 }
     - { name: buildTasksYaml, lines: 65-77 }
-    - { name: writeValidChangeArtifacts, lines: 79-117 }
-    - { name: writeContextGovernanceFiles, lines: 119-137 }
-    - { name: realOracle, lines: 139-157 }
-    - { name: placeholderOracle, lines: 159-174 }
-    - { name: writeAcceptanceYaml, lines: 176-178 }
+    - { name: writeValidChangeArtifacts, lines: 79-133 }
+    - { name: writeContextGovernanceFiles, lines: 135-153 }
+    - { name: realOracle, lines: 155-173 }
+    - { name: placeholderOracle, lines: 175-190 }
+    - { name: writeAcceptanceYaml, lines: 192-194 }
 
 test/cli/acceptance-write-hook.test.ts:  # 116 lines
   imports:
@@ -2287,18 +2200,18 @@ test/cli/acceptance-write-hook.test.ts:  # 116 lines
     - { name: writeOracle, lines: 24-27 }
     - { name: runHook, lines: 30-40 }
 
-test/cli/agent-prompts-shape.test.ts:  # 145 lines
+test/cli/agent-prompts-shape.test.ts:  # 147 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
   constants:
     - { name: ALL_AGENTS, line: 8 }
-    - { name: SCOPED_AGENTS, line: 30 }
+    - { name: SCOPED_AGENTS, line: 31 }
   functions:
-    - { name: readAgent, lines: 45-47 }
-    - { name: extractRequiredArtifactsSection, lines: 49-54 }
-    - { name: hasFlatBacktickKeysWithoutFence, lines: 61-65 }
+    - { name: readAgent, lines: 47-49 }
+    - { name: extractRequiredArtifactsSection, lines: 51-56 }
+    - { name: hasFlatBacktickKeysWithoutFence, lines: 63-67 }
 
 test/cli/archive.test.ts:  # 105 lines
   imports:
@@ -2442,6 +2355,32 @@ test/cli/contract-write-hook.test.ts:  # 105 lines
     - { name: writeContract, lines: 23-26 }
     - { name: runHook, lines: 29-39 }
 
+test/cli/design-confirm.test.ts:  # 122 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
+    - { module: '../../src/utils/design-hash.js', items: [computeDesignHash], line: 5 }
+  functions:
+    - { name: designDoc, lines: 10-20 }
+
+test/cli/design-write-hook.test.ts:  # 113 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: child_process, items: [spawnSync], line: 11 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 12 }
+    - { module: path, items: [join, resolve, dirname], line: 13 }
+    - { module: url, items: [fileURLToPath], line: 14 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 15 }
+  constants:
+    - { name: HOOK, line: 18 }
+    - { name: DESIGN_REL, line: 19 }
+    - { name: LOCK_REL, line: 20 }
+  functions:
+    - { name: writeDesign, lines: 24-27 }
+    - { name: runHook, lines: 29-39 }
+
 test/cli/doctor-chokepoints.test.ts:  # 156 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
@@ -2497,7 +2436,7 @@ test/cli/doctor-simple.test.ts:  # 56 lines
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 8 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 9 }
 
-test/cli/doctor.test.ts:  # 323 lines
+test/cli/doctor.test.ts:  # 380 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
@@ -2517,30 +2456,63 @@ test/cli/freshness-mtime-repair.test.ts:  # 87 lines
   functions:
     - { name: simulateCloneSkew, lines: 32-40 }
 
-test/cli/gate.test.ts:  # 2866 lines
+test/cli/gate-acceptance-rules.test.ts:  # 270 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
+    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, writeAcceptanceLock, AcceptanceFile], line: 6 }
+  functions:
+    - { name: buildTasksYaml, lines: 17-28 }
+    - { name: writeValidChangeArtifacts, lines: 35-73 }
+    - { name: writeAcceptanceYaml, lines: 75-77 }
+    - { name: oracleWithRules, lines: 80-96 }
+    - { name: writeDriver, lines: 101-111 }
+
+test/cli/gate-design.test.ts:  # 427 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 5 }
+  functions:
+    - { name: scaffold, lines: 14-21 }
+    - { name: buildDesign, lines: 42-102 }
+    - { name: writeDesign, lines: 104-106 }
+    - { name: apiContract, lines: 108-119 }
+  interfaces:
+    - { name: DesignRow, lines: 23-28 }  # local
+    - { name: DesignOpts, lines: 30-40 }  # local
+
+test/cli/gate.test.ts:  # 2975 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
-    - { module: path, items: [join, dirname], line: 3 }
-    - { module: child_process, items: [spawnSync], line: 4 }
-    - { module: js-yaml, items: ['default:yaml'], line: 5 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 6 }
-    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, writeAcceptanceLock], line: 7 }
+    - { module: path, items: [join, dirname, resolve], line: 3 }
+    - { module: url, items: [fileURLToPath], line: 4 }
+    - { module: child_process, items: [spawnSync], line: 5 }
+    - { module: js-yaml, items: ['default:yaml'], line: 6 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython, CLI_PATH], line: 7 }
+    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, writeAcceptanceLock], line: 8 }
   functions:
-    - { name: buildApiContract, lines: 13-49 }
-    - { name: buildEnvContract, lines: 51-78 }
-    - { name: writeValidContracts, lines: 81-190 }
-    - { name: buildTasksYaml, lines: 203-223 }
-    - { name: buildAgentLogYaml, lines: 236-252 }
-    - { name: writeValidImplementationPlan, lines: 254-287 }
-    - { name: writeValidChangeArtifacts, lines: 291-306 }
-    - { name: writeContextGovernanceFiles, lines: 308-332 }
-    - { name: writeValidAcceptanceOracle, lines: 340-357 }
-    - { name: buildEvidenceYaml, lines: 1584-1612 }
-    - { name: materializeEvidenceArtifacts, lines: 1621-1639 }
+    - { name: buildApiContract, lines: 14-50 }
+    - { name: buildEnvContract, lines: 52-79 }
+    - { name: writeValidContracts, lines: 82-191 }
+    - { name: buildTasksYaml, lines: 204-224 }
+    - { name: buildAgentLogYaml, lines: 237-253 }
+    - { name: writeValidImplementationPlan, lines: 255-288 }
+    - { name: writeValidChangeArtifacts, lines: 292-307 }
+    - { name: writeContextGovernanceFiles, lines: 309-333 }
+    - { name: writeValidAcceptanceOracle, lines: 341-358 }
+    - { name: writeValidInteractionDesign, lines: 368-377 }
+    - { name: buildEvidenceYaml, lines: 1637-1665 }
+    - { name: materializeEvidenceArtifacts, lines: 1674-1692 }
   interfaces:
-    - { name: TasksFileOptions, lines: 192-201 }  # local
-    - { name: AgentLogOptions, lines: 225-234 }  # local
+    - { name: TasksFileOptions, lines: 193-202 }  # local
+    - { name: AgentLogOptions, lines: 226-235 }  # local
 
 test/cli/git-paths.test.ts:  # 116 lines
   imports:
@@ -2638,7 +2610,7 @@ test/cli/init-hooks.test.ts:  # 112 lines
   functions:
     - { name: preToolUseCommands, lines: 79-87 }
 
-test/cli/init.test.ts:  # 145 lines
+test/cli/init.test.ts:  # 170 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -2648,7 +2620,7 @@ test/cli/init.test.ts:  # 145 lines
   constants:
     - { name: PKG_VERSION, line: 7 }
 
-test/cli/install-agent-hooks.test.ts:  # 472 lines
+test/cli/install-agent-hooks.test.ts:  # 570 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, mkdirSync, statSync], line: 10 }
@@ -2749,7 +2721,7 @@ test/cli/metadata.test.ts:  # 123 lines
     - { name: changeDir, lines: 16-18 }
     - { name: scaffold, lines: 20-41 }
 
-test/cli/migrate.test.ts:  # 315 lines
+test/cli/migrate.test.ts:  # 347 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -2757,7 +2729,7 @@ test/cli/migrate.test.ts:  # 315 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
 
-test/cli/new.test.ts:  # 223 lines
+test/cli/new.test.ts:  # 241 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -2845,7 +2817,7 @@ test/cli/test-impact.test.ts:  # 98 lines
     - { name: write, lines: 12-16 }
     - { name: writeImpactFixture, lines: 21-27 }
 
-test/cli/test-run.test.ts:  # 318 lines
+test/cli/test-run.test.ts:  # 336 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync], line: 2 }
@@ -2875,7 +2847,7 @@ test/cli/test-runner-hook.test.ts:  # 312 lines
   functions:
     - { name: runHook, lines: 27-39 }
 
-test/cli/test-select.test.ts:  # 320 lines
+test/cli/test-select.test.ts:  # 338 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
@@ -2911,6 +2883,22 @@ test/cli/upgrade.test.ts:  # 93 lines
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
+
+test/cli/validate-applicability.test.ts:  # 206 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 13 }
+    - { module: path, items: [join], line: 14 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 15 }
+  constants:
+    - { name: VALID_API_CONTRACT, line: 45 }
+    - { name: VALID_BUSINESS_CONTRACT, line: 65 }
+    - { name: VALID_DATA_CONTRACT, line: 78 }
+  functions:
+    - { name: setupRepo, lines: 17-20 }
+    - { name: writeContract, lines: 22-25 }
+    - { name: buildCssContract, lines: 30-43 }
+    - { name: writeOtherContractsValid, lines: 94-110 }
 
 test/cli/validate-conformance.test.ts:  # 439 lines
   imports:
@@ -2961,6 +2949,16 @@ test/cli/validate-semantic.test.ts:  # 352 lines
     - { name: writeApiContract, lines: 89-92 }
     - { name: writeEnvContract, lines: 94-97 }
     - { name: writeOtherContractsValid, lines: 104-200 }
+
+test/cli/validate-spec-traceability.test.ts:  # 112 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
+    - { module: fs, items: [mkdirSync, writeFileSync, existsSync], line: 11 }
+    - { module: path, items: [join], line: 12 }
+    - { module: js-yaml, items: ['default:yaml'], line: 13 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 14 }
+  functions:
+    - { name: scaffoldIncompleteChange, lines: 16-22 }
 
 test/cli/validate-versions.test.ts:  # 263 lines
   imports:
@@ -3104,10 +3102,90 @@ test/commands/test-impact-build.test.ts:  # 36 lines
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: '../../src/commands/test-impact.js', items: [isTestFilePath], line: 2 }
 
-test/contracts/parser.test.ts:  # 315 lines
+test/contracts/agent-prompt-content.test.ts:  # 126 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 11 }
+    - { module: fs, items: [readFileSync], line: 12 }
+    - { module: path, items: [join], line: 13 }
+  functions:
+    - { name: readAgent, lines: 17-19 }
+
+test/contracts/applicability-agreement.test.ts:  # 104 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 7 }
+    - { module: child_process, items: [spawnSync], line: 8 }
+    - { module: fs, items: [writeFileSync], line: 9 }
+    - { module: path, items: [join, dirname], line: 10 }
+    - { module: url, items: [fileURLToPath], line: 11 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir, hasPython], line: 12 }
+    - { module: '../../src/contracts/parser.js', items: [stripFrontmatter, projectApplicability], line: 13 }
+  constants:
+    - { name: SCRIPT, line: 15 }
+    - { name: FIXTURES, line: 41 }
+  functions:
+    - { name: python, lines: 20-25 }
+    - { name: classifyPython, lines: 27-34 }
+  interfaces:
+    - { name: Fixture, lines: 36-39 }  # local
+
+test/contracts/applicability-reader.test.ts:  # 128 lines
+  imports:
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 11 }
+    - { module: child_process, items: [spawnSync], line: 12 }
+    - { module: fs, items: [writeFileSync], line: 13 }
+    - { module: path, items: [join, dirname], line: 14 }
+    - { module: url, items: [fileURLToPath], line: 15 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir, hasPython], line: 16 }
+  constants:
+    - { name: SCRIPT, line: 18 }
+  functions:
+    - { name: python, lines: 23-28 }
+    - { name: classify, lines: 36-45 }
+    - { name: writeContract, lines: 47-52 }
+  interfaces:
+    - { name: Classification, lines: 30-34 }  # local
+
+test/contracts/ci-workflow.test.ts:  # 84 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 11 }
+    - { module: fs, items: [readFileSync], line: 12 }
+    - { module: path, items: [join, dirname], line: 13 }
+    - { module: url, items: [fileURLToPath], line: 14 }
+  constants:
+    - { name: REPO_ROOT, line: 16 }
+    - { name: ADOPTER_TEMPLATE_PATH, line: 17 }
+    - { name: OWN_WORKFLOW_PATH, line: 18 }
+  functions:
+    - { name: read, lines: 20-22 }
+
+test/contracts/interaction-design-template.test.ts:  # 156 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 12 }
+    - { module: fs, items: [readFileSync], line: 13 }
+    - { module: path, items: [join, dirname], line: 14 }
+    - { module: url, items: [fileURLToPath], line: 15 }
+    - { module: '../../src/contracts/parser.js', items: [stripFrontmatter], line: 16 }
+    - { module: '../../src/utils/markdown-section.js', items: [sectionBody], line: 17 }
+    - { module: '../../src/commands/gate-artifacts.js', items: [meaningfulChars, findPlaceholders], line: 18 }
+    - { module: '../../src/utils/design-provenance.js', items: [parseTable], line: 19 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, hasPython], line: 20 }
+  constants:
+    - { name: TEMPLATE_PATH, line: 22 }
+  functions:
+    - { name: loadTemplate, lines: 27-31 }
+
+test/contracts/parser.test.ts:  # 352 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
-    - { module: '../../src/contracts/parser.js', items: [parseEndpoints, parseEndpointTableRows, parseContractSchemas, parseSchemaCellRef, detectSchemaCellNearMiss, stripFrontmatter, extractSection, parseRow, isSeparator], line: 2 }
+    - { module: '../../src/contracts/parser.js', items: [parseEndpoints, parseEndpointTableRows, parseContractSchemas, parseSchemaCellRef, detectSchemaCellNearMiss, stripFrontmatter, extractSection, parseRow, isSeparator, projectApplicability], line: 2 }
+
+test/contracts/skill-workflow-order.test.ts:  # 107 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 9 }
+    - { module: fs, items: [readFileSync], line: 10 }
+    - { module: path, items: [join], line: 11 }
+  functions:
+    - { name: read, lines: 15-17 }
 
 test/fixtures/code-map/comments-only.js:  # 5 lines
 
@@ -3259,6 +3337,15 @@ test/schemas/bug-fix-evidence.schema.test.ts:  # 332 lines
     - { name: diagnosticBlock, lines: 68-88 }
     - { name: validAgentLog, lines: 92-101 }
 
+test/schemas/design-lock.schema.test.ts:  # 61 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: ajv, items: ['default:Ajv'], line: 2 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 3 }
+    - { module: '../../src/schemas/design-lock.schema.js', items: [designLockSchema], line: 4 }
+  constants:
+    - { name: HASH, line: 13 }
+
 test/schemas/test-evidence.schema.test.ts:  # 136 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
@@ -3280,7 +3367,7 @@ test/setup-git-env.ts:  # 45 lines
     - { module: os, items: [tmpdir], line: 2 }
     - { module: path, items: [join], line: 3 }
 
-test/utils/acceptance-driver-templates.test.ts:  # 90 lines
+test/utils/acceptance-driver-templates.test.ts:  # 106 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
@@ -3308,6 +3395,36 @@ test/utils/asset-manifest.test.ts:  # 82 lines
     - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
     - { module: '../../src/utils/asset-manifest.js', items: [readAssetManifest, stampAssetManifest], line: 5 }
 
+test/utils/design-hash.test.ts:  # 130 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../../src/utils/design-hash.js', items: [computeDesignHash, projectConfirmedRegion, readDesignLock, writeDesignLock], line: 4 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 10 }
+  functions:
+    - { name: doc, lines: 16-26 }
+
+test/utils/design-provenance.test.ts:  # 377 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
+    - { module: '../../src/commands/openapi-export.js', items: [openapiExport], line: 5 }
+    - { module: '../../src/utils/design-provenance.js', items: [resolveCitation, checkStateDiscriminatorUniqueness], line: 6 }
+  constants:
+    - { name: API_PATH, line: 11 }
+    - { name: DATA_PATH, line: 12 }
+    - { name: OPENAPI_PATH, line: 13 }
+    - { name: SCHEMAS_FIELD_TABLE, line: 35 }
+    - { name: SCHEMAS_JSON_BLOCK, line: 57 }
+  functions:
+    - { name: apiContract, lines: 15-25 }
+    - { name: dataShapeContract, lines: 27-33 }
+    - { name: write, lines: 68-72 }
+    - { name: async regenerateOpenapi, lines: 74-80 }
+
 test/utils/digest.test.ts:  # 77 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 7 }
@@ -3322,13 +3439,13 @@ test/utils/gate-explain.test.ts:  # 57 lines
     - { module: vitest, items: [describe, it, expect], line: 9 }
     - { module: '../../src/utils/gate-explain.js', items: [explainGateError], line: 10 }
 
-test/utils/mock-of-sut-scan.test.ts:  # 310 lines
+test/utils/mock-of-sut-scan.test.ts:  # 497 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
-    - { module: '../../src/utils/mock-of-sut-scan.js', items: [resolveChangeSutFiles, sutMatchTokens, scanDriverForMockOfSut, scanDriverForHardcodedExpect, findAcceptanceDriverFiles, scanAcceptanceDrivers], line: 5 }
+    - { module: '../../src/utils/mock-of-sut-scan.js', items: [resolveChangeSutFiles, sutMatchTokens, scanDriverForMockOfSut, scanDriverForHardcodedExpect, findAcceptanceDriverFiles, scanAcceptanceDrivers, driverBelongsToChange, findUnboundRules], line: 5 }
 
 tools/check-mojibake.mjs:  # 141 lines
   imports:

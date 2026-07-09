@@ -366,6 +366,38 @@ function ensureAcceptanceOracleScaffold(
   warnings.push('acceptance.yml scaffold added; author real cases before enforceAcceptanceOracle can pass (ADR 0010)');
 }
 
+/**
+ * ADR 0012 (interaction-design-loop) backfill: scaffold a placeholder-plus-
+ * instructions `interaction-design.md` into an existing in-flight change dir
+ * that predates the gate, mirroring `ensureAcceptanceOracleScaffold` above
+ * exactly. No per-change substitution is needed beyond the template's own
+ * `<id>`/`<date>`/`<change-id>` placeholders. The scaffold is intentionally
+ * all-placeholder, so `enforceInteractionDesign` fails the migrated change
+ * (findPlaceholders + no human `## Confirmed`) until the human author either
+ * confirms a real design or marks it `applicability: not-applicable` with a
+ * reason — never silently skipped on upgrade (ADR 0012 §7).
+ */
+function ensureInteractionDesignScaffold(
+  changeDir: string,
+  changed: string[],
+  warnings: string[],
+  pendingWrites: PendingWrite[],
+): void {
+  const designPath = join(changeDir, 'interaction-design.md');
+  if (existsSync(designPath)) return;
+
+  const templatePath = join(ASSET.specsTemplates, 'interaction-design.md');
+  if (!existsSync(templatePath)) {
+    warnings.push('interaction-design.md template not found; run cdd-kit upgrade --yes after updating cdd-kit');
+    return;
+  }
+
+  const template = readFileSync(templatePath, 'utf8');
+  pendingWrites.push({ path: designPath, content: template });
+  changed.push('interaction-design.md: added placeholder-plus-instructions scaffold');
+  warnings.push('interaction-design.md scaffold added; confirm a real design (or mark applicability: not-applicable with a reason) before enforceInteractionDesign can pass (ADR 0012)');
+}
+
 function migrateOne(changeId: string, changeDir: string, enableContextGovernance: boolean): { result: MigrateResult; pending: PendingWrite[]; deletes: PendingDelete[] } {
   const changed: string[] = [];
   const warnings: string[] = [];
@@ -414,6 +446,9 @@ function migrateOne(changeId: string, changeDir: string, enableContextGovernance
 
   // acceptance.yml (ADR 0010 backfill)
   ensureAcceptanceOracleScaffold(changeDir, changed, warnings, pending);
+
+  // interaction-design.md (ADR 0012 backfill)
+  ensureInteractionDesignScaffold(changeDir, changed, warnings, pending);
 
   // context-manifest.md
   const manifestPath = join(changeDir, 'context-manifest.md');

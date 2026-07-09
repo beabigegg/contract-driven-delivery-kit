@@ -357,6 +357,25 @@ function writeValidAcceptanceOracle(tmpRepo: string, changeDir: string, changeId
   writeAcceptanceLock(tmpRepo, changeId, computeAcceptanceHash(oracle));
 }
 
+/**
+ * Satisfy the new `enforceInteractionDesign` required check (ADR 0012;
+ * interaction-design-loop) for a context-governed change that is not itself
+ * testing the design gate: mark `interaction-design.md` `applicability:
+ * not-applicable` (conditions 1-6 skip entirely), the minimal fixture for
+ * unrelated tests that only need the OTHER checks to pass. Mirrors
+ * `writeValidAcceptanceOracle`'s role for `enforceAcceptanceOracle`.
+ */
+function writeValidInteractionDesign(changeDir: string): void {
+  writeFileSync(join(changeDir, 'interaction-design.md'), [
+    '---',
+    'applicability: not-applicable',
+    'applicability-reason: this fixture change has no UI surface under test here.',
+    '---',
+    '',
+    '# Interaction Design',
+  ].join('\n'), 'utf8');
+}
+
 //?????????????????????????????????????????????????????????????????????????????
 // Tests
 // ?????????????????????????????????????????????????????????????????????????????
@@ -465,6 +484,7 @@ describe('cdd-kit gate', () => {
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-004'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
+    writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
 
     const r = runCli(['gate', 'feat-004'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
@@ -478,6 +498,7 @@ describe('cdd-kit gate', () => {
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-004b'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
+    writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
     // One non-archive task left pending: a warning in non-strict mode, but the
     // gate still passes — exactly the path where warnings used to print twice.
     writeFileSync(join(changeDir, 'tasks.yml'), buildTasksYaml({
@@ -747,6 +768,7 @@ describe('cdd-kit gate', () => {
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-015d'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
+    writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
 
     const filler = 'This is a meaningful description of the change to the date picker component. '.repeat(4);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nE2E tests exercise the <date-picker> and <my-element> custom elements rendered by the shell. Unit tests cover the new logic.\n`, 'utf8');
@@ -765,6 +787,7 @@ describe('cdd-kit gate', () => {
     writeValidChangeArtifacts(changeDir);
     writeValidContracts(tmpRepo);
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-015e'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
+    writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
 
     const filler = 'This is a meaningful description of the legacy XML payload integration work. '.repeat(4);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nThe SOAP endpoint returns <id>123</id> and <date>2026-06-01</date>; tests assert the parser maps both correctly. Unit and integration coverage included.\n`, 'utf8');
@@ -1409,6 +1432,7 @@ describe('cdd-kit gate — tier floor', () => {
     const changeDir = scaffoldSensitiveChange('floor-pass', 0);
     writeValidContracts(tmpRepo);
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'floor-pass'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
+    writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
     const r = runCli(['gate', 'floor-pass'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/gate passed/i);
@@ -1737,6 +1761,7 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
     writeContextGovernanceFiles(changeDir);
     writeValidContracts(tmpRepo);
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'ev-pass'); // acceptance-oracle: satisfy the new required check
+    writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
     const body = buildEvidenceYaml({
       changeId: 'ev-pass',
       requiredPhases: ['collect', 'targeted', 'changed-area', 'contract', 'acceptance'],
@@ -2891,5 +2916,60 @@ describe('cdd-kit gate — test evidence (ADR 0005 §6/§7)', () => {
 
     const r = runCli(['gate', 'bug-046'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout + r.stderr).not.toMatch(/performance_evidence/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// enforceInteractionDesign composition (ADR 0012; interaction-design-loop AC-4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cdd-kit gate — enforceInteractionDesign composition (ADR 0012)', () => {
+  let tmpRepo: string;
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpRepo = makeTempDir('cdd-gate-design-compose-repo-');
+    tmpHome = makeTempDir('cdd-gate-design-compose-home-');
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    if (r.status !== 0) throw new Error(`Setup init failed: ${r.stderr}`);
+  });
+
+  afterEach(() => {
+    cleanupDir(tmpRepo);
+    cleanupDir(tmpHome);
+  });
+
+  it('a new context-governed change with no interaction-design.md fails the gate on enforceInteractionDesign', () => {
+    runCli(['new', 'design-compose-missing'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'design-compose-missing');
+    // `cdd-kit new` (IP-8) now scaffolds a placeholder-plus-instructions
+    // interaction-design.md alongside acceptance.yml — remove it so this
+    // fixture actually tests the "missing" branch its own name promises,
+    // rather than the (different) unfilled-placeholder branch.
+    rmSync(join(changeDir, 'interaction-design.md'), { force: true });
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir); // writeValidChangeArtifacts's tasks.yml has no context-governance; restore it
+
+    const r = runCli(['gate', 'design-compose-missing'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/missing required artifact: interaction-design\.md/i);
+  });
+
+  it('a marked-not-applicable interaction-design.md is not flagged as missing (skip path reachable through the composed check)', () => {
+    runCli(['new', 'design-compose-skip'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'design-compose-skip');
+    writeValidChangeArtifacts(changeDir);
+    writeContextGovernanceFiles(changeDir);
+    writeFileSync(join(changeDir, 'interaction-design.md'), [
+      '---',
+      'applicability: not-applicable',
+      'applicability-reason: this fixture change has no UI surface',
+      '---',
+      '',
+      '# Interaction Design',
+    ].join('\n'), 'utf8');
+
+    const r = runCli(['gate', 'design-compose-skip'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/missing required artifact: interaction-design\.md/i);
   });
 });

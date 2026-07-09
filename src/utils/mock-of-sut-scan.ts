@@ -136,7 +136,7 @@ function collectLeafLiterals(value: unknown, out: Set<string>): void {
 }
 
 /** Every [start, end) byte range where `needle` occurs verbatim in `haystack`. */
-function findAllOccurrences(haystack: string, needle: string): Array<[number, number]> {
+export function findAllOccurrences(haystack: string, needle: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
   if (!needle) return ranges;
   let idx = haystack.indexOf(needle);
@@ -160,7 +160,7 @@ function isFullyContainedInAny(range: [number, number], containers: Array<[numbe
 // exact shape this guards against (`applicability-reason`, `reason_contains`).
 const WORD_CHAR_RE = /[A-Za-z0-9_-]/;
 
-function isWordBoundaryOccurrence(haystack: string, start: number, end: number): boolean {
+export function isWordBoundaryOccurrence(haystack: string, start: number, end: number): boolean {
   const before = start > 0 ? haystack[start - 1] : '';
   const after = end < haystack.length ? haystack[end] : '';
   if (before && WORD_CHAR_RE.test(before)) return false;
@@ -292,6 +292,46 @@ export function driverBelongsToChange(content: string, filePath: string, changeI
   const base = basename(filePath);
   if (base === `${changeId}.driver` || base.startsWith(`${changeId}.driver.`)) return true;
   return extractLoaderChangeIds(content).has(changeId);
+}
+
+/**
+ * `rules[]` invariant binding scan (ADR 0010 §4; ci-gate-contract.md
+ * `enforceAcceptanceOracle` condition 6, `--strict` only). Contract said this
+ * existed since ADR 0010 shipped; it never did (`rules` never appears in
+ * gate-acceptance.ts) -- this is the real implementation, added by
+ * interaction-design-loop scope expansion 2.
+ *
+ * Binding convention (adopted, not invented -- already used verbatim by
+ * `test/acceptance/interaction-design-loop.driver.test.ts`): a rule is bound
+ * when a driver file that belongs to THIS change (`driverBelongsToChange`,
+ * the same cross-change guard AC-4's scan uses above) contains a
+ * word-boundary occurrence (`isWordBoundaryOccurrence`, the same
+ * substring-vs-whole-token guard) of the rule's id -- conventionally inside a
+ * test title, e.g. `it("rule <id>: ...", ...)`, mirroring how this codebase
+ * already ties a test to an AC id by naming convention.
+ *
+ * Reusing both guards here is deliberate: ADR 0010's own scanner shipped with
+ * exactly these two false-positive bugs (cross-change contamination,
+ * substring matching) and this new scan must not reproduce either.
+ *
+ * @returns the ids of rules with zero bound driver test found (empty array
+ * when every rule is bound, including the trivial case of zero rules).
+ */
+export function findUnboundRules(cwd: string, changeId: string, ruleIds: string[]): string[] {
+  if (ruleIds.length === 0) return [];
+
+  const changeDriverContents: string[] = [];
+  for (const file of findAcceptanceDriverFiles(cwd)) {
+    const content = readFileSync(file, 'utf8');
+    if (driverBelongsToChange(content, file, changeId)) changeDriverContents.push(content);
+  }
+  if (changeDriverContents.length === 0) return [...ruleIds];
+
+  return ruleIds.filter((ruleId) => {
+    return !changeDriverContents.some((content) =>
+      findAllOccurrences(content, ruleId).some(([s, e]) => isWordBoundaryOccurrence(content, s, e)),
+    );
+  });
 }
 
 export function scanAcceptanceDrivers(

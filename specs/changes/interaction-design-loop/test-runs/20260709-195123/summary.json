@@ -1,0 +1,15 @@
+{
+  "change_id": "interaction-design-loop",
+  "phase": "collect",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npx tsc --noEmit",
+  "duration_ms": 3493,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/interaction-design-loop/test-runs/20260709-195123/summary.json",
+    "stdout": "specs/changes/interaction-design-loop/test-runs/20260709-195123/stdout.log",
+    "stderr": "specs/changes/interaction-design-loop/test-runs/20260709-195123/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

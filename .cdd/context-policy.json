@@ -8,7 +8,8 @@
     "assets/**",
     "specs/archive/**",
     "specs/changes/*",
-    ".cdd/acceptance-lock.json"
+    ".cdd/acceptance-lock.json",
+    ".cdd/design-lock.json"
   ],
   "contextExpansion": {
     "mode": "auto-safe",

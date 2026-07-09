@@ -20,6 +20,7 @@ import { enforceContractSubstance } from './gate-contracts.js';
 import { enforceTestEvidence, enforceBugFixEvidence } from './gate-evidence.js';
 import { enforceRequiredAgentEvidence } from './gate-agents.js';
 import { enforceAcceptanceOracle } from './gate-acceptance.js';
+import { enforceInteractionDesign } from './gate-design.js';
 import { isSafeChangeId } from '../utils/change-id.js';
 
 export interface GateOptions {
@@ -178,6 +179,9 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceBugFixEvidence(changeDir, changeId, cwd, tasksData, errors, warnings);
   enforceRequiredAgentEvidence(changeDir, warnings);
   enforceAcceptanceOracle(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
+  // `isNewChange` is threaded from gate.ts's single computation above (never
+  // re-derived) — see gate-design.ts's module header ("TOP RISK") for why.
+  await enforceInteractionDesign(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
 
   // Derived-index freshness (P2-1): if this change has generated change.yml /
   // trace.yml that have drifted from their source artifacts, nudge a refresh.

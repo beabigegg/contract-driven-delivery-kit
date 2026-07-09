@@ -1,11 +1,12 @@
 {
   "provider": "claude",
-  "generated_at": null,
+  "generated_at": "2026-07-09T06:33:41.602Z",
   "schema-version": "0.2.0",
   "roles": {
     "change-classifier": "opus",
     "implementation-planner": "opus",
     "spec-architect": "opus",
+    "interaction-designer": "opus",
     "qa-reviewer": "opus",
     "contract-reviewer": "sonnet",
     "test-strategist": "sonnet",

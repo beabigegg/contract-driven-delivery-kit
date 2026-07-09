@@ -1,0 +1,20 @@
+- type: tier-floor-override
+  change-id: interaction-design-loop
+  timestamp: '2026-07-09T07:25:47.741Z'
+  declared-tier: 1
+  floor-tier: 0
+  label: critical surface (auth / payments / data migration / concurrency / secrets)
+  matched:
+    - auth
+    - endpoint
+    - index
+    - migration
+    - payment
+  reason: >-
+    The tier floor matched the word migration/migrate in change-request.md, but in this change that
+    word appears ONLY as (a) the isNewChange || strict gate migration window for a newly required
+    check and (b) the upgrade path for legacy change directories. There is no production database,
+    no schema or data migration, no concurrency, no secrets, no auth, and no payment surface. All
+    artifacts (agent prompts, CLI validators, a gate check behind a migration window) are fully
+    reversible dev tooling. Classified Tier 1 per the classifier: high risk + system-wide authority,
+    but no irreversible/production-outage blast radius.

@@ -80,6 +80,7 @@ describe('cdd-kit migrate', () => {
     expect(existsSync(join(changeDir, 'context-manifest.md'))).toBe(true);
     expect(existsSync(join(changeDir, 'implementation-plan.md'))).toBe(true);
     expect(existsSync(join(changeDir, 'acceptance.yml'))).toBe(true);
+    expect(existsSync(join(changeDir, 'interaction-design.md'))).toBe(true);
   });
 
   it('B5.1: migrate scaffolds a placeholder-plus-instructions acceptance.yml into an in-flight change (ADR 0010)', () => {
@@ -106,6 +107,32 @@ describe('cdd-kit migrate', () => {
     const r = runCli(['migrate', 'old-oracle-present'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
     expect(readFileSync(join(changeDir, 'acceptance.yml'), 'utf8')).toBe(realOracle);
+  });
+
+  it('B6.1: migrate scaffolds a placeholder-plus-instructions interaction-design.md into an in-flight change (ADR 0012)', () => {
+    const changeDir = makeOldChange('old-design');
+    const r = runCli(['migrate', 'old-design'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/interaction-design\.md/i);
+
+    const designPath = join(changeDir, 'interaction-design.md');
+    expect(existsSync(designPath)).toBe(true);
+    const raw = readFileSync(designPath, 'utf8');
+    // All-placeholder scaffold: enforceInteractionDesign must reject it
+    // (findPlaceholders + no human ## Confirmed) until the human author
+    // confirms a real design (never silently skipped, ADR 0012 §7).
+    expect(raw).toMatch(/<id>/);
+    expect(raw).toMatch(/## Confirmed/);
+  });
+
+  it('B6.2: migrate does not overwrite an already-authored interaction-design.md', () => {
+    const changeDir = makeOldChange('old-design-present');
+    const realDesign = '# Interaction Design: old-design-present\n\n## Confirmed\n\nThe maintainer confirmed: real content.\n';
+    writeFileSync(join(changeDir, 'interaction-design.md'), realDesign, 'utf8');
+
+    const r = runCli(['migrate', 'old-design-present'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(readFileSync(join(changeDir, 'interaction-design.md'), 'utf8')).toBe(realDesign);
   });
 
   it('3: migrate populates archive-tasks default in tasks.yml', () => {
@@ -168,6 +195,10 @@ describe('cdd-kit migrate', () => {
     // not re-scaffold it and report this change as fully up to date.
     const originalOracle = 'oracle-version: 0.1.0\nauthored-by: human\ncases:\n  - id: real-case\n    given: g\n    when: w\n    then: t\n    input: 1\n    expect: 2\n';
     writeFileSync(join(changeDir, 'acceptance.yml'), originalOracle, 'utf8');
+    // interaction-design (ADR 0012) backfill: already present, so migrate must
+    // not re-scaffold it and report this change as fully up to date.
+    const originalDesign = '# Interaction Design: new-001\n\n## Confirmed\n\nThe maintainer confirmed: real content.\n';
+    writeFileSync(join(changeDir, 'interaction-design.md'), originalDesign, 'utf8');
 
     const r = runCli(['migrate', 'new-001'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).toBe(0);
@@ -176,6 +207,7 @@ describe('cdd-kit migrate', () => {
     expect(readFileSync(join(changeDir, 'tasks.yml'), 'utf8')).toBe(originalTasks);
     expect(readFileSync(join(changeDir, 'change-classification.md'), 'utf8')).toBe(originalClassif);
     expect(readFileSync(join(changeDir, 'acceptance.yml'), 'utf8')).toBe(originalOracle);
+    expect(readFileSync(join(changeDir, 'interaction-design.md'), 'utf8')).toBe(originalDesign);
   });
 
   it('7: migrate --dry-run reports changes but does NOT write files', () => {

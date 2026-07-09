@@ -1,0 +1,11 @@
+agent: spec-architect
+change-id: interaction-design-loop
+status: complete
+artifacts:
+  - { type: adr-written, pointer: "docs/adr/0012-interaction-design-loop.md" }
+  - { type: affected-areas, pointer: "cdd workflow order, gate/validators, design-lock+hook, agent prompts, ci-gate-contract" }
+  - { type: decision-summary, pointer: "human-confirmed interaction-design.md reconciled to API/data-shape contracts in a convergence loop, hash-locked" }
+  - { type: risks-noted, pointer: "0 high, 4 medium (see design.md ## Open Risks)" }
+notes:
+  - "State-discriminator strictness DECIDED HARD (ADR 0012 §2). AC-5 in change-classification.md stands unchanged; no downgrade needed."
+  - "No Write tool available; both files created via Edit with empty old_string (succeeded)."

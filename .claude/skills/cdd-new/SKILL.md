@@ -28,6 +28,7 @@ Core artifacts:
 | `test-plan.md` | acceptance criterion to test family/file mapping |
 | `ci-gates.md` | required/informational/manual gates and promotion policy |
 | `design.md` | architecture/design decisions, only when required |
+| `interaction-design.md` | screen information, user intents, control↔intent mapping, states + discriminators, human confirmation (ADR 0012); `applicability: not-applicable` + reason when the change has no UI surface |
 | `implementation-plan.md` | concise execution packet that references the above artifacts |
 | `tasks.yml` | centralized task status only |
 
@@ -141,7 +142,7 @@ inevitable re-classification when the agents discover the ambiguity.
 
 | Agent type | Who writes artifact files | Who writes optional handoff notes | Who updates tasks.yml |
 |------------|--------------------------|----------------------------------|----------------------|
-| Read-only agents (no Edit tool): `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer` | YOU (main Claude) | YOU, only when useful | YOU (main Claude) |
+| Read-only agents (no Edit tool): `change-classifier`, `contract-reviewer`, `qa-reviewer`, `visual-reviewer`, `dependency-security-reviewer`, `ui-ux-reviewer`, `interaction-designer` | YOU (main Claude) | YOU, only when useful | YOU (main Claude) |
 | Write-capable agents (have Edit): `implementation-planner`, `backend-engineer`, `bug-fix-engineer`, `frontend-engineer`, `e2e-resilience-engineer`, `monkey-test-engineer`, `stress-soak-engineer`, `ci-cd-gatekeeper`, `test-strategist`, `spec-architect` | The agent itself | The agent itself, only when useful | YOU (main Claude) |
 
 **Rule**: After EVERY agent completes (whether it writes itself or you write for it), YOU must update the relevant `tasks.yml` task `status:` from `pending` to `done`.
@@ -240,6 +241,7 @@ the kit and is bundled into every install.
 | `change-request.md` | `specs/templates/change-request.md` | Fill the `## Original Request` section with the user's exact description before invoking the classifier; leave the rest blank |
 | `change-classification.md` | `specs/templates/change-classification.md` | Replace blank template with classifier output (Step 2) |
 | `implementation-plan.md` | `specs/templates/implementation-plan.md` | `implementation-planner` writes this directly after contracts, tests, required design, and CI gate plan are known |
+| `interaction-design.md` | `specs/templates/interaction-design.md` | `interaction-designer` proposes the derivation chain; YOU write it, run the human dialogue over `## Open Decisions`, transcribe answers into `## Confirmed`, then run `cdd-kit design confirm <change-id>` to lock it (ADR 0012) |
 | `test-plan.md` | `specs/templates/test-plan.md` | `test-strategist` writes this directly |
 | `ci-gates.md` | `specs/templates/ci-gates.md` | `ci-cd-gatekeeper` writes this directly |
 | `tasks.yml` | `specs/templates/tasks.yml` | Tick checkboxes as agents complete; backfill `tier:` frontmatter from classifier (Step 2.4) |
@@ -384,6 +386,7 @@ the defaults.
 |---|---|---|
 | Decision | `change-classifier` | 🟣 `[classifier]` |
 | Decision | `spec-architect` | 🟣 `[architect]` |
+| Decision | `interaction-designer` | 🟣 `[design]` |
 | Decision | `implementation-planner` | 🟣 `[plan]` |
 | Implementation | `backend-engineer` | 🔵 `[backend]` |
 | Implementation | `bug-fix-engineer` | 🔵 `[bug-fix]` |
@@ -412,7 +415,7 @@ Color semantics:
 Format: emoji is followed by a single space, then the bracket-tag with the
 model class appended as `[role · model]`, then a single space, then the
 human-readable narration. Resolve `model` from `.cdd/model-policy.json`
-`roles.<agent-name>` (defaults: classifier / architect / plan / qa / drift =
+`roles.<agent-name>` (defaults: classifier / architect / design / plan / qa / drift =
 `opus`; backend / bug-fix / frontend / ci-cd / test-plan / e2e / monkey / stress /
 ui-ux / visual / deps-sec = `sonnet`; repo-scan = `haiku`).
 
@@ -508,51 +511,63 @@ not replace the tier (a bug fix can be Tier 0-5):
    - Optional handoff note: `agent-log/contract-reviewer.yml`
    - YOU tick: `1.2`, applicable items in section 2
 
-2. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
+2. **`interaction-designer`** (read-only, ADR 0012) — if the change touches any UI surface (a new/changed screen, control, or user-facing state). Runs after `contract-reviewer` (the contract bounds what data can appear) and before `implementation-planner` (nothing implementation-facing should plan UI work off an unconfirmed design).
+   - It reads the just-reviewed contracts and proposes the ADR 0012 §1 derivation chain (presented information, user intents, control↔intent mapping incl. deleted controls, states + discriminators, reversibility, consistency commitments) plus a `## Open Decisions` list — it is read-only (tools: Read, Grep, Glob) and structurally cannot write `## Confirmed`.
+   - **YOU write** `specs/changes/<change-id>/interaction-design.md` from its response (same write-responsibility pattern as `change-classifier`).
+   - **YOU then run the actual dialogue with the human**: surface `## Open Decisions` verbatim, ask, do not guess — same choreography as `## Step 0: Request quality check` and the `## Atomic Split Proposal` below, the kit's two existing precedents for a subagent that cannot converse with the user directly.
+   - Once the human has answered, **YOU transcribe their actual answers** (not a paraphrase) into `## Confirmed`, then run `cdd-kit design confirm <change-id>` to hash-lock it. Until that command runs, `cdd-kit gate` keeps failing this artifact on purpose (mirrors `acceptance.yml` / ADR 0010).
+   - **Convergence loop, not a straight line (back-edge):** if provenance reconciliation surfaces an unresolvable HARD reference (a missing field, a missing discriminator, a missing distinct HTTP status the design needs), `interaction-designer` emits that demand instead of inventing one. Control loops **back to `contract-reviewer`** to add the missing piece to the contract, then `interaction-designer` re-runs against the updated contract. Repeat until provenance reconciliation converges (zero unresolvable references) — only then do both the contract and `interaction-design.md` freeze. Do not proceed to `implementation-planner` while a HARD reference is still unresolved.
+   - Skip invoking this agent only when the change is backend-only with no user-facing surface at all, or a pure copy/color tweak — in that case YOU mark `interaction-design.md` `applicability: not-applicable` + a required non-empty `applicability-reason` directly (ADR 0011 skip path; a bare skip with no reason is a hard gate failure), never a silently-omitted or silently-unmarked file.
+   - No dedicated `tasks.yml` row is tied to this step (same as `acceptance.yml`/ADR 0010, which also has none); track completion via the artifact's own state (`## Open Decisions` all resolved, `## Confirmed` present and hash-locked) and an optional `agent-log/interaction-designer.yml`.
+
+3. **`test-strategist`** (write-capable) — writes `specs/changes/<change-id>/test-plan.md` directly.
    - YOU tick: applicable items in section 3 based on what test families were planned
    - Provide the classifier's `## Inferred Acceptance Criteria` list to test-strategist. These become the `criterion id` column in the Acceptance Criteria → Test Mapping table.
 
-3. **`spec-architect`** (write-capable) — only if `change-classification.md` contains `Architecture Review Required: yes`, marks `design.md` as `yes`, or lists `spec-architect` in `## Required Agents`.
+4. **`spec-architect`** (write-capable) — only if `change-classification.md` contains `Architecture Review Required: yes`, marks `design.md` as `yes`, or lists `spec-architect` in `## Required Agents`.
    - Writes `specs/changes/<change-id>/design.md` directly. This is the design/architecture decision record consumed by `implementation-planner`.
    - YOU tick: `1.3`
    - If the classifier did not require design, YOU mark `1.3` as `skipped` before continuing.
 
-4. **`ci-cd-gatekeeper`** (write-capable) — writes `specs/changes/<change-id>/ci-gates.md` directly before implementation planning.
+5. **`ci-cd-gatekeeper`** (write-capable) — writes `specs/changes/<change-id>/ci-gates.md` directly before implementation planning.
    - YOU tick: `1.4`, `4.4`, applicable items in section 6
 
-5. **`implementation-planner`** (write-capable) — writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, required design, and CI gate plan are available.
+6. **`implementation-planner`** (write-capable) — writes `specs/changes/<change-id>/implementation-plan.md` directly after classification, contracts, test plan, required design, and CI gate plan are available.
    - This is the handoff packet for implementation agents. It should contain execution scope, non-goals, required changes, file-level plan, contract updates, test execution plan, and constraints.
    - It must reference `test-plan.md`, `ci-gates.md`, contracts, and `design.md` by path/section/id instead of copying their full content.
    - It must not create or repair `design.md`. If required design is missing, route back to `spec-architect`.
+   - If the change has a UI surface, it must reference the confirmed `interaction-design.md` by path/section (e.g. states per `## States`, controls per `## Controls`) and report `blocked` if it is missing or unconfirmed — route back to `interaction-designer` (or the human dialogue step above) rather than planning UI work off its own judgment.
    - If it reports `blocked`, halt and surface the missing decision/context to the user.
    - YOU tick: `1.5`
 
-6. **`backend-engineer`** (write-capable) — if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
+7. **`backend-engineer`** (write-capable) — if the change touches server, API, data, or business logic. Writes implementation directly; may write an optional handoff note.
    - YOU tick: `4.1` and/or `4.3` based on scope
    - Note: `tasks.yml` items 3.1–3.2 (unit/contract/integration tests) are written by `backend-engineer` and/or `frontend-engineer` in TDD fashion — failing tests first, implementation second. Items 3.3–3.5 are written by dedicated test engineers (Tier 0–1 only or when classifier explicitly requires them).
 
-6a. **`bug-fix-engineer`** (write-capable) — for symptom-driven bug fixes where the user reports behavior but not the code location. Use this instead of backend/frontend as the first implementation agent when root cause is unknown; it may route the final implementation to backend/frontend scope after graph-guided investigation.
-   - For `lane: bug-fix`, 6a runs **before** steps 6 and 7: bug-fix-engineer reproduces and diagnoses first, then either makes the fix or hands the final edit to backend/frontend scope. Do not let backend/frontend (steps 6/7) edit before that handoff (see "Bug-fix lane routing").
+7a. **`bug-fix-engineer`** (write-capable) — for symptom-driven bug fixes where the user reports behavior but not the code location. Use this instead of backend/frontend as the first implementation agent when root cause is unknown; it may route the final implementation to backend/frontend scope after graph-guided investigation.
+   - For `lane: bug-fix`, 7a runs **before** steps 7 and 8: bug-fix-engineer reproduces and diagnoses first, then either makes the fix or hands the final edit to backend/frontend scope. Do not let backend/frontend (steps 7/8) edit before that handoff (see "Bug-fix lane routing").
 
-7. **`frontend-engineer`** (write-capable) — if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
+8. **`frontend-engineer`** (write-capable) — if the change touches UI, components, or client-side behavior. Writes implementation directly; may write an optional handoff note.
+   - Reports `blocked` when this change has a UI surface and `interaction-design.md` is missing or unconfirmed (ADR 0012) — every loading/empty/error/disabled/permission/network state it implements comes from the confirmed design's `## States` table, never its own judgment.
    - YOU tick: `4.2`
 
-8. **`dependency-security-reviewer`** (read-only) — if the change touches lockfiles, package manifests, or DB migrations.
+9. **`dependency-security-reviewer`** (read-only) — if the change touches lockfiles, package manifests, or DB migrations.
    - **Only invoke if** `change-classification.md` lists lockfiles, package manifests, or DB migrations as affected.
    - Optional handoff note: `agent-log/dependency-security-reviewer.yml`
    - YOU tick: applicable security-related items
 
-9. **`ui-ux-reviewer`** (read-only) — if any UI change (run alongside or after frontend-engineer).
+10. **`ui-ux-reviewer`** (read-only) — if any UI change (run alongside or after frontend-engineer).
    - **Only invoke if** classifier marks UI/CSS as affected.
+   - Reviews AGAINST the confirmed `interaction-design.md` as its primary lens (Nielsen-style generic heuristics are a secondary lens, used only where the confirmed design is silent). Never files a finding about aesthetics, motion, or layout taste — those are Never Gated (ADR 0012).
    - Optional handoff note: `agent-log/ui-ux-reviewer.yml`
    - YOU tick: `5.1`
 
-10. **`visual-reviewer`** (read-only) — if any UI change (run after ui-ux-reviewer).
+11. **`visual-reviewer`** (read-only) — if any UI change (run after ui-ux-reviewer).
    - **Only invoke if** classifier marks UI/CSS as affected.
    - Optional handoff note: `agent-log/visual-reviewer.yml`
    - YOU tick: `5.2`
 
-11. **`qa-reviewer`** (read-only) — release readiness decision (always last).
+12. **`qa-reviewer`** (read-only) — release readiness decision (always last).
     - Optional handoff note: `agent-log/qa-reviewer.yml`
     - YOU tick: `5.4`
 
@@ -560,7 +575,7 @@ not replace the tier (a bug fix can be Tier 0-5):
 
 ### Tier 0–1 (high risk: production data, concurrency, queues, large queries, auth, payments, exports)
 
-All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backend-engineer` and before `dependency-security-reviewer`:
+All agents from Tier 2–3, in the same order given there — including `interaction-designer`, which stays between `contract-reviewer` and `implementation-planner` (step 2 above) — plus insert these after `frontend-engineer` / `backend-engineer` and before `dependency-security-reviewer`:
 
 - **`e2e-resilience-engineer`** (write-capable) — E2E, failure-injection, data-boundary tests. May write an optional handoff note.
   - YOU tick: `3.3`
@@ -575,7 +590,7 @@ All agents from Tier 2–3, plus insert these after `frontend-engineer` / `backe
 
 **Agent commission rules:**
 - Skip an agent only if the classifier explicitly marks its surface as "not affected"
-- If backend-only with no UI: skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`
+- If backend-only with no UI: skip `frontend-engineer`, `ui-ux-reviewer`, `visual-reviewer`, and `interaction-designer`; YOU mark `interaction-design.md` `applicability: not-applicable` + a required reason directly instead (ADR 0011 skip path) — never leave it silently unscaffolded or unmarked
 - If UI-only with no backend: skip `backend-engineer`
 - A required test failure blocks the gate; it cannot be waived or excluded as
   pre-existing. If a broad run surfaces an unrelated failure, record only the

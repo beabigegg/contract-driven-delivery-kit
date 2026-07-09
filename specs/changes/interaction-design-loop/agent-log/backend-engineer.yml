@@ -1,0 +1,366 @@
+agent: backend-engineer
+change-id: interaction-design-loop
+batch: "IP-1..IP-7 only (schema, hash, provenance resolver, gate check, gate compose, design confirm CLI, hook + forbidden-path policy)"
+status: completed-for-scope
+summary: >-
+  Implemented the design-lock schema, the canonical-projection hash-lock util,
+  the ADR 0012 SS2 provenance-reconciliation resolver, enforceInteractionDesign
+  (composed into cdd-kit gate), `cdd-kit design confirm`, the design-write
+  PreToolUse hook, and both forbidden-path lists. IP-8 (template + new-change.ts
+  scaffold), IP-9/IP-10 (CI contract/workflows), IP-11 (agent prompts/SKILL/
+  applicability.py), IP-12 (dogfood interaction-design.md) were explicitly out
+  of scope for this batch and were NOT touched.
+artifacts:
+  - { type: files-changed, pointer: "src/schemas/design-lock.schema.ts (new)" }
+  - { type: files-changed, pointer: "src/utils/design-hash.ts (new) — extractConfirmedRegion/projectConfirmedRegion/computeDesignHash/readDesignLock/writeDesignLock" }
+  - { type: files-changed, pointer: "src/utils/design-provenance.ts (new) — resolveCitation, reconcileProvenance, checkStateDiscriminatorUniqueness, parseTable/tableCell (exported for gate-design.ts reuse)" }
+  - { type: files-changed, pointer: "src/commands/gate-design.ts (new) — enforceInteractionDesign:258-362, doc-structure parsers, classifyDesignApplicability:73-104" }
+  - { type: files-changed, pointer: "src/commands/gate.ts:22-23,180-182 — import + compose enforceInteractionDesign, threading gate.ts:93's isNewChange (never re-derived)" }
+  - { type: files-changed, pointer: "src/commands/design.ts (new) — designConfirm, sole writer of .cdd/design-lock.json" }
+  - { type: files-changed, pointer: "src/cli/index.ts — design confirm <change-id> command group; --design-write install-agent-hooks option" }
+  - { type: files-changed, pointer: "src/commands/install-agent-hooks.ts — DESIGN_WRITE HookDef + DESIGN_WRITE_MARKER + designWrite option" }
+  - { type: files-changed, pointer: "hooks/pre-tool-use-design-write.sh (new) — mirrors pre-tool-use-acceptance-write.sh" }
+  - { type: files-changed, pointer: "src/commands/context.ts:39-42 — DEFAULT_FORBIDDEN_PATHS + .cdd/design-lock.json" }
+  - { type: files-changed, pointer: ".cdd/context-policy.json — forbiddenPaths + .cdd/design-lock.json (agrees with context.ts)" }
+  - { type: tests-added, pointer: "test/schemas/design-lock.schema.test.ts (9 tests, passing)" }
+  - { type: tests-added, pointer: "test/utils/design-hash.test.ts (11 tests, passing)" }
+  - { type: tests-added, pointer: "test/utils/design-provenance.test.ts (25 tests, passing) — all 5 citation forms, 3 HARD degrade paths, marker-aware vs not-found distinction, Schemas-empty independence, state-discriminator uniqueness" }
+  - { type: tests-added, pointer: "test/cli/design-confirm.test.ts (8 tests, passing)" }
+  - { type: tests-added, pointer: "test/cli/design-write-hook.test.ts (10 tests, skipped on win32 like its acceptance-write precedent; hook logic manually verified via /bin/sh)" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts (23 tests, passing) — AC-4 missing/open-decisions/confirmed/referential-integrity, AC-5 provenance + zero-over-fetch, AC-6 tamper exact message + reflow-stable, AC-7 migration window + migrate-placeholder-shaped fixture, AC-8 skip path, composition" }
+  - { type: tests-added, pointer: "test/cli/install-agent-hooks.test.ts — --design-write describe block (9 new tests, mirrors --acceptance-write)" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts — enforceInteractionDesign composition describe block (2 tests) + writeValidInteractionDesign helper applied to 6 pre-existing PASS-asserting fixtures (feat-004, feat-004b, feat-015d, feat-015e, floor-pass, ev-pass) that would otherwise regress now that the check is composed" }
+  - { type: tests-added, pointer: "test/contracts/applicability-agreement.test.ts — 7 new fixture cases proving TS/Python agreement holds for a file literally named interaction-design.md (AC-8 second-consumer)" }
+  - { type: test-output, pointer: "targeted phase: 5 files, all passed (design-hash, design-confirm, design-write-hook[skipped-win32], gate-design, design-provenance)" }
+  - { type: test-output, pointer: "changed-area phase: 9 files passed, 0 failed (includes full gate.test.ts 126/126 and install-agent-hooks.test.ts 44/44)" }
+  - { type: test-output, pointer: "contract phase: `node dist/cli/index.js validate --contracts` passed (0 contracts/ files touched this batch)" }
+  - { type: contracts-touched, pointer: "none by this agent — contracts/ci/ci-gate-contract.md 0.4.0 and contracts/CHANGELOG.md were already updated before this session (per task instructions)" }
+---
+agent: backend-engineer
+change-id: interaction-design-loop
+batch: "IP-8, IP-9 (workflow half), IP-10"
+status: completed-for-scope
+summary: >-
+  Authored specs/templates/interaction-design.md (ADR 0012 §1 derivation chain
+  + a ## Provenance citation-forms reference + the ADR 0011 applicability
+  escape, all commented out by default), wired it into new-change.ts's
+  REQUIRED_TEMPLATES and migrate.ts's backfill scaffolding (mirroring
+  acceptance.yml exactly), applied ci-gates.md § Workflow Changes verbatim to
+  both CI workflow files (change-id derivation + cdd-kit gate invocation +
+  --strict-on-push-only + fetch-depth:0), added the {{cdd-kit-version}} token
+  substitution to init.ts (reusing the existing readKitVersion() utility
+  instead of re-deriving pkg.version reading), and fixed one pre-existing
+  test/cli/gate.test.ts fixture whose "no interaction-design.md" premise IP-8
+  invalidated. contracts/ci/ci-gate-contract.md 0.4.0 and CHANGELOG were
+  already applied before this session (per task instructions) -- not
+  re-touched. IP-11 (.claude/ agent prompts + SKILL.md) and IP-12 (this
+  change's own dogfood interaction-design.md) were explicitly out of scope
+  for this batch and were NOT done.
+artifacts:
+  - { type: files-changed, pointer: "specs/templates/interaction-design.md (new) — ADR 0012 §1 chain (Screens/Presented Information/User Intents/Controls+Deleted Controls/States/Reversibility/Consistency Commitments/Open Decisions/Confirmed) + ## Provenance citation reference + commented applicability escape" }
+  - { type: files-changed, pointer: "src/commands/new-change.ts:75-97 — added 'interaction-design.md' to REQUIRED_TEMPLATES" }
+  - { type: files-changed, pointer: "src/commands/migrate.ts — new ensureInteractionDesignScaffold (mirrors ensureAcceptanceOracleScaffold) + call site in migrateOne" }
+  - { type: files-changed, pointer: "src/commands/init.ts:3,298-333 — {{cdd-kit-version}} substitution via readKitVersion() (src/utils/paths.ts), restructured to run independent of stack-template detection" }
+  - { type: files-changed, pointer: "github-workflows/contract-driven-gates.yml — fetch-depth:0, version-pinned install, changed-spec-dirs step, cdd-kit gate (changed specs) step, --strict on push only" }
+  - { type: files-changed, pointer: ".github/workflows/contract-driven-gates.yml — same shape, but node dist/cli/index.js validate/gate against this commit's own build (npm ci && npm run build once, no published-package install)" }
+  - { type: tests-added, pointer: "test/contracts/interaction-design-template.test.ts (new, 12 tests) — all seven derivation-chain sections + Screens/States, exact table headers gate-design.ts/design-provenance.ts parse, Deleted Controls nests inside Controls (not a sibling ##), Open Decisions ships one real unresolved item, Confirmed is agent-forbidden + zero meaningfulChars as shipped, applicability escape commented out, findPlaceholders non-empty, and an end-to-end `cdd-kit new` + `cdd-kit gate` fail-closed proof" }
+  - { type: tests-added, pointer: "test/contracts/ci-workflow.test.ts (new, 15 tests) — no continue-on-error, no doctor invocation, changed-dirs gating + --strict-on-push-only, fetch-depth:0, adopter pins {{cdd-kit-version}}, this repo never installs the published package and runs npm ci exactly once" }
+  - { type: tests-added, pointer: "test/cli/new.test.ts — REQUIRED_TEMPLATES list extended + 'new feat-design scaffolds ... interaction-design.md' test" }
+  - { type: tests-added, pointer: "test/cli/init.test.ts — 2 new tests: version-pin substitution, and pin-fires-even-when-stack-is-unknown (proves the fix is independent of the fast-gate template branch)" }
+  - { type: tests-added, pointer: "test/cli/migrate.test.ts — B6.1/B6.2 (scaffold + no-overwrite, mirrors B5.1/B5.2) + interaction-design.md added to test 2's existence check and test 6's already-up-to-date fixture" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts — fixed 'a new context-governed change with no interaction-design.md fails the gate' (added rmSync of the now-auto-scaffolded placeholder before asserting the missing-artifact branch, since IP-8 changed cdd-kit new's output)" }
+  - { type: test-output, pointer: "collect phase: npx tsc --noEmit passed" }
+  - { type: test-output, pointer: "targeted phase (6 files): passed" }
+  - { type: test-output, pointer: "changed-area phase (14 files, includes full gate.test.ts 127/127 and migrate.test.ts 19/19): passed" }
+  - { type: test-output, pointer: "contract phase: node dist/cli/index.js validate --contracts --ci passed" }
+  - { type: test-output, pointer: "full phase (npm test -- --run): FAILED on test/acceptance/acceptance-oracle.driver.test.ts — pre-existing, unrelated to this change (see Known Risks below); not recorded in test-evidence.yml since `full` is not a required phase for this ladder and the failure does not belong to this change" }
+  - { type: contracts-touched, pointer: "none by this agent in this batch — contracts/ci/ci-gate-contract.md 0.4.0 and contracts/CHANGELOG.md were already at their final state before this session" }
+---
+agent: backend-engineer
+change-id: interaction-design-loop
+batch: "IP-11, IP-12"
+status: completed-for-scope
+summary: >-
+  IP-11: added the read-only `interaction-designer` proposer agent
+  (tools: Read, Grep, Glob only; model: opus) + its `.cdd/model-policy.json`
+  role entry; edited `frontend-engineer.md` (blocked-when-unconfirmed +
+  removed the states "when applicable" hatch), `implementation-planner.md`
+  (references/blocks on confirmed interaction-design.md),
+  `ui-ux-reviewer.md` (reviews AGAINST the confirmed design as primary lens,
+  Nielsen demoted to secondary, `contracts/ui/` -> `contracts/css/` fixed,
+  never-gated-aesthetics rule added); rewired both `cdd-new/SKILL.md` tier
+  blocks (Tier 2-3 renumbered 1-12 with `interaction-designer` as new step 2
+  between contract-reviewer and implementation-planner; Tier 0-1 made the
+  same placement unambiguous instead of relying on "all agents from Tier
+  2-3"), documented the ADR 0012 SS3 convergence/back-edge loop and the
+  propose->dialogue->confirm choreography (citing Step 0 / Atomic Split
+  Proposal), added the Decision-stage badge row + opus model-class entry,
+  the Write Responsibilities row, the artifact scaffold table row, the
+  artifact-ownership table row, and the applicability-marker skip-path note;
+  updated `cdd-resume/SKILL.md` to read/resume/never-skip the same node.
+  Verified (did not modify) `applicability.py`: it is file-path-agnostic
+  (`classify_file` only reads frontmatter) and is invoked by
+  `gate-design.ts`'s `classifyDesignApplicability` via spawnSync exactly as
+  the batch-1 report claimed -- confirmed by both source inspection and the
+  existing `applicability-agreement.test.ts` "per-change artifact node"
+  fixtures (14/14 passing). No second TypeScript authority was added. Ran
+  `node build.js` (via `npm run build`) and confirmed `assets/agents/
+  interaction-designer.md`, the updated `assets/skills/cdd-new/SKILL.md`
+  (14 interaction-design(er) mentions), and `assets/cdd/model-policy.json`
+  (interaction-designer: opus) all regenerated correctly.
+  IP-12: authored this change's own
+  `specs/changes/interaction-design-loop/interaction-design.md` from
+  `specs/templates/interaction-design.md`, with `applicability:
+  not-applicable` uncommented and a real, non-empty `applicability-reason`
+  (cdd-kit is a CLI/agent-orchestration tool with no UI surface of its own).
+  `cdd-kit gate` confirms this artifact now only WARNS (skip path taken,
+  conditions 1-6 skipped) instead of erroring.
+artifacts:
+  - { type: files-changed, pointer: ".claude/agents/interaction-designer.md (new)" }
+  - { type: files-changed, pointer: ".claude/agents/frontend-engineer.md — blocked-on-unconfirmed-design paragraph + removed \"when applicable\" states hatch" }
+  - { type: files-changed, pointer: ".claude/agents/implementation-planner.md — Inputs section blocked-on-unconfirmed-design paragraph + Planning Rules interaction-design.md reference" }
+  - { type: files-changed, pointer: ".claude/agents/ui-ux-reviewer.md — review-against-confirmed-design primary lens, contracts/ui/ -> contracts/css/, Never Gated rule" }
+  - { type: files-changed, pointer: ".claude/skills/cdd-new/SKILL.md — Tier 2-3 renumbered 1-12 (interaction-designer new step 2), Tier 0-1 explicit node placement, badge row, model-class list, Write Responsibilities row, scaffold table row, artifact-ownership table row, backend-only-skip rule" }
+  - { type: files-changed, pointer: ".claude/skills/cdd-resume/SKILL.md — state-file read list, spec-architect-adjacent design-gate paragraph, resume summary field, Rules bullet" }
+  - { type: files-changed, pointer: ".cdd/model-policy.json — roles.interaction-designer: opus" }
+  - { type: files-changed, pointer: "specs/changes/interaction-design-loop/interaction-design.md (new) — IP-12 dogfood artifact, applicability: not-applicable + reason" }
+  - { type: files-changed, pointer: "assets/** — regenerated by `npm run build` (node build.js); not hand-edited" }
+  - { type: tests-added, pointer: "test/contracts/agent-prompt-content.test.ts (new, 19 tests) — interaction-designer read-only tools/model/discipline content; frontend-engineer blocked+no-when-applicable; implementation-planner references+blocked; ui-ux-reviewer contracts/css/+secondary-lens+never-gated" }
+  - { type: tests-added, pointer: "test/contracts/skill-workflow-order.test.ts (new, 11 tests) — node position in both tier blocks, back-edge/convergence documented, propose/dialogue/confirm choreography citing the two precedents, applicability skip path, badge row, write-responsibilities/scaffold/artifact-ownership table rows, cdd-resume reflects the node" }
+  - { type: tests-added, pointer: "test/cli/agent-prompts-shape.test.ts — added interaction-designer to ALL_AGENTS and SCOPED_AGENTS (89 tests total, all passing)" }
+  - { type: test-output, pointer: "collect phase: npx tsc --noEmit passed (test-runs/20260709-154452)" }
+  - { type: test-output, pointer: "targeted phase (8 files incl. both new IP-11 test files): passed (test-runs/20260709-154504)" }
+  - { type: test-output, pointer: "changed-area phase (18 files): passed (test-runs/20260709-154532)" }
+  - { type: test-output, pointer: "contract phase: node dist/cli/index.js validate --contracts --ci passed (test-runs/20260709-154738)" }
+  - { type: contracts-touched, pointer: "none by this agent in this batch — no contracts/ files touched for IP-11/IP-12" }
+next-action: >-
+  `cdd-kit gate interaction-design-loop` fails on exactly one remaining item,
+  orthogonal to IP-11/IP-12: "acceptance.yml: no passed `acceptance`-phase run
+  recorded in test-evidence.yml -- a self-reported pass is not enough (AC-5;
+  ADR 0005 SS6). Run `cdd-kit test run <change-id> --phase acceptance`." This
+  is the ADR 0010 acceptance-oracle mechanism (unmodified by this change)
+  enforcing against this change's own hash-locked acceptance.yml; test-plan.md
+  marks the acceptance phase "n/a" for this change, which appears to disagree
+  with what enforceAcceptanceOracle actually requires once acceptance.yml
+  carries real locked rules. acceptance.yml and .cdd/acceptance-lock.json are
+  explicitly agent-forbidden paths for this task, and running that phase was
+  outside the IP-11/IP-12 mandate, so this is reported rather than acted on --
+  the next reviewer (or the human) should either run
+  `cdd-kit test run interaction-design-loop --phase acceptance` if that is
+  the correct resolution, or reconcile test-plan.md's "n/a" against
+  enforceAcceptanceOracle's actual requirement.
+---
+agent: backend-engineer
+change-id: interaction-design-loop
+batch: "acceptance driver + acceptance-phase evidence (closes the sole remaining gate blocker from batch 3)"
+status: completed-for-scope
+summary: >-
+  Authored test/acceptance/interaction-design-loop.driver.test.ts, driving the
+  REAL enforceInteractionDesign check through the REAL `cdd-kit gate
+  <change-id>` (dist/cli/index.js via runCli against hermetic temp repos) --
+  no vi.mock/vi.spyOn/patch of any kind. All 3 acceptance.yml cases and both
+  rules[] entries are exercised; every case input/expect is read at runtime
+  via specs/templates/acceptance-driver/acceptance.loader.ts, never
+  hardcoded. Verified by direct source reading that gate-acceptance.ts has NO
+  mechanical rules[]-to-test binding scan today (ADR 0010 section 4 names it
+  as intended, scanAcceptanceDrivers only walks cases[].expect) -- the two
+  rule tests are bound by the same test-title-carries-the-id convention this
+  codebase already uses for AC ids, and reported here rather than guessed.
+  Confirmed via a real (non-strict) `cdd-kit gate interaction-design-loop`
+  run before recording evidence that the new driver itself trips neither the
+  mock-of-SUT nor hardcoded-expect scan when scanned by the real
+  enforceAcceptanceOracle against this change's own hash-locked
+  acceptance.yml. Recorded a passed `acceptance` phase in test-evidence.yml
+  (extended, not clobbered) and manually added `acceptance` to
+  required-phases (the CLI only auto-seeds required-phases when the file is
+  first created or the array is empty; this file already had 4 entries).
+  Both the resolver-shape state-discriminator-uniqueness message and the
+  exact tamper re-confirm message were verified against
+  src/utils/design-provenance.ts and src/commands/gate-design.ts source
+  directly, never guessed.
+artifacts:
+  - { type: files-changed, pointer: "test/acceptance/interaction-design-loop.driver.test.ts (new, 7 tests: loader-shape sanity + 3 acceptance.yml cases + 2 rules[] bindings; 1 skipped on win32)" }
+  - { type: files-changed, pointer: "specs/changes/interaction-design-loop/test-evidence.yml — added acceptance phase run (test-runs/20260709-161512) + acceptance appended to required-phases" }
+  - { type: tests-added, pointer: "test/acceptance/interaction-design-loop.driver.test.ts::unanswered-open-decision-blocks — cites the loaded open-decision id, never a literal" }
+  - { type: tests-added, pointer: "test/acceptance/interaction-design-loop.driver.test.ts::tampered-after-confirmation-blocks — confirms via real `cdd-kit design confirm`, semantic-edits Confirmed, asserts the loaded exact re-confirm message" }
+  - { type: tests-added, pointer: "test/acceptance/interaction-design-loop.driver.test.ts::two-states-sharing-one-discriminator-blocks — builds States rows from loaded input, asserts both loaded state ids appear" }
+  - { type: tests-added, pointer: "test/acceptance/interaction-design-loop.driver.test.ts::rule aesthetics-never-blocks — colour/shape/shadow/motion/emoji prose in a confirmed design never produces an interaction-design.md finding" }
+  - { type: tests-added, pointer: "test/acceptance/interaction-design-loop.driver.test.ts::rule human-answer-never-invented (2 tests) — interaction-designer.md tools frontmatter is exactly Read/Grep/Glob; pre-tool-use-design-write.sh strict-mode exit 2 on .cdd/design-lock.json (skipped on win32, matches test/cli/design-write-hook.test.ts precedent)" }
+  - { type: test-output, pointer: "npx vitest run test/acceptance/interaction-design-loop.driver.test.ts -- 6 passed, 1 skipped (win32), 0 failed" }
+  - { type: test-output, pointer: "acceptance phase (recorded): npm test -- --run test/acceptance/interaction-design-loop.driver.test.ts -- passed, exit 0 (test-runs/20260709-161512/summary.json)" }
+  - { type: contracts-touched, pointer: "none by this agent in this batch" }
+next-action: >-
+  `cdd-kit gate interaction-design-loop` (non-strict) now passes cleanly.
+  `cdd-kit gate interaction-design-loop --strict` still fails, but on an
+  UNRELATED, pre-existing item: "10 task(s) still pending" in tasks.yml
+  (mark archive items via archive-tasks frontmatter or status: skipped) --
+  this is tasks.yml bookkeeping across the whole change (all 4 backend
+  batches plus other agents), not an acceptance-oracle or
+  enforceInteractionDesign gap, and updating tasks.yml was outside this
+  task's mandate (CLAUDE.md assigns "tick tasks.yml after each agent
+  returns" to the orchestrator). The next reviewer should reconcile
+  tasks.yml's pending items against the now-completed batches before running
+  gate --strict again.
+---
+agent: backend-engineer
+change-id: interaction-design-loop
+batch: "scope expansion 2 -- rules[] invariant-binding scan (ADR 0010 SS4; ci-gate-contract.md enforceAcceptanceOracle condition 6)"
+status: completed-for-scope
+summary: >-
+  Verified by direct source reading (as the defect report specified) that the
+  identifier `rules` did not appear anywhere in gate-acceptance.ts and that
+  scanAcceptanceDrivers only walked cases[].expect -- the contract's condition
+  6 and ADR 0010 SS4 documented a --strict-mode `rules[]` binding requirement
+  that was never implemented. Implemented it as `findUnboundRules` in
+  src/utils/mock-of-sut-scan.ts, reusing (not reimplementing) the two existing
+  false-positive guards that module's own AC-4 scan already shipped:
+  `driverBelongsToChange` (change-scoping) and `isWordBoundaryOccurrence`
+  (whole-token matching) -- exported the latter (it was previously
+  module-private) rather than writing a third scanner. Wired into
+  enforceAcceptanceOracle behind `if (strict)` only, never in default mode;
+  no isNewChange threading was added because the check is naturally
+  backward-safe: `rules: []` or an absent `rules` key (verified via grep to be
+  the shape of every pre-existing acceptance.yml in this repo except this
+  change's own) passes trivially, so no existing change dir newly fails.
+  Binding convention adopted (not invented): a rule is bound when a
+  change-scoped driver file under test(s)/acceptance/ contains a
+  word-boundary occurrence of the rule id, conventionally inside a test
+  title (`it("rule <id>: ...")`) -- the same test-title-carries-the-id
+  convention this codebase already uses for AC ids, read directly from
+  test/acceptance/interaction-design-loop.driver.test.ts and
+  test/acceptance/not-applicable-contracts.driver.test.ts per the task
+  instructions. Documented the convention and both anti-false-positive
+  guarantees in contracts/ci/ci-gate-contract.md condition 6 (tightened, no
+  schema-version bump -- this makes a documented-but-absent behavior real,
+  it does not change any required-check row or artifact list) and in
+  docs/adr/0010-acceptance-oracle.md SS4 (dated update note). Added
+  contracts/CHANGELOG.md `[ci 0.4.0]` Fixed bullet (same entry, no new
+  version). Verified via git-stash isolation (reverting only my two source
+  files, keeping the new tests) that all "should fail" cases genuinely fail
+  without the fix and pass with it -- the tests are not tautological.
+artifacts:
+  - { type: files-changed, pointer: "src/utils/mock-of-sut-scan.ts -- exported isWordBoundaryOccurrence and findAllOccurrences (were module-private); added findUnboundRules(cwd, changeId, ruleIds) reusing driverBelongsToChange + isWordBoundaryOccurrence" }
+  - { type: files-changed, pointer: "src/commands/gate-acceptance.ts -- imported findUnboundRules; added a strict-only rules[] binding block between the AC-4 driver scan and the AC-5 evidence check; updated module header comment" }
+  - { type: files-changed, pointer: "contracts/ci/ci-gate-contract.md -- enforceAcceptanceOracle condition 6 tightened: binding convention + change-scoped/whole-token guarantees spelled out; no schema-version bump" }
+  - { type: files-changed, pointer: "contracts/CHANGELOG.md -- [ci 0.4.0] Fixed section, new bullet documenting the rules[] binding truthfulness fix" }
+  - { type: files-changed, pointer: "docs/adr/0010-acceptance-oracle.md SS4 -- dated update blockquote after the `rules` bullet, naming the convention and pointing at ci-gate-contract.md condition 6 for the full text" }
+  - { type: tests-added, pointer: "test/utils/mock-of-sut-scan.test.ts::findUnboundRules (6 tests) -- empty ruleIds, no drivers at all, same-change bound, cross-change-only bound (BUG 1 guard), substring-only match (BUG 2 guard), mixed bound/unbound subset" }
+  - { type: tests-added, pointer: "test/cli/gate-acceptance-rules.test.ts (new, 7 tests, all passing) -- same-change binding passes --strict; different-change-only binding fails (cross-change guard); substring-only match fails (word-boundary guard); unbound rule fails --strict naming the rule id in the exact contract message; unbound rule passes non-strict; rules: [] passes both modes; a legacy (no context-governance: v1) change dir with no rules[] key is not newly broken by --strict" }
+  - { type: test-output, pointer: "collect phase: npx tsc --noEmit passed (test-runs/20260709-183136)" }
+  - { type: test-output, pointer: "targeted phase: npm test -- --run test/utils/mock-of-sut-scan.test.ts test/cli/gate-acceptance-rules.test.ts -- passed, 49/49 (test-runs/20260709-183700)" }
+  - { type: test-output, pointer: "changed-area phase (21 files incl. full gate.test.ts and gate-design.test.ts): passed (test-runs/20260709-183731)" }
+  - { type: test-output, pointer: "contract phase: node dist/cli/index.js validate --contracts --ci passed (test-runs/20260709-183951)" }
+  - { type: test-output, pointer: "acceptance phase (already-required, re-verified unchanged): npm test -- --run test/acceptance/interaction-design-loop.driver.test.ts passed (test-runs/20260709-183959)" }
+  - { type: test-output, pointer: "node dist/cli/index.js gate interaction-design-loop (non-strict): passed -- 'gate passed for change: interaction-design-loop'" }
+  - { type: test-output, pointer: "node dist/cli/index.js gate interaction-design-loop --strict: fails on exactly one item, UNRELATED and pre-existing: '2 task(s) still pending' (tasks.yml bookkeeping, not this batch's concern per CLAUDE.md's orchestrator-ticks-tasks.yml rule); no rules[]-binding message appears, confirming this change's own two locked rules (aesthetics-never-blocks, human-answer-never-invented) are correctly recognized as bound by test/acceptance/interaction-design-loop.driver.test.ts" }
+  - { type: test-output, pointer: "npx vitest run (full suite): 1 failed | 1343 passed | 68 skipped (1412 total). The 1 failure is test/cli/acceptance-oracle.test.ts::'AC-1/AC-2: gate passes end-to-end with >=1 real case and a matching lock baseline' -- PRE-EXISTING and NOT caused by this batch: reproduced identically via git-stash isolation with only src/commands/gate-acceptance.ts and src/utils/mock-of-sut-scan.ts reverted. Root cause is enforceInteractionDesign (landed in this change's earlier batches 1-3) now hard-requiring interaction-design.md, which this old fixture (writeValidChangeArtifacts, a copy predating IP-4/IP-8) does not scaffold -- the same class of gap batch 2's agent-log already flagged for a different driver file. Not recorded as a passing/known full-phase run in test-evidence.yml (full is not a required phase for this ladder, matching batch 2 precedent); reported here plainly per instructions rather than waived." }
+  - { type: contracts-touched, pointer: "contracts/ci/ci-gate-contract.md#enforceAcceptanceOracle (condition 6 tightened, no schema-version bump); contracts/CHANGELOG.md#ci-0.4.0 (Fixed bullet added, no new version)" }
+next-action: >-
+  Two items need the QA reviewer / coordinator, not another backend batch:
+  (1) test/cli/acceptance-oracle.test.ts's "AC-1/AC-2: gate passes end-to-end"
+  fixture needs an interaction-design.md (applicability: not-applicable or a
+  confirmed real design) added to its writeValidChangeArtifacts-style setup,
+  or a qa-report.md entry recording it as a pre-existing, out-of-scope,
+  owned, followed-up exclusion per CLAUDE.md's Operational Notes -- it must
+  not simply be left silently failing. (2) tasks.yml still shows 2 pending
+  items (5.4 QA review, 6.1 Local gates) blocking `gate --strict`; ticking
+  those is the coordinator's/QA reviewer's job per CLAUDE.md, not this
+  agent's. No schema-version bump was made to contracts/ci/ci-gate-contract.md
+  for this batch -- condition 6 already existed at 0.4.0 and this batch made
+  its claim true rather than adding a new required-check row or artifact; if
+  a reviewer believes a bump IS warranted, that is a judgment call for them,
+  made explicitly here rather than silently decided.
+---
+agent: backend-engineer
+change-id: interaction-design-loop
+batch: "scope expansion 3 -- cdd-kit abandon false-success report (PARTIAL: TS-side fixed; python-side + disposal BLOCKED on a pending Context Expansion Request)"
+status: blocked
+summary: >-
+  Fixed defect 1 exactly as specified: src/commands/abandon.ts's
+  `if (existsSync(tasksPath))` silently skipped the status write on a
+  tasks.yml-less directory while the CLI unconditionally printed "marked as
+  abandoned." `abandon()` now returns a discriminated `AbandonResult` union
+  (`{status:'abandoned', ..., tasksFileCreated}` | `{status:'error', message}`)
+  instead of printing/exiting internally -- mirrors InstallHooksResult
+  (install-hooks.ts) per the task's precedent pointer. A missing tasks.yml now
+  gets a minimal one created (`change-id`, `status: abandoned`,
+  non-empty `abandoned-reason`, `abandoned-at`, `tasks: []`); an existing
+  tasks.yml gets the same three fields merged in, preserving its existing
+  `tasks` array. `--reason` is now mandatory and fail-closed (trimmed
+  empty/whitespace/absent -> error, nothing written) -- checked AFTER the
+  not-found check so the pre-existing "change not found" test keeps its exact
+  behavior. `isSafeChangeId` guards the change-id before any path join, per
+  the task's requirement. `src/cli/index.ts`'s action now owns all printing,
+  driven by the returned result, so a run that persisted nothing can never
+  print a success sentence (regression test 12 proves this for the
+  invalid-change-id path; tests 8-10 prove it for the three empty-reason
+  shapes). Defect 2 (validate_spec_traceability.py has no `abandoned` concept)
+  and the yaml-migration-plan disposal re-run are UNFINISHED -- see blocked
+  reason below.
+blocked-reason: >-
+  This task's own instructions require editing
+  .claude/skills/contract-driven-delivery/scripts/validate_spec_traceability.py,
+  re-running abandon against specs/changes/yaml-migration-plan/, checking
+  docs/ for cdd-kit-abandon documentation, and correcting CLAUDE.md's command
+  table -- none of these four paths are in this change's Allowed Paths or
+  prior Approved Expansions (verified with `cdd-kit context check` before
+  touching any of them). Filed CER-002 (`cdd-kit context request
+  interaction-design-loop CER-002 --path
+  .claude/skills/contract-driven-delivery/scripts/validate_spec_traceability.py
+  specs/changes/yaml-migration-plan/ docs/ CLAUDE.md`); it auto-approved
+  nothing and remains status: pending as of this entry (`cdd-kit context list
+  interaction-design-loop` confirms). Per this agent's operating rules, a
+  pending CER means stop and wait for `cdd-kit context approve
+  interaction-design-loop CER-002` -- self-approving would defeat the
+  governance mechanism this same change ships (ADR 0010/0011 tamper-evidence
+  precedent). Also recorded three inadvertent boundary violations from this
+  session in context-manifest.md's "Recorded Context Violations" section
+  (two Grep calls and one repo-wide Grep issued before checking
+  authorization; all auto-resolved via CER-004/CER-006 except the
+  validate_spec_traceability.py touch, which remains an open, undone
+  violation pending CER-002). Consequently `node dist/cli/index.js validate`
+  still fails on `yaml-migration-plan: missing required artifacts:
+  change-classification.md, implementation-plan.md, test-plan.md,
+  ci-gates.md, tasks.yml` (reproduced below) -- exactly the defect this scope
+  expansion exists to close -- and no `contracts/CHANGELOG.md` entry or
+  CLAUDE.md correction was written, since writing either now would describe
+  a fix that is not actually complete.
+artifacts:
+  - { type: files-changed, pointer: "src/commands/abandon.ts -- AbandonResult union; isSafeChangeId guard; mandatory-reason fail-closed check; existsSync(tasksPath) branch now creates a minimal tasks.yml instead of skipping; both branches record abandoned-reason/abandoned-at" }
+  - { type: files-changed, pointer: "src/cli/index.ts -- abandon action imports log, consumes AbandonResult, prints tasksFileCreated-aware success text or the error message + exit(1); no more fixed success sentence" }
+  - { type: tests-added, pointer: "test/cli/abandon.test.ts::7 -- no-tasks.yml dir creates a minimal one (status/reason/at/empty tasks[]) and the CLI output names 'created'" }
+  - { type: tests-added, pointer: "test/cli/abandon.test.ts::8,9,10 -- empty / whitespace-only / absent --reason all hard-fail with tasks.yml left at status: in-progress and (test 8) no INDEX.md written" }
+  - { type: tests-added, pointer: "test/cli/abandon.test.ts::11 -- existing tasks.yml keeps its original tasks[] row (id/title) after abandon" }
+  - { type: tests-added, pointer: "test/cli/abandon.test.ts::12 -- regression: an unsafe change id (path-traversal shape) is rejected before any join()/write, and the stdout+stderr never contains 'marked as abandoned'" }
+  - { type: tests-added, pointer: "test/cli/abandon.test.ts::2,3,5 (updated) -- now pass --reason since it is mandatory; test 2 additionally asserts abandoned-reason/abandoned-at now appear in tasks.yml" }
+  - { type: test-output, pointer: "npx vitest run test/cli/abandon.test.ts -- 12 passed, 0 failed" }
+  - { type: test-output, pointer: "collect phase: npx tsc --noEmit passed (test-runs/20260709-192951)" }
+  - { type: test-output, pointer: "targeted phase: npm test -- --run test/utils/mock-of-sut-scan.test.ts test/cli/gate-acceptance-rules.test.ts test/cli/abandon.test.ts -- passed (test-runs/20260709-193052)" }
+  - { type: test-output, pointer: "changed-area phase (23 files, combined with prior batches' targets, none dropped): passed (test-runs/20260709-193110)" }
+  - { type: test-output, pointer: "npx vitest run (full suite): 103 passed | 5 skipped test files (108 total); 1350 passed | 68 skipped tests (1418 total); 0 failed" }
+  - { type: test-output, pointer: "node dist/cli/index.js gate interaction-design-loop (non-strict): passed" }
+  - { type: test-output, pointer: "node dist/cli/index.js validate: FAILS -- 'yaml-migration-plan: missing required artifacts: change-classification.md, implementation-plan.md, test-plan.md, ci-gates.md, tasks.yml' (spec traceability step); every other validator passed. This is defect 2, unfixed, blocked on CER-002." }
+  - { type: contracts-touched, pointer: "none -- contracts/CHANGELOG.md Fixed-bullet decision deferred until both defects are actually closed (see blocked-reason); not written for a half-done fix" }
+next-action: >-
+  Human/maintainer action needed: approve or reject CER-002
+  (`cdd-kit context approve interaction-design-loop CER-002`) so a backend
+  agent can (a) patch
+  .claude/skills/contract-driven-delivery/scripts/validate_spec_traceability.py
+  to skip the required-artifact check for a directory whose tasks.yml
+  frontmatter carries `status: abandoned` + non-empty `abandoned-reason`
+  (hard error if the reason is missing/empty; unmarked/no-tasks.yml
+  directories keep failing exactly as today), reusing applicability.py's
+  frontmatter reader if it exposes one; (b) re-run
+  `node dist/cli/index.js abandon yaml-migration-plan --reason "..."` with
+  the exact reason text supplied in this task's Verification section; (c)
+  check docs/ for any doc describing cdd-kit abandon's behavior and correct
+  it; (d) confirm or correct CLAUDE.md's command-table line for
+  `cdd-kit abandon`; (e) write the contracts/CHANGELOG.md Fixed bullet once
+  both defects are closed, with a reasoned yes/no on a schema-version bump
+  (validate_spec_traceability.py is not itself governed by a contracts/
+  schema-version, so the strongest candidate is folding it into the existing
+  [ci 0.4.0] entry as a third Fixed bullet, matching how scope expansion 1's
+  and 2's CI/rules[] truthfulness fixes were recorded there without their own
+  version bump -- but this is a judgment call left to the next agent/reviewer,
+  not decided here). Until then `node dist/cli/index.js validate` will keep
+  failing on yaml-migration-plan, and this scope expansion is not complete.

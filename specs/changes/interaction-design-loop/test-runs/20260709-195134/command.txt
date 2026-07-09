@@ -1,0 +1,1 @@
+npm test -- --run test/utils/mock-of-sut-scan.test.ts test/cli/gate-acceptance-rules.test.ts test/cli/abandon.test.ts test/cli/validate-spec-traceability.test.ts
