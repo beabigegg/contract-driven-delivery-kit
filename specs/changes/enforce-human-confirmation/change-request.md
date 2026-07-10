@@ -64,14 +64,26 @@ Restated as three defects:
    (`specs/changes/interaction-design-loop/interaction-design.md:13`) took the
    escape because it was the only route. Resolved by this change's Decision 3.
 
-6. **A multi-line HTML comment in `## Confirmed` satisfies the gate's
-   "human confirmed" check.** `meaningfulChars` (`src/commands/gate-artifacts.ts:53-61`)
-   drops only lines that *begin* with `<!--`; the continuation lines of a
-   multi-line comment count as content, so `hasConfirmed` becomes true with no
-   human answer present. The shipped template happens to open `<!--` on every line,
-   which is why nobody hit it. Since `fcf1937` the missing-baseline error would
-   still catch such a change, so this is no longer independently exploitable — but
-   it is the same vacuity family as defect 1 and is fixed here.
+6. ~~**A multi-line HTML comment in `## Confirmed` satisfies the gate's "human
+   confirmed" check.**~~ **RETRACTED — this claim was false.** Main Claude asserted
+   it after reading only `meaningfulChars` (`gate-artifacts.ts:53-61`), whose
+   `startsWith('<!--')` filter does drop only a comment's first line. But
+   `hasConfirmed` reads `sectionBody(body, 'Confirmed')`, and `sectionBody`
+   (`markdown-section.ts:24`) calls `stripHtmlComments` first, which removes whole
+   multi-line comments before `meaningfulChars` ever sees them. Reproduced against
+   the real functions: a multi-line comment yields `mc=0`, `hasConfirmed=false`.
+   The `startsWith('<!--')` filter is merely redundant on this path, not a hole.
+
+   Recorded rather than deleted, because the mistake is the exact defect class this
+   change exists to close: a claim about a mechanism, asserted from a partial read,
+   with no reproduction. It reached a committed spec artifact (`bbe21cf`).
+
+   **What survives, narrowly:** `stripHtmlComments` matches `<!--[\s\S]*?-->`, so an
+   *unclosed* comment (no `-->` anywhere after it) is not stripped, and its
+   continuation lines then count as content — `hasConfirmed=true` with no human
+   answer. That requires malformed markdown, and since `fcf1937` the
+   missing-baseline error catches such a change regardless. In scope only as a
+   one-line hardening if it costs nothing; not a justification for this change.
 
 ## Business / User Goal
 
