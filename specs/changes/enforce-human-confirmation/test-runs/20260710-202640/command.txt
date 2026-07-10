@@ -1,0 +1,1 @@
+npx vitest run test/cli/design-write-hook.test.ts test/cli/acceptance-write-hook.test.ts test/cli/gate.test.ts test/cli/init.test.ts

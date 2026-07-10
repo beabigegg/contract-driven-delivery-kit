@@ -15,7 +15,7 @@
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { spawnSync } from 'child_process';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { makeTempDir, cleanupDir } from '../helpers.js';
@@ -44,14 +44,17 @@ function runHook(
   const env = { ...process.env };
   delete env.CDD_DESIGN_WRITE_STRICT;
   if (opts.legacyToggle !== undefined) env.CDD_DESIGN_WRITE_STRICT = opts.legacyToggle;
-  const r = spawnSync('/bin/sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
+  // `sh` via PATH, not `/bin/sh`: Git Bash puts `sh` on PATH on Windows, so these
+  // run here instead of skipping. A hook test that skips on the maintainer's own
+  // platform proves nothing about the hook that ships to it.
+  const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
 beforeEach(() => { repo = makeTempDir('cdd-dwhook-'); });
 afterEach(() => { cleanupDir(repo); });
 
-describe.skipIf(process.platform === 'win32')('pre-tool-use-design-write.sh', () => {
+describe('pre-tool-use-design-write.sh', () => {
   // T3a — a write to the lock sidecar is BLOCKED unconditionally, whatever the
   // retired toggle says. Mutation: make the lock case fall through to exit 0.
   it('T3a: blocks a write to .cdd/design-lock.json (exit 2 + stderr), toggle set OR unset', () => {
@@ -106,7 +109,7 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-design-write.sh', ()
 
   it('allows when the payload carries no file_path', () => {
     const payload = JSON.stringify({ tool_name: 'Edit', tool_input: {} });
-    const r = spawnSync('/bin/sh', [HOOK], {
+    const r = spawnSync('sh', [HOOK], {
       cwd: repo,
       input: payload,
       env: { ...process.env, CDD_DESIGN_WRITE_STRICT: '1' },
@@ -150,7 +153,57 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-design-write.sh', ()
   // real path has `\`. Canonicalization must unescape before folding separators.
   it('T3e: blocks the JSON-escaped Windows path the harness actually serializes', () => {
     const payload = '{"tool_name":"Write","tool_input":{"file_path":"D:\\\\repo\\\\.cdd\\\\design-lock.json"}}';
-    const r = spawnSync('/bin/sh', [HOOK], { cwd: repo, input: payload, encoding: 'utf8' });
+    const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, encoding: 'utf8' });
     expect(r.status).toBe(2);
+  });
+
+  // T3f — payload-shape robustness. The hook must not crash or (worse) fail OPEN on a
+  // malformed or empty payload, and must still refuse the lock when the tool is
+  // MultiEdit or the path escapes upward. `set -eu` at the top makes a naive extractor
+  // exit non-zero on a missing field; that would be reported by Claude Code as a
+  // non-blocking error, so a permit path MUST be a clean exit 0.
+  it.each([
+    ['MultiEdit carrying the lock path', '{"tool_name":"MultiEdit","tool_input":{"file_path":".cdd/design-lock.json"}}', 2],
+    ['an upward relative escape to the lock', '{"tool_name":"Write","tool_input":{"file_path":"specs/../.cdd/design-lock.json"}}', 2],
+    ['a deep upward escape to the lock', '{"tool_name":"Write","tool_input":{"file_path":"a/b/../../.cdd/design-lock.json"}}', 2],
+    ['no file_path field', '{"tool_name":"Write","tool_input":{}}', 0],
+    ['an empty payload', '', 0],
+    ['malformed JSON', '{"tool_name":', 0],
+  ])('T3f: %s -> exit %i', (_label, payload, want) => {
+    const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, encoding: 'utf8' });
+    expect(r.status).toBe(want);
+  });
+
+  // T3g — the three ambiguous forms the hook lets THROUGH (trailing space, trailing
+  // dot, an alternate-data-stream suffix). The claim is not "the hook blocks these";
+  // it is the stronger, testable equivalence: a form the hook permits is a form the
+  // filesystem cannot use to overwrite the lock. If a future filesystem or Node change
+  // makes one of these resolve to the lock, this test fails and the hook must grow to
+  // cover it. The hook and the filesystem are checked against each other, so neither
+  // can drift silently into a bypass.
+  it.each([
+    ['a trailing space', '.cdd/design-lock.json '],
+    ['a trailing dot', '.cdd/design-lock.json.'],
+    ['an NTFS alternate data stream', '.cdd/design-lock.json:$DATA'],
+  ])('T3g: %s is permitted AND cannot reach the lock', (_label, variant) => {
+    // 1. the hook permits it (exit 0)
+    const hookExit = runHook(variant).status;
+
+    // 2. and writing to that exact string does not overwrite the real lock
+    mkdirSync(join(repo, '.cdd'), { recursive: true });
+    const lockAbs = join(repo, LOCK_REL);
+    writeFileSync(lockAbs, 'ORIGINAL', 'utf8');
+    let reachedLock = false;
+    try {
+      writeFileSync(join(repo, variant), 'TAMPERED', 'utf8');
+      reachedLock = readFileSync(lockAbs, 'utf8') !== 'ORIGINAL';
+    } catch {
+      reachedLock = false; // a write that throws did not reach the lock
+    }
+
+    // The invariant: permitted (exit 0)  <=>  the string cannot reach the lock.
+    // If the hook ever blocks it, that is fine too; what must never happen is
+    // permitted AND able to reach the lock.
+    expect(hookExit === 0 && reachedLock, `${_label}: permitted a path that reached the lock`).toBe(false);
   });
 });

@@ -45,14 +45,14 @@ function runHook(
   const env = { ...process.env };
   delete env.CDD_ACCEPTANCE_WRITE_STRICT;
   if (opts.legacyToggle !== undefined) env.CDD_ACCEPTANCE_WRITE_STRICT = opts.legacyToggle;
-  const r = spawnSync('/bin/sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
+  const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
 beforeEach(() => { repo = makeTempDir('cdd-awhook-'); });
 afterEach(() => { cleanupDir(repo); });
 
-describe.skipIf(process.platform === 'win32')('pre-tool-use-acceptance-write.sh', () => {
+describe('pre-tool-use-acceptance-write.sh', () => {
   // T3c — a write to the lock sidecar is BLOCKED unconditionally, whatever the
   // retired toggle says. Mutation: make the lock case fall through to exit 0.
   it('T3c: blocks a write to .cdd/acceptance-lock.json (exit 2 + stderr), toggle set OR unset', () => {
@@ -107,7 +107,7 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-acceptance-write.sh'
 
   it('allows when the payload carries no file_path', () => {
     const payload = JSON.stringify({ tool_name: 'Edit', tool_input: {} });
-    const r = spawnSync('/bin/sh', [HOOK], {
+    const r = spawnSync('sh', [HOOK], {
       cwd: repo,
       input: payload,
       env: { ...process.env, CDD_ACCEPTANCE_WRITE_STRICT: '1' },

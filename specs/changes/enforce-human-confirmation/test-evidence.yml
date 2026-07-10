@@ -23,7 +23,7 @@ runs:
   - phase: changed-area
     status: passed
     command: >-
-      npx vitest run test/cli/gate.test.ts test/cli/design-confirm.test.ts test/cli/accept-relock.test.ts
-      test/cli/install-agent-hooks.test.ts test/cli/init.test.ts test/cli/doctor.test.ts
-    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-193016/summary.json
+      npx vitest run test/cli/design-write-hook.test.ts test/cli/acceptance-write-hook.test.ts test/cli/gate.test.ts
+      test/cli/init.test.ts
+    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-202640/summary.json
 final-status: passed
