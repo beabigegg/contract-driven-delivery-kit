@@ -1,0 +1,88 @@
+agent: contract-reviewer
+status: approved
+summary: >
+  Authored contracts/ci 0.6.0 (sixth `ci-gate:` citation form,
+  enforceConfirmationHookInstallation, condition-1 split, `required` column
+  vocabulary) and contracts/env 0.3.0 (deprecate CDD_ACCEPTANCE_WRITE_STRICT).
+  Took four rounds. Three of its proposals were defective; it found and retracted
+  two of them itself once given the reads it needed.
+
+artifacts:
+  - type: contract
+    pointer: contracts/ci/ci-gate-contract.md
+  - type: contract
+    pointer: contracts/env/env-contract.md
+  - type: contract
+    pointer: contracts/CHANGELOG.md
+  - type: adr
+    pointer: docs/adr/0012-interaction-design-loop.md
+
+defects-in-its-own-proposals:
+  - round-1: >
+      enforceConfirmationHookInstallation read `.claude/settings.json` and hard-failed
+      under `--strict`. That file is untracked (`git ls-files` returns zero), and
+      `--strict` is what the push-to-default-branch CI job runs — so the check would
+      have hard-failed every push forever, with a message indistinguishable from the
+      real finding. A check whose premise cannot exist in the environment where it is
+      strictest is the same defect class the change exists to close. Caught by main
+      Claude. Resolved by requiring `.claude/settings.json` to be tracked and the
+      registered command to resolve to a git-tracked path.
+  - round-1: >
+      The sixth citation form accepted any substring. `ci-gate: Gate Inventory :: the`
+      would have resolved. A vacuous escape hatch, introduced inside the change whose
+      purpose is to delete vacuous checks. Caught by main Claude; closed by the
+      exactly-once anchor rule (measured: `the`=23, `AC-4`=3, `AC-7`=2, all rejected).
+  - round-2: >
+      Specified the section body as running "to the next heading of equal-or-shallower
+      level" while asserting no code change. `sectionBody`'s terminator is the literal
+      `\n## `. Its own proposed `### enforceConfirmationHookInstallation` subsection
+      would have taken its own recommended anchor `:: zero unresolved` from 1
+      occurrence to 2. Proven by simulated insertion. It had never read
+      `markdown-section.ts` — the function it was legislating over.
+  - round-3: >
+      Claimed every AC-id except AC-4 occurs exactly once. `AC-7` occurs twice.
+
+self-corrections-after-read-scope-expanded:
+  - >
+      Retracted its own private `###` scanner in design-provenance.ts, on the grounds
+      that markdown-section.ts's doc comment says it was centralized to stop
+      independent section-parsers drifting — a private scanner reintroduces that drift
+      at a third call site. Correct, and main Claude had already transcribed the
+      retracted design into 7f48e86.
+  - >
+      Found that bare-name lookup fails for `##` headings too, not just `###`:
+      `sectionBody(bare "Provenance Reconciliation Policy")` returns '' because the
+      heading carries "(ADR 0012 §2)". Main Claude's own committed contract text was
+      therefore self-contradictory — it promised parenthetical-insensitive matching
+      AND `sectionBody` unmodified for `##`. Verified and fixed in 96a048d.
+  - >
+      Retracted its own AC-7 blanket claim after main Claude measured it — correcting
+      the claim, not merely the instance.
+
+main-claude-corrections-of-itself:
+  - >
+      Told contract-reviewer `parsePresentedInformation` did not exist. It does, as a
+      local function in gate-design.ts:178. spec-architect caught this.
+  - >
+      Told contract-reviewer not to build on defect 6 (multi-line HTML comment
+      defeating hasConfirmed). Defect 6 was main Claude's own false claim; retracted
+      in 743b67d.
+  - >
+      Specified condition 1 as two branches (existence, non-placeholder), following
+      contract-reviewer. `gate-design.ts` has THREE: existsSync, meaningfulChars, and
+      findPlaceholders, with three distinct messages. The contract now splits it three
+      ways — "absent", "unwritten", "half-written" are three situations a human
+      resolves three different ways.
+
+notes: >
+  Every anchor in interaction-design.md was measured against the committed contract
+  text under the final resolver semantics before being written: 16/16 resolve at
+  exactly one occurrence. The `##`-consumer blast radius of the sectionBody fix was
+  measured across all twelve headings the five call sites look up: zero drift,
+  including design-hash.ts's `## Confirmed` projection.
+
+  The contract records what the mechanism does NOT do, in its own words: uniqueness
+  guarantees one location, not the right one (`:: condition 6` resolves against a
+  parenthetical cross-reference, not a definition); the hook-presence check reads
+  only the project settings file, not the harness's effective merged settings; and
+  nothing here prevents a Bash-holding agent from bypassing an installed hook.
