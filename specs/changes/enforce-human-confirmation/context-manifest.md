@@ -226,6 +226,47 @@ is authorized because it designates main Claude as the sanctioned transcriber.
     mask the sectionBody line-anchor mutation, so T6f is not isolable through
     design-provenance; a direct unit is the only way to mutation-prove it)
 
+- request-id: CER-012
+  requested_paths:
+    - test/setup-git-env.ts
+    - test/cli/install-agent-hooks.test.ts
+  agent: main Claude
+  reason: >
+    Two things, both surfaced by running the suite under `CI=true` after IP-5/IP-6 landed.
+
+    (1) `isGitTracked` conflates "git says untracked" with "git failed to answer"
+    (`r.status === 0 && stdout non-empty`). Reproduced: `test/setup-git-env.ts` blanks
+    `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` for isolation, which removes the
+    `safe.directory` exception, so `git ls-files` in this repo exits 128 with
+    "detected dubious ownership". The check then reported ".claude/settings.json exists
+    but does not register the design-write hook" — for a hook that IS registered. That
+    is a real CI scenario (containers whose checkout is owned by another uid), and it
+    tells a maintainer to fix the one thing that is not broken. The two situations must
+    carry different message text, per `interaction-design.md` `## Consistency Commitments`.
+
+    (2) `install-agent-hooks.test.ts` asserts `CDD_DESIGN_WRITE_STRICT=1` appears in the
+    installed command. IP-4 retired that toggle; the installer must no longer write it.
+    The tests encode the retired behaviour and must move with it, per `test-plan.md`.
+  status: approved
+  approved-by: main Claude (reproduced: `GIT_CONFIG_GLOBAL=<empty> git ls-files` exits 128)
+
+- request-id: CER-011
+  requested_paths:
+    - test/helpers.ts
+  agent: main Claude
+  reason: >
+    IP-5 makes `enforceConfirmationHookInstallation` hard-fail whenever `CI` is truthy.
+    `test/helpers.ts`'s shared `runCli` spread `process.env` straight through, so 88 test
+    files inherited the runner's `CI`. Measured: `npx vitest run` = 1416 passed / 0 failed;
+    `CI=true npx vitest run` = 16 failed across 7 files, every one a "validate exits 0 on a
+    bare temp repo" assertion. The change as written would have turned this repository's
+    own CI red on the pull request that introduced it.
+
+    The fix belongs in `runCli`, not in the seven files: force `CI: ''` and make any test
+    that wants CI behaviour ask for it explicitly. Verified no test reads ambient `CI`.
+  status: approved
+  approved-by: main Claude (reproduced both ways before and after; see the commit)
+
 - request-id: CER-010
   requested_paths:
     - src/commands/bug-suspects.ts

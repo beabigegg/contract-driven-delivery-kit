@@ -250,10 +250,26 @@ source, transcribed but not invented (ADR 0010 §2 discipline).
   `pre-tool-use-design-write.sh` "blocks agent Edit/Write to `.cdd/design-lock.json`".
   It did not: the hook was never registered in this repository, and
   `installAgentHooks` arms a write-block hook only on an explicit opt.
-  `cdd-kit gate`'s `enforceConfirmationHookInstallation` now warns (default) and
-  hard-fails (`--strict`) when the design/acceptance write-block hooks are absent
-  from the project `.claude/settings.json`. It verifies only that file, never the
-  harness's effective merged settings.
+  `enforceConfirmationHookInstallation` is now `ci-or-strict`: a HARD failure on
+  stderr whenever the gate runs inside CI (any event) or under `--strict`, and a
+  warning on stdout in a default local run. `--strict` alone would have bought
+  nothing — the CI job passes it only on push to the default branch, which is after
+  merge, and the local pre-commit hook is bypassed by `--no-verify`. The check is
+  hosted by `cdd-kit gate <id>` **and** `cdd-kit validate`, because the workflow's
+  gate step is skipped when no `specs/changes/<id>/` directory changed, and the pull
+  request that de-arms a hook need not touch one.
+
+  It verifies only the project `.claude/settings.json`, never the harness's effective
+  merged settings, and it is directory-agnostic: the registered `command`'s script
+  path must be git-tracked, wherever it lives. A first revision demanded repo-root
+  `hooks/…` and rejected `.claude/hooks/…`, which is precisely where the kit's own
+  installer writes — so the installer produced a settings file that failed the check
+  it armed.
+
+  Three outcomes, not two. `git ls-files` exiting non-zero means git declined to
+  answer, not that the file is untracked; the two carry different messages, because
+  "register the hook" is useless advice to someone whose CI container reports
+  `detected dubious ownership` on a hook that is already registered.
 - **Agent write-block hook — path-keyed, not a global toggle.**
   `CDD_DESIGN_WRITE_STRICT` / `CDD_ACCEPTANCE_WRITE_STRICT` are retired. The hook
   payload carries no agent identity, so a global switch could only block everyone —

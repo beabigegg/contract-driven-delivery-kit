@@ -1,0 +1,121 @@
+agent: main Claude (orchestrator)
+change-id: enforce-human-confirmation
+batch: "IP-5, IP-6, IP-7, IP-8 — landing, verification, and the defects found while verifying"
+status: implemented
+
+summary: >
+  backend-engineer delivered IP-5 (enforceConfirmationHookInstallation, hosted by gate AND
+  validate) and IP-7 (forgeable provenance in both lock sidecars). I landed IP-6 (arm the
+  hooks with the real installer, git-track its output) and IP-8 (ADR 0012 §5). Verifying
+  the result under `CI=true` — the environment the check exists for — found four defects,
+  three of them pre-existing and shipped.
+
+delivered:
+  - "IP-5: check hosted by `cdd-kit gate <id>` and `cdd-kit validate`. ci-or-strict, not isNewChange-gated."
+  - "IP-6: `install-agent-hooks --design-write --acceptance-write`, then `git add .claude/settings.json .claude/hooks/`. The installer's own output, not a hand-authored file."
+  - "IP-7: git-author / TTY / timestamp in .cdd/design-lock.json and .cdd/acceptance-lock.json, additive and optional; hash unchanged."
+  - "IP-8: ADR 0012 §5 rewritten for ci-or-strict, two host commands, directory-agnostic tracking, and the third git state."
+
+defects-found-while-verifying:
+  - id: V1
+    severity: high
+    title: "The change would have turned this repository's own CI red."
+    found-by: "running the suite under `CI=true`, which nobody had done"
+    detail: >
+      `test/helpers.ts`'s shared `runCli` spread `process.env`, so 88 test files inherited
+      the runner's `CI`. Measured: `npx vitest run` = 1416 passed / 0 failed;
+      `CI=true npx vitest run` = 16 failed across 7 files, every one a "validate exits 0 on
+      a bare temp repo" assertion. Fixed at the single source: `runCli` forces `CI: ''`, and
+      a test that wants CI behaviour asks for it. No test read ambient `CI`.
+    lesson: "A test whose meaning depends on where it runs is not a test."
+
+  - id: V2
+    severity: high
+    title: "isGitTracked conflated `git failed` with `file untracked`."
+    found-by: "the same CI=true run: one failure survived the helpers fix"
+    detail: >
+      `test/setup-git-env.ts` blanks GIT_CONFIG_GLOBAL/SYSTEM for isolation, which drops the
+      `safe.directory` exception; `git ls-files` then exits 128 with "detected dubious
+      ownership". `isGitTracked` returned `status === 0 && stdout.length > 0`, so a git
+      REFUSAL read as "untracked", and the gate announced ".claude/settings.json exists but
+      does not register the design-write hook" — for a hook that was registered.
+      This is a routine CI-container scenario (checkout owned by another uid). It sends the
+      maintainer to fix the one thing that is not broken, and it is exactly the two-meanings-
+      one-discriminator failure `interaction-design.md` `## Consistency Commitments` forbids.
+    fix: >
+      Three states — tracked / untracked / undeterminable — with three messages. New test
+      T4e2 (armed hooks, no git repo) pins the third. `setup-git-env.ts` now writes
+      `safe.directory = *` so the suite does not have to depend on it.
+
+  - id: V3
+    severity: high
+    title: "build.js ships this machine's .cdd/ state into every adopter's project."
+    found-by: "a doctor test that failed only after this repo armed its own hooks"
+    detail: >
+      `build.js:120` copies `.cdd/` wholesale into `assets/cdd/`, and `cdd-kit init`
+      scaffolds a new project's `.cdd/` from it. Line 124 already excluded the code-map
+      artifacts. It did not exclude `asset-manifest.json` — so a fresh `init` inherited
+      cdd-kit's own install stamps and `doctor` immediately reported drift against hooks the
+      new project never installed. Nor did it exclude `acceptance-lock.json`: cdd-kit's own
+      ADR 0010 hash-locked acceptance baselines, a human-owned answer key, shipped into
+      strangers' repositories and keyed by change-id.
+      Pre-existing and shipped. Invisible until arming this repo's hooks changed the entry
+      count from 2 to 4 and a temp-project `doctor` noticed. Measured after the fix: fresh
+      init gives manifest entries = 3, hook scripts on disk = 3.
+    fix: "exclusion list extended: asset-manifest.json, acceptance-lock.json, design-lock.json"
+
+  - id: V4
+    severity: medium
+    title: "install-agent-hooks promised an advisory mode that does not exist."
+    detail: >
+      IP-4 retired `CDD_DESIGN_WRITE_STRICT` / `CDD_ACCEPTANCE_WRITE_STRICT`; the hooks now
+      key on the write target path. The installer still prefixed the command with the retired
+      variable and its success log still said "advisory mode: … does not block." It blocks.
+      A knob wired to nothing, and a message contradicting the mechanism, inside the change
+      that exists to delete both.
+    fix: >
+      `HookDef.pathKeyed`; no env prefix for those two; `describe()` states the real behaviour
+      and that `mode` is accepted and ignored. Tests now assert `strict` and `advisory` produce
+      a byte-identical command, and that the success log never says "does not block".
+
+mutation-matrix:
+  note: "run by main Claude against the built dist, not reported second-hand"
+  results:
+    - "M-tri  git failure folds into 'untracked'        -> T4e2  RED"
+    - "M-ci   hook check keyed on --strict only         -> T4b   RED"
+    - "M-ci2  same mutation, legacy dir under CI        -> T4f   RED"
+    - "M-reg  registration failure reuses untracked msg -> T4d   RED"
+    - "(markdown-section suite: 8/8 mutations RED, committed in 928a9b9)"
+
+yaml-postscript: >
+  This file was ALSO first written as invalid YAML (a mapping key and a block sequence
+  under the same `mutation-matrix` node) — the second agent-log in this change to ship
+  unparseable, after external-review-codex.yml. `validate` and `gate` both pass over
+  them. Nothing in this repository checks that the audit trail parses, which is the
+  follow-up already recorded in external-review-codex.yml. Twice in one change is
+  evidence, not coincidence: the check should exist, and it must use `loadAll`.
+
+verified-by-running:
+  - "hook scripts driven with real PreToolUse payloads: lock write -> exit 2 on stderr; body write -> exit 0; `CDD_DESIGN_WRITE_STRICT=0` still blocks, so the toggle is truly dead"
+  - "`CI=true node dist/cli/index.js validate` on the real repo: exit 0 — this repository is armed for the first time"
+  - "full suite, CI unset: 1418 passed / 62 skipped / 0 failed"
+  - "full suite, CI=true:  1418 passed / 62 skipped / 0 failed — identical, the environment-dependence is gone"
+  - "clean HEAD worktree used to prove the doctor failure was mine, not pre-existing at HEAD, before diagnosing it"
+
+my-own-errors:
+  - >
+      A stray `init --local-only` in my reproduction script ran against the REAL repository
+      and rewrote `.cdd/model-policy.json` and `.claude/settings.json`. Caught by checking
+      `git status` before continuing; model-policy reverted (timestamp-only), settings
+      re-verified to still register all four hooks. Recorded because a reproduction script
+      that mutates the subject is not a reproduction.
+  - >
+      My first mutation of the CI branch targeted T4a, which does not guard it (T4a pins the
+      warn path). It came back GREEN and, read carelessly, would have looked like a vacuous
+      test. The vacuous thing was the mutation. Retargeted to T4b/T4f, both RED.
+
+still-open:
+  - "test-evidence.yml (task 6.x) — not yet recorded"
+  - "acceptance.yml — human-authored only (ADR 0010); every case still a placeholder"
+  - "`cdd-kit design confirm enforce-human-confirmation` — human-only; the path has still never executed"
+  - "C-ACCEPTANCE-SCHEMA-HOME: IP-7 put acceptanceLockEntrySchema inside acceptance.schema.ts rather than a new acceptance-lock.schema.ts; contract-reviewer to ratify"

@@ -21,15 +21,15 @@ tasks:
   - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: skipped, note: "design-lock shape is governed by src/schemas/design-lock.schema.ts, not a data contract" }
   - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: skipped, note: "behavior change is expressed through the CI gate contract and the ADR" }
   - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: done }
-  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: pending }
+  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: done, note: "markdown-section (8/8 mutations red), design-provenance T6a-h, gate-design T1a-e, hook scripts T3a-d, gate T4a-h incl. T4e2 (git-cannot-answer), install-agent-hooks path-keyed. Suite green under both CI unset and CI=true" }
   - { id: "3.2", section: "Tests First", title: "Integration tests", status: pending }
   - { id: "3.3", section: "Tests First", title: "E2E/resilience tests", status: pending }
   - { id: "3.4", section: "Tests First", title: "Data-boundary/monkey tests", status: skipped, note: "not a fuzzable interactive surface" }
   - { id: "3.5", section: "Tests First", title: "Stress/soak tests if required", status: skipped, note: "no high-load or long-running path" }
-  - { id: "4.1", section: Implementation, title: "Backend", status: pending }
+  - { id: "4.1", section: Implementation, title: "Backend", status: done, note: "IP-1..IP-7. Provenance rows 22 -> 0. isGitTracked given a third state (git refused != untracked)" }
   - { id: "4.2", section: Implementation, title: "Frontend", status: skipped, note: "no frontend" }
-  - { id: "4.3", section: Implementation, title: "Env/deploy", status: pending }
-  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: pending }
+  - { id: "4.3", section: Implementation, title: "Env/deploy", status: done, note: "hooks armed via the real installer and git-tracked (.claude/settings.json + .claude/hooks/). installer no longer writes the retired CDD_*_WRITE_STRICT prefix. build.js no longer ships .cdd/asset-manifest.json or .cdd/acceptance-lock.json into adopters" }
+  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: done, note: "no workflow edit needed: the check self-arms off the CI env var, and hosting it in validate (unconditional in CI) closes the changed-specs-guard hole. Verified CI=true suite parity" }
   - { id: "5.1", section: Review, title: "UI/UX review", status: skipped, note: "no UI surface" }
   - { id: "5.2", section: Review, title: "Visual review", status: skipped, note: "no visual surface" }
   - { id: "5.3", section: Review, title: "Contract review", status: done }

@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { spawnSync } from 'child_process';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 import { computeDesignHash } from '../../src/utils/design-hash.js';
 
@@ -118,5 +119,25 @@ describe('cdd-kit design confirm (ADR 0012 §5, human-only lock command)', () =>
     const r = runCli(['design', 'confirm', '../../etc'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/invalid change id/i);
+  });
+
+  // T4g: the recorded baseline carries tamper-evidence CLUES (git-author / tty /
+  // timestamp). These are never verified by any gate -- the test asserts only
+  // that they were RECORDED and what the recorder claimed, never that the
+  // baseline is human-made or authentic (contract "clue, never a verdict").
+  it('records provenance clues (git-author, tty, timestamp) on the confirmed baseline', () => {
+    spawnSync('git', ['init'], { cwd: tmpRepo });
+    spawnSync('git', ['config', 'user.name', 'Test Author'], { cwd: tmpRepo });
+    spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmpRepo });
+    writeDesign('prov-change', 'Answer: yes.');
+
+    const r = runCli(['design', 'confirm', 'prov-change'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+
+    const entry = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'design-lock.json'), 'utf8'))['prov-change'];
+    expect(typeof entry.tty).toBe('boolean');
+    expect(entry.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$/);
+    expect(entry.timestamp).toBe(entry['locked-at']);
+    expect(entry['git-author']).toBe('Test Author <test@example.com>');
   });
 });

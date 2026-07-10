@@ -21,6 +21,15 @@ export const designLockEntrySchema = {
     // ISO timestamp set by `cdd-kit design confirm`; optional so a
     // hand-authored fixture need not supply it.
     "locked-at": { type: "string" },
+    // Tamper-evidence CLUES only (contracts/ci/ci-gate-contract.md
+    // "Tamper evidence, not prevention"). Recorded by `cdd-kit design confirm`
+    // as what the confirming process claimed about itself; every one is
+    // trivially forgeable and NO gate reads or verifies them -- "a clue, never
+    // a verdict." All optional: a lock written by older code omits them, and
+    // their absence is absent evidence, never failed evidence.
+    "git-author": { type: "string" },
+    tty: { type: "boolean" },
+    timestamp: { type: "string" },
   },
 } as const;
 

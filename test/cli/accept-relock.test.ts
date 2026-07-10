@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 import { computeAcceptanceHash, type AcceptanceFile } from '../../src/utils/acceptance-hash.js';
@@ -129,5 +130,25 @@ describe('cdd-kit accept relock (ADR 0010, human-only baseline command)', () => 
     const r = runCli(['accept', 'relock', '../../etc'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status).not.toBe(0);
     expect(r.stdout + r.stderr).toMatch(/invalid change id/i);
+  });
+
+  // T4g parity on the acceptance lock: the relocked baseline carries the same
+  // tamper-evidence CLUES (git-author / tty / timestamp) as the design lock
+  // (contract "Tamper evidence" names BOTH sidecars). Never verified; the test
+  // asserts only that they were recorded and what the recorder claimed.
+  it('records provenance clues (git-author, tty, timestamp) on the relocked baseline', () => {
+    spawnSync('git', ['init'], { cwd: tmpRepo });
+    spawnSync('git', ['config', 'user.name', 'Test Author'], { cwd: tmpRepo });
+    spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmpRepo });
+    writeOracle('prov-change', realOracle());
+
+    const r = runCli(['accept', 'relock', 'prov-change'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+
+    const entry = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'acceptance-lock.json'), 'utf8'))['prov-change'];
+    expect(typeof entry.tty).toBe('boolean');
+    expect(entry.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$/);
+    expect(entry.timestamp).toBe(entry['locked-at']);
+    expect(entry['git-author']).toBe('Test Author <test@example.com>');
   });
 });

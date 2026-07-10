@@ -368,7 +368,10 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     writeAcceptanceYaml(changeDir, oracle);
     writeAcceptanceLock(tmpRepo, 'acc-pass', computeAcceptanceHash(oracle));
 
-    const r = runCli(['gate', 'acc-pass'], { cwd: tmpRepo, home: tmpHome });
+    // CI='' pins the warn path for the new enforceConfirmationHookInstallation
+    // check (this fixture arms no write-block hooks); otherwise it would hard-fail
+    // on an unrelated concern under CI. Warns locally and on a runner alike here.
+    const r = runCli(['gate', 'acc-pass'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
     expect(r.status, 'stdout: ' + r.stdout + '\nstderr: ' + r.stderr).toBe(0);
     expect(r.stdout).toMatch(/gate passed for change: acc-pass/i);
   });

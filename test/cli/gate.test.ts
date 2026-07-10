@@ -380,6 +380,31 @@ function writeValidInteractionDesign(changeDir: string): void {
 // Tests
 // ?????????????????????????????????????????????????????????????????????????????
 
+/** Initialise a git repo in `dir` so `git ls-files` can report tracked paths.
+ *  `enforceConfirmationHookInstallation` verifies the registered hook script path
+ *  is git-tracked, and the temp repos are otherwise not git repos. */
+function gitInitRepo(dir: string): void {
+  const opts = { cwd: dir, encoding: 'utf8' as const };
+  spawnSync('git', ['init'], opts);
+  spawnSync('git', ['config', 'user.email', 'cdd-test@example.com'], opts);
+  spawnSync('git', ['config', 'user.name', 'CDD Test'], opts);
+}
+
+function gitAdd(dir: string, ...paths: string[]): void {
+  spawnSync('git', ['add', ...paths], { cwd: dir, encoding: 'utf8' });
+}
+
+/** Arm both write-block hooks through the REAL installer (writes the
+ *  `.claude/settings.json` PreToolUse entries and copies the scripts into
+ *  `.claude/hooks/`). Dogfoods the installer's own output against the check. */
+function armWriteBlockHooks(tmpRepo: string, tmpHome: string): void {
+  const r = runCli(
+    ['install-agent-hooks', '--design-write', 'advisory', '--acceptance-write', 'advisory'],
+    { cwd: tmpRepo, home: tmpHome },
+  );
+  if (r.status !== 0) throw new Error(`arming write-block hooks failed: ${r.stderr}`);
+}
+
 describe('cdd-kit gate', () => {
   let tmpRepo: string;
   let tmpHome: string;
@@ -486,7 +511,10 @@ describe('cdd-kit gate', () => {
     writeValidAcceptanceOracle(tmpRepo, changeDir, 'feat-004'); // acceptance-oracle: `new` now auto-scaffolds a placeholder
     writeValidInteractionDesign(changeDir); // interaction-design-loop: satisfy the new required check
 
-    const r = runCli(['gate', 'feat-004'], { cwd: tmpRepo, home: tmpHome });
+    // CI='' pins the warn path for the new enforceConfirmationHookInstallation
+    // check: this fixture arms no write-block hooks, so under CI it would hard-fail
+    // on an unrelated concern. It warns locally and on a runner alike here.
+    const r = runCli(['gate', 'feat-004'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/gate passed for change: feat-004/i);
   });
@@ -515,7 +543,10 @@ describe('cdd-kit gate', () => {
       ],
     }), 'utf8');
 
-    const r = runCli(['gate', 'feat-004b'], { cwd: tmpRepo, home: tmpHome });
+    // CI='' pins the warn path for enforceConfirmationHookInstallation (this
+    // fixture arms no write-block hooks); the pending-task warning is what this
+    // test is actually about.
+    const r = runCli(['gate', 'feat-004b'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/gate passed for change: feat-004b/i);
     const occurrences = (r.stdout + r.stderr).match(/task\(s\) still pending \(warning only in non-strict mode\)/g) ?? [];
@@ -773,7 +804,9 @@ describe('cdd-kit gate', () => {
     const filler = 'This is a meaningful description of the change to the date picker component. '.repeat(4);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nE2E tests exercise the <date-picker> and <my-element> custom elements rendered by the shell. Unit tests cover the new logic.\n`, 'utf8');
 
-    const r = runCli(['gate', 'feat-015d'], { cwd: tmpRepo, home: tmpHome });
+    // CI='' pins the warn path for enforceConfirmationHookInstallation (no hooks
+    // armed in this fixture) so the gate still passes on a CI runner.
+    const r = runCli(['gate', 'feat-015d'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
   });
@@ -792,7 +825,9 @@ describe('cdd-kit gate', () => {
     const filler = 'This is a meaningful description of the legacy XML payload integration work. '.repeat(4);
     writeFileSync(join(changeDir, 'test-plan.md'), `# Test Plan\n\n${filler}\n\nThe SOAP endpoint returns <id>123</id> and <date>2026-06-01</date>; tests assert the parser maps both correctly. Unit and integration coverage included.\n`, 'utf8');
 
-    const r = runCli(['gate', 'feat-015e'], { cwd: tmpRepo, home: tmpHome });
+    // CI='' pins the warn path for enforceConfirmationHookInstallation (no hooks
+    // armed in this fixture) so the gate still passes on a CI runner.
+    const r = runCli(['gate', 'feat-015e'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout + r.stderr).not.toMatch(/placeholder/i);
   });
@@ -872,6 +907,141 @@ describe('cdd-kit gate', () => {
     const strict = runCli(['gate', 'feat-legacy-cg', '--strict'], { cwd: tmpRepo, home: tmpHome });
     expect(strict.status).not.toBe(0);
     expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: context-manifest\.md/i);
+  });
+
+  // ???????????????????????????????????????????????????????????????????????????
+  // enforceConfirmationHookInstallation (AC-4; ci-gate-contract.md
+  // `### enforceConfirmationHookInstallation`). The discriminator is the STREAM,
+  // never the exit code: a scaffolded governed change already exits non-zero on
+  // unrelated checks. A warn-path finding lands on stdout (`log.warn`); a hard
+  // finding lands on stderr (`log.error`). Every test pins `CI` explicitly —
+  // `runCli` spreads `process.env`, so an unpinned test would silently exercise
+  // the error path on a CI runner and the warn path locally.
+  // ???????????????????????????????????????????????????????????????????????????
+
+  // T4a: no settings file, CI='', non-strict -> not-found on STDOUT only (warn).
+  // Mutation: make the not-found branch always `log.error` -> it would move to
+  // stderr and this test's stderr-exclusion fails.
+  it('T4a: no settings.json + CI="" + non-strict -> not-found warning on stdout only', () => {
+    runCli(['new', 'hook-t4a'], { cwd: tmpRepo, home: tmpHome });
+    rmSync(join(tmpRepo, '.claude', 'settings.json'));
+    const r = runCli(['gate', 'hook-t4a'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
+    expect(r.stdout).toMatch(/\.claude\/settings\.json not found — the design\/acceptance write-block hooks cannot be verified/);
+    expect(r.stderr).not.toMatch(/settings\.json not found/);
+  });
+
+  // T4b: no settings file, CI='true' -> not-found on STDERR (hard).
+  // Mutation: make the CI branch `log.warn` -> not-found moves to stdout.
+  it('T4b: no settings.json + CI="true" -> not-found error on stderr', () => {
+    runCli(['new', 'hook-t4b'], { cwd: tmpRepo, home: tmpHome });
+    rmSync(join(tmpRepo, '.claude', 'settings.json'));
+    const r = runCli(['gate', 'hook-t4b'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(r.stderr).toMatch(/\.claude\/settings\.json not found — the design\/acceptance write-block hooks cannot be verified/);
+    expect(r.stdout).not.toMatch(/settings\.json not found/);
+  });
+
+  // T4c: no settings file, --strict, CI='' -> not-found on STDERR.
+  // Mutation: drop `--strict` from the hard-fail condition -> warn -> stdout.
+  it('T4c: no settings.json + --strict + CI="" -> not-found error on stderr', () => {
+    runCli(['new', 'hook-t4c'], { cwd: tmpRepo, home: tmpHome });
+    rmSync(join(tmpRepo, '.claude', 'settings.json'));
+    const r = runCli(['gate', 'hook-t4c', '--strict'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
+    expect(r.stderr).toMatch(/\.claude\/settings\.json not found/);
+    expect(r.stdout).not.toMatch(/settings\.json not found/);
+  });
+
+  // T4d: settings present but no design-write hook, CI='true' -> a DISTINCT
+  // "does not register the design-write hook" message on stderr, whose text is
+  // NOT the T4b not-found text. Mutation: collapse the two absence messages into
+  // one string -> the two messages stop differing and this test fails.
+  it('T4d: settings.json without design hook + CI="true" -> distinct not-registered error', () => {
+    runCli(['new', 'hook-t4d'], { cwd: tmpRepo, home: tmpHome });
+    // The init settings.json arms graph-first + test-runner but neither write-block
+    // hook, so cause 2 (not-registered) fires — never cause 1 (not-found).
+    const r = runCli(['gate', 'hook-t4d'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(r.stderr).toMatch(/\.claude\/settings\.json exists but does not register the design-write hook/);
+    // The two absence causes MUST carry different text (Consistency Commitments).
+    expect(r.stderr).not.toMatch(/settings\.json not found/);
+  });
+
+  // T4e: BOTH hooks armed at a git-tracked path -> no finding, on either stream;
+  // AND an armed-but-UNTRACKED `.claude/hooks/…` path still fails. The assertion
+  // is tracked-vs-untracked, never a directory name — asserting the directory
+  // would re-freeze the bug where the installer's own `.claude/hooks/…` output
+  // failed the check it armed. Mutation: accept an untracked-path command as
+  // satisfying the check -> the untracked sub-case stops failing.
+  it('T4e: armed + git-tracked hooks pass; armed + untracked path fails', () => {
+    runCli(['new', 'hook-t4e'], { cwd: tmpRepo, home: tmpHome });
+    armWriteBlockHooks(tmpRepo, tmpHome); // writes .claude/hooks/* + settings entries
+    gitInitRepo(tmpRepo);
+
+    // Sub-case 1: armed but the .claude/hooks scripts are UNTRACKED (git repo
+    // exists, nothing added) -> under CI the check must still fire, and it must
+    // say the path is untracked. "does not register" would be false here: the
+    // hook IS registered. Registration and tracking are separate questions with
+    // separate answers, and a maintainer exits them differently.
+    const untracked = runCli(['gate', 'hook-t4e'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(untracked.stderr).toMatch(/registers the (design|acceptance)-write hook at .* but that path is not git-tracked/);
+    expect(untracked.stderr).not.toMatch(/does not register the (design|acceptance)-write hook/);
+
+    // Sub-case 2: git-track the SAME .claude/hooks paths -> the check passes,
+    // proving it is directory-agnostic (a tracked .claude/hooks/… satisfies it).
+    gitAdd(tmpRepo, '.claude/settings.json', '.claude/hooks');
+    const tracked = runCli(['gate', 'hook-t4e'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(tracked.stdout + tracked.stderr).not.toMatch(/(design|acceptance)-write hook/);
+    expect(tracked.stdout + tracked.stderr).not.toMatch(/settings\.json not found/);
+  });
+
+  // T4e2: git DECLINES TO ANSWER — a third situation, with its own message.
+  //
+  // `git ls-files` exiting non-zero does not mean "untracked"; it means git
+  // refused. The two most common causes in CI are `fatal: not a git repository`
+  // and `fatal: detected dubious ownership` (a container whose checkout is owned
+  // by another uid). This repository's own suite hit the second one: blanking
+  // GIT_CONFIG_GLOBAL for test isolation removed the `safe.directory` exception,
+  // `git ls-files` exited 128, and the check announced that a registered hook was
+  // "not registered". Telling a maintainer to register a hook they already
+  // registered is worse than saying nothing.
+  //
+  // Mutation: make gitTrackedState() fold a non-zero exit into 'untracked' ->
+  // the message becomes "not git-tracked" and this test goes red.
+  it("T4e2: armed hooks + git cannot answer -> says so, and does not claim the hook is unregistered", () => {
+    runCli(['new', 'hook-t4e2'], { cwd: tmpRepo, home: tmpHome });
+    armWriteBlockHooks(tmpRepo, tmpHome);
+    // Deliberately NO gitInitRepo: `git ls-files` exits 128, "not a git repository".
+
+    const r = runCli(['gate', 'hook-t4e2'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+
+    expect(r.stderr).toMatch(/whether that path is git-tracked could not be determined/);
+    expect(r.stderr).toMatch(/git ls-files exited/);
+    // The two claims it must NOT make: the hook is registered, and we do not
+    // know that the path is untracked.
+    expect(r.stderr).not.toMatch(/does not register the (design|acceptance)-write hook/);
+    expect(r.stderr).not.toMatch(/that path is not git-tracked/);
+  });
+
+  // T4f: a LEGACY (non-context-governed) change under CI='true' with no hook
+  // STILL errors on stderr — the check is a project property, not bounded by the
+  // migration window. Mutation: gate the check on `isNewChange` -> a legacy dir
+  // would only warn (stdout) and this stderr assertion fails.
+  it('T4f: legacy change dir + CI="true" + no hook -> error on stderr (not isNewChange-gated)', () => {
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'hook-legacy');
+    mkdirSync(changeDir, { recursive: true });
+    writeValidChangeArtifacts(changeDir); // legacy tasks.yml (no context-governance: v1)
+    const r = runCli(['gate', 'hook-legacy'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(r.stderr).toMatch(/\.claude\/settings\.json exists but does not register the (design|acceptance)-write hook/);
+    expect(r.stdout).not.toMatch(/does not register the (design|acceptance)-write hook/);
+  });
+
+  // T4h: no gate output may claim a baseline is human-made / verified / authentic
+  // — tamper evidence is a clue, never a verdict (Consistency Commitments; DAC-1).
+  // Mutation: add wording asserting the baseline is human-made -> this fails.
+  it('T4h: hook-check output never claims a baseline is human-made/verified/authentic', () => {
+    runCli(['new', 'hook-t4h'], { cwd: tmpRepo, home: tmpHome });
+    const warn = runCli(['gate', 'hook-t4h'], { cwd: tmpRepo, home: tmpHome, env: { CI: '' } });
+    const err = runCli(['gate', 'hook-t4h'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(warn.stdout + warn.stderr).not.toMatch(/human-made|human-verified|authentic/i);
+    expect(err.stdout + err.stderr).not.toMatch(/human-made|human-verified|authentic/i);
   });
 
   it('22: gate warns when context expansion request is pending', () => {

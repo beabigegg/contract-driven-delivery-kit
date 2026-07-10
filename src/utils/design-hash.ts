@@ -22,6 +22,7 @@
 // §5 requires, adapted to prose instead of structured YAML.
 
 import { createHash } from 'crypto';
+import { spawnSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { normalizeContentForHash } from './digest.js';
@@ -56,12 +57,42 @@ export function computeDesignHash(body: string): string {
 export interface DesignLockEntry {
   hash: string;
   'locked-at'?: string;
+  // Tamper-evidence CLUES only (contracts/ci/ci-gate-contract.md
+  // "Tamper evidence, not prevention"; ADR 0012 §5). What the confirming
+  // process CLAIMED about itself at confirm time -- every one is trivially
+  // forgeable by a Bash-holding agent, and NO gate reads or verifies them:
+  // "Tamper evidence is a clue, never a verdict." A lock written by older code
+  // simply omits these; their absence is absent evidence, never failed
+  // evidence.
+  'git-author'?: string;   // the "Name <email>" git would stamp on a commit, or absent if git can't determine it
+  tty?: boolean;           // whether the confirming process's stdout was a TTY
+  timestamp?: string;      // ISO-8601 confirm time (same instant as locked-at)
 }
 
 export type DesignLockFile = Record<string, DesignLockEntry>;
 
 function lockPath(cwd: string): string {
   return join(cwd, '.cdd', 'design-lock.json');
+}
+
+/**
+ * The "Name <email>" identity git itself would stamp on a commit right now,
+ * read the way git resolves it (`git config user.name` / `user.email`, which
+ * consults local + global + system config). git cannot author a commit without
+ * BOTH, so if either is unset this returns `undefined` -- absence is recorded
+ * rather than a value being invented. A tamper-evidence CLUE only; never
+ * verified (contracts/ci/ci-gate-contract.md).
+ */
+export function gitAuthorIdentity(cwd: string): string | undefined {
+  try {
+    const name = spawnSync('git', ['config', 'user.name'], { cwd, encoding: 'utf8' });
+    const email = spawnSync('git', ['config', 'user.email'], { cwd, encoding: 'utf8' });
+    const n = name.status === 0 ? (name.stdout ?? '').trim() : '';
+    const e = email.status === 0 ? (email.stdout ?? '').trim() : '';
+    return n && e ? `${n} <${e}>` : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -95,7 +126,18 @@ export function readDesignLock(cwd: string): DesignLockFile {
 export function writeDesignLock(cwd: string, changeId: string, hash: string): void {
   const p = lockPath(cwd);
   const current = readDesignLock(cwd);
-  current[changeId] = { hash, 'locked-at': new Date().toISOString() };
+  const now = new Date().toISOString();
+  const entry: DesignLockEntry = {
+    hash,
+    'locked-at': now,
+    tty: Boolean(process.stdout.isTTY),
+    timestamp: now,
+  };
+  // Omit git-author entirely when git cannot determine it (record absence, not
+  // an invented value). These three are audit clues, never verified.
+  const author = gitAuthorIdentity(cwd);
+  if (author !== undefined) entry['git-author'] = author;
+  current[changeId] = entry;
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, `${JSON.stringify(current, null, 2)}\n`, 'utf8');
 }

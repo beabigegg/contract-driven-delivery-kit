@@ -1,0 +1,111 @@
+change-id: enforce-human-confirmation
+agent: backend-engineer
+timestamp: "2026-07-10T14:55:00Z"
+status: needs-review
+artifacts:
+  - { type: files-changed, pointer: "src/commands/gate-shared.ts (checkConfirmationHookInstallation, enforceConfirmationHookInstallation, isCiEnvironment, helpers)" }
+  - { type: files-changed, pointer: "src/commands/gate.ts (wire check into gate collection phase; pass hookCheck=false to nested validate)" }
+  - { type: files-changed, pointer: "src/commands/validate.ts (second host; hookCheck option, default on)" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4a no-settings CI-empty non-strict -> not-found warning stdout only" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4b no-settings CI-true -> not-found error stderr" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4c no-settings --strict CI-empty -> not-found error stderr" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4d settings-without-design-hook CI-true -> distinct not-registered error" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4e armed+git-tracked pass; armed+untracked path fails (tracked-vs-untracked, not directory)" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4f legacy dir CI-true no-hook -> error stderr (not isNewChange-gated)" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts::T4h output never claims baseline human-made/verified/authentic" }
+  - { type: tests-added, pointer: "test/cli/gate.test.ts (gitInitRepo/gitAdd/armWriteBlockHooks helpers)" }
+  - { type: files-changed, pointer: "test/cli/gate.test.ts (CI-robustness pins on passing tests 5/EXPLAIN-4/15d/15e)" }
+  - { type: files-changed, pointer: "test/cli/acceptance-oracle.test.ts (CI-robustness pin on AC-1/AC-2 end-to-end pass test)" }
+  - { type: test-output, pointer: "npx vitest run local CI-unset: 1416 passed, 62 skipped, 0 failed, exit 0" }
+  - { type: test-output, pointer: "npx vitest run test/cli/gate.test.ts: 133 passed, 0 failed" }
+  - { type: test-output, pointer: "CI=true vitest acceptance-oracle after fix: 17 passed, 0 failed" }
+  - { type: contracts-touched, pointer: "none (ci 0.7.0 / env 0.4.0 already landed; source + validate host conformed)" }
+next-action: >
+  HUMAN / main Claude decision needed on the CI-runner test blast radius below (six files
+  out of my write scope). Then IP-6 (arm + git-add real repo .claude/settings.json and
+  .claude/hooks) lands ATOMICALLY with this.
+notes: >
+  Scope IP-5 ONLY. Did NOT touch src/utils/design-hash.ts, acceptance-hash.ts, or
+  src/schemas/* (sibling owns IP-7; they show in the working-tree diff but are not mine).
+  Did NOT touch hooks/*.sh, markdown-section.ts, design-provenance.ts. Did NOT write
+  .cdd/design-lock.json, .cdd/acceptance-lock.json, or acceptance.yml.
+
+
+  IMPLEMENTATION. enforceConfirmationHookInstallation lives in gate-shared.ts (shared by
+  both hosts). Reads PROJECT .claude/settings.json (never settings.local.json); finds a
+  PreToolUse entry whose matcher covers Write+Edit+MultiEdit and whose command names the
+  design (resp. acceptance) write-block script; extracts that script path from the command
+  and requires it git-tracked (git ls-files -- path, non-empty stdout). Directory-agnostic:
+  a tracked .claude/hooks/... AND a tracked repo-root hooks/... both pass; an untracked path
+  fails wherever it sits. Two DISTINCT absence messages verbatim from ci-gate-contract:
+  cause 1 (no file) uses the "not found — the design/acceptance write-block hooks cannot be
+  verified because no project settings file exists" wording; cause 2 (present but
+  unregistered) uses "exists but does not register the <design|acceptance>-write hook",
+  naming which. ci-or-strict: hard error (log.error -> stderr via errors[]) when
+  isCiEnvironment or strict, else warn (log.warn -> stdout via warnings[]). NOT gated on
+  isNewChange. isCiEnvironment: CI set, non-empty, not 0/false case-insensitive, per
+  env-contract 0.4.0.
+
+
+  TWO HOSTS. gate.ts calls the check in its collection phase then passes hookCheck=false to
+  its nested validate() so the check never runs twice in one gate. validate.ts runs it by
+  default (hookCheck not false); validate has no --strict, so ci-or-strict reduces to CI
+  there. Verified live: `node dist/cli/index.js validate --versions` warns on stdout locally
+  (CI unset) and `CI=true ... validate` errors on stderr and exits 1, both naming design and
+  acceptance distinctly. Real repo is in state-hook-entry-absent (settings arms only
+  graph-first + test-runner), so this is the true finding, not a fixture.
+
+
+  DAC-1 respected. No code/comment/message/test claims a Bash-holder is prevented from
+  self-stamping; the module doc-comment and T4h assert the opposite.
+
+
+  HOW CI WAS PINNED IN TESTS. runCli spreads process.env. Locally CI is UNSET (probed a
+  throwaway vitest test that printed CI undefined), so an unpinned test silently tests warn
+  locally and error on a runner. Every T4 test passes env {CI: ""} (warn: T4a) or env {CI:
+  "true"} (error: T4b/T4d/T4e/T4f); T4c uses --strict with CI empty; T4h runs both. The
+  discriminator asserted is the STREAM + message text, never the exit code.
+
+
+  MUTATION MATRIX. Each mutation altered exactly the one targeted line, rebuilt dist (node
+  build.js), ran ONLY that test (vitest -t), observed RED, then restored + rebuilt. All
+  seven observed RED:
+    T4a  wrapper (hard ? errors : warnings) -> always errors    => RED (msg moved to stderr). restored.
+    T4b  wrapper -> always warnings                             => RED (msg not on stderr). restored.
+    T4c  hard = isCiEnvironment() || strict -> isCiEnvironment() => RED (strict no longer hard). restored.
+    T4d  cause-2 message replaced by cause-1 string (collapse)  => RED (distinct text gone). restored.
+    T4e  isGitTracked -> return true (accept untracked)         => RED (untracked sub-case stopped failing). restored.
+    T4f  gate.ts isNewChange-gate so a legacy dir only warns    => RED (legacy msg moved to stdout). restored.
+    T4h  append a human-made authenticity claim to the msg      => RED. restored.
+  After every revert: tsc --noEmit clean, dist rebuilt, all 7 T4 green again.
+
+
+  VERIFIED BY READING vs RUNNING. Read (not assumed): ci-gate-contract.md section
+  enforceConfirmationHookInstallation in full (message text, tracked-not-directory rule,
+  two-hosts paragraph, not-gated-on-isNewChange); env-contract CI row; interaction-design.md
+  States (state-settings-file-absent / state-hook-entry-absent) + Consistency Commitments;
+  install-agent-hooks.ts (hookRelPath writes .claude/hooks/..., matcher Write|Edit|MultiEdit,
+  the cd CLAUDE_PROJECT_DIR command shape) -- this is why extractScriptPath strips a leading
+  dot-slash and the check is directory-agnostic; gate.ts collection/short-circuit; validate.ts
+  spawn/failed model. Ran: the live validate probe (warn vs error), the 7 mutations, targeted
+  + full vitest, and the CI=true reproduction.
+
+
+  CONTRADICTION FOUND (LOUD) -- the plan Test Update Contract does NOT account for this check
+  CI-runner blast radius on the temp-repo test fixtures. Hazard A only covered the REAL repo
+  (IP-6). makeTempDir builds NON-git, unarmed repos, so under CI=true this check hard-fails
+  EVERY gate/validate-success test whose fixture never arms+tracks the hooks. Reproduced with
+  CI=true. Files that FAIL under CI=true (test count): validate.test.ts (2),
+  validate-versions.test.ts (3), validate-semantic.test.ts (2), validate-applicability.test.ts
+  (3), validate-spec-traceability.test.ts (2), acceptance-oracle.test.ts (1 FIXED, in scope),
+  not-applicable-contracts.driver.test.ts (1). Checked-and-ROBUST under CI=true: gate-design,
+  design-confirm, accept-relock, gate-acceptance-rules, interaction-design-template. FIXED
+  in-scope: gate.test.ts (4 tests) and acceptance-oracle.test.ts (1 test). The remaining SIX
+  files (5 validate*.test.ts + not-applicable driver) are OUTSIDE my write scope, so I did NOT
+  edit them. Full LOCAL suite is green (CI unset: 1416 passed); the breakage only appears on a
+  real CI runner. Fix pattern: pin env {CI: ""} on each standalone validate/gate success
+  assertion, OR arm+git-track hooks in those fixtures (see armWriteBlockHooks/gitInitRepo in
+  gate.test.ts::T4e). Matches plan Hazard B option (i): hosting the check in validate needs a
+  new test target, file a CER if the human picks this -- the human picked (i) (CER-008), so a
+  CER is now needed for those six files. RECOMMEND main Claude / test-strategist grant a CER
+  for the six paths or apply the CI-empty pin.

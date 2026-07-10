@@ -3,11 +3,11 @@ artifact: project-map
 generated-by: cdd-kit context-scan
 schema-version: 1
 root: contract-driven-delivery-kit
-visible-dirs: 64
-visible-files: 327
+visible-dirs: 63
+visible-files: 341
 omitted-dirs: 0
 truncated-dirs: 2
-inputs-digest: 26c6e3e2932cb41c80b71b0144466de658bc08d429ce0d6b001359b2e24db2f0
+inputs-digest: 62598949ece3c44e11cc87b1d5fb79466bcb39ac84b8b8b34c84bfd456da8fe7
 ---
 
 # Project Map
@@ -28,6 +28,7 @@ Use this deterministic map to choose candidate context paths before reading file
 - .cdd/runtime
 - .claude/worktrees
 - .cdd/acceptance-lock.json
+- .cdd/design-lock.json
 
 ## Tree
 
@@ -47,7 +48,6 @@ contract-driven-delivery-kit/
 |   \-- workflows/
 |       |-- contract-driven-gates.yml
 |       \-- test.yml
-|-- .tmp.drivedownload/
 |-- .tmp.driveupload/
 |-- bin/
 |   |-- cdd.js
@@ -101,7 +101,8 @@ contract-driven-delivery-kit/
 |   |   |-- 0008-required-agent-evidence.md
 |   |   |-- 0009-parallel-change-integration.md
 |   |   |-- 0010-acceptance-oracle.md
-|   |   \-- 0011-not-applicable-contract-marker.md
+|   |   |-- 0011-not-applicable-contract-marker.md
+|   |   \-- 0012-interaction-design-loop.md
 |   |-- examples/
 |   |   \-- bug-fix/
 |   |       |-- bug-fix-engineer.sample.yml
@@ -119,6 +120,7 @@ contract-driven-delivery-kit/
 |   |-- pre-commit
 |   |-- pre-tool-use-acceptance-write.sh
 |   |-- pre-tool-use-contract-write.sh
+|   |-- pre-tool-use-design-write.sh
 |   |-- pre-tool-use-graph-first.sh
 |   \-- pre-tool-use-test-runner.sh
 |-- prompts/
@@ -157,6 +159,7 @@ contract-driven-delivery-kit/
 |       |-- current-behavior.md
 |       |-- design.md
 |       |-- implementation-plan.md
+|       |-- interaction-design.md
 |       |-- monkey-test-report.md
 |       |-- project-profile.md
 |       |-- proposal.md
@@ -213,12 +216,14 @@ contract-driven-delivery-kit/
 |   |   |-- contract-locate.ts
 |   |   |-- contract-query.ts
 |   |   |-- contract-set.ts
+|   |   |-- design.ts
 |   |   |-- doctor.ts
 |   |   |-- gate-acceptance.ts
 |   |   |-- gate-agents.ts
 |   |   |-- gate-artifacts.ts
 |   |   |-- gate-contracts.ts
 |   |   |-- gate-dependencies.ts
+|   |   |-- gate-design.ts
 |   |   |-- gate-evidence.ts
 |   |   |-- gate-shared.ts
 |   |   |-- gate-tier.ts
@@ -245,9 +250,7 @@ contract-driven-delivery-kit/
 |   |   |-- suggest-codegen.ts
 |   |   |-- test-impact.ts
 |   |   |-- test-run.ts
-|   |   |-- test-select.ts
-|   |   |-- update.ts
-|   |   \-- ... (2 more entries truncated; cap=50)
+|   |   \-- ... (4 more entries truncated; cap=50)
 |   |-- contracts/
 |   |   \-- parser.ts
 |   |-- mcp/
@@ -257,6 +260,7 @@ contract-driven-delivery-kit/
 |   |   |-- agent-log.schema.ts
 |   |   |-- bug-fix-evidence.schema.ts
 |   |   |-- change-metadata.schema.ts
+|   |   |-- design-lock.schema.ts
 |   |   |-- reservations.schema.ts
 |   |   |-- tasks.schema.ts
 |   |   |-- test-evidence.schema.ts
@@ -267,6 +271,8 @@ contract-driven-delivery-kit/
 |       |-- change-id.ts
 |       |-- context-inputs.ts
 |       |-- copy.ts
+|       |-- design-hash.ts
+|       |-- design-provenance.ts
 |       |-- digest.ts
 |       |-- gate-explain.ts
 |       |-- git-paths.ts
@@ -283,6 +289,7 @@ contract-driven-delivery-kit/
 |-- test/
 |   |-- acceptance/
 |   |   |-- acceptance-oracle.driver.test.ts
+|   |   |-- interaction-design-loop.driver.test.ts
 |   |   \-- not-applicable-contracts.driver.test.ts
 |   |-- agents/
 |   |   \-- code-map-rule.test.ts
@@ -305,6 +312,8 @@ contract-driven-delivery-kit/
 |   |   |-- contract-query.test.ts
 |   |   |-- contract-set.test.ts
 |   |   |-- contract-write-hook.test.ts
+|   |   |-- design-confirm.test.ts
+|   |   |-- design-write-hook.test.ts
 |   |   |-- doctor-chokepoints.test.ts
 |   |   |-- doctor-code-map.test.ts
 |   |   |-- doctor-conformance-fix.test.ts
@@ -313,6 +322,8 @@ contract-driven-delivery-kit/
 |   |   |-- doctor-simple.test.ts
 |   |   |-- doctor.test.ts
 |   |   |-- freshness-mtime-repair.test.ts
+|   |   |-- gate-acceptance-rules.test.ts
+|   |   |-- gate-design.test.ts
 |   |   |-- gate.test.ts
 |   |   |-- git-paths.test.ts
 |   |   |-- graph-unresolved.test.ts
@@ -333,11 +344,7 @@ contract-driven-delivery-kit/
 |   |   |-- mcp.test.ts
 |   |   |-- metadata-integration.test.ts
 |   |   |-- metadata.test.ts
-|   |   |-- migrate.test.ts
-|   |   |-- new.test.ts
-|   |   |-- no-bom.test.ts
-|   |   |-- openapi-check.test.ts
-|   |   \-- ... (19 more entries truncated; cap=50)
+|   |   \-- ... (24 more entries truncated; cap=50)
 |   |-- code-graph/
 |   |   \-- queries.test.ts
 |   |-- code-map/
@@ -354,9 +361,13 @@ contract-driven-delivery-kit/
 |   |   |-- reserve-integrate.test.ts
 |   |   \-- test-impact-build.test.ts
 |   |-- contracts/
+|   |   |-- agent-prompt-content.test.ts
 |   |   |-- applicability-agreement.test.ts
 |   |   |-- applicability-reader.test.ts
-|   |   \-- parser.test.ts
+|   |   |-- ci-workflow.test.ts
+|   |   |-- interaction-design-template.test.ts
+|   |   |-- parser.test.ts
+|   |   \-- skill-workflow-order.test.ts
 |   |-- fixtures/
 |   |   \-- code-map/
 |   |       |-- broken.py
@@ -371,11 +382,14 @@ contract-driven-delivery-kit/
 |   |-- schemas/
 |   |   |-- acceptance.schema.test.ts
 |   |   |-- bug-fix-evidence.schema.test.ts
+|   |   |-- design-lock.schema.test.ts
 |   |   \-- test-evidence.schema.test.ts
 |   |-- utils/
 |   |   |-- acceptance-driver-templates.test.ts
 |   |   |-- acceptance-hash.test.ts
 |   |   |-- asset-manifest.test.ts
+|   |   |-- design-hash.test.ts
+|   |   |-- design-provenance.test.ts
 |   |   |-- digest.test.ts
 |   |   |-- gate-explain.test.ts
 |   |   \-- mock-of-sut-scan.test.ts
@@ -406,6 +420,7 @@ contract-driven-delivery-kit/
 |           |-- load-profile.md
 |           \-- locust-example.py
 |-- tools/
+|   |-- check-lockfile-sync.mjs
 |   \-- check-mojibake.mjs
 |-- .cdd-retest.log
 |-- .gitattributes
@@ -422,7 +437,6 @@ contract-driven-delivery-kit/
 |-- package.json
 |-- project-profile.generated.md
 |-- README.md
-|-- reviewbycodex.md
 |-- skill.zip
 |-- tsconfig.json
 \-- vitest.config.ts

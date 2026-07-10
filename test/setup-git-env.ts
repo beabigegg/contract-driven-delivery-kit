@@ -15,9 +15,17 @@ import { join } from 'path';
  */
 const cfgDir = mkdtempSync(join(tmpdir(), 'cdd-gitcfg-'));
 const emptyCfg = join(cfgDir, 'gitconfig');
+// `safe.directory = *` is required, not cosmetic. Replacing the global config
+// also drops whatever `safe.directory` exceptions the developer's real config
+// carried, so git refuses to operate on a repository it now considers
+// dubiously-owned — on Windows, any repo on a filesystem that does not record
+// ownership. `git ls-files` then exits 128 instead of answering, which is a
+// different thing from "the file is untracked". `gate-shared.ts` now
+// distinguishes those two, and this line keeps the suite from having to.
 writeFileSync(
   emptyCfg,
-  '[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n',
+  '[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n'
+  + '[safe]\n\tdirectory = *\n',
 );
 
 // Drop any inherited ad-hoc config injected via the environment. Git applies

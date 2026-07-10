@@ -51,8 +51,17 @@ interface HookDef {
   matcher: string;
   /** Substring identifying OUR handler for idempotent replace. */
   marker: string;
-  /** Env var that flips the script from advisory to hard-block. */
-  strictEnv: string;
+  /** Env var that flips the script from advisory to hard-block. Absent for a
+   * `pathKeyed` hook, which has no advisory mode to flip into. */
+  strictEnv?: string;
+  /**
+   * The script decides from the WRITE TARGET PATH, not from an env toggle
+   * (contracts/ci `### Write-block hook discrimination axis`). For such a hook
+   * `mode` is accepted and ignored: no env prefix is written into the command,
+   * and `describe` must not promise that `advisory` declines to block, because
+   * it blocks either way.
+   */
+  pathKeyed?: boolean;
   /** One-line advisory/strict explainer for the success log. */
   describe: (mode: HookMode) => string;
 }
@@ -98,10 +107,10 @@ const ACCEPTANCE_WRITE: HookDef = {
   // The agent's file-mutation tools; a human's editor is unaffected.
   matcher: 'Write|Edit|MultiEdit',
   marker: ACCEPTANCE_WRITE_MARKER,
-  strictEnv: 'CDD_ACCEPTANCE_WRITE_STRICT',
-  describe: (mode) => mode === 'advisory'
-    ? 'advisory mode: reminds agents that acceptance.yml (and .cdd/acceptance-lock.json) is a human-owned answer key; does not block.'
-    : "strict mode: blocks the agent's Edit/Write of acceptance.yml and .cdd/acceptance-lock.json (ADR 0010 §3.2).",
+  pathKeyed: true,
+  describe: () =>
+    'blocks a direct Edit/Write of .cdd/acceptance-lock.json unconditionally; always allows '
+    + "acceptance.yml's body (ADR 0010 §3.2). `mode` is accepted and ignored.",
 };
 
 const DESIGN_WRITE: HookDef = {
@@ -110,10 +119,10 @@ const DESIGN_WRITE: HookDef = {
   // The agent's file-mutation tools; a human's editor is unaffected.
   matcher: 'Write|Edit|MultiEdit',
   marker: DESIGN_WRITE_MARKER,
-  strictEnv: 'CDD_DESIGN_WRITE_STRICT',
-  describe: (mode) => mode === 'advisory'
-    ? 'advisory mode: reminds agents that interaction-design.md\'s ## Confirmed section (and .cdd/design-lock.json) is a human-confirmed answer key; does not block.'
-    : "strict mode: blocks the agent's Edit/Write of interaction-design.md and .cdd/design-lock.json (ADR 0012 §5).",
+  pathKeyed: true,
+  describe: () =>
+    'blocks a direct Edit/Write of .cdd/design-lock.json unconditionally; always allows '
+    + "interaction-design.md's body (ADR 0012 §5). `mode` is accepted and ignored.",
 };
 
 /** A single hook handler — Claude Code executes `{ type: 'command', command }`. */
@@ -278,7 +287,12 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
 
     preTool = withoutHandler(preTool, def);
     const invoke = `./${hookRelPath(def.filename)}`;
-    const run = mode === 'strict' ? `${def.strictEnv}=1 ${invoke}` : invoke;
+    // A path-keyed hook has no advisory mode to flip into, so no env prefix is
+    // written. Prefixing the retired `CDD_*_WRITE_STRICT` would put a variable
+    // into settings.json that the script no longer reads (env 0.3.0/0.4.0) —
+    // a knob wired to nothing, which is the defect class enforce-human-confirmation
+    // exists to close.
+    const run = !def.pathKeyed && mode === 'strict' ? `${def.strictEnv}=1 ${invoke}` : invoke;
     // Anchor the run to the project root via $CLAUDE_PROJECT_DIR. Claude Code does
     // NOT guarantee the hook's cwd is the project root (the actual cwd is only
     // passed on stdin), so a bare relative `./.claude/hooks/...` fails to resolve

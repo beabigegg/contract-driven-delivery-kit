@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
+import { checkConfirmationHookInstallation, isCiEnvironment } from './gate-shared.js';
 
 export interface ValidateOptions {
   contracts: boolean;
@@ -10,6 +11,15 @@ export interface ValidateOptions {
   ci: boolean;
   spec: boolean;
   versions: boolean;
+  /**
+   * Run `enforceConfirmationHookInstallation` here as well (ci-gate-contract.md:
+   * "Two host commands"). Defaults to on for the standalone `cdd-kit validate`,
+   * which runs unconditionally in CI on every event and so catches a pull request
+   * that de-arms the hooks while touching no `specs/changes/<id>/` directory.
+   * `gate` passes `false` because it already runs the check itself before calling
+   * `validate` — this keeps it from running twice within one `gate`.
+   */
+  hookCheck?: boolean;
 }
 
 interface ValidatorEntry {
@@ -108,6 +118,26 @@ export async function validate(opts: ValidateOptions): Promise<void> {
         log.blank();
       }
     }
+  }
+
+  // enforceConfirmationHookInstallation, second host (ci-gate-contract.md).
+  // `cdd-kit validate` runs unconditionally in CI on every event, so it catches a
+  // pull request that de-arms `.claude/settings.json` while the `gate` step is
+  // skipped for touching no `specs/changes/<id>/` directory. `validate` has no
+  // `--strict`, so `ci-or-strict` reduces to CI here: hard error (stderr) inside
+  // CI, warning (stdout) locally.
+  if (opts.hookCheck !== false) {
+    const findings = checkConfirmationHookInstallation(process.cwd());
+    const hard = isCiEnvironment();
+    for (const f of findings) {
+      if (hard) {
+        log.error(f.message);
+        failed = true;
+      } else {
+        log.warn(f.message);
+      }
+    }
+    if (findings.length > 0) log.blank();
   }
 
   if (failed) {

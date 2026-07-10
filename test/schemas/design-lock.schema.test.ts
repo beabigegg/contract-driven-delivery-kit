@@ -51,6 +51,31 @@ describe('design-lock.schema', () => {
     expect(validate(doc)).toBe(false);
   });
 
+  // Provenance CLUE fields (contracts/ci/ci-gate-contract.md "Tamper evidence,
+  // not prevention"). The schema only fixes their SHAPE; it does not -- and must
+  // not -- assert anything about who wrote them or whether they are authentic.
+  it('accepts an entry carrying the provenance clue fields (git-author/tty/timestamp)', () => {
+    const doc = {
+      'my-change': {
+        hash: HASH,
+        'locked-at': '2026-07-09T00:00:00.000Z',
+        'git-author': 'Test Author <test@example.com>',
+        tty: false,
+        timestamp: '2026-07-09T00:00:00.000Z',
+      },
+    };
+    expect(validate(doc), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('accepts an entry with NO provenance fields (absent evidence is not failed evidence)', () => {
+    const doc = { 'my-change': { hash: HASH, 'locked-at': '2026-07-09T00:00:00.000Z' } };
+    expect(validate(doc), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('rejects a non-boolean tty (the clue is typed, though never verified)', () => {
+    expect(validate({ 'my-change': { hash: HASH, tty: 'yes' } })).toBe(false);
+  });
+
   it('rejects a top-level array', () => {
     expect(validate([])).toBe(false);
   });

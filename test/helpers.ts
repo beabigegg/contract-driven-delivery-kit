@@ -19,6 +19,16 @@ export interface RunResult {
  * Spawn the CLI with the given args.
  * HOME and USERPROFILE are both forced to `home` so os.homedir() resolves
  * there on both Windows (USERPROFILE) and Unix (HOME).
+ *
+ * `CI` is forced empty by default, and a test that wants CI behaviour must ask
+ * for it: `env: { CI: 'true' }`. Since `enforceConfirmationHookInstallation`
+ * became `ci-or-strict` (contracts/ci 0.7.0), a truthy `CI` turns an unarmed
+ * project's hook-presence warning into a hard error. Every CI provider sets
+ * `CI=true`, and this helper used to spread `process.env` straight through — so
+ * a test asserting `validate` exits 0 on a bare temp repo passed on a laptop and
+ * failed on a runner. Measured before the fix: `npx vitest run` was 1416 passed
+ * / 0 failed locally, and `CI=true npx vitest run` was 16 failed across 7 files.
+ * A test whose meaning depends on where it runs is not a test.
  */
 export function runCli(
   args: string[],
@@ -33,6 +43,7 @@ export function runCli(
         ...process.env,
         HOME: opts.home,
         USERPROFILE: opts.home,
+        CI: '',
         ...(opts.env ?? {}),
       },
       encoding: 'buffer',

@@ -59,3 +59,46 @@ export const acceptanceSchema = {
     },
   },
 } as const;
+
+// `.cdd/acceptance-lock.json` SIDECAR shape (ADR 0010 §3.1; mirrors
+// `src/schemas/design-lock.schema.ts`). DISTINCT from `acceptanceSchema` above,
+// which validates the human-authored `acceptance.yml` answer key: this validates
+// the regenerable sidecar that `cdd-kit accept relock` writes -- a change-id-keyed
+// map of hash-lock baselines. `src/utils/acceptance-hash.ts`
+// (readAcceptanceLock/writeAcceptanceLock) is the only code that reads/writes this
+// shape at runtime; this schema exists so `test/schemas/acceptance.schema.test.ts`
+// can assert the shape directly, mirroring `design-lock.schema.test.ts`.
+export const acceptanceLockEntrySchema = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://cdd-kit/schemas/acceptance-lock-entry.schema.json",
+  title: "Acceptance Lock Entry",
+  type: "object",
+  additionalProperties: false,
+  required: ["hash"],
+  properties: {
+    // sha256 hex digest of the canonical locked region
+    // (src/utils/acceptance-hash.ts computeAcceptanceHash).
+    hash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    // ISO timestamp set by `cdd-kit accept relock`; optional so a hand-authored
+    // fixture need not supply it.
+    "locked-at": { type: "string" },
+    // Tamper-evidence CLUES only (contracts/ci/ci-gate-contract.md "Tamper
+    // evidence, not prevention" names BOTH lock sidecars). What the relocking
+    // process claimed about itself; every one is trivially forgeable and NO gate
+    // reads or verifies them -- "a clue, never a verdict." All optional: a lock
+    // written by older code omits them, and their absence is absent evidence,
+    // never failed evidence.
+    "git-author": { type: "string" },
+    tty: { type: "boolean" },
+    timestamp: { type: "string" },
+  },
+} as const;
+
+export const acceptanceLockSchema = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://cdd-kit/schemas/acceptance-lock.schema.json",
+  title: "Acceptance Lock File",
+  description: "Change-id keyed map of hash-lock baselines (.cdd/acceptance-lock.json).",
+  type: "object",
+  additionalProperties: acceptanceLockEntrySchema,
+} as const;

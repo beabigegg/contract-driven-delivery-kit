@@ -1,0 +1,89 @@
+change-id: enforce-human-confirmation
+agent: backend-engineer
+timestamp: "2026-07-10T06:35:00Z"
+status: complete
+scope: IP-7 only (provenance CLUE fields on BOTH lock sidecars + both schemas)
+artifacts:
+  - { type: files-changed, pointer: "src/utils/design-hash.ts:56-113 (DesignLockEntry gains git-author/tty/timestamp; new gitAuthorIdentity; writeDesignLock records them)" }
+  - { type: files-changed, pointer: "src/utils/acceptance-hash.ts:89-160 (AcceptanceLockEntry parity; gitAuthorIdentity; writeAcceptanceLock records them)" }
+  - { type: files-changed, pointer: "src/schemas/design-lock.schema.ts:17-32 (git-author/tty/timestamp added to designLockEntrySchema)" }
+  - { type: files-changed, pointer: "src/schemas/acceptance.schema.ts:63-110 (NEW acceptanceLockEntrySchema + acceptanceLockSchema for the acceptance-lock sidecar)" }
+  - { type: files-changed, pointer: "src/commands/design.ts UNCHANGED (confirm call site needs no edit; signature preserved)" }
+  - { type: files-changed, pointer: "src/commands/accept.ts UNCHANGED (relock call site needs no edit; signature preserved)" }
+  - { type: test-output, pointer: "npx vitest run (full): 1416 passed | 62 skipped | 0 failed, exit 0" }
+  - { type: test-output, pointer: "five affected files: 75 passed (75), 0 failed" }
+  - { type: contracts-touched, pointer: "none (ci 0.7.0 Tamper-evidence clause already landed; source conformed for BOTH sidecars)" }
+mutation-matrix:
+  - { id: M1, mutation: "drop tty field in writeDesignLock", target: "design-hash records tty/timestamp", observed: "2 failed", verdict: RED }
+  - { id: M2, mutation: "drop timestamp field in writeDesignLock", target: "design-hash records tty/timestamp", observed: "1 failed (timestamp assertion)", verdict: RED }
+  - { id: M3, mutation: "drop git-author assignment", target: "design-hash records git-author", observed: "1 failed", verdict: RED }
+  - { id: M4, mutation: "gitAuthorIdentity invents a value when git identity unset", target: "design-hash omits git-author", observed: "1 failed", verdict: RED }
+  - { id: M5, mutation: "computeDesignHash projection drops blank-line filter", target: "design-hash pins the digest", observed: "1 failed", verdict: RED }
+  - { id: M6, mutation: "design-lock schema removes tty property", target: "design-lock accepts entry carrying provenance", observed: "1 failed", verdict: RED }
+  - { id: M7, mutation: "design-lock schema tty type boolean to any", target: "design-lock rejects non-boolean tty", observed: "1 failed", verdict: RED }
+  - { id: M8, mutation: "design-lock schema adds tty to required", target: "design-lock accepts entry with NO provenance fields", observed: "4 failed (incl. absent-evidence test)", verdict: RED }
+  - { id: M9, mutation: "acceptance-lock schema tty type boolean to any", target: "acceptance-lock rejects non-boolean tty", observed: "1 failed", verdict: RED }
+  - { id: M10, mutation: "acceptance-lock schema removes tty property", target: "acceptance-lock accepts entry carrying provenance", observed: "1 failed", verdict: RED }
+  - { id: M11, mutation: "drop tty from BOTH writers, node build.js, run CLI", target: "design-confirm + accept-relock provenance cases", observed: "2 failed (one per CLI file)", verdict: RED }
+hash-stability-proof:
+  claim: "adding provenance CLUE fields to the LOCK shifted no recorded design hash"
+  method-1-pin: "test pins computeDesignHash(fixture) = 748acf4f54de30c0228bc9076e1b4de38de874922d50fa425f9d06d3f32acfef"
+  method-2-real-cli: "node dist/cli/index.js design confirm (isolated temp repo) recorded hash = 748acf4f...f32acfef, identical to the pin (RUN not merely read)"
+  method-3-diff: "git diff filtered for hash identifiers => NO CHANGES to computeDesignHash/projectConfirmedRegion/extractConfirmedRegion/normalizeContentForHash/sectionBody. Only lock-writing block + interface + new gitAuthorIdentity helper changed."
+tests-added:
+  - "test/utils/design-hash.test.ts::records tty (boolean) and ISO timestamp equal to locked-at on every write"
+  - "test/utils/design-hash.test.ts::records git-author as Name-email when git resolves an identity"
+  - "test/utils/design-hash.test.ts::omits git-author (records absence, invents nothing) when git cannot determine one"
+  - "test/utils/design-hash.test.ts::reads an old-code lock (hash + locked-at, no provenance) as absent evidence, not a failure"
+  - "test/utils/design-hash.test.ts::pins the digest of a fixed Confirmed body (recorded hashes must not shift)"
+  - "test/schemas/design-lock.schema.test.ts::accepts an entry carrying the provenance clue fields"
+  - "test/schemas/design-lock.schema.test.ts::accepts an entry with NO provenance fields (absent evidence is not failed evidence)"
+  - "test/schemas/design-lock.schema.test.ts::rejects a non-boolean tty"
+  - "test/schemas/acceptance.schema.test.ts::acceptance-lock.schema describe block (9 cases: shape parity + provenance + absent-evidence + typed tty)"
+  - "test/cli/design-confirm.test.ts::records provenance clues on the confirmed baseline"
+  - "test/cli/accept-relock.test.ts::records provenance clues on the relocked baseline"
+read-vs-run:
+  - "READ src/utils/design-hash.ts => DesignLockEntry was hash + optional locked-at"
+  - "READ glob src/schemas => only acceptance.schema.ts (body) + design-lock.schema.ts; no acceptance-lock schema file existed"
+  - "RAN design confirm in temp => git-author resolves from GLOBAL git config even outside a repo (beabigegg)"
+  - "RAN full npx vitest run => 1416 passed, 62 skipped, 0 failed"
+  - "RAN mutation matrix M1-M11 => every target went RED then restored GREEN"
+contradictions:
+  - id: C-TTY-SOURCE
+    severity: LOW
+    detail: >
+      implementation-plan.md IP-7 says the TTY clue reads process.stdin.isTTY.
+      This task packet How-to-capture section says process.stdout.isTTY explicitly
+      and Record the boolean. I implemented Boolean(process.stdout.isTTY) per the
+      direct task instruction. Both are forgeable clues never verified, so the
+      observable guarantee is identical; flagging the plan-vs-packet divergence.
+  - id: C-ACCEPTANCE-SCHEMA-HOME
+    severity: LOW
+    detail: >
+      Contradiction 2 and this packet name src/schemas/acceptance.schema.ts as the
+      file to update for acceptance-lock provenance, but that file validates the
+      human-authored acceptance.yml BODY, not the acceptance-lock JSON SIDECAR, and
+      no acceptance-lock schema file existed (design has design-lock.schema.ts;
+      acceptance had none). Rather than create a new file (not in Allowed Paths;
+      would need a CER) I added acceptanceLockEntrySchema + acceptanceLockSchema as
+      new exports INSIDE acceptance.schema.ts, mirroring design-lock.schema.ts. The
+      body schema is unchanged. Reviewer confirm this placement vs a standalone
+      src/schemas/acceptance-lock.schema.ts.
+  - id: N-GITAUTHOR-USUALLY-PRESENT
+    severity: INFO
+    detail: >
+      gitAuthorIdentity runs git config user.name/user.email, reading global +
+      system config, so git-author is populated on any machine with a global git
+      identity even outside a repo. Absent is the exception (a CI runner with no
+      identity), not the norm. Consistent with clue-never-a-verdict: never verified.
+notes: >
+  Scope IP-7 ONLY. Did NOT touch the gate command files, gate-shared.ts,
+  validate.ts (sibling owns them), nor markdown-section.ts, design-provenance.ts,
+  hooks (finished + committed). design.ts/accept.ts needed no edit. No output,
+  field name, comment, or test name asserts a baseline is human-made,
+  human-verified, or authentic, and no code compares git-author against anything
+  (DAC-1 respected). HARD CONSTRAINT honoured: never wrote the project
+  design-lock.json / acceptance-lock.json / acceptance.yml; every confirm/relock
+  ran against an isolated temp fixture (separate cwd). Ran node build.js for the
+  CLI tests; IP-9 final build/regen remains the orchestrator step.
+next-action: none

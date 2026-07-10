@@ -397,10 +397,21 @@ describe('cdd-kit install-agent-hooks --acceptance-write (ADR 0010 SS3.2)', () =
     expect(cmdOf(entry!)).not.toContain('CDD_ACCEPTANCE_WRITE_STRICT');
   });
 
-  it('installs the strict acceptance-write hook with the CDD_ACCEPTANCE_WRITE_STRICT flag', () => {
-    const r = runCli(['install-agent-hooks', '--acceptance-write', 'strict'], { cwd: repo, home });
-    expect(r.status, r.stderr).toBe(0);
-    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!)).toBe(CD + `CDD_ACCEPTANCE_WRITE_STRICT=1 ${AW_SCRIPT}`);
+  it('acceptance-write is path-keyed: `strict` writes no env prefix, and is byte-identical to `advisory`', () => {
+    // The `CDD_ACCEPTANCE_WRITE_STRICT` toggle is retired (env 0.3.0; the hook
+    // blocks the lock sidecar unconditionally and always allows the body). The
+    // installer must therefore not write a variable the script no longer reads —
+    // a knob wired to nothing. `mode` is accepted for the deprecation window and
+    // ignored.
+    const strict = runCli(['install-agent-hooks', '--acceptance-write', 'strict'], { cwd: repo, home });
+    expect(strict.status, strict.stderr).toBe(0);
+    const strictCmd = cmdOf(entryFor('pre-tool-use-acceptance-write')!);
+    expect(strictCmd).toBe(CD + AW_SCRIPT);
+    expect(strictCmd).not.toContain('CDD_ACCEPTANCE_WRITE_STRICT');
+
+    const advisory = runCli(['install-agent-hooks', '--acceptance-write', 'advisory'], { cwd: repo, home });
+    expect(advisory.status, advisory.stderr).toBe(0);
+    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!)).toBe(strictCmd);
   });
 
   it('a bare install-agent-hooks does NOT arm acceptance-write (opt-in)', () => {
@@ -432,7 +443,8 @@ describe('cdd-kit install-agent-hooks --acceptance-write (ADR 0010 SS3.2)', () =
     expect(r.status, r.stderr).toBe(0);
     expect(preTool()).toHaveLength(4);
     expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(CD + `CDD_GRAPH_FIRST_STRICT=1 ${GF_SCRIPT}`);
-    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!)).toBe(CD + `CDD_ACCEPTANCE_WRITE_STRICT=1 ${AW_SCRIPT}`);
+    // acceptance-write is path-keyed: no env prefix, `strict` == `advisory`.
+    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!)).toBe(CD + AW_SCRIPT);
   });
 
   it('is idempotent and switches acceptance-write mode without duplicating entries', () => {
@@ -494,10 +506,31 @@ describe('cdd-kit install-agent-hooks --design-write (ADR 0012 §5)', () => {
     expect(cmdOf(entry!)).not.toContain('CDD_DESIGN_WRITE_STRICT');
   });
 
-  it('installs the strict design-write hook with the CDD_DESIGN_WRITE_STRICT flag', () => {
-    const r = runCli(['install-agent-hooks', '--design-write', 'strict'], { cwd: repo, home });
+  it('design-write is path-keyed: `strict` writes no env prefix, and is byte-identical to `advisory`', () => {
+    // `CDD_DESIGN_WRITE_STRICT` is retired. The hook blocks `.cdd/design-lock.json`
+    // unconditionally and always allows `interaction-design.md`'s body, so there is
+    // no advisory mode left to flip into. An installer that still wrote the variable
+    // would put a knob into settings.json that nothing reads.
+    const strict = runCli(['install-agent-hooks', '--design-write', 'strict'], { cwd: repo, home });
+    expect(strict.status, strict.stderr).toBe(0);
+    const strictCmd = cmdOf(entryFor('pre-tool-use-design-write')!);
+    expect(strictCmd).toBe(CD + DW_SCRIPT);
+    expect(strictCmd).not.toContain('CDD_DESIGN_WRITE_STRICT');
+
+    const advisory = runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
+    expect(advisory.status, advisory.stderr).toBe(0);
+    expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(strictCmd);
+  });
+
+  it('the success log does not promise that advisory declines to block', () => {
+    // The old describe() said "advisory mode: … does not block." It blocks. A
+    // message that contradicts the mechanism is the defect this change exists to
+    // close, and it shipped in the installer's own success output.
+    const r = runCli(['install-agent-hooks', '--design-write', 'advisory'], { cwd: repo, home });
     expect(r.status, r.stderr).toBe(0);
-    expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(CD + `CDD_DESIGN_WRITE_STRICT=1 ${DW_SCRIPT}`);
+    const out = r.stdout + r.stderr;
+    expect(out).not.toMatch(/does not block/);
+    expect(out).toMatch(/blocks a direct Edit\/Write of \.cdd\/design-lock\.json unconditionally/);
   });
 
   it('a bare install-agent-hooks does NOT arm design-write (opt-in)', () => {
@@ -529,8 +562,12 @@ describe('cdd-kit install-agent-hooks --design-write (ADR 0012 §5)', () => {
     );
     expect(r.status, r.stderr).toBe(0);
     expect(preTool()).toHaveLength(5);
+    // graph-first still has a real advisory/strict axis, so it still carries its env prefix.
     expect(cmdOf(entryFor('pre-tool-use-graph-first')!)).toBe(CD + `CDD_GRAPH_FIRST_STRICT=1 ${GF_SCRIPT}`);
-    expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(CD + `CDD_DESIGN_WRITE_STRICT=1 ${DW_SCRIPT}`);
+    // The two path-keyed write-block hooks carry none.
+    expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(CD + DW_SCRIPT);
+    expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!))
+      .toBe(CD + './.claude/hooks/pre-tool-use-acceptance-write.sh');
   });
 
   it('is idempotent and switches design-write mode without duplicating entries', () => {

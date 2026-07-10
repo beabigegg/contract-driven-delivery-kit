@@ -3,7 +3,7 @@ import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { validate } from './validate.js';
 import { explainGateError } from '../utils/gate-explain.js';
-import { type TasksFile } from './gate-shared.js';
+import { type TasksFile, enforceConfirmationHookInstallation } from './gate-shared.js';
 import {
   REQUIRED_FILES,
   MIN_CHARS,
@@ -182,6 +182,13 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   // `isNewChange` is threaded from gate.ts's single computation above (never
   // re-derived) — see gate-design.ts's module header ("TOP RISK") for why.
   await enforceInteractionDesign(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
+  // enforceConfirmationHookInstallation (ci-gate-contract.md). Deliberately NOT
+  // threaded `isNewChange` — hook installation is a property of the project, not of
+  // one change directory's vintage, so a legacy and a brand-new change see the same
+  // shape. `ci-or-strict`: hard error inside CI or under --strict, else a warning.
+  // The nested `validate` call below is invoked with `hookCheck: false` so this same
+  // check does not run twice within one `gate`.
+  enforceConfirmationHookInstallation(cwd, strict, errors, warnings);
 
   // Derived-index freshness (P2-1): if this change has generated change.yml /
   // trace.yml that have drifted from their source artifacts, nudge a refresh.
@@ -209,7 +216,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   log.info(`gate: running contract validators for ${changeId}`);
   try {
-    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true });
+    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true, hookCheck: false });
   } catch (err) {
     reportGateFailure(
       changeId,

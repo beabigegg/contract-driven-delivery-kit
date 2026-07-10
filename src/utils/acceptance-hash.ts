@@ -16,6 +16,7 @@
 // reason: reformatting a semantically identical file would false-alarm).
 
 import { createHash } from 'crypto';
+import { spawnSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { normalizeContentForHash } from './digest.js';
@@ -89,12 +90,43 @@ export function computeAcceptanceHash(data: AcceptanceFile): string {
 export interface AcceptanceLockEntry {
   hash: string;
   'locked-at'?: string;
+  // Tamper-evidence CLUES only (contracts/ci/ci-gate-contract.md
+  // "Tamper evidence, not prevention" names BOTH .cdd/design-lock.json AND
+  // .cdd/acceptance-lock.json; ADR 0010 §3.1). What the relocking process
+  // CLAIMED about itself -- trivially forgeable, and NO gate reads or verifies
+  // them: "Tamper evidence is a clue, never a verdict." A lock written by older
+  // code simply omits these; their absence is absent evidence, never failed
+  // evidence. Mirrors DesignLockEntry (src/utils/design-hash.ts).
+  'git-author'?: string;   // the "Name <email>" git would stamp on a commit, or absent if git can't determine it
+  tty?: boolean;           // whether the relocking process's stdout was a TTY
+  timestamp?: string;      // ISO-8601 relock time (same instant as locked-at)
 }
 
 export type AcceptanceLockFile = Record<string, AcceptanceLockEntry>;
 
 function lockPath(cwd: string): string {
   return join(cwd, '.cdd', 'acceptance-lock.json');
+}
+
+/**
+ * The "Name <email>" identity git itself would stamp on a commit right now,
+ * read the way git resolves it (`git config user.name` / `user.email`). git
+ * cannot author a commit without BOTH, so if either is unset this returns
+ * `undefined` -- absence is recorded rather than a value invented. A
+ * tamper-evidence CLUE only, never verified. Mirrors design-hash.ts's
+ * gitAuthorIdentity (kept as an independent copy: the two lock utils are
+ * deliberate peers, neither importing the other).
+ */
+export function gitAuthorIdentity(cwd: string): string | undefined {
+  try {
+    const name = spawnSync('git', ['config', 'user.name'], { cwd, encoding: 'utf8' });
+    const email = spawnSync('git', ['config', 'user.email'], { cwd, encoding: 'utf8' });
+    const n = name.status === 0 ? (name.stdout ?? '').trim() : '';
+    const e = email.status === 0 ? (email.stdout ?? '').trim() : '';
+    return n && e ? `${n} <${e}>` : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -127,7 +159,18 @@ export function readAcceptanceLock(cwd: string): AcceptanceLockFile {
 export function writeAcceptanceLock(cwd: string, changeId: string, hash: string): void {
   const p = lockPath(cwd);
   const current = readAcceptanceLock(cwd);
-  current[changeId] = { hash, 'locked-at': new Date().toISOString() };
+  const now = new Date().toISOString();
+  const entry: AcceptanceLockEntry = {
+    hash,
+    'locked-at': now,
+    tty: Boolean(process.stdout.isTTY),
+    timestamp: now,
+  };
+  // Omit git-author entirely when git cannot determine it (record absence, not
+  // an invented value). These three are audit clues, never verified.
+  const author = gitAuthorIdentity(cwd);
+  if (author !== undefined) entry['git-author'] = author;
+  current[changeId] = entry;
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, `${JSON.stringify(current, null, 2)}\n`, 'utf8');
 }

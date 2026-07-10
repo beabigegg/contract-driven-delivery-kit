@@ -4,7 +4,7 @@ import { join } from 'path';
 import yaml from 'js-yaml';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { acceptanceSchema } from '../../src/schemas/acceptance.schema.js';
+import { acceptanceSchema, acceptanceLockSchema } from '../../src/schemas/acceptance.schema.js';
 
 const root = process.cwd();
 const TEMPLATE_PATH = join(root, 'specs', 'templates', 'acceptance.yml');
@@ -117,5 +117,60 @@ describe('acceptance.schema', () => {
   it('shipped specs/templates/acceptance.yml validates against the schema (IP-10)', () => {
     const data = yaml.load(readFileSync(TEMPLATE_PATH, 'utf8'));
     expect(validate(data), JSON.stringify(validate.errors)).toBe(true);
+  });
+});
+
+// `.cdd/acceptance-lock.json` SIDECAR shape -- parity with design-lock.schema
+// (contract's "Tamper evidence" names BOTH lock sidecars). Mirrors
+// test/schemas/design-lock.schema.test.ts. The provenance fields are CLUES only;
+// the schema fixes their shape and asserts nothing about authenticity.
+describe('acceptance-lock.schema', () => {
+  const validateLock = ajv.compile(acceptanceLockSchema);
+  const LOCK_HASH = 'a'.repeat(64);
+
+  it('accepts an empty lock file (no changes recorded yet)', () => {
+    expect(validateLock({}), JSON.stringify(validateLock.errors)).toBe(true);
+  });
+
+  it('accepts a well-formed entry with hash + locked-at', () => {
+    const doc = { 'my-change': { hash: LOCK_HASH, 'locked-at': '2026-07-09T00:00:00.000Z' } };
+    expect(validateLock(doc), JSON.stringify(validateLock.errors)).toBe(true);
+  });
+
+  it('accepts an entry carrying the provenance clue fields (git-author/tty/timestamp)', () => {
+    const doc = {
+      'my-change': {
+        hash: LOCK_HASH,
+        'locked-at': '2026-07-09T00:00:00.000Z',
+        'git-author': 'Test Author <test@example.com>',
+        tty: true,
+        timestamp: '2026-07-09T00:00:00.000Z',
+      },
+    };
+    expect(validateLock(doc), JSON.stringify(validateLock.errors)).toBe(true);
+  });
+
+  it('accepts an entry with NO provenance fields (absent evidence is not failed evidence)', () => {
+    expect(validateLock({ 'my-change': { hash: LOCK_HASH } }), JSON.stringify(validateLock.errors)).toBe(true);
+  });
+
+  it('rejects an entry missing hash', () => {
+    expect(validateLock({ 'my-change': { 'locked-at': '2026-07-09T00:00:00.000Z' } })).toBe(false);
+  });
+
+  it('rejects a malformed hash', () => {
+    expect(validateLock({ 'my-change': { hash: 'not-a-hash' } })).toBe(false);
+  });
+
+  it('rejects a non-boolean tty (the clue is typed, though never verified)', () => {
+    expect(validateLock({ 'my-change': { hash: LOCK_HASH, tty: 'yes' } })).toBe(false);
+  });
+
+  it('rejects an unknown field on an entry (additionalProperties: false)', () => {
+    expect(validateLock({ 'my-change': { hash: LOCK_HASH, bogus: true } })).toBe(false);
+  });
+
+  it('rejects a top-level array', () => {
+    expect(validateLock([])).toBe(false);
   });
 });

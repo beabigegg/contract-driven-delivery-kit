@@ -1,4 +1,6 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
@@ -34,6 +36,223 @@ export function loadYamlFile<T>(path: string): { data: T | null; parseError: str
     return { data: yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as T, parseError: null };
   } catch (err) {
     return { data: null, parseError: (err as Error).message };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// enforceConfirmationHookInstallation (ci-gate-contract.md
+// `### enforceConfirmationHookInstallation`, added by enforce-human-confirmation).
+//
+// Verifies the two write-block PreToolUse hooks the human-confirmation guarantee
+// depends on are actually armed in the PROJECT `.claude/settings.json`, rather than
+// merely shipped as scripts nobody registered. Hosted by BOTH `cdd-kit gate` and
+// `cdd-kit validate`: the workflow's gate step is skipped when a pull request
+// touches no `specs/changes/<id>/` directory, so `validate` (which runs
+// unconditionally in CI) is the second host that makes the `pull_request` trigger
+// cell true without a workflow edit.
+//
+// This is NOT a prevention boundary: passing does not stop a `Bash`-holding agent
+// from bypassing an installed hook (`cdd-kit design confirm` through Bash,
+// `node -e` into the lock writer, a shell redirect). It only observes that the
+// project *declares* the hook at a real, git-tracked path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface WriteBlockHookSpec {
+  /** Which of the two hooks — used verbatim in the "does not register the
+   *  <design|acceptance>-write hook" message. */
+  id: 'design' | 'acceptance';
+  /** Marker substring identifying this hook's handler in a `command` string
+   *  (`install-agent-hooks.ts` DESIGN_WRITE_MARKER / ACCEPTANCE_WRITE_MARKER). */
+  marker: string;
+  /** Script filename, used to extract the registered path from the command. */
+  filename: string;
+}
+
+const WRITE_BLOCK_HOOKS: readonly WriteBlockHookSpec[] = [
+  { id: 'design',     marker: 'pre-tool-use-design-write',     filename: 'pre-tool-use-design-write.sh' },
+  { id: 'acceptance', marker: 'pre-tool-use-acceptance-write', filename: 'pre-tool-use-acceptance-write.sh' },
+];
+
+export interface HookInstallFinding {
+  message: string;
+}
+
+/**
+ * "Inside CI" per `contracts/env/env-contract.md` (0.4.0): the `CI` variable is
+ * set to a non-empty value other than `0` or `false`. Every mainstream provider
+ * sets `CI=true`, so no workflow edit is needed; a local run leaves it unset.
+ */
+export function isCiEnvironment(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.CI;
+  if (raw === undefined) return false;
+  const v = raw.trim();
+  if (v === '') return false;
+  return v !== '0' && v.toLowerCase() !== 'false';
+}
+
+/** Every `command` string an entry could execute (nested handlers + the legacy
+ *  top-level `command` shape older `install-agent-hooks` versions wrote). */
+function entryCommands(entry: unknown): string[] {
+  const out: string[] = [];
+  if (entry && typeof entry === 'object') {
+    const e = entry as { command?: unknown; hooks?: unknown };
+    if (typeof e.command === 'string') out.push(e.command);
+    if (Array.isArray(e.hooks)) {
+      for (const h of e.hooks) {
+        if (h && typeof (h as { command?: unknown }).command === 'string') {
+          out.push((h as { command: string }).command);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * A hook entry counts only if its matcher covers `Write`, `Edit`, AND `MultiEdit`
+ * — the three file-mutation tools an agent could use to fabricate a lock. The
+ * installer writes the Claude Code matcher `Write|Edit|MultiEdit`; treat the
+ * matcher as that regex-alternation and require all three to match.
+ */
+function matcherCoversWriteTools(matcher: unknown): boolean {
+  if (typeof matcher !== 'string' || matcher.trim() === '') return false;
+  const tools = ['Write', 'Edit', 'MultiEdit'];
+  try {
+    const re = new RegExp(`^(?:${matcher})$`);
+    return tools.every(t => re.test(t));
+  } catch {
+    const set = new Set(matcher.split('|').map(s => s.trim()));
+    return tools.every(t => set.has(t));
+  }
+}
+
+/** Extract the hook script path from a `command` string, normalizing a leading
+ *  `./`. Returns null when the filename is not present in the command. */
+function extractScriptPath(command: string, filename: string): string | null {
+  const re = new RegExp(`([^\\s"']*${filename.replace(/\./g, '\\.')})`);
+  const m = command.match(re);
+  if (!m) return null;
+  return m[1].replace(/^\.\//, '');
+}
+
+/**
+ * Whether `relPath` is tracked by git under `cwd`. Directory-agnostic: a tracked
+ * `.claude/hooks/…` and a tracked repo-root `hooks/…` both pass.
+ *
+ * THREE outcomes, not two. `git ls-files` exiting non-zero does not mean "not
+ * tracked" — it means git declined to answer. The most common cause in CI is
+ * `fatal: detected dubious ownership`, when the checkout is owned by a different
+ * uid than the process, or when `safe.directory` is unset because the global
+ * config was replaced. Collapsing that into `untracked` makes the gate tell a
+ * maintainer to register a hook that is already registered — two meanings sharing
+ * one discriminator, which `interaction-design.md` `## Consistency Commitments`
+ * forbids. It was found by running this repository's own suite under `CI=true`.
+ */
+type TrackedState = 'tracked' | 'untracked' | 'undeterminable';
+
+function gitTrackedState(cwd: string, relPath: string): { state: TrackedState; detail?: string } {
+  const r = spawnSync('git', ['ls-files', '--', relPath], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (r.error) return { state: 'undeterminable', detail: r.error.message };
+  if (r.status !== 0) {
+    const stderr = (r.stderr ?? '').trim().split('\n')[0] ?? '';
+    return { state: 'undeterminable', detail: `git ls-files exited ${r.status}${stderr ? `: ${stderr}` : ''}` };
+  }
+  return { state: r.stdout.trim().length > 0 ? 'tracked' : 'untracked' };
+}
+
+/**
+ * Compute the hook-installation findings for the project at `cwd`. Returns one
+ * finding per unmet cause; an empty array means both write-block hooks are armed
+ * at a git-tracked path. The two absence causes carry DISTINCT message text
+ * (settings file absent vs. present-but-unregistered), because a human exits them
+ * differently. Reads the PROJECT `.claude/settings.json` only, never
+ * `.claude/settings.local.json` (a personal override is not project arming).
+ */
+export function checkConfirmationHookInstallation(cwd: string): HookInstallFinding[] {
+  const settingsPath = join(cwd, '.claude', 'settings.json');
+  if (!existsSync(settingsPath)) {
+    return [{
+      message: '.claude/settings.json not found — the design/acceptance write-block hooks cannot be verified because no project settings file exists',
+    }];
+  }
+
+  let settings: unknown = {};
+  try {
+    settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  } catch {
+    // A present-but-unparseable settings file registers no hook — fall through to
+    // the per-hook "does not register" findings rather than the not-found text,
+    // which is reserved for the truly absent file (they exit differently).
+    settings = {};
+  }
+
+  const preTool = (() => {
+    const s = settings as { hooks?: { PreToolUse?: unknown } };
+    return Array.isArray(s?.hooks?.PreToolUse) ? (s.hooks!.PreToolUse as unknown[]) : [];
+  })();
+
+  const findings: HookInstallFinding[] = [];
+  for (const spec of WRITE_BLOCK_HOOKS) {
+    // Registration and tracking are separate questions with separate answers.
+    let registeredPath: string | null = null;
+    for (const entry of preTool) {
+      const e = entry as { matcher?: unknown };
+      if (!matcherCoversWriteTools(e.matcher)) continue;
+      for (const cmd of entryCommands(entry)) {
+        if (!cmd.includes(spec.marker)) continue;
+        const path = extractScriptPath(cmd, spec.filename);
+        if (path !== null) { registeredPath = path; break; }
+      }
+      if (registeredPath) break;
+    }
+
+    if (registeredPath === null) {
+      findings.push({
+        message: `.claude/settings.json exists but does not register the ${spec.id}-write hook`,
+      });
+      continue;
+    }
+
+    const { state, detail } = gitTrackedState(cwd, registeredPath);
+    if (state === 'tracked') continue;
+
+    if (state === 'undeterminable') {
+      // A third situation, with its own exit: git could not answer, so the
+      // premise is unverifiable. Saying "does not register" here would be false,
+      // and would send the reader to fix the one thing that is not broken.
+      findings.push({
+        message: `.claude/settings.json registers the ${spec.id}-write hook at ${registeredPath}, but whether that path is git-tracked could not be determined (${detail}). A hook script CI cannot see is a hook CI cannot run — resolve the git error, then re-run.`,
+      });
+      continue;
+    }
+
+    findings.push({
+      message: `.claude/settings.json registers the ${spec.id}-write hook at ${registeredPath}, but that path is not git-tracked — a bare CI checkout contains only tracked files, so the hook would be absent there. \`git add ${registeredPath}\``,
+    });
+  }
+  return findings;
+}
+
+/**
+ * Gate/validate wrapper: run the hook-installation check and route each finding by
+ * severity. `ci-or-strict` — a HARD failure (stderr, via `errors`) inside CI or
+ * under `--strict`; a WARNING (stdout, via `warnings`) in a default local run.
+ * NOT gated on `isNewChange`: hook installation is a project property, so a legacy
+ * change directory and a brand-new one see the identical shape.
+ */
+export function enforceConfirmationHookInstallation(
+  cwd: string,
+  strict: boolean,
+  errors: string[],
+  warnings: string[],
+): void {
+  const hard = isCiEnvironment() || strict;
+  for (const f of checkConfirmationHookInstallation(cwd)) {
+    (hard ? errors : warnings).push(f.message);
   }
 }
 
