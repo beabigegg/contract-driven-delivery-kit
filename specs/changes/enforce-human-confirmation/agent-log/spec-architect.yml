@@ -1,0 +1,6 @@
+artifacts:
+  - { type: adr-written, pointer: "none (ADR 0012 §5 amendment drafted inside design.md; edit deferred to post-fork implementation)" }
+  - { type: affected-areas, pointer: "gate-design, design/acceptance write-block hooks, hook installer/tool-grant, ci-gate-contract, env-contract" }
+  - { type: decision-summary, pointer: "defect-1 non-empty-rows fix under isNewChange||strict; defect-2/3 left as a human-settled fork (a-g) because no hook is airtight against a Bash-holder; prior defect surfaced: write-block hooks are NOT installed in this repo, added option (g) make-installation-checked as the only non-Bash-defeatable defence" }
+  - { type: risks-noted, pointer: "0 high, 5 medium (uninstalled hooks = in-scope-or-split defect on task 4.3; unresolved fork blocks hook/CLI planning; conditional env bump; conditional new-ADR for signature boundary; row check does not cover Intents/Controls)" }
+  - { type: corrections-verified, pointer: "C1 partly wrong: parsePresentedInformation/parseStates DO exist as local fns in gate-design.ts:178,187 (not in design-provenance.ts); C2 confirmed: Bash matcher already wired (TEST_RUNNER, install-agent-hooks.ts:87, settings.json:14); C3 confirmed: only graph-first+test-runner installed, write-block hooks absent" }

@@ -1,0 +1,42 @@
+change-id: enforce-human-confirmation
+status: in-progress
+tier: 1
+context-governance: v1
+tier-floor-override: "Scanner matched 'migration' and 'route' inside change-request.md prose that describes the defects themselves (the not-applicable escape route; the phrase 'data migration' quoted from the tier-floor rule). This change touches no database migration, no auth, no payments, no concurrency, no secrets — it edits gate checks, PreToolUse hook scripts, and the CI gate contract. This is the known context-blind tier-floor scanner false positive, deliberately left unfixed because its failure direction is fail-safe."
+archive-tasks:
+  - "7.1"
+  - "7.2"
+depends-on: []
+
+tasks:
+  # status: pending | done | skipped   (optional: note: "reason or context")
+  - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: done }
+  - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: pending }
+  - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: done }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: pending }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: pending }
+  - { id: "2.1", section: "Contract Updates", title: "API contract", status: skipped, note: "no HTTP surface; contracts/api is applicability: not-applicable" }
+  - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "no UI surface" }
+  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: skipped, note: "no env change unless the chosen fork retires CDD_DESIGN_WRITE_STRICT; spec-architect must flip this back to pending if so" }
+  - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: skipped, note: "design-lock shape is governed by src/schemas/design-lock.schema.ts, not a data contract" }
+  - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: skipped, note: "behavior change is expressed through the CI gate contract and the ADR" }
+  - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: pending }
+  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: pending }
+  - { id: "3.2", section: "Tests First", title: "Integration tests", status: pending }
+  - { id: "3.3", section: "Tests First", title: "E2E/resilience tests", status: pending }
+  - { id: "3.4", section: "Tests First", title: "Data-boundary/monkey tests", status: skipped, note: "not a fuzzable interactive surface" }
+  - { id: "3.5", section: "Tests First", title: "Stress/soak tests if required", status: skipped, note: "no high-load or long-running path" }
+  - { id: "4.1", section: Implementation, title: "Backend", status: pending }
+  - { id: "4.2", section: Implementation, title: "Frontend", status: skipped, note: "no frontend" }
+  - { id: "4.3", section: Implementation, title: "Env/deploy", status: pending }
+  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: pending }
+  - { id: "5.1", section: Review, title: "UI/UX review", status: skipped, note: "no UI surface" }
+  - { id: "5.2", section: Review, title: "Visual review", status: skipped, note: "no visual surface" }
+  - { id: "5.3", section: Review, title: "Contract review", status: pending }
+  - { id: "5.4", section: Review, title: "QA review", status: pending }
+  - { id: "6.1", section: Verification, title: "Local gates", status: pending }
+  - { id: "6.2", section: Verification, title: "PR required gates", status: pending }
+  - { id: "6.3", section: Verification, title: "Informational gates", status: pending }
+  - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: pending }
+  - { id: "7.1", section: Archive, title: "Archive change", status: pending }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: pending }

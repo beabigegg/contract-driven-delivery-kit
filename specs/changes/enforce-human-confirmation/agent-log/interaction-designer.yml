@@ -1,0 +1,60 @@
+agent: interaction-designer
+status: blocked
+summary: >
+  Proposed the full ADR 0012 derivation chain for this change's CLI/gate/hook
+  surface (real rows in every mandated table; every control cites one intent;
+  every intent has a path; no two meaning-distinct states share a discriminator).
+  Blocked on a contract gap that no agent may resolve: provenance reconciliation
+  has no join target capable of expressing a CLI surface.
+
+artifacts:
+  - type: intents-proposed
+    pointer: "intent-run-gate, intent-confirm-design, intent-audit-confirmation, intent-relock-acceptance, intent-verify-hooks-armed"
+  - type: controls-deleted
+    pointer: "3 deleted or deferred: ctrl-force-confirm (bypasses the gate this change closes); ctrl-batch-confirm (invites rubber-stamping); ctrl-agent-design-confirm (deferred to Open Decision 1, not deleted)"
+  - type: open-decisions
+    pointer: "specs/changes/enforce-human-confirmation/interaction-design.md"
+  - type: contract-gap
+    pointer: "contracts/ci/ci-gate-contract.md"
+
+blocking-finding: >
+  ADR 0012's provenance reconciliation cannot be satisfied by this repository, or
+  by any adopter without an HTTP API. Verified by main Claude, not taken on trust:
+
+    - ci-gate-contract.md:153-159 -- every information item and state must cite a
+      supplier resolvable against contracts/api/api-contract.md or
+      contracts/data/data-shape-contract.md. Those two are the only join targets.
+    - api-contract.md:9 and data-shape-contract.md:9 -- both carry
+      `applicability: not-applicable` for this kit.
+    - ci-gate-contract.md:171-175 -- citing a family marked not-applicable is its
+      own HARD failure category.
+
+  Therefore every citation this change could write is a HARD gate failure, and the
+  only escape is `applicability: not-applicable` on interaction-design.md itself --
+  which change-request.md forbids for this change by fiat.
+
+  Consequence: `cdd-kit` cannot produce a passing interaction-design.md for its own
+  repository. This explains why `.cdd/design-lock.json` has never existed. The one
+  prior change that could have exercised the confirm path
+  (specs/changes/interaction-design-loop/interaction-design.md:13) took the
+  not-applicable escape -- not out of laziness, but because it was the only
+  available route. ADR 0012's confirm path has therefore never executed outside
+  unit tests, and could not have.
+
+  The same trap catches every adopter whose project is a CLI, a library, a data
+  pipeline, or a desktop app: no HTTP API and no tabular data contract means no
+  citation can resolve, so their only options are to mark the whole gate
+  not-applicable or to fail forever.
+
+next-action: >
+  Human answers Open Decision 3 in interaction-design.md (extend the reconciliation
+  policy with a CLI-surface join target, or carve a provenance-only exemption).
+  Then contract-reviewer implements it in contracts/ci/ci-gate-contract.md. Only
+  after that can `cdd-kit gate enforce-human-confirmation` pass and
+  `cdd-kit design confirm enforce-human-confirmation` legitimately run.
+
+notes: >
+  Did not author `## Confirmed` -- structurally forbidden for this agent, and the
+  subject of the change. Did not fabricate a citation into the api/data families to
+  force a green gate; each provenance cell names its true source in
+  ci-gate-contract.md and is explicitly labelled as not-yet-policy-recognized.

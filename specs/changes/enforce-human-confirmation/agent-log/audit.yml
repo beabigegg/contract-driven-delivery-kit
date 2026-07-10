@@ -1,0 +1,16 @@
+- type: tier-floor-override
+  change-id: enforce-human-confirmation
+  timestamp: '2026-07-10T00:47:58.559Z'
+  declared-tier: 1
+  floor-tier: 0
+  label: critical surface (auth / payments / data migration / concurrency / secrets)
+  matched:
+    - migration
+    - route
+  reason: >-
+    Scanner matched 'migration' and 'route' inside change-request.md prose that describes the
+    defects themselves (the not-applicable escape route; the phrase 'data migration' quoted from the
+    tier-floor rule). This change touches no database migration, no auth, no payments, no
+    concurrency, no secrets — it edits gate checks, PreToolUse hook scripts, and the CI gate
+    contract. This is the known context-blind tier-floor scanner false positive, deliberately left
+    unfixed because its failure direction is fail-safe.
