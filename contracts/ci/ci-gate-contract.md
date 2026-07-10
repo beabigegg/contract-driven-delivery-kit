@@ -303,19 +303,39 @@ author has to quote an ADR number into a citation. If one `###` heading text eve
 appears under two `##` parents, the citation disambiguates as
 `<## parent> > <### heading>`.
 
-**Section-body resolution.** For a `##` heading, reuse `sectionBody`
-(`src/utils/markdown-section.ts`) unmodified: its `(?=\n## |$)` terminator is
-correct at level 2, and a level-2 body legitimately spans its `###` children. For a
-`###` heading, `sectionBody` is NOT usable and must not be pressed into service: its
-opening match requires `## <heading>` to be followed only by whitespace before the
-newline, so a bare `### enforceInteractionDesign` lookup does not match at all, and
-its terminator never stops at a `###` line, so one `###` section's body swallows
-every sibling below it. The resolver therefore uses its own line scanner (in
-`design-provenance.ts`): strip HTML comments with the existing `stripHtmlComments`,
-find the level-3 line whose heading text (trailing parenthetical removed) equals the
-cited name, and take everything from just after it to the next level-3-or-level-2
-heading line. Nothing in `markdown-section.ts` changes, so its two existing
-consumers (`context.ts`, `gate-artifacts.ts`) carry no regression risk.
+**Section-body resolution — two defects in `sectionBody`, both fixed there rather
+than routed around.** `src/utils/markdown-section.ts` exists, by its own doc comment,
+to stop independent section-parsers drifting apart. A second scanner living in
+`design-provenance.ts` would reintroduce exactly that drift at a third call site, so
+`sectionBody` is fixed instead:
+
+1. Its terminator is the literal `(?=\n## |$)`, which a `### ` line does not satisfy.
+   One `###` section's body therefore swallows every sibling below it, bounded only
+   by luck — by being the last `###` before the next real `##`. That luck runs out
+   the moment anyone adds a subsection: inserting this contract's own
+   `### enforceConfirmationHookInstallation` would have taken the anchor
+   `:: zero unresolved` from one occurrence to two and broken a citation for a reason
+   with nothing to do with its meaning. `sectionBody` now captures the matched
+   heading's level and terminates at the next heading of the same-or-shallower level.
+   A `##` body still spans its `###` children, exactly as before; a `###` body now
+   ends at its next sibling. Anchors become insertion-order stable.
+2. Its opening match is not line-anchored, so `## X` can match inside `### X`. It is
+   now anchored to a full line.
+
+Both are behaviour-preserving for every existing call site: all twelve headings the
+five current consumers look up (`context.ts`, `gate-artifacts.ts`, `metadata.ts`,
+`gate-agents.ts`, `gate-design.ts`, `design-hash.ts`, `mock-of-sut-scan.ts`) are
+level-2 and carry no trailing parenthetical, and each returns identical text before
+and after. `design-hash.ts`'s `## Confirmed` projection is therefore unchanged, so no
+recorded baseline shifts.
+
+The resolver adds one step of its own, in `design-provenance.ts`: mapping a cited
+bare name to its full heading line, since `sectionBody` matches a heading exactly and
+most headings here carry a trailing parenthetical — `## Provenance Reconciliation
+Policy (ADR 0012 §2)` is not found by the bare name, at any level. The resolver scans
+for the unique heading line whose text is the cited name optionally followed by a
+parenthetical: zero matches is "no such heading", more than one is "ambiguous heading
+name". No author has to quote an ADR number into a citation.
 
 **Normalization.** Before comparison, both the resolved section body and the cited
 substring are stripped of the inline-formatting characters `*`, `_`, and `` ` ``,

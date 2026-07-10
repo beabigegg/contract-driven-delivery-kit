@@ -29,6 +29,20 @@ a corresponding entry below.
   The contract also records what uniqueness does NOT buy — a unique anchor to a
   mention is not an anchor to a definition, and no mechanical rule can tell them
   apart.
+- **`sectionBody` (`src/utils/markdown-section.ts`) fixed, not routed around.** Two
+  defects: its terminator was the literal `\n## `, which a `### ` line does not
+  satisfy, so a `###` section's body swallowed every sibling below it — bounded only
+  by being the last `###` before the next `##`. Inserting this change's own
+  `### enforceConfirmationHookInstallation` would have taken the anchor
+  `:: zero unresolved` from one occurrence to two. And its opening match was not
+  line-anchored, so `## X` could match inside `### X`. It now captures the matched
+  heading's level and terminates at the next same-or-shallower heading, anchored to a
+  full line. A first draft of the sixth citation form put a second scanner in
+  `design-provenance.ts` to avoid touching the shared util; that would have
+  reintroduced, at a third call site, exactly the parser drift `markdown-section.ts`
+  was centralized to prevent. Verified behaviour-preserving: all twelve headings the
+  five current consumers look up return identical text before and after, including
+  `design-hash.ts`'s `## Confirmed` projection, so no recorded baseline shifts.
 - **`enforceConfirmationHookInstallation`.** Verifies the design/acceptance
   write-block PreToolUse hooks are registered in the project `.claude/settings.json`,
   with two distinct absence causes (file missing; file present but the entry absent)
