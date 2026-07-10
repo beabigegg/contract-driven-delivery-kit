@@ -10,5 +10,12 @@
   "interaction-design-loop": {
     "hash": "9864713ba29b80805811a654793eef1b0de7525129bce4b0aaed0e8430f48432",
     "locked-at": "2026-07-09T05:37:26.188Z"
+  },
+  "enforce-human-confirmation": {
+    "hash": "1a24d4ad3acd2e5336943af8ac2852b20f65524c4027d3e2d09ce28719a9d6de",
+    "locked-at": "2026-07-10T12:11:59.867Z",
+    "tty": true,
+    "timestamp": "2026-07-10T12:11:59.867Z",
+    "git-author": "beabigegg <lin4637lin4637@gmail.com>"
   }
 }
