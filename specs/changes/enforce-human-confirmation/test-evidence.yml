@@ -1,0 +1,29 @@
+change-id: enforce-human-confirmation
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+runs:
+  - phase: acceptance
+    status: passed
+    command: npx vitest run test/acceptance/enforce-human-confirmation.driver.test.ts
+    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-192902/summary.json
+  - phase: collect
+    status: passed
+    command: npx tsc --noEmit
+    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-192954/summary.json
+  - phase: targeted
+    status: passed
+    command: >-
+      npx vitest run test/utils/markdown-section.test.ts test/utils/design-provenance.test.ts
+      test/utils/mock-of-sut-scan.test.ts test/utils/design-hash.test.ts
+    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-192958/summary.json
+  - phase: changed-area
+    status: passed
+    command: >-
+      npx vitest run test/cli/gate.test.ts test/cli/design-confirm.test.ts test/cli/accept-relock.test.ts
+      test/cli/install-agent-hooks.test.ts test/cli/init.test.ts test/cli/doctor.test.ts
+    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-193016/summary.json
+final-status: passed

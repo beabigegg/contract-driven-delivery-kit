@@ -226,6 +226,34 @@ is authorized because it designates main Claude as the sanctioned transcriber.
     mask the sectionBody line-anchor mutation, so T6f is not isolable through
     design-provenance; a direct unit is the only way to mutation-prove it)
 
+- request-id: CER-014
+  requested_paths:
+    - src/utils/mock-of-sut-scan.ts
+    - test/utils/mock-of-sut-scan.test.ts
+    - test/acceptance/enforce-human-confirmation.driver.test.ts
+    - specs/templates/acceptance-driver/acceptance.loader.ts
+  agent: main Claude
+  reason: >
+    This change must ship an acceptance driver (AC-5: each case needs an executed,
+    bounded `acceptance`-phase run), which lives at
+    `test/acceptance/enforce-human-confirmation.driver.test.ts` and reads the oracle
+    through the emitted loader.
+
+    Writing it surfaced a defect in the AC-4 hardcoded-expect scanner.
+    `collectLeafLiterals` filters `GENERIC_LEAF_STOPWORDS` in the string branch only;
+    the boolean branch calls `out.add(String(value))` unconditionally. So a boolean
+    `expect` leaf makes the tokens `true` and `false` forbidden ANYWHERE in the driver —
+    in an assertion, in a variable, in a comment. Measured against the real scanner:
+    a driver that never types the literal is clean, and the same driver plus one
+    `.toBe(true)`, or the word `true` in a comment, is flagged.
+
+    The function's own comment says "Generic status/boolean words are excluded
+    regardless of length". The code excludes them for strings and not for booleans. A
+    stated guarantee that is not implemented — the defect class this change exists to
+    close, in the machinery this change depends on. In scope, with a test and a mutation.
+  status: approved
+  approved-by: main Claude (probe run against the real module via vitest, not reasoned about)
+
 - request-id: CER-013
   requested_paths:
     - src/commands/init.ts

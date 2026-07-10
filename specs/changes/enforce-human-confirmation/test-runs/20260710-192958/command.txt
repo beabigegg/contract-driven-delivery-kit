@@ -1,0 +1,1 @@
+npx vitest run test/utils/markdown-section.test.ts test/utils/design-provenance.test.ts test/utils/mock-of-sut-scan.test.ts test/utils/design-hash.test.ts

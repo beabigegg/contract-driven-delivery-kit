@@ -494,4 +494,39 @@ describe('scanDriverForHardcodedExpect -- word-boundary substring safety', () =>
     const violations = scanDriverForHardcodedExpect(content, cases);
     expect(violations.length).toBeGreaterThan(0);
   });
+
+  // A boolean `expect` leaf must not forbid the tokens `true` / `false` in the driver.
+  // The stopword comment always claimed booleans were excluded; the boolean branch of
+  // `collectLeafLiterals` bypassed the stopword set, so ONE boolean in an oracle made
+  // both tokens unusable anywhere in that change's driver — assertions, identifiers,
+  // even prose comments. A boolean is never a domain answer key.
+  //
+  // Mutation: restore `out.add(String(value))` in the boolean branch -> both of the
+  // first two expectations below go red.
+  it('a boolean expect leaf is not a hardcoded answer key', () => {
+    const cases = [{ id: 'gate-halts-case', expect: { 'the-gate-halts': true, 'names-it': false } }];
+
+    const driverTypingBooleans = [
+      "it('gate-halts-case', () => {",
+      "  const c = loadCase('gate-halts-case');",
+      '  const halted = run().status !== 0;',
+      "  expect(halted).toBe(c.expect['the-gate-halts']);",
+      '});',
+      '// this holds true for every armed hook, and false for none',
+      'expect(x).toBe(true);',
+    ].join('\n');
+
+    expect(scanDriverForHardcodedExpect(driverTypingBooleans, cases)).toEqual([]);
+
+    // A prose comment containing the word must not trip it either.
+    expect(scanDriverForHardcodedExpect('// always true\n', cases)).toEqual([]);
+
+    // But a NUMBER in expect is a real answer key, and typing it is still a violation.
+    const numericCases = [{ id: 'over-limit-case', expect: { refund: 1500 } }];
+    expect(scanDriverForHardcodedExpect('expect(r.refund).toBe(1500);', numericCases).length)
+      .toBeGreaterThan(0);
+    // …while reading it from the case at runtime is clean.
+    expect(scanDriverForHardcodedExpect("expect(r.refund).toBe(c.expect.refund);", numericCases))
+      .toEqual([]);
+  });
 });

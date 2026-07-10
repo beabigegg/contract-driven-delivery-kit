@@ -1,45 +1,230 @@
-# Acceptance oracle for this change (ADR 0010).
+# Acceptance oracle for enforce-human-confirmation (ADR 0010).
 #
-# HUMAN-AUTHORED. An implementation agent must not write this file (see the
-# pre-tool-use-acceptance-write.sh hook, armed via
-# `cdd-kit install-agent-hooks --acceptance-write`) -- an agent may only READ
-# it to build a driver that feeds `input` into the real system and compares
-# the result to `expect`; it must never invent or edit the answer key.
+# PROVENANCE, stated plainly, because it is the one thing this file exists to make
+# unambiguous.
 #
-# HOW TO FILL THIS IN:
-#   1. Replace the placeholder case below with at least one REAL case. Write
-#      `given/when/then` in plain business language; put the exact payload the
-#      implementation receives in `input` and the exact result it must
-#      produce in `expect`.
-#   2. `input`/`expect` can be any JSON-shaped value (a scalar, a string, or a
-#      nested object/array) -- whatever the case actually exercises.
-#   3. Add one entry per behavior you need proven. `cdd-kit gate` rejects this
-#      file until at least one case has a non-placeholder `input` and `expect`
-#      (AC-1) -- an all-placeholder file (like this scaffold) fails on
-#      purpose, so the oracle is never silently skipped.
-#   4. Once you are happy with the cases, ask a human maintainer to lock the
-#      baseline (relock) so the gate can detect later tampering (AC-2).
-#   5. `rules` are optional cross-cutting invariants that must ALWAYS hold,
-#      independent of any single case (e.g. "a refund can never exceed the
-#      original payment"). Leave the list empty if none apply yet.
+# ADR 0010 forbids an implementation agent from writing this file. On 2026-07-10 the
+# human maintainer explicitly delegated the drafting to main Claude, after writing a
+# draft of their own and after main Claude measured that three of that draft's
+# expectations contradicted the real system (see "Corrections" below).
 #
-# Example (for reference; delete or replace with your own case):
-#   - id: over-limit-order-rejected
-#     given: "a customer whose credit limit is 1000"
-#     when:  "they submit an order for 1500"
-#     then:  "the order is rejected with reason 'credit-limit-exceeded'"
-#     input:  { customer_limit: 1000, order_amount: 1500 }
-#     expect: { status: "rejected", reason: "credit-limit-exceeded" }
+# What the delegation costs, said out loud: this answer key is no longer independent of
+# the agent whose work it grades. What preserves its value:
+#
+#   1. Every `expect` below is derived from the human's `## Confirmed` decisions and from
+#      contracts/ci/ci-gate-contract.md -- NOT from observing what the code currently
+#      does. Where the two disagreed, the disagreement is recorded rather than papered
+#      over. An oracle copied from the implementation asserts only that the code does
+#      what the code does.
+#   2. `cdd-kit accept relock` was NOT run by any agent. The hash-lock baseline is
+#      recorded only by the human. If a case below does not say what they mean, they
+#      withhold the stamp and the gate stays red.
+#   3. `bash-self-stamp-is-not-prevented` exists to pin an ABSENCE. It is the
+#      anti-vacuity case: it fails the moment anything in this system begins claiming a
+#      guarantee that DAC-1 records as unmet.
+#
+# Corrections to the human's draft, each measured against the real system:
+#
+#   - The draft expected the hook's stderr to contain "is blocked unconditionally", and
+#     the allow path to emit "is always allowed". Measured: zero occurrences of either.
+#     Both are contract prose describing the hook, not strings the hook prints. The allow
+#     path emits zero bytes on stdout and stderr, and must: a hook that speaks when it
+#     permits is indistinguishable from a hook nobody installed.
+#   - The draft folded "settings file absent" and "hook not registered" into one case.
+#     They are two of six causes carrying six distinct messages. Collapsing any two is
+#     the precise defect this change exists to delete.
+#   - The draft's audit case expected the terminal flag or the git author to "expose
+#     non-human operation". Measured, in one temp repository: a human running the confirm
+#     command from a non-interactive shell records tty=false and the human's git author;
+#     a shell-holding agent running the identical command records tty=false and the same
+#     git author. The fields are identical. The terminal flag distinguishes interactive
+#     from non-interactive, never human from agent, and the agent runs under the human's
+#     own git identity. Rewritten to pin the absence of the guarantee instead of
+#     asserting it.
 
 oracle-version: 0.1.0
-authored-by: human
+authored-by: "human maintainer (decisions, corrections, and the relock stamp); drafted by main Claude under explicit delegation on 2026-07-10 -- see PROVENANCE above"
 
 cases:
-  - id: <case-id>
-    given: <the situation before the action, in plain words>
-    when: <the action taken, in plain words>
-    then: <the expected outcome, in plain words>
-    input: <the-exact-input-payload>
-    expect: <the-exact-expected-output>
+  - id: lock-sidecar-write-is-refused
+    given: "the design write-block hook is installed, and an agent holds the editing tools"
+    when: "the agent tries to write the human's confirmation baseline file directly, in any of the shapes a real editor sends -- a plain relative path, a redundant dot segment, a doubled slash, a Windows absolute path, or a case variant"
+    then: "every one of them is refused, and the refusal names the file, so the agent is told what it touched rather than merely that something failed"
+    input:
+      hook: design-write
+      tool: Write
+      target-paths:
+        - ".cdd/design-lock.json"
+        - "./.cdd/design-lock.json"
+        - ".cdd/./design-lock.json"
+        - ".cdd//design-lock.json"
+        - "D:\\repo\\.cdd\\design-lock.json"
+        - ".CDD/design-lock.json"
+    expect:
+      every-path-is-refused: true
+      the-refusal-names-the-file: true
 
-rules: []
+  - id: artifact-body-write-is-allowed-and-silent
+    given: "the same hook is installed"
+    when: "the agent writes the interaction-design document itself -- the sanctioned path by which the human's answers are transcribed"
+    then: "the write goes through, and the hook says nothing at all; a hook that speaks when it permits cannot be told apart from a hook nobody installed"
+    input:
+      hook: design-write
+      tool: Edit
+      target-path: "specs/changes/anything/interaction-design.md"
+    expect:
+      the-write-is-permitted: true
+      the-hook-says-nothing: true
+
+  - id: retired-toggle-cannot-disarm-the-hook
+    given: "the environment variable that once switched the hook between advisory and blocking is set to its permissive value"
+    when: "an agent tries to write the lock sidecar"
+    then: "it is still refused; the switch was retired, and a switch wired to nothing must never appear to work"
+    input:
+      hook: design-write
+      legacy-toggle: "0"
+      target-path: ".cdd/design-lock.json"
+    expect:
+      the-write-is-refused: true
+
+  - id: unarmed-hooks-halt-the-gate-in-ci
+    given: "a project whose settings file registers no write-block hook, running where continuous integration runs"
+    when: "the gate runs"
+    then: "the gate halts and names which hook is missing, so a guarantee is never announced by a project that never armed it"
+    input:
+      provider: claude
+      settings-file: present
+      settings-tracked: true
+      registered-hooks: []
+      environment: ci
+    expect:
+      the-gate-halts: true
+      reported-on-the-blocking-channel: true
+      the-message-names-the-missing-hook: true
+
+  - id: unarmed-hooks-only-warn-on-a-developer-machine
+    given: "the same unarmed project, on a developer's own machine, outside continuous integration"
+    when: "the gate runs"
+    then: "the absence is reported without halting the work, and it is never worded like a hook that ran and permitted the write"
+    input:
+      provider: claude
+      settings-file: present
+      settings-tracked: true
+      registered-hooks: []
+      environment: local
+    expect:
+      the-gate-halts: false
+      reported-on-the-blocking-channel: false
+      confusable-with-a-permitted-write: false
+
+  - id: a-registration-that-never-fires-is-not-armed
+    given: "a settings file that registers the write-block hook in the older shape the harness never executes"
+    when: "the gate checks whether the hooks are armed, where continuous integration runs"
+    then: "the gate halts and says the registration will never fire; it must not certify it, and it must not tell the reader to add an entry that is already there"
+    input:
+      provider: claude
+      settings-file: present
+      settings-tracked: true
+      registration-shape: never-executed
+      environment: ci
+    expect:
+      the-gate-halts: true
+      reported-on-the-blocking-channel: true
+      says-the-registration-never-fires: true
+      says-it-is-not-registered: false
+
+  - id: a-confirmed-section-without-a-recorded-baseline-halts-the-gate
+    given: "an interaction design carrying a Confirmed section that no human ever locked"
+    when: "the gate runs on that change"
+    then: "the gate halts, because prose an agent can type is not evidence that a human agreed to it"
+    input:
+      change-dir-state: new
+      interaction-design:
+        confirmed-section: present
+        baseline-recorded: false
+    expect:
+      the-gate-halts: true
+      reported-on-the-blocking-channel: true
+      the-message-contains: "no recorded baseline"
+
+  - id: a-design-changed-after-locking-halts-the-gate
+    given: "a human has locked their confirmed answers"
+    when: "anyone afterwards alters a character inside the Confirmed section, and the gate runs"
+    then: "the gate halts and asks the human to confirm again, so nothing can quietly rewrite what was agreed"
+    input:
+      change-dir-state: new
+      interaction-design:
+        confirmed-section: present
+        baseline-recorded: true
+        confirmed-section-edited-after-locking: true
+    expect:
+      the-gate-halts: true
+      reported-on-the-blocking-channel: true
+      the-message-contains: "modified after confirmation"
+
+  - id: an-empty-derivation-chain-halts-the-gate
+    given: "an interaction design that was confirmed while its information and state tables were left empty"
+    when: "the gate runs on that change"
+    then: "the gate halts and names the empty table, because a design that asserts nothing can be reconciled against anything"
+    input:
+      change-dir-state: new
+      interaction-design:
+        confirmed-section: present
+        presented-information-rows: 0
+        states-rows: 0
+    expect:
+      the-gate-halts: true
+      reported-on-the-blocking-channel: true
+      the-message-names-the-empty-table: true
+
+  - id: repeating-a-confirmation-does-not-rewrite-its-provenance
+    given: "a human has confirmed a design, and the lock records who recorded it and when"
+    when: "the identical confirmation is run again, with nothing changed"
+    then: "the lock file is left exactly as it was, and the command says so; the record of the original confirmation is the entire reason those fields exist"
+    input:
+      command: design-confirm
+      first-run: records-a-baseline
+      second-run: identical-content
+    expect:
+      the-second-run-rewrites-the-file: false
+      the-recorded-provenance-survives: true
+      the-output-says-it-was-left-untouched: true
+
+  - id: bash-self-stamp-is-not-prevented
+    given: "an agent that holds a shell, on a machine where that shell runs as the human, with the human's files and the human's git identity"
+    when: "the agent runs the confirmation command itself instead of reaching for the editing tools"
+    then: "it succeeds, and nothing in this system may claim otherwise; the recorded author, terminal flag, and timestamp are only what the recorder said about itself, and a human running the same command from a script records identical values"
+    input:
+      actor: bash-holding-agent
+      method: runs-the-confirmation-command
+      compare-against: human-running-it-from-a-non-interactive-shell
+    expect:
+      the-stamp-succeeds: true
+      the-agent-is-prevented: false
+      the-provenance-distinguishes-the-actor: false
+      any-output-claims-prevention-or-detection: false
+
+  - id: a-harness-without-the-mechanism-is-told-so-not-failed
+    given: "a project configured for an agent harness that has no write-block mechanism at all"
+    when: "the gate runs where continuous integration runs"
+    then: "it is told, on the ordinary output channel, that this guarantee does not exist for it, and it is not failed for being unable to install something its harness does not have"
+    input:
+      provider: not-claude
+      environment: ci
+    expect:
+      the-gate-halts: false
+      reported-on-the-blocking-channel: false
+      says-the-guarantee-does-not-exist-here: true
+
+rules:
+  - id: rule-never-claims-prevention
+    statement: "No output, message, log line, or document produced by this system may state that an agent holding a shell is prevented from, or detected while, recording a confirmation baseline itself."
+
+  - id: rule-evidence-is-a-clue-not-a-verdict
+    statement: "No output may describe a recorded baseline as human-made, human-verified, or authentic. The most that may be said is that a baseline was recorded, and what the recorder claimed about itself."
+
+  - id: rule-distinct-situations-carry-distinct-words
+    statement: "Two situations a person exits differently must never be reported in the same words. A missing settings file, an untracked settings file, an unregistered hook, a registration the harness never executes, an untracked hook script, and a git command that declined to answer are six situations, not one."
+
+  - id: rule-a-permitting-hook-is-silent
+    statement: "A write-block hook that permits a write emits nothing. Announcing the permission would make an installed hook indistinguishable from an absent one."

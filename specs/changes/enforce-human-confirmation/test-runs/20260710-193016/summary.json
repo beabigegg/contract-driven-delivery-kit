@@ -1,0 +1,15 @@
+{
+  "change_id": "enforce-human-confirmation",
+  "phase": "changed-area",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npx vitest run test/cli/gate.test.ts test/cli/design-confirm.test.ts test/cli/accept-relock.test.ts test/cli/install-agent-hooks.test.ts test/cli/init.test.ts test/cli/doctor.test.ts",
+  "duration_ms": 135284,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/enforce-human-confirmation/test-runs/20260710-193016/summary.json",
+    "stdout": "specs/changes/enforce-human-confirmation/test-runs/20260710-193016/stdout.log",
+    "stderr": "specs/changes/enforce-human-confirmation/test-runs/20260710-193016/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

@@ -1,0 +1,1 @@
+npx vitest run test/cli/gate.test.ts test/cli/design-confirm.test.ts test/cli/accept-relock.test.ts test/cli/install-agent-hooks.test.ts test/cli/init.test.ts test/cli/doctor.test.ts

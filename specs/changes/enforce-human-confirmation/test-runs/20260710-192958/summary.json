@@ -1,0 +1,15 @@
+{
+  "change_id": "enforce-human-confirmation",
+  "phase": "targeted",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npx vitest run test/utils/markdown-section.test.ts test/utils/design-provenance.test.ts test/utils/mock-of-sut-scan.test.ts test/utils/design-hash.test.ts",
+  "duration_ms": 2084,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/enforce-human-confirmation/test-runs/20260710-192958/summary.json",
+    "stdout": "specs/changes/enforce-human-confirmation/test-runs/20260710-192958/stdout.log",
+    "stderr": "specs/changes/enforce-human-confirmation/test-runs/20260710-192958/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

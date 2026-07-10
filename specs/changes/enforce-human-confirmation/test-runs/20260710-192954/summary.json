@@ -1,0 +1,15 @@
+{
+  "change_id": "enforce-human-confirmation",
+  "phase": "collect",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npx tsc --noEmit",
+  "duration_ms": 3721,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/enforce-human-confirmation/test-runs/20260710-192954/summary.json",
+    "stdout": "specs/changes/enforce-human-confirmation/test-runs/20260710-192954/stdout.log",
+    "stderr": "specs/changes/enforce-human-confirmation/test-runs/20260710-192954/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

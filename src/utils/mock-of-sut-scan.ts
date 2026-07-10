@@ -122,7 +122,21 @@ function collectLeafLiterals(value: unknown, out: Set<string>): void {
     if (trimmed.length >= 4 && !GENERIC_LEAF_STOPWORDS.has(trimmed.toLowerCase())) out.add(value);
     return;
   }
-  if (typeof value === 'number' || typeof value === 'boolean') {
+  if (typeof value === 'boolean') {
+    // The comment above says boolean words are excluded regardless of length. Until
+    // enforce-human-confirmation it said so and did not do so: this branch called
+    // `out.add(String(value))` unconditionally, bypassing the stopword set that lists
+    // `true` and `false`. One boolean leaf in an oracle therefore made the tokens
+    // `true` and `false` forbidden ANYWHERE in that change's driver — in an assertion,
+    // in a variable name, in a prose comment. Measured against the real scanner: a
+    // driver that never types the literal is clean; the same driver plus one
+    // `.toBe(true)` is flagged, as is the word `true` in a sentence. A boolean is never
+    // a domain answer key; `credit-limit-exceeded` is.
+    return;
+  }
+  if (typeof value === 'number') {
+    // Numbers stay collected. `1500` in an expect IS an answer key, and a driver that
+    // types it has hardcoded the answer.
     out.add(String(value));
     return;
   }

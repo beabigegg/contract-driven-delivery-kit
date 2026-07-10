@@ -1,0 +1,86 @@
+agent: main Claude (orchestrator)
+change-id: enforce-human-confirmation
+batch: "acceptance oracle + driver + executed evidence"
+status: awaiting-human-relock
+
+delegation:
+  what: "The human explicitly authorised main Claude to draft specs/changes/enforce-human-confirmation/acceptance.yml on 2026-07-10."
+  why-it-is-recorded-here: >
+    ADR 0010 forbids an implementation agent from writing that file. The authorisation is
+    real and the human gave it, but an authorisation that lives only in a chat transcript
+    is indistinguishable, a month later, from an agent that simply wrote the file. It is
+    recorded in the file's own header, in this log, and in the commit message.
+  what-it-costs: >
+    The answer key is no longer independent of the agent whose work it grades.
+  what-preserves-its-value:
+    - "Every `expect` is derived from the human's `## Confirmed` decisions and from contracts/ci/ci-gate-contract.md — never from observing what the code currently does. An oracle copied from the implementation asserts only that the code does what the code does."
+    - "`cdd-kit accept relock` was NOT run by any agent. The hash-lock stamp is the human's alone; the gate stays red until they give it. Verified: the acceptance-write hook still refuses `.cdd/acceptance-lock.json` (exit 2) while allowing `acceptance.yml`'s body (exit 0) — the exact asymmetry that made this delegation possible without surrendering the stamp."
+    - "Case `bash-self-stamp-is-not-prevented` pins an ABSENCE. It fails the moment anything in this system begins claiming a guarantee DAC-1 records as unmet."
+
+corrections-to-the-humans-draft:
+  note: "each measured against the real system before being changed"
+  items:
+    - "The draft expected the hook's stderr to contain `is blocked unconditionally`, and the allow path to print `is always allowed`. Measured: zero occurrences of either. Both are contract prose describing the hook, not strings the hook prints. The allow path emits zero bytes on both streams — and must, because a hook that speaks when it permits is indistinguishable from a hook nobody installed."
+    - "The draft folded `settings file absent` and `hook not registered` into one case. They are two of six causes with six distinct messages. Collapsing any two is the precise defect this change exists to delete."
+    - "The draft's audit case expected TTY or git-author to `expose non-human operation`. Measured in one temp repo: a human running `design confirm` from a non-interactive shell records tty=false, git-author=The Human; a Bash-holding agent running the identical command records tty=false, git-author=The Human. Identical. TTY separates interactive from non-interactive, never human from agent, and the agent runs under the human's own git identity. Encoding that expectation would have made the oracle certify DAC-1 as met. Rewritten to pin the absence."
+
+defect-found-while-building-the-driver:
+  id: V5
+  severity: medium
+  title: "the AC-4 hardcoded-expect scanner made boolean expectations unusable"
+  detail: >
+    `collectLeafLiterals` applies GENERIC_LEAF_STOPWORDS in the string branch only; the
+    boolean branch called `out.add(String(value))` unconditionally. One boolean leaf in an
+    oracle therefore made the tokens `true` and `false` forbidden ANYWHERE in that change's
+    driver — in an assertion, in an identifier, in a prose comment. The function's own
+    comment says "Generic status/boolean words are excluded regardless of length".
+    It said so and did not do so.
+  measured: >
+    Probe run against the real module through vitest, not reasoned about: a driver that
+    never types the literal is clean; the same driver plus one `.toBe(true)` is flagged;
+    the word `true` in a comment is flagged. A number in `expect` is a genuine answer key
+    and stays collected.
+  fix: "boolean leaves are dropped; numbers are not. Test added; mutation restoring the unconditional add turns it red."
+
+oracle-mutation-matrix:
+  note: "a green oracle proves nothing until a mutation turns a case red. Run against the built dist."
+  results:
+    - "hook stops canonicalizing the path (the 920b9cc bypass returns) -> lock-sidecar-write-is-refused RED"
+    - "the hook announces the writes it permits                        -> artifact-body-write-is-allowed-and-silent RED"
+    - "a shipped artifact asserts prevention against a shell agent     -> rule-never-claims-prevention RED"
+    - "design confirm rewrites the lock on a no-op re-run              -> repeating-a-confirmation... RED"
+    - "the dormant registration is certified as armed                  -> a-registration-that-never-fires... RED"
+    - "the AC-1 empty-rows check is deleted                            -> an-empty-derivation-chain... RED"
+
+my-own-errors:
+  - >
+      Two of the six mutations came back GREEN on the first run and would have read as
+      vacuous cases. Both times the mutation was wrong, not the case: one changed the
+      nested-handler branch while leaving the top-level branch that actually decides
+      dormancy, and one disabled the `infoItems` check while the `states` check kept
+      firing. Same shape as the earlier T4a mistake. A mutation that does not change
+      behaviour proves nothing about the test it was aimed at.
+  - >
+      The driver's first `rule-never-claims-prevention` check flagged the hooks' own
+      comment — "does not, and does not claim to, stop a shell-capable agent". It searched
+      for the verb near the actor and ignored polarity, so it would have forced the code to
+      stop discussing the limit in order to satisfy a rule about honestly stating it. Every
+      sentence pairing the verb with the actor must now carry a negation.
+  - >
+      The first empty-chain fixture was so short the gate rejected it as an unwritten stub
+      before the AC-1 check ran. The case passed for the wrong reason until the fixture grew
+      real prose with genuinely empty tables.
+
+verified-by-running:
+  - "driver: 16/16 passing, executed on win32 through `sh` on PATH (the older hook tests hardcode /bin/sh and skip here; a case proven only by a skipped test is not proven — AC-5)"
+  - "AC-4 mock-of-SUT and hardcoded-expect scan on the new driver: 0 violations"
+  - "gate --strict: 0 unbound rules — all four `rules[]` carry a bound test"
+  - "test-evidence.yml: collect, targeted, changed-area, acceptance — all recorded as passed by `cdd-kit test run`, final-status passed"
+  - "full suite: 1441 passed / 74 skipped / 0 failed, identical with CI unset and CI=true"
+  - "validate PASS; check:mojibake PASS"
+  - "acceptance-write hook: `acceptance.yml` body -> exit 0; `.cdd/acceptance-lock.json` -> exit 2"
+
+remaining:
+  - "`cdd-kit accept relock enforce-human-confirmation` — HUMAN ONLY. It is the last red line on the gate, and it should be."
+  - "7 pending tasks under --strict (archive items + review tasks)"
+  - "`.cdd/design-lock.json` exists but is untracked; it commits alongside interaction-design.md"
