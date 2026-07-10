@@ -62,12 +62,18 @@ export async function acceptRelock(changeId: string): Promise<void> {
   const newHash = computeAcceptanceHash(data as AcceptanceFile);
   const existing = readAcceptanceLock(cwd)[changeId];
 
+  if (existing && existing.hash === newHash) {
+    // Write nothing — see the identical guard in `design.ts`. A re-run that reports
+    // "no change" must not silently replace the provenance of the original relock.
+    log.ok(`baseline for ${changeId} already matches the current acceptance.yml -- no change.`);
+    log.info('.cdd/acceptance-lock.json left untouched; its recorded provenance still describes the original relock.');
+    return;
+  }
+
   writeAcceptanceLock(cwd, changeId, newHash);
 
   if (!existing) {
     log.ok(`recorded a new baseline for ${changeId}: ${newHash}`);
-  } else if (existing.hash === newHash) {
-    log.ok(`baseline for ${changeId} already matches the current acceptance.yml -- no change.`);
   } else {
     log.ok(`re-baselined ${changeId}: ${existing.hash} -> ${newHash}`);
   }

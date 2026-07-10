@@ -40,8 +40,13 @@ describe('cdd-kit doctor', () => {
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome, env: { CDD_CLAUDE_BIN: join(tmpRepo, 'no-such-claude') } });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/doctor completed with \d+ warning/i);
+    // contract-write stays opt-in, so it is still dormant after a bare init.
     expect(r.stdout + r.stderr).toMatch(/chokepoint contract-write hook: dormant/i);
-    expect(r.stdout + r.stderr).toMatch(/chokepoint acceptance-write hook: dormant/i);
+    // The two write-block hooks are armed by `init` now — the whole point of the
+    // fix, since the workflow `init` writes hard-fails in CI without them. Asserting
+    // "dormant" here would pin the defect in place.
+    expect(r.stdout + r.stderr).not.toMatch(/chokepoint acceptance-write hook: dormant/i);
+    expect(r.stdout + r.stderr).not.toMatch(/chokepoint design-write hook: dormant/i);
   });
 
   it('reports the acceptance-write hook as live once armed (ADR 0010 SS3.2)', () => {
@@ -317,8 +322,11 @@ describe('cdd-kit doctor', () => {
     const report = JSON.parse(r.stdout);
     const finding = report.findings.find((f: { message: string }) => /chokepoint contract-write hook: dormant/.test(f.message));
     expect(finding?.level).toBe('warning');
+    // acceptance-write is armed by `init` now, so it must NOT appear as a dormant
+    // finding. A dormant write-block hook is exactly the silent no-op this change
+    // exists to end; the JSON report has to agree with the settings file.
     const acceptanceFinding = report.findings.find((f: { message: string }) => /chokepoint acceptance-write hook: dormant/.test(f.message));
-    expect(acceptanceFinding?.level).toBe('warning');
+    expect(acceptanceFinding).toBeUndefined();
   });
 
   // ── Applicability marker (ADR 0011): AC-4 listing + AC-7 drift warning ──────

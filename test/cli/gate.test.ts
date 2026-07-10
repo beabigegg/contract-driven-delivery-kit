@@ -405,6 +405,28 @@ function armWriteBlockHooks(tmpRepo: string, tmpHome: string): void {
   if (r.status !== 0) throw new Error(`arming write-block hooks failed: ${r.stderr}`);
 }
 
+/**
+ * Strip the two write-block entries from `.claude/settings.json`.
+ *
+ * `cdd-kit init` now arms them by default, so a test that wants the UNARMED state
+ * has to say so. Before that change every fresh temp repo happened to be unarmed,
+ * and these fixtures relied on it — an implicit premise, which is what made a fresh
+ * project's first CI run fail on a hook the scaffold never offered to install.
+ */
+function disarmWriteBlockHooks(tmpRepo: string): void {
+  const p = join(tmpRepo, '.claude', 'settings.json');
+  if (!existsSync(p)) return;
+  const s = JSON.parse(readFileSync(p, 'utf8')) as {
+    hooks?: { PreToolUse?: { hooks?: { command?: string }[] }[] };
+  };
+  const pre = s.hooks?.PreToolUse;
+  if (!Array.isArray(pre)) return;
+  s.hooks!.PreToolUse = pre.filter(
+    e => !(e.hooks ?? []).some(h => /pre-tool-use-(design|acceptance)-write\.sh/.test(h.command ?? '')),
+  );
+  writeFileSync(p, JSON.stringify(s, null, 2), 'utf8');
+}
+
 describe('cdd-kit gate', () => {
   let tmpRepo: string;
   let tmpHome: string;
@@ -956,8 +978,12 @@ describe('cdd-kit gate', () => {
   // one string -> the two messages stop differing and this test fails.
   it('T4d: settings.json without design hook + CI="true" -> distinct not-registered error', () => {
     runCli(['new', 'hook-t4d'], { cwd: tmpRepo, home: tmpHome });
-    // The init settings.json arms graph-first + test-runner but neither write-block
-    // hook, so cause 2 (not-registered) fires — never cause 1 (not-found).
+    // `init` arms both write-block hooks now, so the unarmed state must be created
+    // deliberately: strip them, leaving graph-first + test-runner. Cause 2
+    // (not-registered) then fires — never cause 1 (not-found).
+    disarmWriteBlockHooks(tmpRepo);
+    gitInitRepo(tmpRepo);
+    gitAdd(tmpRepo, '.claude/settings.json');
     const r = runCli(['gate', 'hook-t4d'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
     expect(r.stderr).toMatch(/\.claude\/settings\.json exists but does not register the design-write hook/);
     // The two absence causes MUST carry different text (Consistency Commitments).
@@ -974,6 +1000,9 @@ describe('cdd-kit gate', () => {
     runCli(['new', 'hook-t4e'], { cwd: tmpRepo, home: tmpHome });
     armWriteBlockHooks(tmpRepo, tmpHome); // writes .claude/hooks/* + settings entries
     gitInitRepo(tmpRepo);
+    // Track settings.json only, so the finding under test is about the SCRIPT path,
+    // not about the settings file (which has its own check, T4j).
+    gitAdd(tmpRepo, '.claude/settings.json');
 
     // Sub-case 1: armed but the .claude/hooks scripts are UNTRACKED (git repo
     // exists, nothing added) -> under CI the check must still fire, and it must
@@ -1012,7 +1041,7 @@ describe('cdd-kit gate', () => {
 
     const r = runCli(['gate', 'hook-t4e2'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
 
-    expect(r.stderr).toMatch(/whether that path is git-tracked could not be determined/);
+    expect(r.stderr).toMatch(/could not be determined/);
     expect(r.stderr).toMatch(/git ls-files exited/);
     // The two claims it must NOT make: the hook is registered, and we do not
     // know that the path is untracked.
@@ -1025,6 +1054,12 @@ describe('cdd-kit gate', () => {
   // migration window. Mutation: gate the check on `isNewChange` -> a legacy dir
   // would only warn (stdout) and this stderr assertion fails.
   it('T4f: legacy change dir + CI="true" + no hook -> error on stderr (not isNewChange-gated)', () => {
+    disarmWriteBlockHooks(tmpRepo);
+    // The settings file must be tracked before the per-hook question is even asked,
+    // otherwise the settings-level tracking probe reports first (T4j) and the
+    // registration finding never runs.
+    gitInitRepo(tmpRepo);
+    gitAdd(tmpRepo, '.claude/settings.json');
     const changeDir = join(tmpRepo, 'specs', 'changes', 'hook-legacy');
     mkdirSync(changeDir, { recursive: true });
     writeValidChangeArtifacts(changeDir); // legacy tasks.yml (no context-governance: v1)
@@ -1042,6 +1077,65 @@ describe('cdd-kit gate', () => {
     const err = runCli(['gate', 'hook-t4h'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
     expect(warn.stdout + warn.stderr).not.toMatch(/human-made|human-verified|authentic/i);
     expect(err.stdout + err.stderr).not.toMatch(/human-made|human-verified|authentic/i);
+  });
+
+  // T4i: a settings file that registers the hook in the LEGACY top-level `command`
+  // shape. install-agent-hooks' own comment says Claude Code never executes it. The
+  // check must not certify it — that is the registered-looking no-op this whole
+  // change exists to detect — and must say WHY, not "not registered".
+  // Mutation: let entryCommands() accept the top-level `command` again -> green.
+  it('T4i: a dormant top-level `command` registration is not accepted as armed', () => {
+    runCli(['new', 'hook-t4i'], { cwd: tmpRepo, home: tmpHome });
+    armWriteBlockHooks(tmpRepo, tmpHome);
+    gitInitRepo(tmpRepo);
+    gitAdd(tmpRepo, '.claude/settings.json', '.claude/hooks');
+
+    // Rewrite the two nested handlers into the dormant top-level shape.
+    const p = join(tmpRepo, '.claude', 'settings.json');
+    const s = JSON.parse(readFileSync(p, 'utf8')) as {
+      hooks: { PreToolUse: { matcher: string; hooks?: { command: string }[]; command?: string }[] };
+    };
+    s.hooks.PreToolUse = s.hooks.PreToolUse.map(e =>
+      e.hooks?.[0]?.command ? { matcher: e.matcher, command: e.hooks[0].command } : e,
+    );
+    writeFileSync(p, JSON.stringify(s, null, 2), 'utf8');
+
+    const r = runCli(['gate', 'hook-t4i'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(r.stderr).toMatch(/registers the (design|acceptance)-write hook in a shape Claude Code never executes/);
+    expect(r.stderr).not.toMatch(/does not register the (design|acceptance)-write hook/);
+  });
+
+  // T4j: `.claude/settings.json` itself must be git-tracked. A bare CI checkout
+  // contains only tracked files, so an untracked settings file registers nothing
+  // there however armed the developer's working copy looks.
+  // Mutation: drop the settings-tracking check -> the run stops complaining.
+  it('T4j: an untracked .claude/settings.json fails, even with the scripts tracked', () => {
+    runCli(['new', 'hook-t4j'], { cwd: tmpRepo, home: tmpHome });
+    armWriteBlockHooks(tmpRepo, tmpHome);
+    gitInitRepo(tmpRepo);
+    gitAdd(tmpRepo, '.claude/hooks'); // scripts tracked, settings deliberately not
+
+    const r = runCli(['gate', 'hook-t4j'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(r.stderr).toMatch(/\.claude\/settings\.json exists but is not git-tracked/);
+  });
+
+  // T4k: a non-Claude provider has no PreToolUse mechanism at all. Saying so is
+  // honest; failing the project for not installing a hook its harness does not
+  // have is the mirror image of announcing a guarantee that does not hold.
+  // Human decision, 2026-07-10.
+  // Mutation: drop `f.severity !== 'advisory'` from the wrapper -> lands on stderr.
+  it('T4k: a non-claude provider is advisory on stdout, never an error, even in CI', () => {
+    runCli(['new', 'hook-t4k'], { cwd: tmpRepo, home: tmpHome });
+    const policy = join(tmpRepo, '.cdd', 'model-policy.json');
+    mkdirSync(dirname(policy), { recursive: true });
+    writeFileSync(policy, JSON.stringify({ provider: 'codex' }), 'utf8');
+
+    const r = runCli(['gate', 'hook-t4k'], { cwd: tmpRepo, home: tmpHome, env: { CI: 'true' } });
+    expect(r.stdout).toMatch(/agent provider is `codex`, not `claude`/);
+    expect(r.stdout).toMatch(/do not exist for this provider/);
+    expect(r.stderr).not.toMatch(/provider is `codex`/);
+    // And it must not silently imply the guarantee holds.
+    expect(r.stdout).toMatch(/nothing prevents an agent's editor from writing a lock sidecar/);
   });
 
   it('22: gate warns when context expansion request is pending', () => {

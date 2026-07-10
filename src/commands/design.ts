@@ -49,12 +49,21 @@ export async function designConfirm(changeId: string): Promise<void> {
   const newHash = computeDesignHash(body);
   const existing = readDesignLock(cwd)[changeId];
 
+  if (existing && existing.hash === newHash) {
+    // Write NOTHING. The lock's git-author / tty / timestamp describe the moment the
+    // human confirmed. Re-running `design confirm` used to overwrite all three and
+    // then print "no change" — destroying the audit clue of the original confirmation
+    // while announcing that nothing happened. The clue is the whole point of
+    // recording it, and anyone (or anything) able to re-run the command could erase it.
+    log.ok(`baseline for ${changeId} already matches the current interaction-design.md -- no change.`);
+    log.info('.cdd/design-lock.json left untouched; its recorded provenance still describes the original confirmation.');
+    return;
+  }
+
   writeDesignLock(cwd, changeId, newHash);
 
   if (!existing) {
     log.ok(`recorded a new baseline for ${changeId}: ${newHash}`);
-  } else if (existing.hash === newHash) {
-    log.ok(`baseline for ${changeId} already matches the current interaction-design.md -- no change.`);
   } else {
     log.ok(`re-confirmed ${changeId}: ${existing.hash} -> ${newHash}`);
   }

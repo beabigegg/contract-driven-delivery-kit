@@ -402,6 +402,15 @@ export async function init(opts: InitOptions): Promise<void> {
             // Advisory test-runner is armed by default; --no-test-runner leaves
             // it dormant (undefined → install-agent-hooks skips it).
             testRunner: opts.testRunner === false ? undefined : 'advisory',
+            // The two write-block hooks are armed by default, not opt-in. They are
+            // what `enforceConfirmationHookInstallation` requires, and the workflow
+            // this same `init` writes runs `cdd-kit validate` in CI — so leaving them
+            // opt-in meant a fresh project's very first CI run failed on a hook the
+            // scaffold never offered to install. Both are path-keyed: they refuse a
+            // direct write of the lock sidecars and allow everything else, so arming
+            // them by default costs an honest project nothing.
+            acceptanceWrite: 'strict',
+            designWrite: 'strict',
             fromInit: true,
           });
         }

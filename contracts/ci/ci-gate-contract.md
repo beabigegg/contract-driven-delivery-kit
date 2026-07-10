@@ -3,7 +3,7 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.7.0
+schema-version: 0.8.0
 last-changed: 2026-07-10
 breaking-change-policy: deprecate-2-minors
 ---
@@ -73,8 +73,13 @@ Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
    modified after authoring — human must re-confirm." A `acceptance.yml` with **no**
    recorded baseline at all also fails (under `isNewChange || strict`; a legacy dir
    is warned). An unlocked oracle is not evidence of human authorship: the
-   acceptance-write hook is advisory unless `CDD_ACCEPTANCE_WRITE_STRICT=1`, so any
-   Edit-capable agent can author one. Only `cdd-kit accept relock` writes the lock.
+   acceptance-write hook allows `acceptance.yml`'s body by design — that is the
+   sanctioned transcription path — so any Edit-capable agent can author one. Only
+   `cdd-kit accept relock` writes the lock, and a re-run whose hash is unchanged
+   writes nothing at all, so the provenance recorded at the first relock survives.
+   (This sentence said "advisory unless `CDD_ACCEPTANCE_WRITE_STRICT=1`" until
+   `[ci 0.8.0]`. That toggle was retired in `[env 0.3.0]` and the hook stopped
+   reading it; the contract kept describing a switch wired to nothing.)
 3. **AC-4** — no acceptance driver mocks a module resolved as the change's SUT
    from the code-map ("acceptance test mocks the thing it is supposed to
    verify"); external I/O boundary fakes (network, clock) are allowed.
@@ -234,17 +239,45 @@ is a project property; `validate` is the project-scoped command. Adopter cost, s
 a project whose CI runs `validate` at all must arm both hooks. That is the same rule
 Decision 2 already accepted, applied to a larger surface — not a new rule.
 
-**Two DISTINCT absence causes.** The gate reads the PROJECT `.claude/settings.json`.
+**Provider carve-out, and the only one.** The write-block hooks are a Claude Code
+`PreToolUse` mechanism. When `.cdd/model-policy.json` names a different provider, the
+check emits a single ADVISORY finding on stdout — never an error, not even in CI —
+saying the hooks do not exist for that provider and that human confirmation there rests
+on the hash-lock and the gate alone. Failing a project for not installing a hook its
+harness does not have is the mirror image of announcing a guarantee that does not hold:
+both tell the reader something untrue about the mechanism. An absent or unreadable
+`model-policy.json` reads as `claude`, so a missing file is not an opt-out.
+Human decision, 2026-07-10.
 
-1. The file itself is absent. Fails with "`.claude/settings.json` not found — the
+**Six DISTINCT causes.** The gate reads the PROJECT `.claude/settings.json`. Each cause
+carries different message text, because a human exits each one differently. Collapsing
+any two is the same defect this check exists to detect.
+
+1. The file itself is absent. "`.claude/settings.json` not found — the
    design/acceptance write-block hooks cannot be verified because no project settings
    file exists".
-2. The file is present but no `PreToolUse` entry matches `Write`, `Edit`, and
-   `MultiEdit` with a `command` resolving to the git-tracked hook script. Fails with
-   "`.claude/settings.json` exists but does not register the <design|acceptance>-write
-   hook", naming which of the two is missing.
+2. The file exists but is not git-tracked. A bare CI checkout contains only tracked
+   files, so an untracked settings file registers nothing there however armed the
+   developer's working copy looks under a local `--strict`.
+3. The file exists but no `PreToolUse` entry matches `Write`, `Edit`, and `MultiEdit`
+   with a `command` naming the hook script. "…exists but does not register the
+   <design|acceptance>-write hook", naming which of the two is missing.
+4. The hook IS registered, but in a shape Claude Code never executes: a `command`
+   written directly on the matcher group, or a nested handler lacking
+   `"type": "command"`. `install-agent-hooks` has always called that shape dormant.
+   A settings file carrying it looks armed to a reader and fires never — the
+   registered-looking no-op in its purest form — so the check must say so rather than
+   report "does not register", which would send the reader to add an entry already there.
+5. The registered script path is git-tracked nowhere. "…but that path is not git-tracked".
+6. Git declined to answer (see below). "…could not be determined".
 
-These are two reasons for one absence and MUST carry different message text.
+**Invocation shape.** The registered `command` must run the script through `sh`, not as
+`./script.sh`. `chmodSync` is a no-op on Windows, so a Windows developer commits mode
+`100644` and a POSIX CI checkout gets `permission denied`. Claude Code treats a hook
+exiting non-zero for any reason other than `2` as a non-blocking error, so the
+chokepoint fails OPEN while `settings.json` still says it is armed. Measured: every
+tracked hook script in this repository was mode `100644` when the hooks were first
+armed, including the two write-block scripts, which had never carried the bit at all.
 Collapsing them would repeat exactly the conflation `interaction-design.md`'s
 `## Consistency Commitments` forbids for a different pair of states.
 
@@ -295,6 +328,17 @@ the write TARGET PATH, never on a global strict/advisory toggle:
 - An agent `Write`/`Edit`/`MultiEdit` whose target is the artifact BODY
   (`interaction-design.md`, `acceptance.yml`) is always allowed, so the sanctioned
   first write and the transcription of the human's answers still go through.
+
+**"Whose target is" means the canonical path, not the string.** The hook canonicalizes
+before comparing: unescape JSON backslash pairs, fold `\` to `/`, collapse repeated
+separators, delete `/./` segments, drop a leading `./`, lowercase. A raw string compare
+is not a path compare, and `.cdd/./design-lock.json`, `.cdd//design-lock.json`,
+`.CDD/design-lock.json`, and `D:\repo\.cdd\design-lock.json` all reached exit 0 against
+the first version of this hook — measured. The last one is what Claude Code actually
+sends on Windows, so "blocked unconditionally" was false on the very machine that first
+announced the hooks were armed. Lowercasing over-blocks a path differing only in case
+on a case-sensitive filesystem; that is deliberate, because guessing the filesystem
+costs correctness and refusing to write `.CDD/design-lock.json` costs nothing.
 
 The retired `CDD_DESIGN_WRITE_STRICT` / `CDD_ACCEPTANCE_WRITE_STRICT` toggle carried
 no agent identity in the hook payload, so it could only block everyone — including

@@ -130,7 +130,10 @@ export async function validate(opts: ValidateOptions): Promise<void> {
     const findings = checkConfirmationHookInstallation(process.cwd());
     const hard = isCiEnvironment();
     for (const f of findings) {
-      if (hard) {
+      // An `advisory` finding never hardens, not even in CI: the only one is
+      // "this provider has no PreToolUse mechanism", and a project cannot install
+      // a hook its harness does not have.
+      if (hard && f.severity !== 'advisory') {
         log.error(f.message);
         failed = true;
       } else {

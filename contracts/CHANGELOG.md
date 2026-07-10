@@ -8,6 +8,39 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.8.0] — 2026-07-10
+### Changed
+- **The write-block axis compares canonical paths, not strings.** External review of
+  `920b9cc` found four path forms that reached exit 0 against the hook that had just
+  been announced as armed: `.cdd/./design-lock.json`, `.cdd//design-lock.json`,
+  `.CDD/design-lock.json`, and `D:\repo\.cdd\design-lock.json`. The last is what Claude
+  Code actually sends on Windows, so "blocked unconditionally" was false on the machine
+  that armed it. The hook now unescapes, folds separators, collapses runs, deletes `/./`
+  segments, and lowercases before matching.
+- **Hook commands must run through `sh`.** `chmodSync` is a no-op on Windows, so a
+  Windows developer commits mode `100644` and a POSIX CI checkout gets `permission
+  denied`; Claude Code treats that as a non-blocking error, so the chokepoint fails OPEN
+  while `settings.json` says armed. Both write-block scripts were mode `100644` in this
+  repository's own index — they had never carried the executable bit.
+- **`enforceConfirmationHookInstallation` grew from two causes to six**, each with its
+  own message: settings absent, settings untracked, hook unregistered, hook registered
+  in the dormant shape Claude Code never executes, script path untracked, git declined
+  to answer. The dormant-shape cause is the registered-looking no-op in its purest form,
+  and the previous check certified it as armed.
+- **`accept relock` / `design confirm` write nothing when the hash is unchanged.** Both
+  called the lock writer before comparing, so a re-run replaced `locked-at`, `timestamp`,
+  `tty`, and `git-author` and then printed "no change" — erasing the audit clue of the
+  original confirmation while announcing that nothing had happened.
+- Corrected a stale sentence in `enforceAcceptanceOracle` condition 2 that still
+  described `CDD_ACCEPTANCE_WRITE_STRICT`, retired in `[env 0.3.0]`.
+
+### Added
+- **Provider carve-out.** A project whose `.cdd/model-policy.json` names a non-Claude
+  provider gets one ADVISORY finding on stdout — never an error, not even in CI —
+  stating that the write-block hooks do not exist for that harness. Failing a project
+  for not installing a hook it cannot install is the mirror image of announcing a
+  guarantee that does not hold. An absent policy file reads as `claude`. Human decision.
+
 ## [ci 0.7.0] — 2026-07-10
 ### Changed
 - **`enforceConfirmationHookInstallation` is `ci-or-strict`, not `strict-only`.**

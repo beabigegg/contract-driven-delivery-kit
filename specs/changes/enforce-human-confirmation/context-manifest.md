@@ -226,6 +226,30 @@ is authorized because it designates main Claude as the sanctioned transcriber.
     mask the sectionBody line-anchor mutation, so T6f is not isolable through
     design-provenance; a direct unit is the only way to mutation-prove it)
 
+- request-id: CER-013
+  requested_paths:
+    - src/commands/init.ts
+    - src/commands/validate.ts
+    - test/cli/init.test.ts
+    - test/cli/doctor.test.ts
+  agent: main Claude
+  reason: >
+    External review of 920b9cc found seven defects, all reproduced. Four need these files:
+
+    (F1) `init.ts:400` arms only graph-first and test-runner, while the workflow the same
+    `init` writes runs `cdd-kit validate` in CI, which now hard-fails without the two
+    write-block hooks. Measured: a fresh `cdd-kit init` fails its own first CI run. Fixing
+    it means arming both write hooks by default (init.ts) and testing that (init.test.ts).
+
+    (F1b) `--provider codex` produces no `.claude/settings.json` at all and has no way to
+    acquire one that means anything. Human decision 2026-07-10: report it as advisory,
+    never an error. Requires the severity branch in validate.ts.
+
+    (F6) build.js's `.cdd` denylist becomes an allowlist; doctor.test.ts covers the
+    asset-manifest consequences.
+  status: approved
+  approved-by: main Claude (each defect reproduced before the CER was written)
+
 - request-id: CER-012
   requested_paths:
     - test/setup-git-env.ts

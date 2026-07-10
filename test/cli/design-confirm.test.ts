@@ -140,4 +140,34 @@ describe('cdd-kit design confirm (ADR 0012 §5, human-only lock command)', () =>
     expect(entry.timestamp).toBe(entry['locked-at']);
     expect(entry['git-author']).toBe('Test Author <test@example.com>');
   });
+
+  // A no-op re-confirm must not rewrite the provenance of the ORIGINAL confirmation.
+  // It used to: `writeDesignLock` ran before the hash comparison, so a second run
+  // replaced locked-at / timestamp / tty / git-author and then printed "no change".
+  // The clue is the entire reason the fields exist, and anyone able to re-run the
+  // command could erase it while the output insisted nothing had happened.
+  //
+  // Mutation: move `writeDesignLock(...)` back above the equal-hash guard -> the
+  // timestamps diverge and this goes red.
+  it('a no-op re-confirm leaves the lock byte-identical and says so', async () => {
+    spawnSync('git', ['init'], { cwd: tmpRepo });
+    spawnSync('git', ['config', 'user.name', 'Test Author'], { cwd: tmpRepo });
+    spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmpRepo });
+    writeDesign('noop-change', 'Answer: yes.');
+
+    const lockPath = join(tmpRepo, '.cdd', 'design-lock.json');
+    expect(runCli(['design', 'confirm', 'noop-change'], { cwd: tmpRepo, home: tmpHome }).status).toBe(0);
+    const first = readFileSync(lockPath, 'utf8');
+
+    // The lock stores millisecond timestamps; sleep past that resolution so a
+    // rewrite would be observable rather than coincidentally identical.
+    await new Promise(res => setTimeout(res, 25));
+
+    const second = runCli(['design', 'confirm', 'noop-change'], { cwd: tmpRepo, home: tmpHome });
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    expect(second.stdout).toMatch(/already matches/);
+    expect(second.stdout).toMatch(/left untouched/);
+
+    expect(readFileSync(lockPath, 'utf8')).toBe(first);
+  });
 });

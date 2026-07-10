@@ -167,4 +167,38 @@ describe('cdd-kit init', () => {
     const r = runCli(['--version'], { cwd: tmpRepo, home: tmpHome });
     expect(r.stdout.trim()).toContain(PKG_VERSION);
   });
+
+  // A fresh `init` must arm the two write-block hooks. It writes a workflow that
+  // runs `cdd-kit validate` in CI, and `enforceConfirmationHookInstallation`
+  // hard-fails there without them — so leaving them opt-in meant every new project
+  // failed its own first CI run on a hook the scaffold never offered to install.
+  // Measured before the fix; that is the reason this test exists.
+  //
+  // Mutation: drop `acceptanceWrite`/`designWrite` from init's installAgentHooks
+  // call -> red.
+  it('arms both write-block hooks by default, so a fresh project passes its first CI run', () => {
+    const r = runCli(['init', '--local-only'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, r.stderr).toBe(0);
+
+    const settings = JSON.parse(
+      readFileSync(join(tmpRepo, '.claude', 'settings.json'), 'utf8'),
+    ) as { hooks: { PreToolUse: { hooks?: { type?: string; command?: string }[] }[] } };
+
+    const commands = settings.hooks.PreToolUse.flatMap(e => e.hooks ?? []);
+    for (const handler of commands) expect(handler.type).toBe('command');
+
+    const joined = commands.map(h => h.command ?? '').join('\n');
+    expect(joined).toMatch(/pre-tool-use-design-write\.sh/);
+    expect(joined).toMatch(/pre-tool-use-acceptance-write\.sh/);
+
+    // Invoked through `sh`, never `./script.sh`: chmod is a no-op on Windows, so a
+    // Windows developer commits mode 100644 and a POSIX CI checkout gets
+    // "permission denied" — a hook that fails open while settings.json says armed.
+    expect(joined).not.toMatch(/&& \.\/\.claude\/hooks\//);
+    expect(joined).toMatch(/&& sh \.\/\.claude\/hooks\/pre-tool-use-design-write\.sh/);
+
+    for (const name of ['pre-tool-use-design-write.sh', 'pre-tool-use-acceptance-write.sh']) {
+      expect(existsSync(join(tmpRepo, '.claude', 'hooks', name)), name).toBe(true);
+    }
+  });
 });

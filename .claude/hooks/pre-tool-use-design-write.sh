@@ -56,9 +56,29 @@ if [ -z "$path_value" ]; then
 fi
 [ -z "$path_value" ] && exit 0
 
+# Canonicalize before comparing. A raw string compare is not a path compare, and
+# every one of these reached exit 0 against the previous version of this hook,
+# measured:
+#
+#   .cdd/./design-lock.json            (a no-op `.` segment)
+#   .cdd//design-lock.json             (a doubled separator)
+#   D:\repo\.cdd\design-lock.json      (Windows separators -- the form Claude Code
+#                                       actually passes on Windows, so the block
+#                                       was a no-op on the very machine that
+#                                       announced it was armed)
+#   .CDD/design-lock.json              (case-insensitive filesystem)
+#
+# Steps, in order: unescape JSON backslash pairs, fold every backslash to `/`,
+# collapse runs of `/`, delete `/./` segments (repeatedly), drop a leading `./`,
+# and lowercase. Lowercasing over-blocks a path that differs only in case on a
+# case-sensitive filesystem; that is deliberate -- refusing to write a file named
+# `.CDD/design-lock.json` costs nothing, and guessing which filesystem we are on
+# costs correctness.
+norm_path="$(printf '%s' "$path_value" | sed -e 's|\\\\|/|g' -e 's|\\|/|g' -e ':a' -e 's|//|/|g' -e 'ta' -e ':b' -e 's|/\./|/|g' -e 'tb' -e 's|^\./||' | tr 'A-Z' 'a-z')"
+
 # Discriminate on the write TARGET PATH. The lock sidecar is blocked
 # unconditionally; the artifact body and every other path are allowed.
-case "$path_value" in
+case "$norm_path" in
   .cdd/design-lock.json|*/.cdd/design-lock.json)
     printf '%s\n' "cdd-kit: .cdd/design-lock.json is the human-owned confirmation baseline (ADR 0012) -- an agent must not write it through Write/Edit/MultiEdit. Only \`cdd-kit design confirm\`, run by the human, records a baseline. Read interaction-design.md to build the frontend, or ask the human to confirm it." 1>&2
     exit 2

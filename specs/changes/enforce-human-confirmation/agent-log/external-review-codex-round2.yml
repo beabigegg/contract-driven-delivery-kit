@@ -1,0 +1,145 @@
+agent: external-review (Codex), round 2
+change-id: enforce-human-confirmation
+reviewed: 920b9cc
+status: findings-accepted
+summary: >
+  Seven findings against the commit that announced the write-block hooks were armed.
+  All seven reproduced. Zero false positives. Two were worse than reported. The most
+  serious: on the machine that announced the hooks were armed, the hook could not
+  block anything Claude Code actually sent it.
+
+findings:
+  - id: F1
+    severity: P1
+    claim: "a fresh `cdd-kit init` project fails its very first CI run"
+    verdict: CONFIRMED, both providers
+    reproduction: >
+      `init.ts:400` armed only graph-first and test-runner, while the workflow the same
+      `init` writes runs `cdd-kit validate` in CI, which hard-fails without the write-block
+      hooks. Measured in a temp repo: `CI=true validate` -> ".claude/settings.json exists
+      but does not register the design-write hook". With `--provider codex` there is no
+      `.claude/` directory at all, and no path to green.
+    fix: >
+      `init` arms both write-block hooks by default. For a non-Claude provider the finding
+      is ADVISORY on stdout and never hardens — human decision 2026-07-10: failing a
+      project for not installing a hook its harness does not have is the mirror image of
+      announcing a guarantee that does not hold.
+
+  - id: F2
+    severity: P1
+    claim: "path variants bypass the Write/Edit/MultiEdit block"
+    verdict: CONFIRMED, and worse than reported
+    reproduction: >
+      Driven against the real script. Blocked: `.cdd/design-lock.json`,
+      `./.cdd/design-lock.json`, `specs/x/../../.cdd/design-lock.json`.
+      REACHED EXIT 0: `.cdd/./design-lock.json`, `.cdd//design-lock.json`,
+      `.CDD/design-lock.json`, and `D:\repo\.cdd\design-lock.json`.
+      The Windows absolute path is the form Claude Code sends on this platform. The
+      hooks were armed and committed on 920b9cc with the announcement that
+      `.cdd/design-lock.json` was "blocked unconditionally". Against the writes this
+      machine's harness actually issues, it very likely blocked nothing at all.
+    fix: >
+      Canonicalize first: unescape JSON `\\`, fold `\` to `/`, collapse `//`, delete
+      `/./`, drop leading `./`, lowercase. All seven variants now exit 2; the four
+      artifact-body paths still exit 0. Mutation: restore the raw compare -> the four
+      bypasses return.
+
+  - id: F3
+    severity: P1
+    claim: "tracked hooks are not executable on a clean POSIX checkout"
+    verdict: CONFIRMED, and worse than reported
+    reproduction: >
+      `git ls-files -s` showed BOTH write-block scripts at mode 100644 in `hooks/` — the
+      source directory, not just the installed copy — while graph-first, test-runner and
+      contract-write were 100755. They had never carried the executable bit, from ADR 0010
+      onward. `settings.json` invoked them as `./script.sh`. On POSIX that is `permission
+      denied`, which Claude Code treats as a non-blocking error: the chokepoint fails OPEN
+      while the settings file reports it armed.
+    fix: >
+      Two, because either alone is fragile: the installer now writes `sh ./script.sh`, and
+      the executable bit is set in the git index for every tracked hook. `sh` is what makes
+      it correct for adopters, whose Windows-authored commits would drop the bit again.
+
+  - id: F4
+    severity: P1
+    claim: "the presence gate accepts a registration Claude Code never executes"
+    verdict: CONFIRMED
+    reproduction: >
+      `entryCommands` accepted a top-level `command` on the matcher group. The installer's
+      own source calls that shape dormant — "Claude Code never executes it". Rewriting an
+      armed settings file into that shape still passed the check. A registered-looking
+      no-op certified by the very check written to detect registered-looking no-ops.
+    fix: >
+      Only a nested `{ type: 'command' }` handler counts. The dormant shape gets its own
+      message telling the reader to re-run the installer, never "does not register" —
+      which would send them to add an entry that is already there.
+
+  - id: F5
+    severity: P1
+    claim: "a no-op confirm rewrites provenance while reporting no change"
+    verdict: CONFIRMED
+    reproduction: >
+      Two `design confirm` runs, two seconds apart, same content. Output: "already matches
+      ... no change". `locked-at` and `timestamp` moved from 09:45:51.710Z to 09:45:54.026Z.
+      The clue describing the human's original confirmation is the entire reason those
+      fields exist, and anything able to re-run the command could erase it while the output
+      insisted nothing had happened. `accept relock` had the identical shape.
+    fix: "equal hash => write nothing, and say the lock was left untouched. Both commands."
+
+  - id: F6
+    severity: P2
+    claim: "the build fix is a denylist that will leak again"
+    verdict: CONFIRMED
+    fix: >
+      Allowlist. `assets/cdd/` is wiped and repopulated with exactly four static policy
+      files. A denylist is a promise to remember every future runtime artifact; the
+      previous one had already forgotten two.
+
+  - id: F7
+    severity: P2
+    claim: "`.claude/settings.json` itself is never checked for being tracked"
+    verdict: CONFIRMED
+    fix: "own cause, own message, checked before the per-hook questions."
+
+false-positives: none
+
+mutation-matrix:
+  note: "run by main Claude against the built dist"
+  results:
+    - "F1  init stops arming the write hooks            -> init.test.ts          RED"
+    - "F1b advisory severity ignored in CI              -> gate T4k              RED"
+    - "F2  raw string compare restored                  -> 4 bypasses return (sh-level, win32-skipped in vitest)"
+    - "F3  installer emits ./script.sh                  -> init.test.ts          RED"
+    - "F4  entryCommands accepts top-level command      -> gate T4i              RED"
+    - "F5  design confirm writes before the guard       -> design-confirm        RED"
+    - "F5  accept relock writes before the guard        -> accept-relock         RED"
+    - "F7  settings tracking check removed              -> gate T4j              RED"
+
+found-while-fixing:
+  - >
+      `ci-gate-contract.md` condition 2 of `enforceAcceptanceOracle` still read "the
+      acceptance-write hook is advisory unless `CDD_ACCEPTANCE_WRITE_STRICT=1`". That
+      toggle was retired in env 0.3.0 and the hook stopped reading it. The contract had
+      been describing a switch wired to nothing for two versions. Corrected in ci 0.8.0.
+  - >
+      `init` arming the hooks by default invalidated the implicit premise of four gate
+      fixtures and two doctor assertions, which had all relied on a fresh temp repo
+      happening to be unarmed. That implicit premise IS defect F1: nothing had ever
+      asserted the armed state, so nothing noticed it was absent.
+
+verified-by-running:
+  - "full suite, CI unset: 1424 passed / 74 skipped / 0 failed"
+  - "full suite, CI=true:  1424 passed / 74 skipped / 0 failed — identical"
+  - "`CI=true node dist/cli/index.js validate` on this repo: exit 0"
+  - "fresh `init` (claude): four hooks armed via `sh ./…`, CI validate silent"
+  - "fresh `init --provider codex` under CI=true: the provider finding lands on stdout, 0 occurrences on stderr"
+  - "16/16 `ci-gate:` provenance anchors still resolve at exactly one occurrence"
+  - "hook scripts: all 7 lock-path variants exit 2; interaction-design.md, src/foo.ts, .cdd/code-map.yml, docs/design-lock.json.md exit 0"
+
+standing-lesson: >
+  920b9cc's commit message said the hooks were armed "for the first time" and that the
+  guarantee now applied to main Claude too. `CI=true validate` exited 0, the suite was
+  green, and the sentence was still false: the hook could not recognize the path its own
+  harness sends, and could not have executed on a POSIX checkout even if it had. Every
+  check that could have caught it was passing. What caught it was someone reading the
+  script and asking what a real payload looks like.

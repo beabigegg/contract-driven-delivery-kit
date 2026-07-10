@@ -42,6 +42,11 @@ function cmdOf(e: HookEntry): string | undefined {
  * Assertions compose this prefix with the relative invoke / strict-env form.
  */
 const CD = 'cd "${CLAUDE_PROJECT_DIR:-.}" && ';
+// Every hook is invoked as `sh ./script.sh`, never `./script.sh`. `chmodSync` is a
+// no-op on Windows, so a Windows developer commits mode 100644 and a POSIX CI
+// checkout gets "permission denied" — a chokepoint that fails OPEN while
+// settings.json still reports it armed. Measured: all four tracked hook scripts in
+// this repository were mode 100644.
 
 beforeEach(() => {
   repo = makeTempDir('cdd-agenthooks-');
@@ -66,7 +71,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     // Claude Code executes; a top-level `command` would never fire.
     expect(entries[0].command).toBeUndefined();
     expect(entries[0].hooks?.[0]).toMatchObject({ type: 'command' });
-    expect(cmdOf(entries[0])).toBe(CD + './.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmdOf(entries[0])).toBe(CD + 'sh ./.claude/hooks/pre-tool-use-graph-first.sh');
     // Advisory must NOT carry the strict env flag.
     expect(cmdOf(entries[0])).not.toContain('CDD_GRAPH_FIRST_STRICT');
   });
@@ -76,7 +81,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     expect(r.status, r.stderr).toBe(0);
     const entries = preTool();
     expect(entries).toHaveLength(1);
-    expect(cmdOf(entries[0])).toBe(CD + 'CDD_GRAPH_FIRST_STRICT=1 ./.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmdOf(entries[0])).toBe(CD + 'CDD_GRAPH_FIRST_STRICT=1 sh ./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('is idempotent and switches mode without duplicating entries', () => {
@@ -86,7 +91,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
 
     const entries = preTool();
     expect(entries).toHaveLength(1); // replaced each time, never appended
-    expect(cmdOf(entries[0])).toBe(CD + './.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmdOf(entries[0])).toBe(CD + 'sh ./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('preserves unrelated settings and other PreToolUse hooks', () => {
@@ -121,7 +126,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     // alongside in the nested-handler shape.
     const cmds = (s.hooks?.PreToolUse ?? []).map(cmdOf);
     expect(cmds).toContain('echo other');
-    expect(cmds).toContain(CD + './.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmds).toContain(CD + 'sh ./.claude/hooks/pre-tool-use-graph-first.sh');
     expect(s.hooks?.PreToolUse).toHaveLength(2);
   });
 
@@ -146,7 +151,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     const entries = preTool();
     expect(entries).toHaveLength(1); // legacy entry replaced, not duplicated
     expect(entries[0].command).toBeUndefined();
-    expect(cmdOf(entries[0])).toBe(CD + './.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(cmdOf(entries[0])).toBe(CD + 'sh ./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('preserves an unrelated handler sharing the cdd matcher group on reinstall', () => {
@@ -178,7 +183,7 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
     // Ours is present exactly once and refreshed to strict mode.
     const ours = allCmds.filter(c => c?.includes('pre-tool-use-graph-first'));
     expect(ours).toHaveLength(1);
-    expect(ours[0]).toBe(CD + 'CDD_GRAPH_FIRST_STRICT=1 ./.claude/hooks/pre-tool-use-graph-first.sh');
+    expect(ours[0]).toBe(CD + 'CDD_GRAPH_FIRST_STRICT=1 sh ./.claude/hooks/pre-tool-use-graph-first.sh');
   });
 
   it('rejects an invalid mode', () => {
@@ -205,8 +210,8 @@ describe('cdd-kit install-agent-hooks --graph-first', () => {
 });
 
 describe('cdd-kit install-agent-hooks --contract-write (ADR 0004 §6)', () => {
-  const CW_SCRIPT = './.claude/hooks/pre-tool-use-contract-write.sh';
-  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+  const CW_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-contract-write.sh';
+  const GF_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-graph-first.sh';
 
   /** The PreToolUse entry whose nested command names the given hook script. */
   function entryFor(marker: string): HookEntry | undefined {
@@ -294,8 +299,8 @@ describe('cdd-kit install-agent-hooks --contract-write (ADR 0004 §6)', () => {
 });
 
 describe('cdd-kit install-agent-hooks --test-runner (ADR 0005 §10)', () => {
-  const TR_SCRIPT = './.claude/hooks/pre-tool-use-test-runner.sh';
-  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+  const TR_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-test-runner.sh';
+  const GF_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-graph-first.sh';
 
   /** The PreToolUse entry whose nested command names the given hook script. */
   function entryFor(marker: string): HookEntry | undefined {
@@ -375,8 +380,8 @@ describe('cdd-kit install-agent-hooks --test-runner (ADR 0005 §10)', () => {
 });
 
 describe('cdd-kit install-agent-hooks --acceptance-write (ADR 0010 SS3.2)', () => {
-  const AW_SCRIPT = './.claude/hooks/pre-tool-use-acceptance-write.sh';
-  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+  const AW_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-acceptance-write.sh';
+  const GF_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-graph-first.sh';
 
   /** The PreToolUse entry whose nested command names the given hook script. */
   function entryFor(marker: string): HookEntry | undefined {
@@ -484,8 +489,8 @@ describe('cdd-kit install-agent-hooks --acceptance-write (ADR 0010 SS3.2)', () =
 });
 
 describe('cdd-kit install-agent-hooks --design-write (ADR 0012 §5)', () => {
-  const DW_SCRIPT = './.claude/hooks/pre-tool-use-design-write.sh';
-  const GF_SCRIPT = './.claude/hooks/pre-tool-use-graph-first.sh';
+  const DW_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-design-write.sh';
+  const GF_SCRIPT = 'sh ./.claude/hooks/pre-tool-use-graph-first.sh';
 
   /** The PreToolUse entry whose nested command names the given hook script. */
   function entryFor(marker: string): HookEntry | undefined {
@@ -567,7 +572,7 @@ describe('cdd-kit install-agent-hooks --design-write (ADR 0012 §5)', () => {
     // The two path-keyed write-block hooks carry none.
     expect(cmdOf(entryFor('pre-tool-use-design-write')!)).toBe(CD + DW_SCRIPT);
     expect(cmdOf(entryFor('pre-tool-use-acceptance-write')!))
-      .toBe(CD + './.claude/hooks/pre-tool-use-acceptance-write.sh');
+      .toBe(CD + 'sh ./.claude/hooks/pre-tool-use-acceptance-write.sh');
   });
 
   it('is idempotent and switches design-write mode without duplicating entries', () => {

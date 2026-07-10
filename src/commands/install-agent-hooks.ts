@@ -286,7 +286,14 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
     } catch { /* ignore on Windows */ }
 
     preTool = withoutHandler(preTool, def);
-    const invoke = `./${hookRelPath(def.filename)}`;
+    // Invoke through `sh`, never as `./script.sh`. The executable bit does not
+    // survive the round trip that matters: a Windows developer runs the installer,
+    // `chmodSync` above is a no-op there, git records mode 100644, and a POSIX CI
+    // checkout gets "permission denied". Claude Code treats a hook exiting non-zero
+    // for reasons other than 2 as a non-blocking error — so the chokepoint fails
+    // OPEN, while the settings file still says it is armed. Measured in this
+    // repository: all four tracked hook scripts were mode 100644.
+    const invoke = `sh ./${hookRelPath(def.filename)}`;
     // A path-keyed hook has no advisory mode to flip into, so no env prefix is
     // written. Prefixing the retired `CDD_*_WRITE_STRICT` would put a variable
     // into settings.json that the script no longer reads (env 0.3.0/0.4.0) —

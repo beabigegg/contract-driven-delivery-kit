@@ -114,4 +114,43 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-design-write.sh', ()
     });
     expect(r.status).toBe(0);
   });
+
+  // T3e — a raw string compare is not a path compare. Every form below reached
+  // exit 0 against the pre-canonicalization hook, measured. The Windows absolute
+  // path is the one that mattered: it is what Claude Code actually sends on
+  // Windows, so the "armed" write-block was a no-op on the machine that armed it.
+  //
+  // Mutation: delete the `norm_path=` line and compare `$path_value` directly ->
+  // four of these six turn green-through (exit 0) and this test goes red.
+  it.each([
+    ['.cdd/design-lock.json', 'the plain relative path'],
+    ['./.cdd/design-lock.json', 'a leading ./'],
+    ['.cdd/./design-lock.json', 'a no-op . segment'],
+    ['.cdd//design-lock.json', 'a doubled separator'],
+    ['D:\\repo\\.cdd\\design-lock.json', 'a Windows absolute path (what Claude Code sends)'],
+    ['.CDD/design-lock.json', 'a case-variant on a case-insensitive filesystem'],
+  ])('T3e: blocks %s — %s', (variant) => {
+    const r = runHook(variant);
+    expect(r.status, `variant: ${variant}`).toBe(2);
+    expect(r.stderr).toMatch(/design-lock\.json/);
+  });
+
+  // The canonicalizer must not start blocking things that merely look similar.
+  it.each([
+    'specs/changes/x/interaction-design.md',
+    'src/foo.ts',
+    '.cdd/code-map.yml',
+    'docs/design-lock.json.md',
+    '.cdd/design-lock.json.bak',
+  ])('T3e: still allows %s', (allowed) => {
+    expect(runHook(allowed).status, `allowed: ${allowed}`).toBe(0);
+  });
+
+  // The JSON payload escapes backslashes, so the extractor sees `\\` where the
+  // real path has `\`. Canonicalization must unescape before folding separators.
+  it('T3e: blocks the JSON-escaped Windows path the harness actually serializes', () => {
+    const payload = '{"tool_name":"Write","tool_input":{"file_path":"D:\\\\repo\\\\.cdd\\\\design-lock.json"}}';
+    const r = spawnSync('/bin/sh', [HOOK], { cwd: repo, input: payload, encoding: 'utf8' });
+    expect(r.status).toBe(2);
+  });
 });

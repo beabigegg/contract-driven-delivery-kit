@@ -57,9 +57,14 @@ if [ -z "$path_value" ]; then
 fi
 [ -z "$path_value" ] && exit 0
 
+# Canonicalize before comparing -- see the identical block in
+# pre-tool-use-design-write.sh for the four path forms that defeated the raw
+# string compare, including the Windows absolute path Claude Code actually sends.
+norm_path="$(printf '%s' "$path_value" | sed -e 's|\\\\|/|g' -e 's|\\|/|g' -e ':a' -e 's|//|/|g' -e 'ta' -e ':b' -e 's|/\./|/|g' -e 'tb' -e 's|^\./||' | tr 'A-Z' 'a-z')"
+
 # Discriminate on the write TARGET PATH. The lock sidecar is blocked
 # unconditionally; the artifact body and every other path are allowed.
-case "$path_value" in
+case "$norm_path" in
   .cdd/acceptance-lock.json|*/.cdd/acceptance-lock.json)
     printf '%s\n' "cdd-kit: .cdd/acceptance-lock.json is the human-owned acceptance baseline (ADR 0010) -- an agent must not write it through Write/Edit/MultiEdit. Only \`cdd-kit accept relock\`, run by the human, records a baseline. Read acceptance.yml to build a driver, or ask the human to relock it." 1>&2
     exit 2

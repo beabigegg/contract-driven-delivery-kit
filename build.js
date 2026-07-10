@@ -117,34 +117,33 @@ copy('hooks',                                   'assets/hooks');
 copy('CLAUDE.template.md',                      'assets/CLAUDE.template.md');
 copy('CODEX.template.md',                       'assets/CODEX.template.md');
 copy('AGENTS.template.md',                      'assets/AGENTS.template.md');
-copy('.cdd',                                    'assets/cdd');
-// Per-repo runtime artifacts must not ship inside the kit; `cdd-kit init` scaffolds a
-// new project's `.cdd/` from `assets/cdd/`, so anything left here is planted in every
-// adopter's repository.
+// `cdd-kit init` scaffolds a new project's `.cdd/` from `assets/cdd/`, so ANYTHING
+// left here is planted in every adopter's repository. This is an ALLOWLIST, not a
+// denylist, and that distinction is the whole fix.
 //
-//  - code-map.*/code-graph.*  a stale snapshot that fools freshness checks and breaks
-//                             the missing-with-sources doctor diagnostic.
-//  - asset-manifest.json      THIS machine's install stamps. A fresh `init` inherited
-//                             them, so `doctor` reported drift against hooks the new
-//                             project never installed. Invisible until this repo armed
-//                             its own write-block hooks and the entry count changed.
-//  - acceptance-lock.json     cdd-kit's own ADR 0010 hash-locked acceptance baselines —
-//                             a human-owned answer key, shipped into strangers' projects,
-//                             keyed by change-id. Nothing about that is safe.
-//  - design-lock.json         the ADR 0012 equivalent, for when it exists.
-for (const artifact of [
-  'assets/cdd/code-map.yml',
-  'assets/cdd/code-map.index.json',
-  'assets/cdd/code-graph.index.json',
-  'assets/cdd/asset-manifest.json',
-  'assets/cdd/acceptance-lock.json',
-  'assets/cdd/design-lock.json',
-]) {
-  const shipped = join(__dirname, artifact);
-  if (existsSync(shipped)) {
-    rmSync(shipped, { force: true });
-    console.log(`Removed ${artifact} (runtime artifact, not shipped)`);
-  }
+// It was a denylist. It excluded the code-map artifacts and missed two: this
+// machine's `asset-manifest.json` (so a fresh `init` inherited cdd-kit's own install
+// stamps and `doctor` immediately reported drift), and `acceptance-lock.json` —
+// cdd-kit's own ADR 0010 hash-locked acceptance baselines, a human-owned answer key,
+// shipped into strangers' repositories and keyed by change-id.
+//
+// A denylist is a promise to remember every future runtime artifact. `.cdd/runtime/`,
+// `.cdd/code-map.<surface>.yml`, a backup directory, tomorrow's sidecar — each would
+// have shipped. Only these four static policy/config files belong in the package.
+const SHIPPED_CDD_FILES = [
+  'conformance.json',
+  'context-policy.json',
+  'model-policy.json',
+  'tier-policy.json',
+];
+// Wipe first: `assets/` is not cleaned between builds, so anything a previous
+// denylist build left behind would survive the switch to an allowlist.
+rmSync(join(__dirname, 'assets/cdd'), { recursive: true, force: true });
+mkdirSync(join(__dirname, 'assets/cdd'), { recursive: true });
+for (const name of SHIPPED_CDD_FILES) {
+  const src = join(__dirname, '.cdd', name);
+  if (existsSync(src)) copy(join('.cdd', name), join('assets/cdd', name));
+  else console.log(`WARNING: .cdd/${name} is missing; adopters will not receive it`);
 }
 copy('src/code-map/python',                     'assets/code-map');
 

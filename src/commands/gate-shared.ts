@@ -75,6 +75,33 @@ const WRITE_BLOCK_HOOKS: readonly WriteBlockHookSpec[] = [
 
 export interface HookInstallFinding {
   message: string;
+  /**
+   * `advisory` findings never harden into errors, not even in CI. Exactly one
+   * situation qualifies: the project's agent provider is not Claude Code, so no
+   * PreToolUse write-block mechanism exists for it to install. Failing a project
+   * for not doing something it cannot do is the mirror image of announcing a
+   * guarantee that does not hold — both tell the reader something untrue about
+   * the mechanism. Human decision, 2026-07-10.
+   */
+  severity?: 'hard' | 'advisory';
+}
+
+/**
+ * The agent provider this project is configured for, from `.cdd/model-policy.json`.
+ * Absent or unreadable => assume `claude`: the write-block hooks are a Claude Code
+ * mechanism, and a missing policy file must not become a way to opt out of the check.
+ */
+function projectProvider(cwd: string): string {
+  const p = join(cwd, '.cdd', 'model-policy.json');
+  if (!existsSync(p)) return 'claude';
+  try {
+    const parsed = JSON.parse(readFileSync(p, 'utf8')) as { provider?: unknown };
+    return typeof parsed.provider === 'string' && parsed.provider.trim() !== ''
+      ? parsed.provider.trim().toLowerCase()
+      : 'claude';
+  } catch {
+    return 'claude';
+  }
 }
 
 /**
@@ -90,17 +117,45 @@ export function isCiEnvironment(env: NodeJS.ProcessEnv = process.env): boolean {
   return v !== '0' && v.toLowerCase() !== 'false';
 }
 
-/** Every `command` string an entry could execute (nested handlers + the legacy
- *  top-level `command` shape older `install-agent-hooks` versions wrote). */
+/**
+ * Every `command` string an entry will actually EXECUTE.
+ *
+ * Only a nested `{ type: 'command', command }` handler qualifies. A `command`
+ * written directly on the matcher group is the legacy shape that older
+ * `install-agent-hooks` versions produced, and `install-agent-hooks.ts` says so in
+ * its own comment: Claude Code never executes it. Counting it here would let the
+ * gate certify a hook that cannot fire — a registered-looking no-op, which is the
+ * one thing this check exists to detect. `entryDormantCommands` reports those
+ * separately so the human is told what is wrong rather than that nothing is.
+ */
 function entryCommands(entry: unknown): string[] {
+  const out: string[] = [];
+  if (entry && typeof entry === 'object') {
+    const e = entry as { hooks?: unknown };
+    if (Array.isArray(e.hooks)) {
+      for (const h of e.hooks) {
+        const handler = h as { type?: unknown; command?: unknown };
+        if (handler?.type === 'command' && typeof handler.command === 'string') {
+          out.push(handler.command);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Commands written in a shape Claude Code will not execute: a top-level
+ *  `command` on the matcher group, or a nested handler missing `type: 'command'`. */
+function entryDormantCommands(entry: unknown): string[] {
   const out: string[] = [];
   if (entry && typeof entry === 'object') {
     const e = entry as { command?: unknown; hooks?: unknown };
     if (typeof e.command === 'string') out.push(e.command);
     if (Array.isArray(e.hooks)) {
       for (const h of e.hooks) {
-        if (h && typeof (h as { command?: unknown }).command === 'string') {
-          out.push((h as { command: string }).command);
+        const handler = h as { type?: unknown; command?: unknown };
+        if (handler?.type !== 'command' && typeof handler?.command === 'string') {
+          out.push(handler.command);
         }
       }
     }
@@ -173,11 +228,40 @@ function gitTrackedState(cwd: string, relPath: string): { state: TrackedState; d
  * `.claude/settings.local.json` (a personal override is not project arming).
  */
 export function checkConfirmationHookInstallation(cwd: string): HookInstallFinding[] {
+  // The write-block hooks are a Claude Code PreToolUse mechanism. A project whose
+  // provider is something else has no `.claude/settings.json` and no way to acquire
+  // one that means anything. Say what is true — the implementation-layer guarantee
+  // does not exist here — rather than failing the project for it.
+  const provider = projectProvider(cwd);
+  if (provider !== 'claude') {
+    return [{
+      severity: 'advisory',
+      message: `agent provider is \`${provider}\`, not \`claude\` — the design/acceptance write-block hooks are a Claude Code PreToolUse mechanism and do not exist for this provider. Human confirmation here rests on the hash-lock and the gate alone; nothing prevents an agent's editor from writing a lock sidecar.`,
+    }];
+  }
+
   const settingsPath = join(cwd, '.claude', 'settings.json');
   if (!existsSync(settingsPath)) {
     return [{
       message: '.claude/settings.json not found — the design/acceptance write-block hooks cannot be verified because no project settings file exists',
     }];
+  }
+
+  // The settings file itself must be tracked. A bare CI checkout contains only
+  // tracked files, so an untracked settings.json registers nothing there, however
+  // well-armed the developer's working copy looks under a local `--strict`.
+  {
+    const { state, detail } = gitTrackedState(cwd, '.claude/settings.json');
+    if (state === 'untracked') {
+      return [{
+        message: '.claude/settings.json exists but is not git-tracked — a bare CI checkout would not contain it, so no hook is registered there. `git add .claude/settings.json`',
+      }];
+    }
+    if (state === 'undeterminable') {
+      return [{
+        message: `.claude/settings.json exists, but whether it is git-tracked could not be determined (${detail}). Resolve the git error, then re-run.`,
+      }];
+    }
   }
 
   let settings: unknown = {};
@@ -211,8 +295,20 @@ export function checkConfirmationHookInstallation(cwd: string): HookInstallFindi
     }
 
     if (registeredPath === null) {
+      // Before saying "does not register", check whether it registers the hook in a
+      // shape Claude Code will not execute. The installer's own comment calls the
+      // top-level `command` form dormant; a settings file carrying it looks armed to
+      // a reader and fires never. Telling that reader "not registered" would send
+      // them to add an entry that is already there.
+      const dormant = preTool.some(entry => {
+        const e = entry as { matcher?: unknown };
+        if (!matcherCoversWriteTools(e.matcher)) return false;
+        return entryDormantCommands(entry).some(cmd => cmd.includes(spec.marker));
+      });
       findings.push({
-        message: `.claude/settings.json exists but does not register the ${spec.id}-write hook`,
+        message: dormant
+          ? `.claude/settings.json registers the ${spec.id}-write hook in a shape Claude Code never executes (a top-level \`command\`, or a handler without \`"type": "command"\`) — it looks armed and fires never. Re-run \`cdd-kit install-agent-hooks --${spec.id}-write\` to rewrite it as a nested command handler.`
+          : `.claude/settings.json exists but does not register the ${spec.id}-write hook`,
       });
       continue;
     }
@@ -252,7 +348,8 @@ export function enforceConfirmationHookInstallation(
 ): void {
   const hard = isCiEnvironment() || strict;
   for (const f of checkConfirmationHookInstallation(cwd)) {
-    (hard ? errors : warnings).push(f.message);
+    const escalate = hard && f.severity !== 'advisory';
+    (escalate ? errors : warnings).push(f.message);
   }
 }
 
