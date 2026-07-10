@@ -217,7 +217,46 @@ is authorized because it designates main Claude as the sanctioned transcriber.
 - test/acceptance/acceptance-oracle.driver.test.ts
 
 ## Context Expansion Requests
--
+- request-id: CER-009
+  requested_paths:
+    - test/utils/markdown-section.test.ts
+  reason: IP-1 requires three named regression tests for sectionBody (sibling ### no longer bleeds; ## still spans ### children; bare ### X no longer resolves via a ## X collision). The third (line-anchored opening, test-plan T6f mutation 'remove the full-line anchor in sectionBody') is NOT isolable through the resolver: any fixture that would exercise it also trips design-provenance's own line-anchored heading-ambiguity check, so it can only be mutation-proven by a direct sectionBody unit test. context check reports this path is not in Allowed Paths; requesting it (test-plan Notes explicitly says 'A direct test/utils/markdown-section.test.ts would be stronger — request via CER if wanted').
+  status: approved
+  approved-by: main Claude (verified: the resolver's own heading-ambiguity check does
+    mask the sectionBody line-anchor mutation, so T6f is not isolable through
+    design-provenance; a direct unit is the only way to mutation-prove it)
+
+- request-id: CER-010
+  requested_paths:
+    - src/commands/bug-suspects.ts
+  agent: main Claude
+  reason: >
+    `markdown-section.ts`'s doc comment says it was centralized so that no call site
+    keeps its own near-identical regex. One call site still does: `parseListSection` in
+    `bug-suspects.ts:48` is a verbatim hand-copy of the OLD, pre-IP-1 regex. IP-1 fixed
+    `sectionBody`; that copy did not move with it. Fixing it is one line — delegate to
+    `sectionBody` — and it makes the doc comment true.
+
+    Severity: LOW. `bug-suspects` scopes suspect files for a bug investigation. Its
+    divergence direction is over-inclusion (it can pull a sibling `###` section's list
+    items into `Allowed Paths`), which surfaces extra suspects, not extra permissions.
+  status: approved
+  approved-by: main Claude
+
+  RETRACTION, recorded rather than deleted. The first version of this CER claimed the
+  same stale copy lived in `context.ts:77` — the parser behind `cdd-kit context check` —
+  and that the context-governance path was therefore FAIL-OPEN, granting
+  `src/credentials.ts` and `.env.production` from a sibling section. That claim was
+  FALSE. `context.ts:6` imports `sectionBody` and `:78` calls it; it has delegated since
+  `78331fe` and was untouched by IP-1. `cdd-kit context check` has always used the
+  single shared extractor. The probe that "proved" the fail-open was run against the
+  `bug-suspects.ts` regex while the finding was attributed to `context.ts`.
+
+  Cause: `grep -A12 'function parseListSection' src/` printed the body of the FIRST
+  matching file and I attributed it to both. Identifier found; function unread. That is
+  the precise defect class this change exists to close, committed by main Claude inside
+  the commit that closes it, for the third time in one session. The retraction stays
+  here because the pattern matters more than the instance.
 
 ## Approved Expansions
 
@@ -289,6 +328,23 @@ is authorized because it designates main Claude as the sanctioned transcriber.
     project settings and the installed hook scripts.
   status: approved
   approved-by: main Claude
+
+- request-id: CER-008
+  requested_paths:
+    - src/commands/validate.ts
+    - test/schemas/design-lock.schema.test.ts
+    - test/schemas/acceptance.schema.test.ts
+  agent: backend-engineer
+  reason: >
+    The human decided (2026-07-10) that `enforceConfirmationHookInstallation` runs from
+    `cdd-kit validate` as well as `cdd-kit gate`, because the workflow's gate step is
+    guarded by `if: steps.changed.outputs.ids != ''` and a PR that de-arms the hooks
+    without touching a spec dir would otherwise skip the check entirely. Implementing
+    that requires `src/commands/validate.ts`. Contradiction C2's resolution extends
+    provenance fields to `.cdd/acceptance-lock.json`, so both lock schema tests are in
+    scope.
+  status: approved
+  approved-by: main Claude (verified: src/commands/validate.ts and both schema tests exist)
 
 - request-id: CER-007
   requested_paths:

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { makeTempDir, cleanupDir } from '../helpers.js';
 import { openapiExport } from '../../src/commands/openapi-export.js';
@@ -373,5 +373,156 @@ describe('checkStateDiscriminatorUniqueness (ADR 0012 §2 state-discriminator st
       { id: 'state-b', meaning: 'nothing is wrong', discriminator: 'GET /api/v1/orders → HTTP 200' },
     ]);
     expect(errors).toEqual([]);
+  });
+});
+
+// ── Sixth citation form: ci-gate: <heading> :: <exact substring> (IP-2) ───────
+const CI_PATH = ['contracts', 'ci', 'ci-gate-contract.md'];
+
+function ciGateContract(body) {
+  return '---\ncontract: ci\nschema-version: 0.1.0\nlast-changed: 2026-07-09\n---\n\n# CI Gate Contract\n\n' + body;
+}
+
+describe('resolveCitation: sixth citation form (ci-gate:) — occurrence uniqueness', () => {
+  it('T6a: a substring occurring exactly once resolves', async () => {
+    write(CI_PATH, ciGateContract('## Section One\nalpha unique-token beta.\n\n## Section Two\ngamma delta.\n'));
+    var r = await resolveCitation('ci-gate: Section One :: unique-token', tmpRepo);
+    expect(r.ok, r.message).toBe(true);
+  });
+
+  it('T6b: two-or-more occurrences are rejected as ambiguous', async () => {
+    write(CI_PATH, ciGateContract('## Section One\nrepeat here and repeat there.\n'));
+    var r = await resolveCitation('ci-gate: Section One :: repeat', tmpRepo);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/ambiguous/);
+  });
+
+  it('T6c: zero occurrences are rejected as not found', async () => {
+    write(CI_PATH, ciGateContract('## Section One\nalpha beta gamma.\n'));
+    var r = await resolveCitation('ci-gate: Section One :: absent-token', tmpRepo);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/not found/);
+  });
+});
+
+describe('resolveCitation: sixth citation form (ci-gate:) — heading resolution', () => {
+  it('T6d: a bare name resolves against a heading carrying a trailing parenthetical', async () => {
+    write(CI_PATH, ciGateContract(
+      '## Provenance Reconciliation Policy (ADR 0012 §2)\nresolved-by-bare-name token.\n\n## Other\nnope.\n',
+    ));
+    var r = await resolveCitation('ci-gate: Provenance Reconciliation Policy :: resolved-by-bare-name', tmpRepo);
+    expect(r.ok, r.message).toBe(true);
+  });
+
+  it('a heading name matching two heading lines is rejected as ambiguous (line-anchored, case-insensitive)', async () => {
+    write(CI_PATH, ciGateContract('## Dup\nfirst.\n\n## Dup\nsecond.\n'));
+    var r = await resolveCitation('ci-gate: Dup :: first', tmpRepo);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/ambiguous/);
+    expect(r.message).toMatch(/heading/);
+  });
+
+  it('a heading name that matches nothing is rejected as no-such-heading', async () => {
+    write(CI_PATH, ciGateContract('## Present\nbody.\n'));
+    var r = await resolveCitation('ci-gate: Absent :: body', tmpRepo);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/no heading/);
+  });
+});
+
+describe('resolveCitation: sixth citation form (ci-gate:) — level-aware section body (IP-1 via resolver)', () => {
+  it('T6e: a ### body ends at its next ### sibling and does not bleed into it', async () => {
+    write(CI_PATH, ciGateContract(
+      '## Parent\n\n### Child A\ntoken-in-A only.\n\n### Child B\ntoken-in-B only.\n\n## Next\ntail.\n',
+    ));
+    // token-in-A is inside Child A's body → resolves.
+    var here = await resolveCitation('ci-gate: Child A :: token-in-A', tmpRepo);
+    expect(here.ok, here.message).toBe(true);
+    // token-in-B lives only in the SIBLING Child B. Under the fixed level-aware
+    // terminator Child A's body stops at Child B, so it must NOT be found.
+    // (Reverting the terminator to `(?=\n## |$)` makes Child A swallow Child B
+    // and this flips to ok:true — the T6e mutation.)
+    var bled = await resolveCitation('ci-gate: Child A :: token-in-B', tmpRepo);
+    expect(bled.ok).toBe(false);
+    expect(bled.message).toMatch(/not found/);
+  });
+
+  it('a ## body still spans its ### children (unchanged behaviour)', async () => {
+    write(CI_PATH, ciGateContract(
+      '## Parent\nintro line.\n\n### Child A\nnested-token here.\n\n## Next\ntail.\n',
+    ));
+    // nested-token is under a ### child of Parent; citing the ## Parent still sees it.
+    var r = await resolveCitation('ci-gate: Parent :: nested-token', tmpRepo);
+    expect(r.ok, r.message).toBe(true);
+  });
+});
+
+describe('resolveCitation: sixth citation form (ci-gate:) — normalization + case', () => {
+  it('T6g(a): inline-formatting characters are stripped before comparison', async () => {
+    write(CI_PATH, ciGateContract('## Section\n**no** recorded baseline at all also fails.\n'));
+    var r = await resolveCitation('ci-gate: Section :: no recorded baseline at all also fails', tmpRepo);
+    expect(r.ok, r.message).toBe(true);
+  });
+
+  it('T6g(b): comparison is case-sensitive', async () => {
+    write(CI_PATH, ciGateContract('## Section\nExact Case Token here.\n'));
+    var wrong = await resolveCitation('ci-gate: Section :: exact case token', tmpRepo);
+    expect(wrong.ok).toBe(false);
+    expect(wrong.message).toMatch(/not found/);
+    var right = await resolveCitation('ci-gate: Section :: Exact Case Token', tmpRepo);
+    expect(right.ok, right.message).toBe(true);
+  });
+
+  it('collapses whitespace runs so a multi-space citation still matches', async () => {
+    write(CI_PATH, ciGateContract('## Section\nword-a     word-b split across   spaces.\n'));
+    var r = await resolveCitation('ci-gate: Section :: word-a word-b split across spaces', tmpRepo);
+    expect(r.ok, r.message).toBe(true);
+  });
+});
+
+describe('resolveCitation: sixth citation form (ci-gate:) — against the real committed contract (T6h)', () => {
+  // Runs against the repo's own contracts/ci/ci-gate-contract.md (process.cwd()
+  // is the repo root under vitest). Pins the measured ground truth as a
+  // regression: every anchor interaction-design.md actually uses resolves at
+  // exactly one occurrence; the deliberately-too-loose substrings are rejected.
+  const repoRoot = process.cwd();
+
+  function extractAnchors() {
+    const id = readFileSync(
+      join(repoRoot, 'specs', 'changes', 'enforce-human-confirmation', 'interaction-design.md'),
+      'utf8',
+    );
+    const anchors = [];
+    for (const line of id.split('\n')) {
+      const idx = line.indexOf('ci-gate:');
+      if (idx === -1) continue;
+      const cell = line.slice(idx).replace(/\|.*$/, '').trim();
+      if (cell.includes('<heading>')) continue; // the syntax-template line, not a real anchor
+      anchors.push(cell);
+    }
+    return [...new Set(anchors)];
+  }
+
+  it('every ci-gate anchor used by interaction-design.md resolves to exactly one occurrence', async () => {
+    const anchors = extractAnchors();
+    expect(anchors.length).toBeGreaterThan(0);
+    const failures = [];
+    for (const a of anchors) {
+      const r = await resolveCitation(a, repoRoot);
+      if (!r.ok) failures.push(a + ' -> ' + r.message);
+    }
+    expect(failures, 'these anchors failed to resolve:\n' + failures.join('\n')).toEqual([]);
+  });
+
+  it('rejects deliberately-loose substrings as ambiguous (asserting the rejection, not any count)', async () => {
+    for (const bad of [
+      'ci-gate: enforceInteractionDesign :: the',
+      'ci-gate: enforceInteractionDesign :: AC-4',
+      'ci-gate: enforceInteractionDesign :: AC-7',
+    ]) {
+      const r = await resolveCitation(bad, repoRoot);
+      expect(r.ok, bad + ' unexpectedly resolved').toBe(false);
+      expect(r.message, bad).toMatch(/ambiguous/);
+    }
   });
 });

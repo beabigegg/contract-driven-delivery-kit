@@ -1,0 +1,92 @@
+change-id: enforce-human-confirmation
+agent: backend-engineer
+timestamp: "2026-07-10T05:49:50Z"
+status: complete
+artifacts:
+  - { type: files-changed, pointer: "src/commands/gate-design.ts:343-374" }
+  - { type: files-changed, pointer: "hooks/pre-tool-use-design-write.sh:1-79" }
+  - { type: files-changed, pointer: "hooks/pre-tool-use-acceptance-write.sh:1-80" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts::T1a: empty ## Presented Information (states populated) errors on stderr, naming that table" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts::T1b: empty ## States (Presented Information populated) errors on stderr, naming that table" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts::T1c: both tables populated emits no zero-rows message on any stream" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts::T1d: applicability not-applicable short-circuits ahead of the row count" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts::T1e: a legacy dir with an empty chain warns on stdout; --strict moves it to stderr" }
+  - { type: tests-added, pointer: "test/cli/design-write-hook.test.ts::T3a: blocks a write to .cdd/design-lock.json (exit 2 + stderr), toggle set OR unset" }
+  - { type: tests-added, pointer: "test/cli/design-write-hook.test.ts::T3b: allows a write to interaction-design.md (exit 0, no stderr), toggle set OR unset" }
+  - { type: tests-added, pointer: "test/cli/acceptance-write-hook.test.ts::T3c: blocks a write to .cdd/acceptance-lock.json (exit 2 + stderr), toggle set OR unset" }
+  - { type: tests-added, pointer: "test/cli/acceptance-write-hook.test.ts::T3d: allows a write to acceptance.yml (exit 0, no stderr), toggle set OR unset" }
+  - { type: tests-added, pointer: "test/cli/gate-design.test.ts::a fully valid, confirmed interaction-design.md does not fail the gate on any enforceInteractionDesign condition" }
+  - { type: tests-added, pointer: "test/acceptance/interaction-design-loop.driver.test.ts::rule aesthetics-never-blocks" }
+  - { type: tests-deleted, pointer: "test/cli/design-write-hook.test.ts::advisory ALLOWS + strict BLOCKS with CDD_DESIGN_WRITE_STRICT=0 (retired toggle)" }
+  - { type: tests-deleted, pointer: "test/cli/acceptance-write-hook.test.ts::advisory ALLOWS + strict BLOCKS with CDD_ACCEPTANCE_WRITE_STRICT=0 (retired toggle)" }
+  - { type: test-output, pointer: "npx vitest run: 1379 passed, 62 skipped, 0 failed, exit 0 (two consecutive green runs)" }
+  - { type: test-output, pointer: "npx vitest run test/cli/: 920 passed, 61 skipped, 0 failed" }
+  - { type: contracts-touched, pointer: "none (ci 0.7.0 / env 0.4.0 already landed; source conformed)" }
+next-action: none
+notes: >
+  Scope: IP-3 and IP-4 ONLY. Did not touch src/utils/markdown-section.ts or
+  src/utils/design-provenance.ts (sibling owns IP-1/IP-2; both already modified in
+  the working tree). Did not implement IP-5..IP-8.
+
+  IP-3: added the AC-1 non-vacuous row-count check right after the infoItems/states
+  parse in enforceInteractionDesign, reusing those arrays (no third parser). One
+  error per empty table, naming which one, in the contract has-zero-rows wording.
+  Placed AFTER the applicability not-applicable short-circuit; errors under
+  isNewChange-or-strict, warns for a legacy dir. Seeded the fully-valid fixture
+  (info+state rows citing a resolvable endpoint plus an api contract) per the Test
+  Update Contract.
+
+  IP-4: both hooks discriminate on the write target path. Lock sidecar to exit 2 on
+  stderr unconditionally; artifact body and every other path to exit 0. Removed the
+  strict-toggle branch entirely; the retired variable names appear only in
+  deprecation comments, never consulted. Deleted the two retired-toggle test cases
+  per the Test Update Contract.
+
+  DAC-1 respected: nothing in code, comment, message, or test claims a Bash-holding
+  agent is prevented from self-stamping. The hooks stop Write/Edit/MultiEdit only,
+  and say exactly that.
+
+  MUTATION MATRIX (each mutation reverted one implementation line, rebuilt with
+  npm run build, ran the targeted test, observed RED, restored):
+    M1 disable info-row check       -> T1a RED (stderr lost Presented Information + zero rows). restored.
+    M2 disable states-row check     -> T1b RED. restored.
+    M3 move row-count above the not-applicable return -> T1d RED (zero-rows surfaced on a not-applicable surface). restored.
+    M4 replace isNewChange-or-strict guard with always-true -> T1e RED (non-strict legacy landed on stderr). restored.
+    T3a lock case exit 2 changed to exit 0 (scratchpad copy of the .sh) -> design lock write exit 0; test asserts 2 => would FAIL.
+    T3b re-added a strict-toggle body-block branch (copy) -> body write with toggle set exit 2; test asserts 0 => would FAIL.
+    T3c same lock->exit0 mutation on the acceptance hook -> exit 0; asserts 2 => FAIL.
+    T3d same toggle-blocks-body mutation on the acceptance hook -> exit 2; asserts 0 => FAIL.
+
+  HOOK TESTS DID NOT EXECUTE HERE. Both hook test files are skipIf win32 and this
+  host is win32, so vitest skipped them (part of the 62 skipped). I verified the real
+  scripts directly through Git Bash /bin/sh with crafted JSON payloads: lock path
+  exit 2 (toggle unset/0/1 all identical), body path exit 0, source and no-file_path
+  exit 0. The four T3 mutations were run against sed/awk-mutated copies of the real
+  scripts and each flipped the exit-code discriminator. So the T3 tests are proven to
+  discriminate on POSIX, but their pass/fail is unproven on this Windows host.
+
+  VERIFIED BY READING vs RUNNING. Read: gate-design.ts, both hooks, ci-gate-contract.md,
+  env-contract.md, interaction-design.md, and reconcileProvenance (learned an empty
+  provenance cell is itself a HARD failure, which is why seeded fixtures need a
+  resolvable endpoint). Ran: npm run build, the four gate-CLI mutations, both hooks
+  via /bin/sh, targeted and full vitest.
+
+  CONTRADICTION FOUND (LOUD). AC-1 is a behaviour change that trips a fixture the Test
+  Update Contract did not list. test/acceptance/interaction-design-loop.driver.test.ts
+  "rule aesthetics-never-blocks" builds an all-sections-present-but-empty design and
+  asserts the gate stays silent on interaction-design.md. AC-1 correctly fires on its
+  empty chain, so the test failed. The Test Update Contract names only the
+  gate-design.test.ts fixture; this driver fixture is a second, unlisted casualty of
+  the same premise (empty sections are inert) that AC-1 invalidates. I fixed it in
+  scope (file is in Allowed Paths) by extending its buildDesign with an infoRows option
+  and seeding the aesthetics case into a genuinely otherwise-valid design via a new
+  writeApiContract helper, preserving the test intent rather than weakening AC-1.
+  Flagging because the Test Update Contract is now known-incomplete: any other fixture
+  relying on empty-chain-is-inert will also break under AC-1.
+
+  FLAKY-RUN NOTE. Three consecutive full vitest runs gave 1, 2, 0 failures. The first
+  was the driver aesthetics case above (real, AC-1-caused, fixed). After that fix, one
+  run showed 2 transient failures that did NOT reproduce in two subsequent full runs
+  (both exit 0, 1379 passed). Consistent with the repo known fs-timing flakiness
+  (vitest retry-mitigated). My changed-area tests are deterministic: gate-design 30/30
+  and the driver 6/6 pass on every run.

@@ -460,10 +460,21 @@ describe('enforceInteractionDesign — AC-8: ADR 0011 skip path (applicability.p
 
 describe('enforceInteractionDesign — composed into cdd-kit gate', () => {
   it.skipIf(!hasPython())('a fully valid, confirmed interaction-design.md does not fail the gate on any enforceInteractionDesign condition', () => {
+    // AC-1 now fires on an empty derivation chain, so `buildDesign`'s default
+    // `[]` for infoRows/stateRows would trip the "fully valid" fixture. Seed
+    // ≥1 information item and ≥1 state (Test Update Contract), each citing a
+    // resolvable api-contract endpoint so provenance reconciliation also passes.
+    mkdirSync(join(tmpRepo, 'contracts', 'api'), { recursive: true });
+    writeFileSync(join(tmpRepo, 'contracts', 'api', 'api-contract.md'), apiContract([
+      '| GET | /api/v1/orders | required | - | - | 401,403 | x |',
+    ]), 'utf8');
+
     const changeDir = scaffold(tmpRepo, 'design-fully-valid', { governed: true });
     writeDesign(changeDir, {
+      infoRows: [{ item: 'auth failure banner', provenance: 'GET /api/v1/orders → 401' }],
       intentRows: [{ id: 'intent-1', path: '/orders' }],
       controlRows: [{ id: 'ctl-1', control: 'Refresh button', intent: 'intent-1' }],
+      stateRows: [{ id: 'state-ok', meaning: 'the request succeeded', discriminator: 'GET /api/v1/orders → HTTP 200' }],
     });
     const confirm = runCli(['design', 'confirm', 'design-fully-valid'], { cwd: tmpRepo, home: tmpHome });
     expect(confirm.status, confirm.stdout + confirm.stderr).toBe(0);
@@ -471,5 +482,90 @@ describe('enforceInteractionDesign — composed into cdd-kit gate', () => {
     const r = runCli(['gate', 'design-fully-valid'], { cwd: tmpRepo, home: tmpHome });
     const out = r.stdout + r.stderr;
     expect(out).not.toMatch(/interaction-design\.md/i);
+  });
+});
+
+describe('enforceInteractionDesign — AC-1: the derivation chain may not be vacuous', () => {
+  // Discriminator is the STREAM + message text, never the exit code: a scaffolded
+  // governed change already exits non-zero on unrelated checks. log.warn → stdout,
+  // log.error → stderr (src/utils/logger.ts). Verified by mutation (see agent log).
+  const ZERO_ROWS = /zero rows/i;
+
+  // `buildDesign`'s default confirmed/openDecisions text mentions "zero rows",
+  // so AC-1 tests pass neutral copy to keep the ZERO_ROWS discriminator honest.
+  const NEUTRAL = {
+    confirmed: 'Answer: the derivation-chain population is what these cases exercise.',
+    openDecisions: [{ resolved: true, text: 'copy for the empty state? — resolved.' }],
+  };
+
+  it.skipIf(!hasPython())('T1a: empty ## Presented Information (states populated) errors on stderr, naming that table', () => {
+    const changeDir = scaffold(tmpRepo, 'design-empty-info', { governed: true });
+    writeDesign(changeDir, {
+      ...NEUTRAL,
+      // infoRows defaults to [] — the vacuous table under test.
+      stateRows: [{ id: 'state-1', meaning: 'the list is empty', discriminator: 'row count is zero' }],
+    });
+    const r = runCli(['gate', 'design-empty-info'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr).toMatch(/## Presented Information/);
+    expect(r.stderr).toMatch(ZERO_ROWS);
+    // The message names the empty table, and lands on stderr, not stdout.
+    expect(r.stdout).not.toMatch(ZERO_ROWS);
+  });
+
+  it.skipIf(!hasPython())('T1b: empty ## States (Presented Information populated) errors on stderr, naming that table', () => {
+    const changeDir = scaffold(tmpRepo, 'design-empty-states', { governed: true });
+    writeDesign(changeDir, {
+      ...NEUTRAL,
+      infoRows: [{ item: 'order count', provenance: 'ignored for this check' }],
+      // stateRows defaults to [] — the vacuous table under test.
+    });
+    const r = runCli(['gate', 'design-empty-states'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stderr).toMatch(/## States/);
+    expect(r.stderr).toMatch(ZERO_ROWS);
+    expect(r.stdout).not.toMatch(ZERO_ROWS);
+  });
+
+  it.skipIf(!hasPython())('T1c: both tables populated emits no zero-rows message on any stream', () => {
+    const changeDir = scaffold(tmpRepo, 'design-both-populated', { governed: true });
+    writeDesign(changeDir, {
+      ...NEUTRAL,
+      infoRows: [{ item: 'order count', provenance: 'ignored for this check' }],
+      stateRows: [{ id: 'state-1', meaning: 'the list is empty', discriminator: 'row count is zero' }],
+    });
+    const r = runCli(['gate', 'design-both-populated'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(ZERO_ROWS);
+  });
+
+  it.skipIf(!hasPython())('T1d: applicability: not-applicable short-circuits ahead of the row count (no zero-rows error)', () => {
+    const changeDir = scaffold(tmpRepo, 'design-na-empty', { governed: true });
+    // Not-applicable + both tables empty: the marker skip must win, so the AC-1
+    // row count is never reached. Mutation: moving the check above the return breaks this.
+    writeFileSync(join(changeDir, 'interaction-design.md'), [
+      '---',
+      'applicability: not-applicable',
+      'applicability-reason: this change has no UI surface',
+      '---',
+      '',
+      '# Interaction Design',
+      '',
+      'This change is a CLI-only refactor; there is no screen to derive.',
+    ].join('\n'), 'utf8');
+    const r = runCli(['gate', 'design-na-empty'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(ZERO_ROWS);
+    expect(r.stdout + r.stderr).toMatch(/applicability: not-applicable/i);
+  });
+
+  it.skipIf(!hasPython())('T1e: a legacy dir with an empty chain warns on stdout; --strict moves it to stderr', () => {
+    const changeDir = scaffold(tmpRepo, 'design-legacy-empty', { governed: false });
+    writeDesign(changeDir, { ...NEUTRAL }); // both tables empty
+
+    const normal = runCli(['gate', 'design-legacy-empty'], { cwd: tmpRepo, home: tmpHome });
+    expect(normal.stdout).toMatch(ZERO_ROWS);
+    expect(normal.stderr).not.toMatch(ZERO_ROWS);
+
+    const strict = runCli(['gate', 'design-legacy-empty', '--strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(strict.status).not.toBe(0);
+    expect(strict.stderr).toMatch(ZERO_ROWS);
+    expect(strict.stdout).not.toMatch(ZERO_ROWS);
   });
 });

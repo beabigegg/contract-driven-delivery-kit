@@ -33,7 +33,7 @@ future check tempted to use it wants `ci-or-strict`.
 |---|---:|---|---:|---|---|---|
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
 | enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
-| enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | ci-or-strict | `cdd-kit gate` | platform-team | `.claude/settings.json` (git-tracked) |
+| enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `.claude/settings.json` (git-tracked) |
 
 ### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
 
@@ -218,6 +218,21 @@ What matters is that the path is tracked, not which directory it sits in. An ado
 who runs `install-agent-hooks` and commits `.claude/hooks/` passes. A project that
 registers a tracked repo-root `hooks/…` passes. A project that registers a path git
 has never seen fails, wherever it lives.
+
+**Two host commands, because one of them can be skipped.** This check runs from
+`cdd-kit gate <id>` *and* from `cdd-kit validate`. The workflow's gate step is guarded
+by `if: steps.changed.outputs.ids != ''`, so a pull request that de-arms
+`.claude/settings.json` while touching no `specs/changes/<id>/` directory would never
+invoke `gate` — and the check aimed squarely at that pull request would never run,
+while this row's `pull_request` trigger cell claimed otherwise. That is precisely the
+false-trigger defect `[ci 0.4.0]` already had to correct once, and it was found by
+`ci-cd-gatekeeper` reading the workflow rather than trusting the row.
+
+`cdd-kit validate` runs unconditionally in CI on every event, so hosting the check
+there as well makes the trigger cell true without a workflow edit. Hook installation
+is a project property; `validate` is the project-scoped command. Adopter cost, stated:
+a project whose CI runs `validate` at all must arm both hooks. That is the same rule
+Decision 2 already accepted, applied to a larger surface — not a new rule.
 
 **Two DISTINCT absence causes.** The gate reads the PROJECT `.claude/settings.json`.
 

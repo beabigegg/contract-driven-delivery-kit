@@ -41,10 +41,14 @@ import {
   type JsonSchema,
   type ApplicabilityProjection,
 } from '../contracts/parser.js';
-import { sectionBody } from './markdown-section.js';
+import { sectionBody, stripHtmlComments } from './markdown-section.js';
 
 const DATA_SHAPE_CONTRACT_PATH = 'contracts/data/data-shape-contract.md';
+const CI_GATE_CONTRACT_PATH = 'contracts/ci/ci-gate-contract.md';
 const OPENAPI_PATH = 'contracts/api/openapi.json';
+
+/** Regex metacharacters to escape when a cited heading name is spliced into a RegExp. */
+const HEADING_META = /[.*+?^${}()|[\]\\]/g;
 
 export interface CitationResult {
   ok: boolean;
@@ -155,10 +159,17 @@ interface DataShapeEnv {
 
 type OpenapiEnv = { ok: true; doc: Record<string, unknown> } | { ok: false; message: string };
 
+interface CiGateEnv {
+  exists: boolean;
+  applicability: ApplicabilityProjection;
+  body: string;
+}
+
 export interface ProvenanceCache {
   api?: ApiContractEnv;
   dataShape?: DataShapeEnv;
   openapi?: OpenapiEnv;
+  ciGate?: CiGateEnv;
 }
 
 function loadApiContract(cwd: string, cache: ProvenanceCache): ApiContractEnv {
@@ -193,6 +204,22 @@ function loadDataShapeContract(cwd: string, cache: ProvenanceCache): DataShapeEn
     conditions: parseInvalidDataConditions(parsed.body),
   };
   return cache.dataShape;
+}
+
+function loadCiGateContract(cwd: string, cache: ProvenanceCache): CiGateEnv {
+  if (cache.ciGate) return cache.ciGate;
+  const p = join(cwd, CI_GATE_CONTRACT_PATH);
+  if (!existsSync(p)) {
+    cache.ciGate = { exists: false, applicability: { status: 'applicable' }, body: '' };
+    return cache.ciGate;
+  }
+  const parsed = stripFrontmatter(readFileSync(p, 'utf8'));
+  cache.ciGate = {
+    exists: true,
+    applicability: projectApplicability(parsed.frontmatter),
+    body: stripHtmlComments(parsed.body),
+  };
+  return cache.ciGate;
 }
 
 /**
@@ -287,6 +314,7 @@ function resolveDottedField(
 
 const CITATION_RE = /^(GET|POST|PUT|PATCH|DELETE)\s+(\S+)\s*(?:→|->)\s*(.+)$/i;
 const DATA_SHAPE_RE = /^data-shape:\s*(.+)$/i;
+const CI_GATE_RE = /^ci-gate:\s*([\s\S]+)$/i;
 const IMPLICIT_STATUS_RE = /^HTTP\s+(\d{3})$/i;
 const BARE_STATUS_RE = /^\d{3}$/;
 const ENUM_PIN_RE = /^([A-Za-z_][\w.]*)=(.+)$/;
@@ -316,6 +344,102 @@ async function resolveDataShapeCitation(condition: string, cwd: string, cache: P
       message:
         'data-shape: ' + condition + ': no matching row in ' + DATA_SHAPE_CONTRACT_PATH + "'s ## Invalid Data " +
         'Behavior `condition` column (known conditions: ' + known + ')',
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Normalize a section body or a cited substring for comparison: strip the
+ * inline-formatting characters `*`, `_`, `` ` `` (so `**no** recorded baseline`
+ * matches a citation of `no recorded baseline`), then collapse whitespace runs
+ * to one space and trim. Comparison itself stays case-SENSITIVE — this is a
+ * quoted fragment, not a loose phrase (ci-gate-contract.md §Sixth citation form).
+ */
+function normalizeCiGateText(s: string): string {
+  return s.replace(/[*_`]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** Count non-overlapping, case-sensitive occurrences of `needle` in `haystack`. */
+function countOccurrences(haystack: string, needle: string): number {
+  if (needle === '') return 0;
+  let count = 0;
+  let from = 0;
+  for (;;) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) return count;
+    count += 1;
+    from = at + needle.length;
+  }
+}
+
+/**
+ * Resolve a cited bare heading NAME to the full heading text of the unique
+ * heading line whose text is that name, optionally followed by a single
+ * trailing parenthetical (`## Provenance Reconciliation Policy (ADR 0012 §2)` is
+ * reachable by the bare name `Provenance Reconciliation Policy`). Matching is
+ * case-insensitive and trimmed; the returned text preserves the file's actual
+ * casing so `sectionBody` (which matches case-sensitively) re-finds it exactly.
+ * Returns every matching heading's full text so the caller can distinguish
+ * none / exactly-one / ambiguous.
+ */
+function resolveHeadingLines(body: string, bareName: string): string[] {
+  const escaped = bareName.replace(HEADING_META, '\\$&');
+  const re = new RegExp(`^#{1,6} (${escaped}(?: \\([^\\n]*\\))?)[ \\t]*$`, 'gim');
+  const out: string[] = [];
+  for (let m = re.exec(body); m; m = re.exec(body)) out.push(m[1].trim());
+  return out;
+}
+
+async function resolveCiGateCitation(
+  citation: string,
+  headingName: string,
+  substring: string,
+  cwd: string,
+  cache: ProvenanceCache,
+): Promise<CitationResult> {
+  const env = loadCiGateContract(cwd, cache);
+  if (env.applicability.status === 'invalid') {
+    return { ok: false, message: 'citation "' + citation + '": ' + CI_GATE_CONTRACT_PATH + ' ' + env.applicability.error };
+  }
+  if (env.applicability.status === 'not-applicable') {
+    return {
+      ok: false,
+      message:
+        'citation "' + citation + '": ' + CI_GATE_CONTRACT_PATH + ' is marked applicability: not-applicable ' +
+        '(' + env.applicability.reason + ') — cannot cite a section from a contract family the project declared ' +
+        'it does not have (ADR 0012 §2 marker-aware degradation).',
+    };
+  }
+  if (!env.exists) {
+    return { ok: false, message: 'citation "' + citation + '": ' + CI_GATE_CONTRACT_PATH + ' not found' };
+  }
+
+  const headings = resolveHeadingLines(env.body, headingName);
+  if (headings.length === 0) {
+    return { ok: false, message: 'citation "' + citation + "\": no heading '" + headingName + "' found in " + CI_GATE_CONTRACT_PATH };
+  }
+  if (headings.length > 1) {
+    return {
+      ok: false,
+      message:
+        'citation "' + citation + "\": heading name '" + headingName + "' is ambiguous in " + CI_GATE_CONTRACT_PATH +
+        ' (' + headings.length + ' matching heading lines) — disambiguate it',
+    };
+  }
+
+  const normBody = normalizeCiGateText(sectionBody(env.body, headings[0]));
+  const normSub = normalizeCiGateText(substring);
+  const n = countOccurrences(normBody, normSub);
+  if (n === 0) {
+    return { ok: false, message: 'citation "' + citation + "\": substring not found in section '" + headingName + "' of ci-gate-contract.md" };
+  }
+  if (n >= 2) {
+    return {
+      ok: false,
+      message:
+        'citation "' + citation + "\": citation is ambiguous in section '" + headingName + "' (" + n +
+        ' occurrences) — lengthen the quoted substring until it identifies one place',
     };
   }
   return { ok: true };
@@ -455,6 +579,23 @@ export async function resolveCitation(citation: string, cwd: string, cache: Prov
   const dataShapeMatch = trimmed.match(DATA_SHAPE_RE);
   if (dataShapeMatch) {
     return resolveDataShapeCitation(dataShapeMatch[1].trim(), cwd, cache);
+  }
+
+  // Sixth citation form (ci-gate: <heading> :: <exact substring>) — a CLI / gate
+  // / hook surface anchor into contracts/ci/ci-gate-contract.md. Matched before
+  // the endpoint form because its `ci-gate:` prefix is unambiguous and the
+  // endpoint regex would otherwise reject it with a generic message.
+  const ciGateMatch = trimmed.match(CI_GATE_RE);
+  if (ciGateMatch) {
+    const rest = ciGateMatch[1];
+    const sep = rest.indexOf('::');
+    if (sep === -1) {
+      return {
+        ok: false,
+        message: 'citation "' + citation + '": malformed ci-gate citation — expected `ci-gate: <heading> :: <substring>`',
+      };
+    }
+    return resolveCiGateCitation(citation, rest.slice(0, sep).trim(), rest.slice(sep + 2).trim(), cwd, cache);
   }
 
   const epMatch = trimmed.match(CITATION_RE);

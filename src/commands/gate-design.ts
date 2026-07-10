@@ -339,6 +339,39 @@ export async function enforceInteractionDesign(
   // sibling screens).
   const infoItems = parsePresentedInformation(body);
   const states = parseStates(body);
+
+  // AC-1 (ci-gate-contract.md condition 2 / ADR 0012) -- the derivation chain
+  // must not be vacuous. Provenance reconciliation (condition 5, below) over an
+  // empty set passes trivially, so without this a human could confirm a design
+  // that asserts nothing at all -- the very outcome ADR 0012 exists to prevent.
+  // Name WHICH table is empty (the human fixes each differently). Reuses the
+  // `infoItems`/`states` arrays already parsed above; no third parser. This sits
+  // AFTER the `applicability: not-applicable` short-circuit, so a not-applicable
+  // surface never reaches it. Errors under `isNewChange || strict`; a legacy dir
+  // is warned, matching every neighbouring condition.
+  const emptyChain: string[] = [];
+  if (infoItems.length === 0) {
+    emptyChain.push(
+      'interaction-design.md: `## Presented Information` has zero rows — the derivation chain is vacuous; a ' +
+      'confirmed design must present at least one information item (ADR 0012 AC-1). A design whose ' +
+      '`## Presented Information` or `## States` has zero rows asserts nothing, and provenance reconciliation ' +
+      'over an empty set passes trivially, so nothing else catches it.',
+    );
+  }
+  if (states.length === 0) {
+    emptyChain.push(
+      'interaction-design.md: `## States` has zero rows — the derivation chain is vacuous; a confirmed design ' +
+      'must define at least one state (ADR 0012 AC-1). A design whose `## Presented Information` or `## States` ' +
+      'has zero rows asserts nothing, and provenance reconciliation over an empty set passes trivially, so ' +
+      'nothing else catches it.',
+    );
+  }
+  if (isNewChange || strict) {
+    errors.push(...emptyChain);
+  } else {
+    warnings.push(...emptyChain.map(m => m + ' (legacy change; ADR 0012 non-vacuity not yet backfilled)'));
+  }
+
   errors.push(...(await reconcileProvenance(cwd, infoItems, states)));
 
   // Condition 6 -- the ## Confirmed hash must match .cdd/design-lock.json.

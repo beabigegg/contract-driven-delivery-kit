@@ -46,10 +46,59 @@ interface StateInput {
   discriminator: string;
 }
 
+interface InfoInput {
+  item: string;
+  rationale?: string;
+  provenance: string;
+}
+
 interface DesignOpts {
   openDecisionLines?: string[];
   confirmedText?: string | null;
+  infoRows?: InfoInput[];
   stateRows?: StateInput[];
+}
+
+/** A minimal, well-formed api-contract.md exposing one resolvable endpoint, so
+ * a seeded Presented Information / States citation reconciles (ADR 0012 §2).
+ * Used by cases that must be OTHERWISE fully valid — since AC-1, an empty
+ * derivation chain is itself a blocking condition, so "only the option under
+ * test affects the result" now requires ≥1 real info row and ≥1 real state. */
+function writeApiContract(tmpRepo: string): void {
+  mkdirSync(join(tmpRepo, "contracts", "api"), { recursive: true });
+  writeFileSync(join(tmpRepo, "contracts", "api", "api-contract.md"), [
+    "---",
+    "contract: api",
+    "schema-version: 0.1.0",
+    "last-changed: 2026-07-09",
+    "breaking-change-policy: deprecate-2-minors",
+    "---",
+    "",
+    "# API Contract",
+    "",
+    "## API Style",
+    "- response style: JSON REST",
+    "",
+    "## Endpoint Requirements",
+    "| method | path | auth | request schema | response schema | errors | tests |",
+    "|--------|------|------|----------------|-----------------|--------|-------|",
+    "| GET | /api/v1/orders | required | - | - | 401,403 | x |",
+    "",
+    "## Schemas",
+    "",
+    "## Error Format",
+    "Standard envelope.",
+    "",
+    "## Compatibility Policy",
+    "No breaking changes.",
+    "",
+    "## Endpoint Inventory Policy",
+    "All endpoints listed.",
+    "",
+    "## Breaking Change Policy",
+    "RFC required.",
+    "",
+  ].join("\n"), "utf8");
 }
 
 function scaffold(tmpRepo: string, changeId: string): string {
@@ -73,6 +122,7 @@ function buildDesign(opts: DesignOpts): string {
   const openDecisionLines = opts.openDecisionLines ?? [
     "- [x] a resolved placeholder decision so this section is never the condition under test",
   ];
+  const infoRows = opts.infoRows ?? [];
   const stateRows = opts.stateRows ?? [];
 
   const lines: string[] = [];
@@ -87,6 +137,7 @@ function buildDesign(opts: DesignOpts): string {
   lines.push("## Presented Information");
   lines.push("| item | rationale | provenance |");
   lines.push("|---|---|---|");
+  for (const i of infoRows) lines.push("| " + i.item + " | " + (i.rationale ?? "answers a user question") + " | " + i.provenance + " |");
   lines.push("");
   lines.push("## User Intents");
   lines.push("| id | intent | frequency | path |");
@@ -225,7 +276,14 @@ describe.skipIf(!hasPython())("interaction-design-loop acceptance driver (specs/
   it("rule aesthetics-never-blocks: colour, shape, shadow, motion, and emoji prose in an otherwise-valid confirmed design never gives the gate an opinion", () => {
     const changeId = "idl-rule-aesthetics";
     const changeDir = scaffold(tmpRepo, changeId);
+    // Otherwise fully valid: a real derivation chain (≥1 info row, ≥1 state)
+    // citing a resolvable endpoint, so the ONLY variable under test is the
+    // aesthetic prose in ## Confirmed. Since AC-1, an empty chain would itself
+    // block, which would mask what this rule test is asserting.
+    writeApiContract(tmpRepo);
     writeDesign(changeDir, {
+      infoRows: [{ item: "auth failure banner", provenance: "GET /api/v1/orders → 401" }],
+      stateRows: [{ id: "state-ok", meaning: "the request succeeded", discriminator: "GET /api/v1/orders → HTTP 200" }],
       confirmedText:
         "Human answer: yes -- and while we are at it, the buttons should use a soft blue colour, " +
         "rounded corners, a subtle drop shadow, and a gentle hover animation, with a little celebration " +

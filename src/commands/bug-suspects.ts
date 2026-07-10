@@ -5,6 +5,7 @@ import { graphPathFor, loadCodeGraph } from '../code-graph/reader.js';
 import { searchGraph, graphImpact as nativeGraphImpact } from '../code-graph/queries.js';
 import { queryEntries } from './index-query.js';
 import { getStagedPaths } from '../utils/git-paths.js';
+import { sectionBody } from '../utils/markdown-section.js';
 import { log } from '../utils/logger.js';
 
 export interface BugSuspectsOptions {
@@ -46,10 +47,7 @@ function normalizePath(p: string): string {
 }
 
 function parseListSection(content: string, heading: string): string[] {
-  const match = content.replace(/<!--[\s\S]*?-->/g, '')
-    .match(new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`));
-  const body = match?.[1] ?? '';
-  return body
+  return sectionBody(content, heading)
     .split(/\r?\n/)
     .map(line => line.replace(/^\s*-\s*/, '').trim())
     .filter(item => item && item !== '-' && item.toLowerCase() !== 'none')

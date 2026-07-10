@@ -1,0 +1,98 @@
+agent: backend-engineer
+change-id: enforce-human-confirmation
+date: 2026-07-10
+scope: IP-1 and IP-2 only (sectionBody level-awareness + sixth ci-gate citation form)
+status: partial-blocked
+
+summary: >
+  Implemented IP-1 (level-aware, line-anchored sectionBody in
+  src/utils/markdown-section.ts) and IP-2 (the sixth
+  "ci-gate: <heading> :: <exact substring>" citation form in
+  src/utils/design-provenance.ts). Added T6a-T6h to
+  test/utils/design-provenance.test.ts and mutation-proved every one.
+  Did NOT touch src/commands/gate-design.ts or hooks/*.sh (concurrent owner).
+  The requested new file test/utils/markdown-section.test.ts is BLOCKED:
+  cdd-kit context check reports it is not in Allowed Paths, so per instruction
+  I filed CER-009 (pending) instead of creating it.
+
+artifacts:
+  - { type: files-changed, pointer: "src/utils/markdown-section.ts:22-53 (sectionBody rewrite)" }
+  - { type: files-changed, pointer: "src/utils/design-provenance.ts (ci-gate form, loader, helpers, dispatch)" }
+  - { type: tests-added, pointer: "test/utils/design-provenance.test.ts::T6a..T6h + heading-ambiguous/no-heading/spans-children (13 new cases)" }
+  - { type: test-output, pointer: "vitest test/utils/ => 8 files 140 passed; vitest run => 104 files 1379 passed 62 skipped exit 0" }
+  - { type: contracts-touched, pointer: "none (source conforms to landed contracts/ci 0.7.0)" }
+  - { type: context-expansion, pointer: "CER-009 pending: test/utils/markdown-section.test.ts" }
+
+zero-drift-verification:
+  method: standalone script ran OLD regex vs NEW sectionBody over every git-tracked md.
+  full-corpus: 3040 heading-x-file probes; 5 diffs, all on the level-3 heading Allowed Paths inside change-classification templates.
+  diff-explanation: >
+    Those 5 are a level-3 heading the OLD unanchored regex wrongly matched at
+    level 2 and over-ran to the next level-2, swallowing sibling level-3
+    sections. No call site reads Allowed Paths from change-classification.md
+    (metadata.ts reads it only from the context-manifest, where it is level-2).
+    OLD behaviour there was the bug, not a contract to preserve.
+  real-pairs: restricted to the actual consumer-heading/artifact pairs the 5 call sites use = 84 checks, 72 non-empty, 0 drifts.
+  confirmed-region: design-hash Confirmed projection byte-identical (2714 == 2714); design-hash.test.ts stays green.
+
+mutation-matrix:
+  - { id: T6a, target: "final return ok:true in resolveCiGateCitation", observed-red: yes }
+  - { id: T6b, target: "n >= 2 changed to n >= 3", observed-red: yes }
+  - { id: T6c, target: "n === 0 changed to n === -1", observed-red: yes }
+  - { id: T6d, target: "drop parenthetical tolerance in resolveHeadingLines", observed-red: "yes (T6d + both T6h cases)" }
+  - { id: T6e, target: "revert sectionBody terminator level-awareness to next level-2", observed-red: "yes (T6e); T6h stayed GREEN under this - real anchors robust, so T6e is the terminator discriminator, not T6h" }
+  - { id: spans-children, target: "terminator changed to stop at any deeper heading (1..6)", observed-red: yes }
+  - { id: T6g-a, target: "remove the strip of * _ backtick in normalizeCiGateText", observed-red: yes }
+  - { id: T6g-b, target: "lowercase both sides before compare (make case-insensitive)", observed-red: yes }
+  - { id: whitespace-collapse, target: "remove the whitespace-run collapse in normalizeCiGateText", observed-red: yes }
+  - { id: heading-ambiguous, target: "headings.length > 1 changed to > 99", observed-red: yes }
+  - { id: no-heading, target: "headings.length === 0 changed to === 99", observed-red: yes }
+  - { id: T6h, target: "any resolver mutation (proven via T6d)", observed-red: yes }
+
+verified-by-reading:
+  - "markdown-section.ts old terminator was literally next level-2, opening not line-anchored. Both defects real. Doc comment forbids a second scanner, so fixed in place."
+  - "design-hash.ts extractConfirmedRegion => sectionBody(body,Confirmed); a projection shift would break every recorded design-lock hash. Verified byte-identical."
+  - "ci-gate-contract.md 338-445: bare/parenthetical heading resolution, case-insensitive heading match, strip formatting + collapse whitespace, case-SENSITIVE substring compare, exactly-once uniqueness."
+  - "design-provenance.ts dispatch: added ci-gate branch after data-shape and before endpoint CITATION_RE, matching IP-2 (before the endpoint match)."
+  - "grep of contract headings: the three cited headings are all level-3 and all carry trailing parentheticals - so parenthetical tolerance AND level-awareness are both load-bearing for the real anchors."
+
+verified-by-running:
+  - "T6h against the committed contract: all 16 distinct interaction-design.md anchors resolve ok; :: the, :: AC-4, :: AC-7 rejected ambiguous."
+  - "drift scripts: zero drift on real consumer pairs."
+  - "vitest full suite green (tests import src directly; no rebuild needed)."
+
+contradictions-found:
+  - id: C-marker-aware-for-ci-gate
+    severity: low
+    text: >
+      Contract requires marker-aware degradation for ci-gate citations
+      (ci-gate-contract.md 442-445) but IP-2 plan and the task semantics omit it
+      and no T6 test covers it. I implemented it anyway (applicability check
+      mirroring resolveDataShapeCitation) to honor the contract and avoid a
+      guarantee-that-never-happened. Not independently mutation-tested; flagged.
+  - id: C-T6h-not-sensitive-to-terminator
+    severity: informational
+    text: >
+      T6h says its mutation is any resolver mutation, but the terminator revert
+      leaves T6h green for the current contract. T6e, not T6h, is the terminator
+      discriminator. Recorded so nobody assumes T6h alone guards IP-1.
+  - id: C-T6f-not-isolable-at-resolver
+    severity: medium
+    text: >
+      test-plan lists T6f (line-anchored opening) as a design-provenance test,
+      mutation remove-the-full-line-anchor. It is NOT isolable via resolveCitation:
+      the only fixture that exercises sectionBody line-anchoring also trips the
+      resolver own line-anchored heading-ambiguity check, so the mutation cannot
+      flip a resolver result. This is exactly why IP-1 regression #3 needs the
+      DIRECT sectionBody unit at test/utils/markdown-section.test.ts (CER-009
+      pending). Regression #1 (sibling bleed) and #2 (level-2 spans level-3) ARE
+      covered functionally by T6e and the spans-children test.
+
+blocked:
+  - "test/utils/markdown-section.test.ts - CER-009 pending context approve. Holds regression #1/#2/#3 as direct sectionBody units incl the clean T6f line-anchor test. Not created because context check failed and an agent-launched instruction is not my consent to bypass governance."
+
+not-done-out-of-scope:
+  - "Did NOT edit src/commands/gate-design.ts or hooks/*.sh (concurrent owner)."
+  - "Did NOT rebuild dist after mutation cycles: final source equals the one successful build; rebuilding would bundle a concurrent agent in-progress gate-design.ts. IP-9 build is the coordinated final step."
+
+next-reviewer: contract-reviewer (verify C-marker-aware + approve/deny CER-009), then main Claude for atomic IP-5/IP-6 and the IP-9 build.
