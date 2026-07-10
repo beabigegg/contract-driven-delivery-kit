@@ -8,6 +8,79 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.6.0] — 2026-07-10
+### Added
+- **Sixth provenance citation form, `ci-gate:`.** Until now every join target
+  required an HTTP API endpoint or a tabular data-shape row. Both families are
+  `applicability: not-applicable` for this kit — and for any CLI, library,
+  data-pipeline, or desktop adopter — and citing a not-applicable family is itself
+  a HARD failure. So **no `interaction-design.md` written for this repository could
+  ever pass**, and the only escape was to mark the whole artifact not-applicable.
+  That is why `.cdd/design-lock.json` had never existed: ADR 0012's confirm path had
+  never once run outside unit tests, because it could not. Measured, not argued —
+  `cdd-kit gate` on this change emitted 20 hard failures, one per Presented-
+  Information and States row, all reading "does not match any of the ADR 0012 §2
+  citation forms". `contracts/ci/ci-gate-contract.md` is now itself a join target:
+  `ci-gate: <heading> :: <exact substring>` resolves only when the substring occurs
+  EXACTLY ONCE in the named section. Zero occurrences fails as not-found; two or
+  more fails as ambiguous. Section-existence alone would be nearly vacuous, and so
+  would any-substring: `:: the` occurs 23 times and is rejected, a bare `:: AC-4`
+  occurs 3 times and is rejected, forcing the author to cite distinguishing prose.
+  The contract also records what uniqueness does NOT buy — a unique anchor to a
+  mention is not an anchor to a definition, and no mechanical rule can tell them
+  apart.
+- **`enforceConfirmationHookInstallation`.** Verifies the design/acceptance
+  write-block PreToolUse hooks are registered in the project `.claude/settings.json`,
+  with two distinct absence causes (file missing; file present but the entry absent)
+  carrying distinct messages. `strict-only`: warns on stdout by default, hard-fails
+  on stderr under `--strict`. The registered `command` must resolve to a git-tracked
+  path — a first draft of this check read `.claude/settings.json`, which is untracked,
+  and would therefore have hard-failed every push to the default branch forever,
+  reproducing the very defect it was written to catch.
+- **`required` column vocabulary** (`yes` / `strict-only`) above the Gate Inventory.
+  A check that only warns in the mode most people run must not be listed as `yes`.
+
+### Fixed
+- **Write-block hook discrimination axis.** `CDD_DESIGN_WRITE_STRICT` /
+  `CDD_ACCEPTANCE_WRITE_STRICT` were a global toggle with no agent identity in the
+  hook payload: `1` blocked every write, including the sanctioned first write and the
+  transcription of the human's own answers; `0`, the default, blocked nobody. It
+  admitted no working configuration. Both hooks now discriminate on the write TARGET
+  PATH — a direct `Write`/`Edit`/`MultiEdit` of `.cdd/design-lock.json` /
+  `.cdd/acceptance-lock.json` is blocked unconditionally; the artifact body stays
+  writable. Not claimed as prevention: a `Bash`-holding agent shares the human's
+  filesystem and user account and can still reach the lock. The contract now says so
+  in those words, and records the git-author / TTY / timestamp provenance the lock
+  carries as *evidence*, explicitly not as a boundary.
+- **`enforceInteractionDesign` condition 1 bundled three distinct runtime branches**
+  ("exists and is non-placeholder") into one sentence, while `gate-design.ts` has
+  always evaluated existence, stub-detection, and placeholder-detection separately
+  with three different messages. Split into three citable sub-conditions, because
+  "absent", "unwritten", and "half-written" are three situations a human resolves
+  three different ways.
+- **New condition 2 (`AC-1`): the derivation chain may no longer be vacuous.**
+  `## Presented Information` and `## States` must each carry at least one row.
+  Provenance reconciliation over an empty set passed trivially, so a human could
+  confirm — and the gate would bless — a design document that asserted nothing.
+  `applicability: not-applicable` remains the single sanctioned escape.
+- **ADR 0012 §5 and §8 no longer announce a guarantee that does not exist.** §5
+  asserted, present-tense, that `pre-tool-use-design-write.sh` "blocks agent
+  Edit/Write to `.cdd/design-lock.json`". The hook was never registered in this
+  repository — `.claude/settings.json` arms only a Read→graph-first and a
+  Bash→test-runner hook, and `installAgentHooks` arms a write-block hook only on an
+  explicit opt. It blocked nothing. §8 claimed every guarantee "lives in
+  settings.json hooks" without saying that registration is opt-in and unverified.
+
+## [env 0.3.0] — 2026-07-10
+### Deprecated
+- **`CDD_ACCEPTANCE_WRITE_STRICT`.** `pre-tool-use-acceptance-write.sh` no longer
+  consults it (see `[ci 0.6.0]` above). Accepted and ignored; retained for the
+  `deprecate-2-minors` window (removal at env >= 0.5.0). `CDD_DESIGN_WRITE_STRICT`
+  — read by `pre-tool-use-design-write.sh` yet never documented in this contract, a
+  pre-existing gap — is deliberately NOT added as a newly documented variable: the
+  same change retires the axis it controlled. Recorded so a later maintainer does not
+  "fix" the gap by documenting a variable that does nothing.
+
 ## [ci 0.5.0] — 2026-07-09
 ### Fixed
 - **Hash-lock truthfulness (`enforceInteractionDesign` cond. 6, `enforceAcceptanceOracle`

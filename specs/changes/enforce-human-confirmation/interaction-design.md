@@ -20,35 +20,32 @@ for every information item and state below is `contracts/ci/ci-gate-contract.md`
 (the gate's pass/fail conditions, the confirm CLI's result lines, the write-block
 hook's behavior, and the option-(g) hook-presence check).
 
-CONTRACT GAP -- route to `contract-reviewer` before this design can converge
-(ADR 0012 §3 back-edge). The `## Provenance Reconciliation Policy` in
-`contracts/ci/ci-gate-contract.md` (lines 153-159) names only
-`contracts/api/api-contract.md` and `contracts/data/data-shape-contract.md` as
-join targets. Both are `applicability: not-applicable` for this kit
-(`api-contract.md:9`, `data-shape-contract.md:9`), and citing a not-applicable
-family is its own HARD failure (`ci-gate-contract.md:171-175`). Therefore:
+CONTRACT GAP -- RESOLVED by Decision 3 below, and by `contracts/ci 0.6.0`.
 
-- Not one citation below resolves under the current five-form policy. Each cell
-  points at the real `ci-gate-contract.md` anchor; none is fabricated into the
-  api/data families to force a pass.
-- This is not a defect in the design -- it is a policy gap. The reconciliation
-  policy cannot express a CLI / gate / hook surface, which is the kit's own
-  surface. `contract-reviewer` must add a CLI-surface join target (e.g. accept
-  `ci-gate-contract.md` section + exact log string / condition id as a sixth
-  citation form) before `cdd-kit gate` can pass this change and before
-  `cdd-kit design confirm enforce-human-confirmation` should be run.
-- `applicability: not-applicable` is the policy's only other escape, and
-  `change-request.md` forbids it here by fiat. So the sole convergence path is the
-  policy extension above.
+The `## Provenance Reconciliation Policy` used to name only
+`contracts/api/api-contract.md` and `contracts/data/data-shape-contract.md` as join
+targets. Both are `applicability: not-applicable` for this kit (`api-contract.md:9`,
+`data-shape-contract.md:9`), and citing a not-applicable family is its own HARD
+failure. So no `interaction-design.md` written for this repository could ever pass:
+`cdd-kit gate` on this change emitted exactly 20 hard failures, one per row of the
+two tables below, all reading "does not match any of the ADR 0012 §2 citation forms".
 
-This is why `.cdd/design-lock.json` has never existed. The only prior change that
-could have exercised the confirm path took the not-applicable escape, because
-under the current policy no `interaction-design.md` written for this repository
-can pass. That escape was not laziness; it was the only available route.
+That is why `.cdd/design-lock.json` had never existed. The one prior change that
+could have exercised the confirm path took the `applicability: not-applicable`
+escape, because under the old policy it was the only available route -- not laziness,
+the only door. ADR 0012's confirm path had never run outside unit tests, and could
+not have.
 
-Citations below use the form `ci-gate-contract -> <anchor>` to name the true
-source. Read every one as "source exists; not yet a policy-recognized join
-target -- see the gap above."
+`contracts/ci 0.6.0` adds a sixth citation form for exactly this surface:
+
+    ci-gate: <heading> :: <exact substring>
+
+The substring must occur EXACTLY ONCE in the named section of
+`contracts/ci/ci-gate-contract.md`. Zero occurrences fails as not-found; two or more
+fails as ambiguous. Every citation below was measured against the real contract, not
+asserted: all 16 distinct anchors resolve at exactly one occurrence, while `:: the`
+(23 occurrences) and a bare `:: AC-4` (3) are rejected as ambiguous, which is why the
+rows below quote distinguishing prose rather than bare condition ids.
 
 ## Screens
 
@@ -62,15 +59,15 @@ target -- see the gap above."
 
 | item | rationale | provenance |
 |---|---|---|
-| gate verdict for `interaction-design.md` (pass / fail) | "did this change clear the human-confirmation gate?" | ci-gate-contract -> Required Check Policy (enforceInteractionDesign) |
-| empty-derivation-chain error ("Presented Information / States has zero rows") | "did I just confirm a design that asserts nothing?" (defect 1) | ci-gate-contract -> AC-1 non-empty-rows check |
-| unresolved-Open-Decisions error, naming each open item | "are there questions still waiting on me before this can pass?" | ci-gate-contract -> condition 2 (AC-4) |
-| "no ## Confirmed section" error | "has a human answer actually been transcribed yet?" | ci-gate-contract -> condition 3 (AC-4) |
-| "## Confirmed present but no recorded baseline" error | "did a human actually lock this, or is this just agent-authored prose?" | ci-gate-contract -> condition 6 (AC-3/AC-6) |
-| "interaction design modified after confirmation -- human must re-confirm" error | "was the design changed after I locked it?" | ci-gate-contract -> condition 6 (AC-3/AC-6) |
-| `design confirm` result line -- new baseline / already-matches / re-confirmed hash | "did my confirmation record, and was it new or a change to what was there?" | ci-gate-contract -> design confirm result (design.ts log.ok) |
-| hook-not-installed gate failure, naming the absent write-block hook (option g) | "is the write-block actually armed in this project, or silently absent?" | ci-gate-contract -> option-(g) hook-presence check [NOT YET IN CONTRACT -- see ## Provenance and Open Decision 2] |
-| write-block hook message on stderr (advisory) or block (strict) | "is an agent trying to write the human-owned answer key right now?" | ci-gate-contract -> write-block hook (pre-tool-use-design-write.sh) |
+| gate verdict for `interaction-design.md` (pass / fail) | "did this change clear the human-confirmation gate?" | ci-gate: enforceInteractionDesign :: ALL must hold to pass; any one failing fails the gate |
+| empty-derivation-chain error, naming which table has zero rows | "did I just confirm a design that asserts nothing?" | ci-gate: enforceInteractionDesign :: or `## States` has zero rows |
+| unresolved-Open-Decisions error, naming each open item | "are there questions still waiting on me before this can pass?" | ci-gate: enforceInteractionDesign :: zero unresolved |
+| "no ## Confirmed section" error | "has a human answer actually been transcribed yet?" | ci-gate: enforceInteractionDesign :: a human `## Confirmed` section is present |
+| "## Confirmed present but no recorded baseline" error | "did a human actually lock this, or is this just agent-authored prose?" | ci-gate: enforceInteractionDesign :: **no** recorded baseline at all also fails |
+| "interaction design modified after confirmation -- human must re-confirm" error | "was the design changed after I locked it?" | ci-gate: enforceInteractionDesign :: interaction design modified after confirmation — human must re-confirm |
+| `design confirm` result line -- new baseline / already-matches / re-confirmed hash | "did my confirmation record, and was it new or a change to what was there?" | ci-gate: Write-block hook discrimination axis :: recorded a new baseline for |
+| hook-not-installed gate finding, naming which hook is absent | "is the write-block actually armed in this project, or silently absent?" | ci-gate: enforceConfirmationHookInstallation :: not found — the design/acceptance write-block hooks cannot be verified |
+| the block an agent sees when it writes the lock file directly | "is an agent trying to stamp the human-owned baseline right now?" | ci-gate: Write-block hook discrimination axis :: is blocked unconditionally |
 
 ## User Intents
 
@@ -107,17 +104,19 @@ response. Two meaning-distinct states never share a discriminator.
 
 | id | meaning | discriminator |
 |---|---|---|
-| state-missing-design | no `interaction-design.md` exists for this change | ci-gate-contract -> "missing ... interaction-design.md" (design confirm / gate-design existence check) |
-| state-stub | the file exists but is an unfilled scaffold / placeholder | ci-gate-contract -> condition 1 stub/placeholder error (AC-2) |
-| state-empty-chain | filled prose but `## Presented Information` or `## States` has zero rows -- the vacuous chain (defect 1) | ci-gate-contract -> AC-1 non-empty-rows error [NEW check this change adds] |
-| state-open-decisions-pending | one or more `## Open Decisions` items are still unresolved | ci-gate-contract -> condition 2 unresolved-Open-Decision error (AC-4) |
-| state-confirmed-unlocked | a `## Confirmed` section exists but no baseline is recorded -- agent-authorable prose, proves nothing | ci-gate-contract -> condition 6 "no recorded baseline" (error under isNewChange-or-strict; warning legacy) |
-| state-confirmed-locked-valid | baseline exists and its hash matches the current confirmed region -- the passing state | ci-gate-contract -> condition 6, baseline.hash == currentHash (gate silent-pass) |
-| state-confirmed-tampered | a baseline exists but the confirmed region changed after it was locked | ci-gate-contract -> "interaction design modified after confirmation -- human must re-confirm" (AC-3/AC-6) |
-| state-not-applicable | the change declares `applicability: not-applicable` with a reason; conditions 1-6 are skipped | ci-gate-contract -> condition 7 / applicability.py marker (AC-8) |
-| state-hooks-absent | the design/acceptance write-block hooks are not registered in the project `.claude/settings.json` (this repo's actual state today) | ci-gate-contract -> option-(g) hook-presence error [NOT YET IN CONTRACT -- Open Decision 2] |
-| state-hook-blocked | an agent Edit/Write to the design or lock was blocked by the hook in strict mode (exit 2) | ci-gate-contract -> write-block hook strict branch (exit 2, stderr) |
-| state-hook-advised | an agent Edit/Write was allowed but the hook printed guidance (advisory, exit 0) | ci-gate-contract -> write-block hook advisory branch (exit 0, stderr) |
+| state-missing-design | no `interaction-design.md` exists for this change -- absent | ci-gate: enforceInteractionDesign :: missing required artifact: interaction-design.md |
+| state-stub | the file exists but nobody has begun writing it -- unwritten | ci-gate: enforceInteractionDesign :: appears to be a stub |
+| state-placeholder | writing began and stopped; scaffold tokens remain -- half-written | ci-gate: enforceInteractionDesign :: still contains unfilled template placeholder(s) |
+| state-empty-chain | filled prose but `## Presented Information` or `## States` has zero rows -- the vacuous chain | ci-gate: enforceInteractionDesign :: or `## States` has zero rows |
+| state-open-decisions-pending | one or more `## Open Decisions` items are still unresolved | ci-gate: enforceInteractionDesign :: zero unresolved |
+| state-confirmed-unlocked | a `## Confirmed` section exists but no baseline is recorded -- agent-authorable prose, proves nothing | ci-gate: enforceInteractionDesign :: **no** recorded baseline at all also fails |
+| state-confirmed-locked-valid | baseline exists and its hash matches the current confirmed region -- the passing state | ci-gate: enforceInteractionDesign :: matches the parsed |
+| state-confirmed-tampered | a baseline exists but the confirmed region changed after it was locked | ci-gate: enforceInteractionDesign :: interaction design modified after confirmation — human must re-confirm |
+| state-not-applicable | the change declares `applicability: not-applicable` with a reason; conditions 1-7 are skipped | ci-gate: enforceInteractionDesign :: AC-8 |
+| state-settings-file-absent | no project `.claude/settings.json` exists, so no hook can be verified at all | ci-gate: enforceConfirmationHookInstallation :: not found — the design/acceptance write-block hooks cannot be verified |
+| state-hook-entry-absent | the settings file exists but does not register the design (or acceptance) write-block hook -- this repo's actual state before this change | ci-gate: enforceConfirmationHookInstallation :: exists but does not register the |
+| state-lock-write-blocked | an agent's Write/Edit/MultiEdit targeted a lock sidecar and the hook refused it (exit 2, stderr) | ci-gate: Write-block hook discrimination axis :: is blocked unconditionally |
+| state-body-write-allowed | a Write/Edit/MultiEdit targeted the artifact body and the hook allowed it -- the sanctioned transcription path | ci-gate: Write-block hook discrimination axis :: is always allowed |
 
 ## Reversibility
 
@@ -136,10 +135,12 @@ response. Two meaning-distinct states never share a discriminator.
 - state-empty-chain: the new AC-1 error names which table (Presented Information
   or States) is empty, so a confirmed-but-vacuous design cannot pass silently --
   the perceptibility this whole change adds.
-- state-hooks-absent: option (g) makes this state perceptible as a gate error
-  naming the missing hook; `cdd-kit setup` / `install-agent-hooks --design-write`
-  arms it. This is the exit from the silent no-op the repo has sat in since ADR
-  0010 shipped -- the loop-closer for the "is the guarantee even armed?" question.
+- state-settings-file-absent / state-hook-entry-absent: option (g) makes both
+  perceptible, and it names WHICH of the two you are in, because they are exited
+  differently -- one by creating a settings file, the other by adding an entry to the
+  file you already have. `cdd-kit setup` / `install-agent-hooks --design-write` is the
+  loop-closer for both. This is the exit from the silent no-op the repo has sat in
+  since ADR 0010 shipped -- the answer to "is the guarantee even armed?"
 
 ## Consistency Commitments
 
@@ -155,13 +156,20 @@ response. Two meaning-distinct states never share a discriminator.
   recorded; the gate never says "confirmed" -- it only observes that a baseline
   matches, or fails. A reader must never see a "confirmed" claim originate from
   the gate.
-- Absent is not the same as advisory. A write-block hook that is not installed
-  (state-hooks-absent) and a write-block hook that fired in advisory mode
-  (state-hook-advised) are different meanings and must take different visible
-  forms: option (g) makes absence a gate ERROR, distinct from the hook's own
-  advisory stderr line. The single "warning" form must never quietly carry both
-  "the hook advised" and "there is no hook at all" -- conflating them is exactly
-  the not-installed blind spot this change exists to remove.
+- Absent is not the same as permissive, and the two ways of being absent are not
+  the same as each other. "There is no settings file" (state-settings-file-absent)
+  and "the settings file does not register this hook" (state-hook-entry-absent) are
+  different meanings with different exits, and must carry different message text.
+  Neither may be reported in the same words as "the hook ran and allowed the write"
+  (state-body-write-allowed), which is a hook doing its job. Collapsing "no hook at
+  all" into "the hook permitted it" is exactly the blind spot this change removes:
+  it is how a write-block that was never installed came to be documented, for two
+  ADRs, as though it were blocking.
+
+  This commitment is what deleted `state-hook-advised`. Under the retired
+  `CDD_*_WRITE_STRICT` toggle a hook could fire and merely advise; under the adopted
+  path-keyed axis it cannot. A state whose mechanism no longer exists must be removed
+  from this table, not left standing as an id nothing can ever produce.
 
 ## Open Decisions
 

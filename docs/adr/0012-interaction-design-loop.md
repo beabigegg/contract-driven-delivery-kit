@@ -245,9 +245,38 @@ source, transcribed but not invented (ADR 0010 §2 discipline).
   modified after confirmation — human must re-confirm."
 - **Single sanctioned writer.** `cdd-kit design confirm <id>` is the ONLY path that
   writes `.cdd/design-lock.json`.
-- **Agent write-block hook.** `pre-tool-use-design-write.sh` (modeled on
-  `pre-tool-use-acceptance-write.sh`) blocks agent Edit/Write to
-  `.cdd/design-lock.json`; a human is unaffected.
+- **Hook installation is not assumed — it is checked.** An unregistered hook blocks
+  nothing. This ADR previously asserted, present-tense, that
+  `pre-tool-use-design-write.sh` "blocks agent Edit/Write to `.cdd/design-lock.json`".
+  It did not: the hook was never registered in this repository, and
+  `installAgentHooks` arms a write-block hook only on an explicit opt.
+  `cdd-kit gate`'s `enforceConfirmationHookInstallation` now warns (default) and
+  hard-fails (`--strict`) when the design/acceptance write-block hooks are absent
+  from the project `.claude/settings.json`. It verifies only that file, never the
+  harness's effective merged settings.
+- **Agent write-block hook — path-keyed, not a global toggle.**
+  `CDD_DESIGN_WRITE_STRICT` / `CDD_ACCEPTANCE_WRITE_STRICT` are retired. The hook
+  payload carries no agent identity, so a global switch could only block everyone —
+  including main Claude's sanctioned transcription — or block nobody, its default.
+  The hooks now discriminate on the write target path: an Edit/Write/MultiEdit of
+  `.cdd/design-lock.json` / `.cdd/acceptance-lock.json` is blocked unconditionally;
+  the artifact body stays writable, so the sanctioned first write and the human-answer
+  transcription still go through.
+- **Tamper evidence, not prevention.** The locks record git-author, TTY, and
+  timestamp provenance at confirm time, auditable by a human. A determined
+  `Bash`-holding agent can still reach the lock (`cdd-kit design confirm`,
+  `node dist/cli/index.js`, a shell redirect, or `node -e` into the lock writer): its
+  shell shares the human's filesystem and user account. The hook is a speed bump plus
+  evidence, not a prevention boundary. Prevention-grade closure needs a signature only
+  the human's environment can produce — a hardware key, or the lock committed under
+  the human's authenticated remote git identity. Deferred; not claimed here. This
+  bullet exists so the guarantee is never again announced stronger than it holds.
+- **Non-vacuous derivation chain.** Under `isNewChange || strict`,
+  `enforceInteractionDesign` fails a confirmed design whose `## Presented Information`
+  or `## States` table has zero rows. Provenance reconciliation over an empty set
+  passes trivially, so without this a human could confirm a document asserting
+  nothing. `applicability: not-applicable` remains the single sanctioned escape and
+  short-circuits ahead of the row count.
 - **Migration window.** The new gate check uses `isNewChange || strict` (as
   `enforceAcceptanceOracle` / `enforceTestEvidence` do) so legacy change dirs do
   not all fail overnight.
@@ -271,11 +300,19 @@ pass/fail authority — no second TypeScript authority is added.
 
 ### 8. Portable-layer rule (ADR 0010 §5)
 
-Every guarantee here (the validator, the gate check, the write-block hook, the
-hash-lock) lives in the portable layer — CLI validators, `cdd-kit gate`, and
-settings.json hooks — so it holds for Claude Code, Codex, and headless CI. Claude
-Code's Workflow / Loop / Worktree may *automate* the propose→confirm choreography
-but never *guarantee* it.
+Every guarantee here lives in the portable layer — CLI validators and `cdd-kit gate`
+— so it holds for Claude Code, Codex, and headless CI. The settings.json write-block
+hooks are the one thing that is **opt-in and unverified by any harness other than
+this gate**: `enforceConfirmationHookInstallation` confirms the project's
+`.claude/settings.json` arms them, but cannot confirm that the harness actually
+running an agent honours that registration, and cannot stop a `Bash`-holding agent
+from bypassing an installed hook. The durable guarantee is the mechanical gate check
+— hash-lock, provenance, hook-presence. The hook is evidence and a speed bump layered
+on top, not itself the guarantee. This paragraph previously said the hooks were part
+of the portable guarantee without stating that they were opt-in, defaulted off, and
+checked by nothing; that omission is exactly how the write-block came to be shipped,
+documented, and never once installed. Claude Code's Workflow / Loop / Worktree may
+*automate* the propose→confirm choreography but never *guarantee* it.
 
 ## Never Gated (a written prohibition binding on all future contributors)
 

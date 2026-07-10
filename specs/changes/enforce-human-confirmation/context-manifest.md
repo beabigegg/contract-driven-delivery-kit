@@ -198,6 +198,10 @@ is authorized because it designates main Claude as the sanctioned transcriber.
 - contracts/env/
 - contracts/CHANGELOG.md
 - docs/adr/0012-interaction-design-loop.md
+- src/utils/design-provenance.ts
+- src/utils/markdown-section.ts
+- src/commands/gate-design.ts
+- src/commands/design.ts
 
 ### dependency-security-reviewer
 - specs/changes/enforce-human-confirmation/
@@ -257,6 +261,22 @@ is authorized because it designates main Claude as the sanctioned transcriber.
     computed at `gate-design.ts:340-341`.
   status: approved
   approved-by: main Claude (verified: the two functions and their call sites exist)
+
+- request-id: CER-006
+  requested_paths:
+    - src/utils/markdown-section.ts
+    - src/commands/design.ts
+    - src/utils/design-provenance.ts
+    - src/commands/gate-design.ts
+  agent: contract-reviewer
+  reason: contract-reviewer twice specified a section boundary ("to the next heading of
+    equal-or-shallower level") that `sectionBody` does not implement, and mis-counted an
+    anchor's occurrences, because it could not read the function it was legislating over.
+    Both errors were about code outside its packet. It also cannot quote `design confirm`'s
+    literal stdout strings without `design.ts`. Granting the reads is cheaper and more
+    accurate than main Claude measuring on its behalf each round.
+  status: approved
+  approved-by: main Claude
 
 - request-id: CER-005
   requested_paths:

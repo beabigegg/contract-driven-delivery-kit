@@ -3,7 +3,7 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.5.0
+schema-version: 0.6.0
 last-changed: 2026-07-09
 breaking-change-policy: deprecate-2-minors
 ---
@@ -11,10 +11,21 @@ breaking-change-policy: deprecate-2-minors
 # CI/CD Gate Contract
 
 ## Gate Inventory
+
+**`required` column vocabulary.** `yes` — this check's failing conditions block the
+gate in every trigger context listed, for a new or context-governed change. The only
+exceptions are named per-condition (e.g. the missing-baseline warn-for-legacy-dirs
+branch) and do not change the classification. `strict-only` — this check's finding is
+advisory (a stdout warning) in every trigger context except `--strict`, where it
+hard-fails on stderr and blocks. No row uses any other value. A check that only warns
+in the mode most people run must not be listed as `yes`: that is the same shape as
+the `pull_request` trigger cell this file already had to correct once (`[ci 0.4.0]`).
+
 | gate | tier | trigger | required | command/workflow | owner | artifact |
 |---|---:|---|---:|---|---|---|
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
 | enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
+| enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | strict-only | `cdd-kit gate` | platform-team | `.claude/settings.json` (git-tracked) |
 
 ### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
 
@@ -108,37 +119,56 @@ signed off this required-from-day-one-for-new-changes status.
 
 Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
 
-1. **AC-2** — `specs/changes/<id>/interaction-design.md` exists and is
-   non-placeholder (existing `meaningfulChars`/placeholder detection).
-2. **AC-4** — zero unresolved `## Open Decisions` entries.
-3. **AC-4** — a human `## Confirmed` section is present.
-4. **AC-4 / AC-9** — referential integrity holds: every control cites exactly one
+1. **AC-2** — the artifact is present and real. `gate-design.ts` evaluates this as
+   three separate branches, in order, each with its own message, because "absent",
+   "unwritten", and "half-written" are three distinct situations a human resolves
+   three different ways. They are enumerated separately here so each is citable:
+   1. `specs/changes/<id>/interaction-design.md` exists. Its absence fails with
+      "missing required artifact: interaction-design.md" (under
+      `isNewChange || strict`; a legacy dir is warned).
+   2. The artifact carries at least `MIN_MEANINGFUL_CHARS` (100) of content.
+      Below that it fails with "appears to be a stub" — nobody has begun writing it.
+   3. The artifact retains no unfilled scaffold token. Any remaining token fails
+      with "still contains unfilled template placeholder(s)" — writing began and
+      stopped.
+2. **AC-1** — the derivation chain is non-vacuous: `## Presented Information` and
+   `## States` each carry at least one table row. A confirmed design whose
+   `## Presented Information` or `## States` has zero rows fails (under
+   `isNewChange || strict`; a legacy dir is warned). Provenance reconciliation
+   (condition 6) over an empty set passes trivially, so without this condition a
+   human could confirm a document that asserts nothing at all — the check would
+   exist and measure nothing. Condition 8's `applicability: not-applicable` remains
+   the single sanctioned escape and short-circuits ahead of this row count.
+3. **AC-4** — zero unresolved `## Open Decisions` entries.
+4. **AC-4** — a human `## Confirmed` section is present.
+5. **AC-4 / AC-9** — referential integrity holds: every control cites exactly one
    intent id; every intent has exactly one path; every deleted control records its
    reason.
-5. **AC-5** — provenance reconciliation (see `## Provenance Reconciliation Policy`
+6. **AC-5** — provenance reconciliation (see `## Provenance Reconciliation Policy`
    below) has zero HARD failures. Reverse-direction findings (a contract field or
    row with zero citing information items) are corpus-wide, `doctor`-reported,
    ADVISORY only, and are never evaluated or blocked by this per-change gate.
-6. **AC-3 / AC-6** — the confirmed-region canonical-projection sha256 in
+7. **AC-3 / AC-6** — the confirmed-region canonical-projection sha256 in
    `.cdd/design-lock.json` matches the parsed `## Confirmed` region; a mismatch
    fails with "interaction design modified after confirmation — human must
    re-confirm." A `## Confirmed` section with **no** recorded baseline at all also
    fails (under `isNewChange || strict`; a legacy dir is warned). An unlocked
-   `## Confirmed` is not evidence of human confirmation: the design-write hook is
-   advisory unless `CDD_DESIGN_WRITE_STRICT=1`, so any Edit-capable agent can
-   author that prose. Only `cdd-kit design confirm` writes the lock.
-7. **AC-8** — a change whose `interaction-design.md` carries
+   `## Confirmed` is not evidence of human confirmation: any Edit-capable agent can
+   author that prose, and the write-block hook that refuses the lock file is armed
+   only if this project registered it — see `### enforceConfirmationHookInstallation`.
+   Only `cdd-kit design confirm` writes the lock.
+8. **AC-8** — a change whose `interaction-design.md` carries
    `applicability: not-applicable` with a non-empty `applicability-reason` SKIPS
-   conditions 1–6 entirely. `applicability.py` remains the sole pass/fail authority
+   conditions 1–7 entirely. `applicability.py` remains the sole pass/fail authority
    for this marker, applied here to a per-change spec artifact rather than a
    `contracts/` family file (see the `## Contract Applicability Marker (ADR 0011)`
    addendum below) — no second authority is introduced.
-8. **AC-7** — a change migrated by `cdd-kit migrate` (placeholder-plus-instructions
+9. **AC-7** — a change migrated by `cdd-kit migrate` (placeholder-plus-instructions
    `interaction-design.md`) fails this check until the author supplies a real,
    human-confirmed design; never silently skipped, mirroring
    `enforceAcceptanceOracle` AC-7.
 
-Non-behavioral (pure copy/color) opt-out is permitted only via condition 7 above —
+Non-behavioral (pure copy/color) opt-out is permitted only via condition 8 above —
 the same discipline `enforceAcceptanceOracle` applies to non-behavioral refactors,
 applied here to design instead of function.
 
@@ -148,15 +178,197 @@ latency / round-trip count. Only derivation, provenance, referential integrity, 
 tamper-evidence may block. A rule over taste has no oracle to consult and would
 manufacture the very defect this gate exists to prevent.
 
+### enforceConfirmationHookInstallation (added by enforce-human-confirmation)
+
+Verifies that the two write-block PreToolUse hooks the human-confirmation guarantee
+(ADR 0010 / ADR 0012) depends on are actually armed in this project, rather than
+merely shipped as scripts nobody registered.
+
+**The prerequisite this check's premise requires — stated so it is never silently
+false again.** `.claude/settings.json` is a git-tracked file in this repository and
+in any adopter using this check. `.claude/settings.local.json` is NOT tracked and is
+never read here: a personal override does not mean the project arms the hook. Each
+hook entry this check looks for MUST register a `command` resolving to a git-tracked
+path (`hooks/pre-tool-use-design-write.sh` / `hooks/pre-tool-use-acceptance-write.sh`
+at repo root) — never a path under `.claude/hooks/` alone, which the
+`install-agent-hooks` copy step populates locally but which a bare CI checkout does
+not contain. A check whose premise cannot exist in the environment where it is
+strictest is the same defect class this change exists to close; do not reintroduce
+it by registering an untracked path.
+
+**Two DISTINCT absence causes.** The gate reads the PROJECT `.claude/settings.json`.
+
+1. The file itself is absent. Fails with "`.claude/settings.json` not found — the
+   design/acceptance write-block hooks cannot be verified because no project settings
+   file exists".
+2. The file is present but no `PreToolUse` entry matches `Write`, `Edit`, and
+   `MultiEdit` with a `command` resolving to the git-tracked hook script. Fails with
+   "`.claude/settings.json` exists but does not register the <design|acceptance>-write
+   hook", naming which of the two is missing.
+
+These are two reasons for one absence and MUST carry different message text.
+Collapsing them would repeat exactly the conflation `interaction-design.md`'s
+`## Consistency Commitments` forbids for a different pair of states.
+
+**Pass/fail shape.** In default mode (`pull_request`, or a plain local `cdd-kit
+gate`) either cause is a WARNING on stdout (`log.warn`). Under `--strict` — which
+the push-to-default-branch CI job and the local pre-commit hook both run — either
+cause is a HARD failure on stderr (`log.error`). This check is NOT gated on
+`isNewChange`: hook installation is a property of the project, not of one change
+directory's vintage, so a legacy change and a brand-new one see the identical shape.
+
+**Honest limit.** The gate reads only the project `.claude/settings.json` on disk.
+It cannot see the harness's effective merged settings (`~/.claude/settings.json`,
+`.claude/settings.local.json`, enterprise policy). A pass means the project
+*declares* the hook at a real, checkable path. It does not mean the harness running
+this session *honours* it.
+
+**Not a prevention boundary.** Passing does not stop a `Bash`-holding agent from
+bypassing an installed hook — `cdd-kit design confirm` through `Bash`,
+`node dist/cli/index.js`, a shell redirect into the lock, or `node -e` straight into
+the lock writer all remain possible where the agent's shell shares the human's
+filesystem and user account. This check composes with the write-path axis below; it
+does not replace it, and neither of them is a wall.
+
+### Write-block hook discrimination axis (added by enforce-human-confirmation)
+
+`pre-tool-use-design-write.sh` and `pre-tool-use-acceptance-write.sh` discriminate on
+the write TARGET PATH, never on a global strict/advisory toggle:
+
+- An agent `Write`/`Edit`/`MultiEdit` whose target is `.cdd/design-lock.json` or
+  `.cdd/acceptance-lock.json` is blocked unconditionally (exit 2, stderr), whatever
+  any environment variable says.
+- An agent `Write`/`Edit`/`MultiEdit` whose target is the artifact BODY
+  (`interaction-design.md`, `acceptance.yml`) is always allowed, so the sanctioned
+  first write and the transcription of the human's answers still go through.
+
+The retired `CDD_DESIGN_WRITE_STRICT` / `CDD_ACCEPTANCE_WRITE_STRICT` toggle carried
+no agent identity in the hook payload, so it could only block everyone — including
+the sanctioned transcription — or block nobody, which was its default. It admitted no
+working configuration. See `contracts/env/env-contract.md` for its deprecation.
+
+**Confirm result line.** `cdd-kit design confirm <id>` (`design.ts`, `log.ok`) prints
+exactly one of three lines according to prior state: "recorded a new baseline for"
+(first confirm), "already matches the current interaction-design.md" (re-run, no
+change), or "re-confirmed" followed by the old and new hash (design edited after a
+prior confirm). This is the only place any command may say a baseline was recorded.
+The gate never uses those words; it only observes that a baseline matches, or fails.
+
+**Tamper evidence, not prevention.** `.cdd/design-lock.json` and
+`.cdd/acceptance-lock.json` additionally record, per change id, the git author
+identity at confirm time, whether the confirming process had a TTY, and the confirm
+timestamp. These are auditable evidence for a human asking whether a stamp looks
+human-produced. None is verified or enforced by the gate, and a `Bash`-holding agent
+can set all three. Prevention-grade closure would need a signature only the human's
+environment can produce — a hardware key, or the lock committed under the human's
+authenticated remote git identity. That is a new trust boundary. It is deferred, and
+it is not claimed anywhere in this contract.
+
 ## Provenance Reconciliation Policy (ADR 0012 §2)
 
 Every information item and UI state in `interaction-design.md` must cite a supplier
-resolvable against `contracts/api/api-contract.md` (endpoint + `## Schemas` field,
-its `errors`-column HTTP status, or an implicit HTTP status) or
-`contracts/data/data-shape-contract.md` (`## Invalid Data Behavior` row, keyed by
-its `condition` column). The `errors` column holds bare comma-separated HTTP-status
-integers only, never a semantic error code; `contracts/api/error-format.md` is
-deliberately NOT a join target (ADR 0012 § Out of scope).
+resolvable against one of three contract families:
+
+- `contracts/api/api-contract.md` — endpoint + `## Schemas` field, its
+  `errors`-column HTTP status, or an implicit HTTP status.
+- `contracts/data/data-shape-contract.md` — an `## Invalid Data Behavior` row,
+  keyed by its `condition` column.
+- `contracts/ci/ci-gate-contract.md` — a CLI / gate / hook citation (the sixth
+  form, below), for a change whose interaction surface is the gate / CLI / hook
+  boundary itself rather than an HTTP API or a tabular dataset.
+
+The `errors` column holds bare comma-separated HTTP-status integers only, never a
+semantic error code; `contracts/api/error-format.md` is deliberately NOT a join
+target (ADR 0012 § Out of scope).
+
+### Sixth citation form — CLI / gate / hook surface (`ci-gate:`)
+
+Until this form existed, every join target required an HTTP API or a tabular
+data-shape row. Both families are `applicability: not-applicable` for this kit —
+and for any CLI, library, data-pipeline, or desktop adopter — and citing a
+not-applicable family is itself a HARD failure (below). No `interaction-design.md`
+written for such a project could satisfy condition 6 without fabricating an
+endpoint citation. The only escape was to mark the whole artifact
+`not-applicable`, which is why `.cdd/design-lock.json` did not exist in this
+repository until `enforce-human-confirmation`: ADR 0012's confirm path had never
+run, because it could not.
+
+**Syntax:** `ci-gate: <heading> :: <exact substring>`
+
+`<heading>` names a `##` or `###` heading in `contracts/ci/ci-gate-contract.md`,
+matched case-insensitively and trimmed, with a trailing parenthetical annotation
+ignored for matching — so `enforceInteractionDesign` matches the heading
+`### enforceInteractionDesign (added by interaction-design-loop, ADR 0012)` and no
+author has to quote an ADR number into a citation. If one `###` heading text ever
+appears under two `##` parents, the citation disambiguates as
+`<## parent> > <### heading>`.
+
+**Section-body resolution.** For a `##` heading, reuse `sectionBody`
+(`src/utils/markdown-section.ts`) unmodified: its `(?=\n## |$)` terminator is
+correct at level 2, and a level-2 body legitimately spans its `###` children. For a
+`###` heading, `sectionBody` is NOT usable and must not be pressed into service: its
+opening match requires `## <heading>` to be followed only by whitespace before the
+newline, so a bare `### enforceInteractionDesign` lookup does not match at all, and
+its terminator never stops at a `###` line, so one `###` section's body swallows
+every sibling below it. The resolver therefore uses its own line scanner (in
+`design-provenance.ts`): strip HTML comments with the existing `stripHtmlComments`,
+find the level-3 line whose heading text (trailing parenthetical removed) equals the
+cited name, and take everything from just after it to the next level-3-or-level-2
+heading line. Nothing in `markdown-section.ts` changes, so its two existing
+consumers (`context.ts`, `gate-artifacts.ts`) carry no regression risk.
+
+**Normalization.** Before comparison, both the resolved section body and the cited
+substring are stripped of the inline-formatting characters `*`, `_`, and `` ` ``,
+then whitespace-normalized (runs of whitespace collapsed to one space, trimmed).
+Comparison is otherwise case-SENSITIVE — this is a quoted fragment, not a loose
+phrase. Stripping the formatting characters is not hypothetical tidiness: condition
+7's text is `**no** recorded baseline at all also fails`, and without stripping, a
+citation of `no recorded baseline at all also fails` finds nothing.
+
+**Uniqueness — what makes this a claim rather than a topic.** The substring must
+occur EXACTLY ONCE in the resolved section body.
+
+- Zero occurrences → HARD failure: "substring not found in section '<heading>' of
+  ci-gate-contract.md".
+- Two or more → HARD failure: "citation is ambiguous in section '<heading>' (<N>
+  occurrences) — lengthen the quoted substring until it identifies one place".
+- Exactly one → resolves.
+
+Verifying only that the named section exists would be nearly vacuous. So would
+accepting any substring: a fragment guaranteed to appear in ordinary prose asserts
+nothing. `:: the` occurs 18 times in `enforceInteractionDesign` and is rejected as
+ambiguous; a bare `:: AC-4` occurs 3 times and is likewise rejected, forcing the
+author to cite the condition's distinguishing prose (`:: zero unresolved`) instead.
+Uniqueness turns the citation into an anchor to one place, which is what a
+provenance citation is for, and it gives the state-discriminator rule real teeth:
+two meaning-distinct states citing one section must anchor to two genuinely
+different, individually unique places in it.
+
+**What uniqueness does NOT buy.** It guarantees the citation names one location; it
+cannot guarantee that location is the *right* one. `:: condition 6` resolves against
+a parenthetical cross-reference inside condition 2, not against condition 6 itself —
+a unique anchor to a mention rather than to a definition. No mechanical rule can tell
+those apart; only a reviewer reading the cited text can. This limit is written down
+here so nobody later mistakes "the citation resolved" for "the citation is correct",
+which is precisely the substitution this whole check exists to stop being made.
+
+**Availability is unrestricted** — not limited to projects whose api/data contracts
+are `not-applicable`. A project with a real HTTP API may cite this contract for an
+information item that is genuinely about the gate/CLI/hook surface, without
+fabricating an endpoint for it. This is not a dodge: resolution anchors to literal
+text in `ci-gate-contract.md`, which describes gate/CLI/hook behaviour only, so an
+information item about application data has nothing here to anchor to and must still
+resolve against `api-contract.md` or `data-shape-contract.md`.
+
+**Marker-aware degradation, mirrored.** If `ci-gate-contract.md` itself ever carries
+`applicability: not-applicable`, citing it is its own HARD failure category with a
+marker-aware message, identical in kind to the api/data-shape case below — never a
+bare "reference not found".
+
+**State-discriminator rule, unchanged mechanism.**
+`checkStateDiscriminatorUniqueness` groups states by their raw, whitespace-normalized
+citation string regardless of form. Under this form the discriminator is the full
+`ci-gate: <heading> :: <substring>` string; no new discriminator concept is added.
 
 Field-existence resolution reuses the ADR 0007 `contracts/api/openapi.json`
 projection and does not re-derive it. If that projection is missing or stale
