@@ -75,7 +75,7 @@ rows below quote distinguishing prose rather than bare condition ids.
 |---|---|---|---|
 | intent-run-gate | check whether a change is confirmation-complete before committing | every gate run / every pre-commit -- most frequent | edit change -> `cdd-kit gate <id>` -> read verdict |
 | intent-confirm-design | lock the human's transcribed answers as the baseline | once per change, again on each real re-confirm | answer Open Decisions -> transcribe into ## Confirmed -> `cdd-kit design confirm <id>` |
-| intent-audit-confirmation | tell a genuinely human-made baseline apart from a silent no-op or a self-stamp | whenever the human reviews whether the guarantee held | `cdd-kit gate <id>` -> read baseline-provenance + hook-presence findings |
+| intent-audit-confirmation | tell a recorded baseline apart from a silent no-op, and read the lock's provenance fields as clues when auditing a stamp | whenever the human reviews whether the guarantee held | `cdd-kit gate <id>` -> read baseline-provenance + hook-presence findings |
 | intent-relock-acceptance | re-baseline the acceptance oracle (ADR 0010 parity path) | occasional, when acceptance.yml legitimately changes | edit acceptance.yml -> `cdd-kit accept relock <id>` |
 | intent-verify-hooks-armed | confirm the design / acceptance write-block hooks are actually installed | rare -- at setup, or when adopting the kit | `cdd-kit setup` / `install-agent-hooks --design-write` -> re-run gate |
 
@@ -165,6 +165,15 @@ response. Two meaning-distinct states never share a discriminator.
   all" into "the hook permitted it" is exactly the blind spot this change removes:
   it is how a write-block that was never installed came to be documented, for two
   ADRs, as though it were blocking.
+
+- Tamper evidence is a clue, never a verdict. The git-author / TTY / timestamp
+  fields Decision 1 records in the lock are forgeable by the same `Bash`-holding
+  agent they would incriminate, and the gate does not verify them. No output may
+  therefore say a baseline is human-made, human-verified, or authentic. The most
+  the machinery may say is that a baseline was recorded, and what the recorder
+  claimed about itself. Distinguishing a recorded baseline from a silent no-op is
+  achievable and is checked; distinguishing a human from a self-stamp is not
+  achievable here and must never be worded as though it were.
 
   This commitment is what deleted `state-hook-advised`. Under the retired
   `CDD_*_WRITE_STRICT` toggle a hook could fire and merely advise; under the adopted
@@ -311,54 +320,74 @@ bumps and tamper-evidence, never a wall.
 
 <!-- AGENT-FORBIDDEN to invent. The three answers below were chosen by the human -->
 <!-- on 2026-07-10 and transcribed verbatim by main Claude. No agent selected -->
-<!-- any of them. Locked with `cdd-kit design confirm enforce-human-confirmation`, -->
-<!-- run by the human. -->
+<!-- any of them. -->
+<!-- -->
+<!-- NOT YET LOCKED. `.cdd/design-lock.json` does not exist and has never existed -->
+<!-- in this repository's git history (`git log --all -- .cdd/design-lock.json` -->
+<!-- returns zero commits). An earlier revision of this comment claimed the human -->
+<!-- had run `cdd-kit design confirm enforce-human-confirmation`. That claim was -->
+<!-- false, agent-authored, and is the exact defect class this change exists to -->
+<!-- end: a guarantee documented as executed that never executed. It is retracted -->
+<!-- here rather than deleted, so the retraction survives in the artifact. -->
+<!-- -->
+<!-- The confirm path CANNOT run until `reconcileProvenance` learns the sixth -->
+<!-- citation form (`## Provenance` above, and the note at Decision 3). -->
+<!-- Task 7.1 is that run. -->
+
+<!-- Everything below this line is the human's answer. Agent reasoning ABOUT the
+     answer belongs in design.md, not here: this region is hashed as though a
+     human wrote every word of it, so agent prose inside it is laundered into
+     human provenance. An earlier revision padded each decision with a paragraph
+     of main Claude's justification; three separate false claims entered the
+     record that way, and all three were caught by external review rather than by
+     any gate. The rule that replaces it: the human's selection, and consequences
+     that are mechanically checkable. Nothing else. -->
 
 **Decision 1 — answered 2026-07-10: (g) + (a) + tamper evidence.**
 
-Make hook installation a checked, failing condition (g) — it is the only defence a
-`Bash`-holding agent cannot defeat, because it targets the hook's *absence* rather
-than the write path. Compose it with axis (a): the write-block hooks refuse direct
-writes to `.cdd/design-lock.json` and `.cdd/acceptance-lock.json`, while allowing
-writes to the artifact body, so main Claude's sanctioned first write and its
-transcription of these very answers still go through. Record git-author, TTY, and
-timestamp provenance inside the lock so a stamp can be audited after the fact.
+Adopt option (g): a missing write-block hook is a checked, failing condition.
+Compose it with axis (a): the write-block hooks refuse direct writes to
+`.cdd/design-lock.json` and `.cdd/acceptance-lock.json`, and allow writes to the
+artifact body. Record git-author, TTY, and timestamp provenance inside the lock.
 
-Explicitly NOT claimed: prevention against a determined `Bash`-holder. That is
-unavailable on a machine where the agent's shell shares the human's filesystem and
-user account, and it must not be bought at the price of a false sense of security.
-Options (b), (d), (e), and (f) are rejected: each is defeatable, and (d) in
-particular would *look* like a wall while being a speed bump — the exact failure
-mode this change exists to end. Prevention-grade closure needs a signature only the
-human's environment can produce; it is deferred, not claimed.
+Options (b), (d), (e), and (f) are rejected.
 
-**Decision 2 — answered 2026-07-10: hard-fail only under `--strict` / pre-commit; warn otherwise.**
+Explicitly NOT claimed, as a risk the human accepts: prevention against a
+determined `Bash`-holder. It is unavailable where the agent's shell shares the
+human's filesystem and user account. Prevention-grade closure needs a signature
+only the human's environment can produce; it is deferred, not claimed. No artifact,
+message, or acceptance criterion of this change may assert that a `Bash`-holding
+agent is prevented from self-stamping.
 
-When option (g) finds the design/acceptance write-block hooks absent from the
-project `.claude/settings.json`, `cdd-kit gate` warns on stdout in its default
-mode and fails on stderr under `--strict` (which is what pre-commit and the
-push-to-default-branch CI job run). This blocks the absence where it counts
-without excluding an adopter who deliberately runs hookless on a CI box or under
-a different harness. It also matches the `isNewChange || strict` migration window
-every neighbouring check in `enforceInteractionDesign` already uses, so it
-introduces no new axis of behaviour.
+**Decision 2 — answered 2026-07-10; AMENDED 2026-07-10 after external review.**
+
+*Original answer:* hard-fail only under `--strict` / pre-commit; warn otherwise.
+
+*Why amended:* the original answer's premise was false. `--strict` names exactly two
+moments, and neither blocks anything before a change lands on the default branch:
+the CI job runs `--strict` only when `github.event_name == "push"`
+(`.github/workflows/contract-driven-gates.yml:109`), which is *after* merge; and the
+local pre-commit hook is bypassed by `--no-verify`, which this repository's own
+commits have used throughout. `pull_request` warns and merges.
+
+*Amended answer:* the hook-presence check is not keyed on `--strict` at all. It is a
+HARD failure on stderr whenever the gate runs in CI (any event, `pull_request`
+included), and a WARNING on stdout in a default local run. `--strict` also fails, so
+pre-commit keeps its behaviour. It is not keyed on `isNewChange` either: hook
+installation is a property of the project, not of one change directory's vintage.
+
+An adopter who deliberately runs hookless outside CI is warned, never blocked. An
+adopter whose CI runs the gate must arm the hooks.
 
 **Decision 3 — answered 2026-07-10: extend the reconciliation policy with a CLI-surface join target.**
 
 `contracts/ci/ci-gate-contract.md` becomes a legitimate join target for a
 CLI / gate / hook interaction-design: an information item or state may cite a
-`ci-gate-contract.md` section plus an exact condition id or log string as a sixth
-citation form. This is what lets the kit's own surface be described by the kit's
-own gate — and it is what every CLI, library, data-pipeline, and desktop adopter
-needs, none of whom have an HTTP API or a tabular data contract to cite.
+`ci-gate-contract.md` section plus an exact substring as a sixth citation form.
 
-The alternative — conceding that provenance reconciliation is an HTTP-only idea
-and carving a provenance-only exemption — is rejected. It would leave ADR 0012's
-central guarantee permanently half-applicable to every non-HTTP project, which is
-the same "announced but not real" shape this change exists to close.
+The alternative — conceding that provenance reconciliation is an HTTP-only idea and
+carving a provenance-only exemption — is rejected.
 
-Consequence accepted: `contracts/ci/ci-gate-contract.md` takes a schema-version
-bump and `reconcileProvenance` gains a citation form. `contract-reviewer` owns the
-contract edit; it must land before `cdd-kit gate enforce-human-confirmation` can
-pass. The `## Provenance` cells above are written against this decision and are
-labelled as not-yet-policy-recognized until it lands.
+Consequence accepted: `contracts/ci/ci-gate-contract.md` takes a schema-version bump
+and `reconcileProvenance` gains a citation form. It must land before
+`cdd-kit gate enforce-human-confirmation` can pass.

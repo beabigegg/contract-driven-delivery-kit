@@ -1,0 +1,120 @@
+agent: external-review (Codex)
+status: findings-accepted
+summary: >
+  External review of the contract phase (commits bbe21cf..aeb182a). Six findings,
+  all six reproduced, zero false positives. Four were false statements committed by
+  main Claude that no gate in this repository could have caught. Two required a human
+  decision to resolve and were escalated rather than fixed unilaterally.
+
+scope-reviewed:
+  - contracts/ci/ci-gate-contract.md (0.6.0)
+  - contracts/env/env-contract.md (0.3.0)
+  - docs/adr/0012-interaction-design-loop.md
+  - specs/changes/enforce-human-confirmation/interaction-design.md
+  - specs/changes/enforce-human-confirmation/design.md
+  - specs/changes/enforce-human-confirmation/change-classification.md
+
+findings:
+  - id: 7
+    severity: critical
+    claim: >
+      interaction-design.md `## Confirmed` asserted the human had run
+      `cdd-kit design confirm`. The lock does not exist.
+    verification: >
+      REPRODUCED. `ls .cdd/design-lock.json` -> absent.
+      `git log --all --oneline -- .cdd/design-lock.json` -> 0 commits, i.e. the file
+      has never existed in this repository's history. Four lines above the claim, the
+      same document said the confirm command "should not be run until [Decision 3]
+      lands". `cdd-kit gate` has been printing "no recorded baseline" on every run,
+      contradicting the artifact continuously; nobody read the two together.
+    resolution: retracted in place; root cause fixed (see rule below)
+
+  - id: 8
+    severity: critical
+    claim: AC-3 / AC-4 require prevention that Decision 1 explicitly declines.
+    verification: >
+      REPRODUCED. AC-4 as inferred: "An agent holding Bash cannot self-stamp the
+      baseline ... the attempt is blocked". Decision 1: "Explicitly NOT claimed:
+      prevention against a determined Bash-holder." Left standing, AC-4's only route
+      to green was a test that blocks the Write tool and calls it "Bash blocked".
+    resolution: >
+      ESCALATED to the human, not fixed unilaterally. A silently lowered acceptance
+      criterion is later indistinguishable from one that was always modest.
+      Human chose: downgrade AC-3/AC-4 to what was bought, AND preserve the retired
+      goal by name as DAC-1 with its blocker and an anti-vacuity guard.
+
+  - id: 9
+    severity: high
+    claim: Decision 2's `strict-only` shape blocks nothing before merge.
+    verification: >
+      REPRODUCED. .github/workflows/contract-driven-gates.yml:109 sets STRICT_FLAG
+      only when github.event_name == "push"; `on.push.branches` is [main, master], so
+      that is post-merge. pull_request runs the gate without --strict => warning.
+      The other --strict site is the local pre-commit hook, which --no-verify bypasses
+      — as every commit in this change has done, because the global cdd-kit is 2.2.1.
+    resolution: >
+      ESCALATED. Human amended Decision 2: hook-presence is `ci-or-strict`, erroring
+      whenever the CI env var is truthy. contracts/ci 0.7.0 + env 0.4.0.
+
+  - id: 10
+    severity: high
+    claim: Decision 2 prose contradicts ci-gate-contract.md:217 on isNewChange.
+    verification: >
+      REPRODUCED verbatim. Contract: "This check is NOT gated on `isNewChange`".
+      Decision 2 prose: "It also matches the `isNewChange || strict` migration window".
+      Both committed by main Claude, hours apart.
+    resolution: >
+      Prose removed. Corollary the review did NOT name, found while fixing: because
+      the check ignores isNewChange, in CI it fails EVERY change directory until
+      .claude/settings.json is tracked and both hooks registered. Now stated in the
+      contract and in AC-7.
+
+  - id: 11
+    severity: medium
+    claim: design.md says the lock schema is "unchanged by every option"; Decision 1 changes it.
+    verification: >
+      REPRODUCED. DesignLockEntry = { hash, 'locked-at'? } (src/utils/design-hash.ts:56-59).
+      Decision 1 requires git-author / TTY / timestamp inside the lock.
+    resolution: corrected; design.md's stale "the fork is unresolved" note also retired
+
+  - id: 12
+    severity: medium
+    claim: intent-audit-confirmation over-claims that it can detect a self-stamp.
+    verification: >
+      REPRODUCED. The CI contract itself concedes git identity, TTY, and timestamp are
+      forgeable by a Bash-holding agent and are not verified by the gate.
+    resolution: >
+      Intent narrowed. Bound by a new Consistency Commitment: tamper evidence is a
+      clue, never a verdict. Recorded-baseline vs silent-no-op IS distinguishable and
+      is checked; human vs self-stamp is not, and may never be worded as though it were.
+
+false-positives: none
+
+root-cause: >
+  `## Confirmed` is hashed as though a human authored every word of it. Main Claude
+  padded each of the human's three one-line answers with a paragraph of its own
+  justification, and three of the false claims above originated in that padding —
+  agent prose laundered into human provenance by the very mechanism built to
+  guarantee human provenance. The hash was computed faithfully over text the human
+  never wrote. `stripHtmlComments` then hid finding 7 from the hash entirely.
+
+  Rule now written into the artifact: `## Confirmed` holds the human's selection and
+  mechanically-checkable consequences. Agent reasoning about the answer belongs in
+  design.md. The confirmed region is evidence, not an essay.
+
+standing-lesson: >
+  Four of six findings were false statements about mechanisms, each asserted from a
+  partial read and never reproduced. That is the same defect class as this change's
+  own defects 4-6 and as the repository's `guarantees that never happened` history.
+  Zero of the four were reachable by any gate, validator, or test in this repository.
+  The gate's own "no recorded baseline" line was, for two days, the only true
+  statement about the lock's existence anywhere in the change — and it was ignored.
+  Read what the tool prints before believing what the document says.
+
+re-measured-after-edits:
+  - all 16 `ci-gate:` anchors still resolve at exactly one occurrence
+  - sectionBody consumer blast radius across 12 headings / 5 call sites: zero drift
+  - validate PASS; check:mojibake PASS; check:lockfile PASS
+  - test/contracts: 113 passed
+  - gate enforce-human-confirmation: unchanged failure surface (22 provenance rows +
+    absent baseline). No new failure class introduced.

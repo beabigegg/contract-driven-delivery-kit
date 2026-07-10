@@ -132,13 +132,25 @@ trust boundary, deferred, not claimed here.
 
 A revert restores the pre-fix `enforceInteractionDesign` (empty chains pass again),
 the opt-in STRICT-toggle hook scripts, and the un-checked hook-installation state.
-A `.cdd/design-lock.json` written under any fork stays readable by the old code:
-the lock schema (`src/schemas/design-lock.schema.ts`, a `{changeId:{hash}}` map) is
-unchanged by every option and the old gate reads only `lock[changeId].hash`, so a
-post-revert gate still validates existing baselines. If the fork triggered the env
-bump, a revert restores env 0.2.0 and returns task `2.3` to `skipped`. The
-`isNewChange || strict` window keeps legacy change dirs unaffected by the defect-1
-fix, in and out.
+
+CORRECTED after the fork was settled. This paragraph previously read "the lock
+schema ... is unchanged by every option". That is false under the human's
+Decision 1, which requires git-author / TTY / timestamp provenance recorded
+*inside* the lock. `DesignLockEntry` is today `{ hash, 'locked-at'? }`
+(`src/utils/design-hash.ts:56-59`) and gains provenance fields, so the schema DOES
+change and `contracts/data/` + `src/schemas/design-lock.schema.ts` move with it.
+Backward compatibility survives anyway, in the one direction that matters: the new
+fields are additive and the old gate reads only `lock[changeId].hash`, so a
+post-revert gate still validates a baseline written by the new code. The reverse
+(old lock, new gate) is a lock with absent provenance, which per the
+`## Consistency Commitments` "clue, never a verdict" rule is reported as absent
+evidence, never as failed evidence.
+
+If the fork triggered the env bump, a revert restores env 0.2.0 and returns task
+`2.3` to `skipped`. The `isNewChange || strict` window keeps legacy change dirs
+unaffected by the defect-1 fix, in and out — but note it does NOT govern the
+hook-presence check, which is `strict`-only by contract
+(`contracts/ci/ci-gate-contract.md:217`).
 
 ## Draft: ADR 0012 §5 amendment (transcribe in implementation, post-fork)
 
@@ -178,15 +190,16 @@ replacing the "Agent write-block hook" bullet and adding three bullets:
   "announced but not real" failure this change exists to close. The installer /
   default-arming change lands under `tasks.yml` task `4.3` (Env/deploy-side
   config); if (g) is adopted, confirm `4.3` stays `pending` and covers it.
-- The defect-2/3 fork is unresolved by design until the human answers the
-  `## Open Decisions` item. `implementation-planner` must report `blocked` on the
-  hook/CLI work until then; only the defect-1 gate fix and option (g)'s
-  hook-presence check are plan-ready without it.
-- Whether an ADR is warranted depends on the answer: options (a)/(c)/(g) are
-  refinements within ADR 0012 §5's existing scope (no new ADR); the
-  signature-boundary follow-up is a new trust boundary and would need its own ADR.
-- Env-contract requirement is conditional; contract-reviewer and ci-cd-gatekeeper
-  must re-check the required-contracts set once the fork is settled.
+- ~~The defect-2/3 fork is unresolved by design~~ — SETTLED 2026-07-10. The human
+  answered `## Open Decisions` Decision 1 with **(g) + (a) + tamper evidence**, and
+  explicitly declined prevention against a `Bash`-holder. `implementation-planner`
+  is unblocked on the hook/CLI work. The rest of this document was written before
+  that answer; where it still speaks of the fork as open, read it as history.
+- ADR: the settled combination (a)/(g) is a refinement within ADR 0012 §5's
+  existing scope, so no new ADR. The signature-boundary follow-up is a new trust
+  boundary and would need its own.
+- Env-contract requirement resolved: (a) retires `CDD_DESIGN_WRITE_STRICT` /
+  `CDD_ACCEPTANCE_WRITE_STRICT`, so the env bump landed (env 0.3.0).
 - The row check does not cover empty `## User Intents` / `## Controls`; those stay
   only referential-integrity checked and can still be vacuous. Scoped out per
   AC-1/defect-1; noted for a follow-up if the human wants the full chain non-vacuous.

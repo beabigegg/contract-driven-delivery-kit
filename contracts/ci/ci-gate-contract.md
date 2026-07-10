@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.6.0
-last-changed: 2026-07-09
+schema-version: 0.7.0
+last-changed: 2026-07-10
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -15,17 +15,25 @@ breaking-change-policy: deprecate-2-minors
 **`required` column vocabulary.** `yes` — this check's failing conditions block the
 gate in every trigger context listed, for a new or context-governed change. The only
 exceptions are named per-condition (e.g. the missing-baseline warn-for-legacy-dirs
-branch) and do not change the classification. `strict-only` — this check's finding is
-advisory (a stdout warning) in every trigger context except `--strict`, where it
-hard-fails on stderr and blocks. No row uses any other value. A check that only warns
-in the mode most people run must not be listed as `yes`: that is the same shape as
-the `pull_request` trigger cell this file already had to correct once (`[ci 0.4.0]`).
+branch) and do not change the classification. `ci-or-strict` — this check hard-fails
+on stderr whenever the gate runs inside CI (any event) or under `--strict`, and is
+advisory (a stdout warning) in a default local run. No row uses any other value.
+
+A check that only warns in the mode most people run must not be listed as `yes`:
+that is the same shape as the `pull_request` trigger cell this file already had to
+correct once (`[ci 0.4.0]`).
+
+The value `strict-only` was removed in `[ci 0.7.0]` and must not be reintroduced.
+It was a lie of omission: `--strict` names only the push-to-default-branch CI job,
+which runs *after* merge, and the local pre-commit hook, which `--no-verify`
+bypasses. A `strict-only` check therefore blocks nothing before a change lands. Any
+future check tempted to use it wants `ci-or-strict`.
 
 | gate | tier | trigger | required | command/workflow | owner | artifact |
 |---|---:|---|---:|---|---|---|
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
 | enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
-| enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | strict-only | `cdd-kit gate` | platform-team | `.claude/settings.json` (git-tracked) |
+| enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | ci-or-strict | `cdd-kit gate` | platform-team | `.claude/settings.json` (git-tracked) |
 
 ### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
 
@@ -210,12 +218,28 @@ These are two reasons for one absence and MUST carry different message text.
 Collapsing them would repeat exactly the conflation `interaction-design.md`'s
 `## Consistency Commitments` forbids for a different pair of states.
 
-**Pass/fail shape.** In default mode (`pull_request`, or a plain local `cdd-kit
-gate`) either cause is a WARNING on stdout (`log.warn`). Under `--strict` — which
-the push-to-default-branch CI job and the local pre-commit hook both run — either
-cause is a HARD failure on stderr (`log.error`). This check is NOT gated on
-`isNewChange`: hook installation is a property of the project, not of one change
-directory's vintage, so a legacy change and a brand-new one see the identical shape.
+**Pass/fail shape** (`ci-or-strict`, revised in `[ci 0.7.0]`). Either cause is a HARD
+failure on stderr (`log.error`) when the gate runs inside CI, or under `--strict`.
+In a default local run it is a WARNING on stdout (`log.warn`).
+
+"Inside CI" means the `CI` environment variable is set to a non-empty value other
+than `0` or `false`. Every mainstream provider — GitHub Actions, GitLab CI, CircleCI,
+Travis, Buildkite — sets `CI=true` unconditionally, so this requires no workflow edit
+and cannot be silently forgotten the way an explicit `--require-hooks` flag could be.
+`CI` is a consumed configuration input and is therefore documented in
+`contracts/env/env-contract.md`.
+
+This check is deliberately NOT keyed on `--strict` alone. `--strict` names only the
+push-to-default-branch job, which runs after merge, and the local pre-commit hook,
+which `--no-verify` bypasses; a `pull_request` run would have merely warned. The
+first revision of this section made exactly that mistake and shipped a check that
+blocked nothing before a change landed.
+
+This check is also NOT gated on `isNewChange`: hook installation is a property of the
+project, not of one change directory's vintage, so a legacy change and a brand-new one
+see the identical shape. **Consequence, stated because it bites:** in CI, every change
+directory fails until the project tracks `.claude/settings.json` and registers both
+write-block hooks. Adopting this check and arming the hooks must land together.
 
 **Honest limit.** The gate reads only the project `.claude/settings.json` on disk.
 It cannot see the harness's effective merged settings (`~/.claude/settings.json`,

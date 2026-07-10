@@ -8,6 +8,30 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.7.0] — 2026-07-10
+### Changed
+- **`enforceConfirmationHookInstallation` is `ci-or-strict`, not `strict-only`.**
+  Found by external review of `[ci 0.6.0]`, one commit after it landed. `--strict`
+  names exactly two moments and neither precedes a merge: the CI job sets
+  `STRICT_FLAG` only when `github.event_name == "push"`
+  (`.github/workflows/contract-driven-gates.yml:109`), which is after the change is
+  on the default branch; and the local pre-commit hook, which `--no-verify` bypasses
+  — as every commit in this very change has done. `pull_request` warned and merged.
+  The check now hard-fails whenever `CI` is truthy (any event) or under `--strict`,
+  and warns in a default local run. The `strict-only` vocabulary value is removed and
+  documented as un-reintroducible.
+- **Consequence, stated in the contract because it bites:** the check is not bounded
+  by `isNewChange`, so in CI it fails *every* change directory until the project
+  tracks `.claude/settings.json` and registers both write-block hooks. Check and
+  arming must land in the same commit.
+
+## [env 0.4.0] — 2026-07-10
+### Added
+- **`CI`** documented as a consumed input: when truthy,
+  `enforceConfirmationHookInstallation` errors rather than warns. Read, never written.
+  Chosen over an explicit `--require-hooks` workflow flag, which would have been a
+  fifth guarantee that has to be remembered to be wired up.
+
 ## [ci 0.6.0] — 2026-07-10
 ### Added
 - **Sixth provenance citation form, `ci-gate:`.** Until now every join target

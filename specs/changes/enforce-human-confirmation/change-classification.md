@@ -102,12 +102,34 @@ Artifact minimization:
 ## Inferred Acceptance Criteria
 - AC-1: Under the `isNewChange || strict` window, `enforceInteractionDesign` emits a gate ERROR (stderr) when a confirmed `interaction-design.md` has zero rows in `## Presented Information` or zero rows in `## States`, unless the surface is marked `applicability: not-applicable`.
 - AC-2: Empty-set provenance reconciliation no longer passes vacuously — a mutation that deletes all Presented-Information / States rows turns a gate test red, stream-asserted rather than exit-code-asserted.
-- AC-3: A single documented, working design-write hook configuration exists that permits main Claude's sanctioned first-time write and human-answer transcription while still preventing an agent from confirming the design itself. Both degenerate configurations (STRICT=1 blocks everyone; STRICT=0 blocks nobody) are eliminated.
-- AC-4: An agent holding `Bash` cannot self-stamp the baseline via `cdd-kit design confirm` / `cdd-kit accept relock`; the attempt is blocked, and a mutation proves the test discriminates.
+- AC-3: A single documented, working design-write hook configuration exists that permits main Claude's sanctioned first-time write and its transcription of the human's answers, while refusing any `Write`/`Edit`/`MultiEdit` whose target is `.cdd/design-lock.json` or `.cdd/acceptance-lock.json`. Both degenerate configurations (`STRICT=1` blocks everyone; `STRICT=0` blocks nobody) are eliminated and the `CDD_*_WRITE_STRICT` toggles are retired. A mutation proves the test discriminates, stream-asserted.
+- AC-4: `enforceConfirmationHookInstallation` detects and reports the ABSENCE of the design/acceptance write-block hooks from the project `.claude/settings.json`, distinguishing "no settings file" from "settings file that does not register this hook" with different message text; it fails on stderr whenever the gate runs in CI or under `--strict`, and warns on stdout otherwise. `.cdd/design-lock.json` records git-author / TTY / timestamp as after-the-fact audit clues. No test, message, or document asserts that a `Bash`-holding agent is prevented from self-stamping.
 - AC-5: The defect-2/3 resolution is recorded as a human-settled fork in this change's `interaction-design.md` `## Open Decisions`, decided neither in chat nor by an agent.
 - AC-6: This change ships a real, non-empty `interaction-design.md` and an executed `cdd-kit design confirm` that produces `.cdd/design-lock.json` — the first real confirm-path dogfood. `applicability: not-applicable` is not used.
-- AC-7: Existing change directories continue to pass `cdd-kit gate`; the AC-1 requirement introduces no new failures for pre-existing changes.
+- AC-7: Existing change directories continue to pass `cdd-kit gate`; the AC-1 requirement introduces no new failures for pre-existing changes. Note the deliberate exception: AC-4's hook-presence check is a property of the PROJECT, not of a change directory's vintage, so it is NOT bounded by the `isNewChange` window and WILL fail every change directory in CI until this change tracks `.claude/settings.json` and registers both hooks. Those two edits must land in the same commit as the check, or CI red-lines on changes that did nothing wrong.
 - AC-8: `contracts/ci/ci-gate-contract.md`, `contracts/CHANGELOG.md`, and ADR 0012 §5 describe the new mechanism; contract and CI-workflow tests are green.
+
+## Deferred Acceptance Criteria
+
+Recorded, not satisfied, and deliberately not claimed. Listed here so the goal
+survives the downgrade instead of vanishing from the record.
+
+- DAC-1 — *"An agent holding `Bash` cannot self-stamp the baseline via `cdd-kit design confirm` / `cdd-kit accept relock`; the attempt is blocked."*
+  This was AC-4 as originally inferred. It is **unsatisfiable on the target machine**
+  and was downgraded on 2026-07-10 by the human's `interaction-design.md` Decision 1,
+  which accepts the residual risk explicitly. The blocker is not effort: a
+  `Bash`-holding agent runs as the human, on the human's filesystem, with the
+  human's git identity, so every in-process defence (hook matcher, CLI split, env
+  token, TTY check) is bypassable by `node -e` straight into the lock writer.
+  Closing DAC-1 requires a signature the agent's sandbox cannot produce — a hardware
+  key, or a lock committed under an authenticated remote identity — i.e. a new trust
+  boundary, which needs its own ADR.
+  **Why this is written down:** an acceptance criterion silently lowered to match
+  what was built is indistinguishable, later, from an acceptance criterion that was
+  always modest. The downgrade is the record.
+  **Guard:** any future PR that claims DAC-1 is met must exhibit a test in which a
+  real `Bash` invocation of `design confirm` fails. A test that blocks the `Write`
+  tool and calls it "Bash blocked" is the vacuous shape this change exists to end.
 
 ## Tasks Not Applicable
 - not-applicable: 2.1, 2.2, 2.3, 2.4, 2.5, 3.4, 3.5, 4.2, 5.1, 5.2
