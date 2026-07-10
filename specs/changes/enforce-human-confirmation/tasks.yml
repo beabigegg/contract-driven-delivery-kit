@@ -14,7 +14,7 @@ tasks:
   - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: done }
   - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: done }
   - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: done, note: "ci-gates.md written; adds a can-this-check-actually-fail column. Found a real hole: the gate step is guarded by if steps.changed.outputs.ids != '', so a PR that de-arms .claude/settings.json without touching any spec dir skips the hook-presence check entirely" }
-  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: pending }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: done, note: "implementation-plan.md IP-1..IP-11. Planner found 3 real contradictions; 2 of its resolutions overridden (C1: the contract was wrong, not the installer -- ci 0.7.0 made the hook-path check directory-agnostic/tracked-only; C2: extend impl to acceptance-lock parity rather than narrow the contract). Hazard B still open for the human." }
   - { id: "2.1", section: "Contract Updates", title: "API contract", status: skipped, note: "no HTTP surface; contracts/api is applicability: not-applicable" }
   - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "no UI surface" }
   - { id: "2.3", section: "Contract Updates", title: "Env contract", status: done, note: "env 0.2.0 -> 0.3.0: CDD_ACCEPTANCE_WRITE_STRICT deprecated (Decision 1 retires the toggle); CDD_DESIGN_WRITE_STRICT deliberately not newly documented. -> 0.4.0: CI documented as a consumed input (Decision 2 as amended; hook-presence is ci-or-strict)" }

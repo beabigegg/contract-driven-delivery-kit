@@ -196,13 +196,28 @@ merely shipped as scripts nobody registered.
 false again.** `.claude/settings.json` is a git-tracked file in this repository and
 in any adopter using this check. `.claude/settings.local.json` is NOT tracked and is
 never read here: a personal override does not mean the project arms the hook. Each
-hook entry this check looks for MUST register a `command` resolving to a git-tracked
-path (`hooks/pre-tool-use-design-write.sh` / `hooks/pre-tool-use-acceptance-write.sh`
-at repo root) — never a path under `.claude/hooks/` alone, which the
-`install-agent-hooks` copy step populates locally but which a bare CI checkout does
-not contain. A check whose premise cannot exist in the environment where it is
-strictest is the same defect class this change exists to close; do not reintroduce
-it by registering an untracked path.
+hook entry this check looks for MUST register a `command` whose script path is
+**git-tracked** — verifiable with `git ls-files -- <path>` — because a bare CI
+checkout contains only tracked files, and a hook script CI cannot see is a hook CI
+cannot run. A check whose premise cannot exist in the environment where it is
+strictest is the same defect class this change exists to close.
+
+**The check is directory-agnostic, and `[ci 0.7.0]` corrected it to be so.** The
+first revision of this section demanded the `command` resolve to `hooks/…` at repo
+root and forbade `.claude/hooks/…`. That was wrong, and wrong in the way this whole
+change exists to catch: it was inferred from one incidental fact about this
+repository — `.claude/hooks/` happens to be untracked here — and never checked
+against the shipped installer. `install-agent-hooks.ts:264` creates
+`<project>/.claude/hooks/` and writes every bundled script into it, and
+`hookRelPath` (`:145-147`) registers exactly that path. `.claude/hooks/` is not in
+`.gitignore`; it is merely un-added. So the rule as first written meant **the kit's
+own installer produced a settings file that failed the very check the installer
+armed**, in this repository and in every adopter's.
+
+What matters is that the path is tracked, not which directory it sits in. An adopter
+who runs `install-agent-hooks` and commits `.claude/hooks/` passes. A project that
+registers a tracked repo-root `hooks/…` passes. A project that registers a path git
+has never seen fails, wherever it lives.
 
 **Two DISTINCT absence causes.** The gate reads the PROJECT `.claude/settings.json`.
 

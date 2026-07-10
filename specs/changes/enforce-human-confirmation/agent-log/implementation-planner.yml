@@ -1,0 +1,110 @@
+agent: implementation-planner
+change-id: enforce-human-confirmation
+status: plan-written-with-two-resolutions-overridden
+summary: >
+  Wrote implementation-plan.md (IP-1..IP-11). Resolved hazard A's atomic boundary,
+  laid out two costed options for hazard B without picking, preserved hazard C's
+  CI-env pinning, and flagged three contradictions. Main Claude reproduced all three.
+  All three were real. TWO of the planner's proposed resolutions were overridden,
+  both for the same reason: each repaired this repository and left the defect shipped
+  to adopters, or lowered a claim to match what happened to get built.
+
+note-on-tooling: >
+  implementation-planner holds Read/Grep/Glob/Edit but not Write, so it could not
+  create this file and returned its content for the parent to persist. Its own tool
+  grant makes it structurally unable to leave an agent log for a change that has none.
+  Worth fixing in the agent definition; recorded here rather than silently worked around.
+
+read:
+  - interaction-design.md (## Confirmed, incl. the Decision 2 amendment)
+  - change-classification.md (AC-1..AC-8, DAC-1)
+  - change-request.md (12 defects)
+  - ci-gates.md, test-plan.md, design.md
+  - contracts/ci/ci-gate-contract.md (0.7.0), contracts/env/env-contract.md (0.4.0)
+  - src/utils/{markdown-section,design-provenance,design-hash}.ts
+  - src/commands/{gate-design,gate,design,install-agent-hooks}.ts
+  - src/schemas/design-lock.schema.ts
+  - hooks/pre-tool-use-{design,acceptance}-write.sh
+  - .claude/settings.json, build.js
+
+verified-by-reading:
+  - "sectionBody terminator `(?=\\n## |$)` and non-line-anchored opening (markdown-section.ts:22-28)"
+  - "AC-1 reuse points gate-design.ts:178,187,340-341; not-applicable short-circuit :295-301"
+  - "DesignLockEntry = { hash, 'locked-at'? } (design-hash.ts:56-59); writeDesignLock :95-101"
+  - "install-agent-hooks hookRelPath -> `.claude/hooks/${filename}` (:145-147)"
+  - "build.js copies hooks/ -> assets/hooks (repo-root hooks/ is the tracked source)"
+verified-by-running: "none — the planner ran no commands and said so"
+
+contradictions:
+  - id: C1
+    severity: high
+    planner-claim: >
+      install-agent-hooks writes `.claude/hooks/…` commands, but the check + contract
+      + test T4e require repo-root `hooks/…` and reject `.claude/hooks/…`. The
+      installer therefore produces a settings file that fails the check it arms.
+    main-claude-verdict: CONFIRMED, and more serious than reported.
+    reproduction: >
+      install-agent-hooks.ts:264 mkdirSync(cwd/.claude/hooks); :145-147 registers that
+      path. `git ls-files .claude/hooks/` -> empty. `.gitignore` contains only
+      `.claude/settings.local.json` and `.claude/worktrees/` — `.claude/hooks/` is NOT
+      ignored, merely un-added. `hooks/`, `assets/hooks/`, `.claude/hooks/` are
+      byte-identical today (diff -q across all six scripts).
+    planner-resolution-REJECTED: >
+      "IP-6 hand-authors the entries at repo-root hooks/…; do NOT arm via the installer."
+      That repairs this repository and ships the defect to every adopter. It is the
+      disease of this change applied as its cure.
+    main-claude-resolution: >
+      The CONTRACT was wrong, not the installer. The `hooks/…`-only rule was inferred
+      from one incidental fact about this repo and never checked against the shipped
+      installer. ci-gate 0.7.0 now requires only that the registered script path be
+      git-tracked (`git ls-files -- <path>`), directory-agnostic. IP-6 becomes:
+      run the real installer, then `git add .claude/settings.json .claude/hooks/`.
+      T4e must assert tracked-vs-untracked, never a directory name.
+
+  - id: C2
+    severity: medium
+    planner-claim: >
+      The contract says BOTH lock sidecars record git-author/TTY/timestamp; IP-7, AC-4
+      and T4g cover only the design lock.
+    main-claude-verdict: CONFIRMED (ci-gate-contract.md "Tamper evidence" names both).
+    planner-resolution-DECLINED-TO-CHOOSE: "(a) add parity, or (b) narrow the contract"
+    main-claude-resolution: >
+      (a). Option (b) is lowering a claim to match what happened to get built — the
+      exact move DAC-1 was written two hours earlier to forbid. Both sidecars are
+      human-owned, both have one sanctioned writer, and axis (a) blocks direct writes
+      to both. IP-7 extended to acceptance-hash.ts + acceptance.schema.ts; AC-4 now
+      names both. test-strategist owes a T4g-parity case.
+
+  - id: C3
+    severity: low
+    planner-claim: "ci-gate-contract.md says `:: the` occurs 18x; interaction-design.md says 23x"
+    main-claude-verdict: CONFIRMED; 23 is the measured value, 18 was never true.
+    resolution: >
+      Already fixed before the planner ran. The count was DELETED rather than corrected:
+      a exact occurrence count written into contract prose drifts with every edit to the
+      section, which is a silently-rotting assertion. What is asserted, and tested, is
+      the rejection.
+
+open-for-human:
+  - id: hazard-B
+    detail: >
+      The CI gate step is guarded by `if: steps.changed.outputs.ids != ''`. A PR that
+      de-arms `.claude/settings.json` while touching no `specs/changes/<id>/` directory
+      never runs `cdd-kit gate`, so enforceConfirmationHookInstallation never fires —
+      while the Gate Inventory row claims a `pull_request` trigger. That cell is
+      therefore false for exactly the PR that matters, which is the `[ci 0.4.0]` defect
+      recurring. Options (i) also run the check from `cdd-kit validate` (unconditional
+      in CI; broader adopter cost) or (ii) leave the hole and correct the trigger cell.
+      Escalated to the human; not decided by any agent.
+
+blocked-human:
+  - "IP-10: `cdd-kit design confirm enforce-human-confirmation` — the confirm path has never once executed"
+  - "IP-11: authoring acceptance.yml (ADR 0010 forbids every agent from writing it)"
+
+standing-lesson: >
+  Both overridden resolutions had the same shape: fix the symptom where it was found,
+  leave the mechanism wrong everywhere else. C1's proposed fix would have shipped an
+  installer whose output fails the kit's own gate; C2's would have narrowed a contract
+  to match an incomplete implementation. Neither is detectable by any check in this
+  repository. Both were caught by reproducing the planner's claims instead of acting
+  on them.
