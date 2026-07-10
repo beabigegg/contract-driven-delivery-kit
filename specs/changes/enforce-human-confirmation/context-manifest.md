@@ -289,3 +289,23 @@ is authorized because it designates main Claude as the sanctioned transcriber.
     project settings and the installed hook scripts.
   status: approved
   approved-by: main Claude
+
+- request-id: CER-007
+  requested_paths:
+    - .github/workflows/contract-driven-gates.yml
+    - github-workflows/contract-driven-gates.yml
+    - test/contracts/ci-workflow.test.ts
+    - package.json
+  agent: ci-cd-gatekeeper, test-strategist, backend-engineer
+  reason: >
+    Decision 2 as amended makes hook-presence a `ci-or-strict` check keyed on the `CI`
+    env var. The external review's finding 9 was reproduced ONLY by reading
+    `.github/workflows/contract-driven-gates.yml:109` and seeing that `--strict` is set
+    solely when `github.event_name == "push"`. ci-cd-gatekeeper cannot write `ci-gates.md`,
+    and cannot verify that each new check "runs on a path that can actually fail", without
+    reading the workflow it is legislating over — which is precisely the read whose absence
+    produced findings 9 and 10. `github-workflows/` is the adopter template that must not
+    drift from `.github/workflows/`; `ci-workflow.test.ts` is where that drift is asserted.
+  status: approved
+  approved-by: main Claude (verified: both workflow files and the test exist; the
+    `STRICT_FLAG` conditional is at .github/workflows/contract-driven-gates.yml:105-111)

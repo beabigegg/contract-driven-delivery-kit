@@ -1,0 +1,42 @@
+agent: test-strategist
+change-id: enforce-human-confirmation
+date: 2026-07-10
+
+summary: >
+  Mapped AC-1..AC-8 (+ the sixth citation form that enables the dogfood) to
+  concrete tests, each with a named one-line mutation and a STREAM/exit-code
+  discriminator. Wrote test-plan.md only. Read scope stayed inside the manifest;
+  CER-007 grants were not needed to READ (I did not need the workflow file
+  beyond what CER-002/003/004/005 already surfaced), so I read the workflow via
+  the already-approved CI-workflow test path.
+
+verified-by-reading:
+  - "logger.ts:8-22 — log.warn/info/ok/dim → console.log (stdout); log.error → console.error (stderr). Confirms the stream discriminator."
+  - "markdown-section.ts:22-27 — sectionBody terminator is literally (?=\\n## |$) and the opening match is NOT line-anchored. Both defects are real, as the contract claims."
+  - "gate-design.ts:178-194,340-342 — parsePresentedInformation/parseStates are local, already computed at :340-341; AC-1 reuses those arrays. reconcileProvenance over [] returns [] (vacuous pass), confirming AC-2's hole."
+  - "design-provenance.ts:452-520 — the five existing citation forms; the sixth (ci-gate:) is not yet implemented. reconcileProvenance has no row-count check."
+  - "hooks/pre-tool-use-design-write.sh + acceptance-write.sh — both still key off CDD_*_WRITE_STRICT and block the BODY under strict; body-always-allowed + toggle-retirement is unbuilt."
+  - ".claude/settings.json — registers only Read→graph-first and Bash→test-runner; neither write-block hook is armed. Confirms defect 4 / AC-4 premise."
+  - "design-hash.ts:56-59,95-101 — DesignLockEntry is {hash, 'locked-at'?}; the git-author/tty/timestamp provenance fields are unbuilt."
+  - "test/helpers.ts:23-48 — runCli spreads process.env then opts.env; CI can be overridden per-test (CI:'' for warn, CI:'true' for error)."
+  - "ci-gate-contract.md:189-289,308-422 — enforceConfirmationHookInstallation shape (ci-or-strict, two distinct absence messages, tracked-path requirement, not gated on isNewChange) and the sixth-form spec (unique substring, parenthetical-tolerant heading, *_` strip, case-sensitive)."
+
+could-not-devise-mutation-for:
+  - "AC-4 self-stamp PREVENTION (DAC-1): the mechanism is deliberately absent per Decision 1/Crux B, so there is nothing to mutate. A prevention test would be the vacuous 'Write blocked = Bash blocked' shape this change exists to delete. Recorded as out-of-scope, not a gap."
+  - "AC-5 human-authorship of the fork: not mechanically provable (tamper-evidence-is-a-clue). Only the mechanical consequences are testable."
+  - "AC-6 real dogfood lock: a human-run artifact I am forbidden to produce; verified by qa-reviewer, not by a unit mutation."
+
+contradictions-found:
+  - "ci-gate-contract.md:383 says ':: the' occurs 18 times in enforceInteractionDesign; interaction-design.md ## Provenance says 23. Both ≥2 so the ambiguity test rejects either way, but the numbers disagree — flagged for contract-reviewer."
+  - "buildDesign in gate-design.test.ts defaults infoRows/stateRows to []; the existing 'fully valid' test (line ~462) would BREAK once AC-1 lands. Recorded in the Test Update Contract so the backend engineer seeds the fixture."
+  - "The existing design/acceptance-write-hook tests encode the retired toggle behaviour (strict blocks body); they must be deleted, not merely extended — recorded in the Test Update Contract."
+
+artifacts:
+  - { type: test-plan-path, pointer: "specs/changes/enforce-human-confirmation/test-plan.md" }
+  - { type: tdd-pairs, pointer: "test/cli/gate-design.test.ts → src/commands/gate-design.ts (AC-1/2/7)" }
+  - { type: tdd-pairs, pointer: "test/cli/design-write-hook.test.ts → hooks/pre-tool-use-design-write.sh (AC-3)" }
+  - { type: tdd-pairs, pointer: "test/cli/gate.test.ts → enforceConfirmationHookInstallation (AC-4/7)" }
+  - { type: tdd-pairs, pointer: "test/utils/design-provenance.test.ts → src/utils/design-provenance.ts + markdown-section.ts (sixth form; enables AC-6)" }
+  - { type: tdd-pairs, pointer: "test/cli/design-confirm.test.ts → src/utils/design-hash.ts writeDesignLock (AC-4 provenance fields)" }
+  - { type: coverage-tiers, pointer: "unit, contract, integration, e2e" }
+  - { type: mapping-completeness, pointer: "AC-1..AC-8 all mapped; DAC-1 recorded untestable-by-design; sixth citation form covered as the AC-6 enabler" }

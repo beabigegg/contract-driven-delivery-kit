@@ -380,9 +380,14 @@ occur EXACTLY ONCE in the resolved section body.
 
 Verifying only that the named section exists would be nearly vacuous. So would
 accepting any substring: a fragment guaranteed to appear in ordinary prose asserts
-nothing. `:: the` occurs 18 times in `enforceInteractionDesign` and is rejected as
-ambiguous; a bare `:: AC-4` occurs 3 times and is likewise rejected, forcing the
-author to cite the condition's distinguishing prose (`:: zero unresolved`) instead.
+nothing. `:: the` occurs many times over in `enforceInteractionDesign` and is
+rejected as ambiguous; so is a bare `:: AC-4`, forcing the author to cite the
+condition's distinguishing prose (`:: zero unresolved`) instead.
+
+No exact occurrence count is stated here on purpose. `[ci 0.6.0]` asserted "18
+times"; the measured value was 23, and it moves with every edit to the section.
+A count written into prose is an assertion that drifts silently — the shape this
+contract exists to forbid. What is asserted, and tested, is the *rejection*.
 Uniqueness turns the citation into an anchor to one place, which is what a
 provenance citation is for, and it gives the state-discriminator rule real teeth:
 two meaning-distinct states citing one section must anchor to two genuinely

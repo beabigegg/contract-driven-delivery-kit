@@ -1,0 +1,81 @@
+agent: ci-cd-gatekeeper
+status: approved-with-risk
+summary: >
+  Wrote specs/changes/enforce-human-confirmation/ci-gates.md. Verdict: mergeable,
+  conditional on (1) the check + settings.json arming landing in one commit, and
+  (2) branch protection binding the required check to the job `contract-and-fast-tests`.
+  No workflow YAML edit is required or applied — the new check self-arms off the `CI`
+  env var and both workflows already invoke `cdd-kit gate <id>` per changed spec dir
+  on pull_request+push. Every mechanism claim in ci-gates.md is tagged [read]/[ran].
+
+artifacts:
+  - { type: tiers-modified, pointer: "1 (all cdd-kit gate checks are Tier 1)" }
+  - { type: gate-promotions, pointer: "none (enforceConfirmationHookInstallation ships required ci-or-strict from day one; no informational period)" }
+  - { type: workflow-files-changed, pointer: "none — no edit required; verified both files already run gate per changed spec dir and check keys on CI env var" }
+  - { type: required-status-checks, pointer: "contract-and-fast-tests (job carrying enforceInteractionDesign, enforceAcceptanceOracle, enforceConfirmationHookInstallation, validate, ci-workflow.test.ts)" }
+
+what-i-read:
+  - ".github/workflows/contract-driven-gates.yml [read] — STRICT_FLAG='--strict' set only when github.event_name=='push' (lines 105-111); gate step runs on pull_request+push, no continue-on-error; on.push.branches [main,master]"
+  - "github-workflows/contract-driven-gates.yml [read] — adopter template; same gate step + strict-on-push-only; uses global `cdd-kit` pinned to {{cdd-kit-version}}, no npm ci/build/typecheck/test steps (a 'Repository-specific fast gate' placeholder instead)"
+  - "test/contracts/ci-workflow.test.ts [read] — asserts shared invariants over BOTH files; see drift finding below"
+  - "contracts/ci/ci-gate-contract.md 0.7.0 [read] — enforceConfirmationHookInstallation row (ci-or-strict), CI-env semantics (221-236), NOT gated on isNewChange (238-242), tracked-path requirement (199-205)"
+  - "contracts/env/env-contract.md 0.4.0 [read] — CI var row; --require-hooks flag rejected in favour of CI env"
+  - "src/commands/gate.ts [read] — dispatch of enforce* checks; isNewChange computed :94, threaded to enforceInteractionDesign :184; warnings->log.warn (stdout, :202-204), errors->reportGateFailure->log.error (stderr) + process.exit(1) (:45-60, :206-208)"
+  - "change-request.md, interaction-design.md ## Confirmed, change-classification.md (AC-1..AC-8, DAC-1) [read]"
+
+what-i-measured:
+  - cmd: "git ls-files .claude/settings.json"
+    output: "(empty) — file is UNTRACKED today"
+  - cmd: "git log --all -- .cdd/design-lock.json"
+    output: "(empty) — the confirm path has never run in this repo's history"
+  - cmd: "git grep -n enforceConfirmationHookInstallation -- src/"
+    output: "NOT FOUND — the new check does NOT exist in src/ yet; it is a planned check, so ci-gates.md governs it as planned rather than announcing it as real"
+  - cmd: "git grep -n 'process.env.CI' -- src/"
+    output: "NOT FOUND — the CI-env keying is not yet implemented in code"
+  - cmd: "git grep -n STRICT_FLAG -- .github/workflows/contract-driven-gates.yml"
+    output: "lines 105, 110, 115 — STRICT_FLAG assigned '--strict' only inside the push branch"
+
+could-not-verify:
+  - >
+    Branch-protection binding of the required check to job `contract-and-fast-tests`.
+    Not present in any repo file I can read; without it, every stderr gate failure is
+    informational. Stated as a merge-eligibility precondition, not assumed.
+  - >
+    hooks/pre-commit's exact behaviour (that local pre-commit runs `cdd-kit gate --strict`
+    and is bypassed by --no-verify). Outside my read packet. Taken from
+    contracts/ci-gate-contract.md and change-request.md finding 9; the load-bearing
+    evidence for the strict-only-blocks-nothing finding is the WORKFLOW file, which I
+    did read directly. Marked [contract-asserted, not independently read] in ci-gates.md.
+
+findings:
+  - drift-assertion: >
+      test/contracts/ci-workflow.test.ts DOES partially assert cross-file sync. Its
+      describe-loop (lines 52-81) runs the SAME assertions over BOTH workflow files:
+      no continue-on-error, no `doctor`, gate step gated on changed dirs, --strict only
+      on push, fetch-depth 0. It then asserts each file's DIVERGENT install strategy
+      separately. It does NOT assert byte/structural parity. A general
+      github-workflows<->.github drift checker is explicitly out of scope
+      (change-request Non-goals). So: gate-relevant behaviour is kept in sync by the
+      test; broader drift is not guarded and is a deferred follow-up.
+  - real-pre-merge-teeth: >
+      enforceConfirmationHookInstallation CAN fail before merge — on a pull_request that
+      touches a spec dir, CI=true errors on stderr -> job red. This is genuine, unlike
+      the four prior ghost checks, BECAUSE it keys on the auto-set CI env var and the
+      gate step already runs on pull_request with no continue-on-error.
+  - honest-gap: >
+      The gate step is guarded by `if: steps.changed.outputs.ids != ''`. A PR that
+      de-arms .claude/settings.json but touches NO specs/changes/<id>/ dir skips the
+      gate step, so the hook-presence check never runs on it. Pre-merge teeth exist
+      only for spec-touching PRs. Recorded as residual gap; a diff-independent standalone
+      check is a follow-up, not this change.
+
+contradictions-found:
+  - none: >
+      No contradiction between the contract, the change-request, the interaction-design
+      ## Confirmed decisions, and the actual workflow files. Every load-bearing claim I
+      re-checked held: --strict is genuinely push-only (verified line 105-115); the CI
+      env keying is the correct non-strict mechanism (verified against env 0.4.0);
+      settings.json is genuinely untracked (verified). The one thing I flag loudly is not
+      a contradiction but an absence: enforceConfirmationHookInstallation and the CI-env
+      keying do NOT yet exist in src/ — consistent with this being the planning phase,
+      but ci-gates.md must and does treat the check as PLANNED, never as already real.

@@ -112,9 +112,26 @@ standing-lesson: >
   Read what the tool prints before believing what the document says.
 
 re-measured-after-edits:
-  - all 16 `ci-gate:` anchors still resolve at exactly one occurrence
-  - sectionBody consumer blast radius across 12 headings / 5 call sites: zero drift
-  - validate PASS; check:mojibake PASS; check:lockfile PASS
-  - test/contracts: 113 passed
-  - gate enforce-human-confirmation: unchanged failure surface (22 provenance rows +
-    absent baseline). No new failure class introduced.
+  - "all 16 `ci-gate:` anchors still resolve at exactly one occurrence"
+  - "sectionBody consumer blast radius across 12 headings / 5 call sites: zero drift"
+  - "validate PASS; check:mojibake PASS; check:lockfile PASS"
+  - "test/contracts: 113 passed"
+  - "gate enforce-human-confirmation: unchanged failure surface (22 provenance rows +
+    absent baseline). No new failure class introduced."
+
+postscript: >
+  This file was itself committed as INVALID YAML (an unquoted `key: value` colon inside
+  a block-sequence item, wrapped across two lines). `cdd-kit validate` passed, `cdd-kit
+  gate` passed, and no test noticed. The agent-log — the artifact that records what was
+  verified — is not machine-checked for being parseable. Added to the follow-ups:
+  `validate` should parse every `agent-log/*.yml`, or the audit trail can rot unobserved.
+  Same shape as every other finding here: a guarantee nothing checks.
+
+  A near-miss worth recording, since it happened while writing the fix. The first sweep
+  used `yaml.load` and reported `interaction-design-loop/agent-log/backend-engineer.yml`
+  as also broken. It is not: it is a legitimate MULTI-DOCUMENT log, one `---` document
+  per implementation batch, and `load` refuses more than one document. The correct probe
+  is `loadAll`. Under `loadAll`, every agent-log in the repository parses clean and only
+  this file was ever broken. An unverified probe nearly produced a false accusation
+  against a sound artifact — inside the very log recording six findings about unverified
+  claims. Any future `validate` check for this MUST use `loadAll`.

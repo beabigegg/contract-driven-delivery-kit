@@ -13,11 +13,11 @@ tasks:
   - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: done }
   - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: done }
   - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: done }
-  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: pending }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: done, note: "ci-gates.md written; adds a can-this-check-actually-fail column. Found a real hole: the gate step is guarded by if steps.changed.outputs.ids != '', so a PR that de-arms .claude/settings.json without touching any spec dir skips the hook-presence check entirely" }
   - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: pending }
   - { id: "2.1", section: "Contract Updates", title: "API contract", status: skipped, note: "no HTTP surface; contracts/api is applicability: not-applicable" }
   - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "no UI surface" }
-  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: done, note: "env 0.2.0 -> 0.3.0: CDD_ACCEPTANCE_WRITE_STRICT deprecated (Decision 1 retires the toggle); CDD_DESIGN_WRITE_STRICT deliberately not newly documented" }
+  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: done, note: "env 0.2.0 -> 0.3.0: CDD_ACCEPTANCE_WRITE_STRICT deprecated (Decision 1 retires the toggle); CDD_DESIGN_WRITE_STRICT deliberately not newly documented. -> 0.4.0: CI documented as a consumed input (Decision 2 as amended; hook-presence is ci-or-strict)" }
   - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: skipped, note: "design-lock shape is governed by src/schemas/design-lock.schema.ts, not a data contract" }
   - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: skipped, note: "behavior change is expressed through the CI gate contract and the ADR" }
   - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: done }
