@@ -1,5 +1,5 @@
 change-id: enforce-human-confirmation
-status: in-progress
+status: done
 tier: 1
 context-governance: v1
 tier-floor-override: "Scanner matched 'migration' and 'route' inside change-request.md prose that describes the defects themselves (the not-applicable escape route; the phrase 'data migration' quoted from the tier-floor rule). This change touches no database migration, no auth, no payments, no concurrency, no secrets — it edits gate checks, PreToolUse hook scripts, and the CI gate contract. This is the known context-blind tier-floor scanner false positive, deliberately left unfixed because its failure direction is fail-safe."
@@ -38,5 +38,5 @@ tasks:
   - { id: "6.2", section: Verification, title: "PR required gates", status: done, note: "Verified by reading .github/workflows/contract-driven-gates.yml:97-117 — it runs `node dist/cli/index.js gate \"$id\"` per changed spec dir on pull_request/push with NO continue-on-error, and validate unconditionally. Mechanically guarded by test/contracts/ci-workflow.test.ts (gate step present, gated on changed dirs, --strict only on push, no doctor), green in the 1477/0 suite under both CI unset and CI=true. Real CI run on a live PR is post-push (repo has no open PR yet); branch-protection binding to job contract-and-fast-tests is an admin setting outside repo files (ci-gates.md § Merge Eligibility item 2)." }
   - { id: "6.3", section: Verification, title: "Informational gates", status: done, note: "The reverse/over-fetch advisory is doctor-only and never promoted to a CI finding; both workflows are asserted to never invoke doctor (ci-workflow.test.ts:61-63), green in suite. No informational gate is added or promoted by this change." }
   - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: skipped, note: "No stress/soak or long-running surface (task 3.5 skipped). The workflow's scheduled-stress-soak job (schedule cron + workflow_dispatch) is an unconfigured placeholder, correctly left so — this change adds no nightly/weekly gate." }
-  - { id: "7.1", section: Archive, title: "Archive change", status: pending }
-  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: pending }
+  - { id: "7.1", section: Archive, title: "Archive change", status: done, note: "Archived to specs/archive/2026/enforce-human-confirmation via cdd-kit archive; INDEX.md updated." }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: done, note: "contract-reviewer-gated. Product-behavior lessons already in ci-gate-contract 0.9.0. Two methodology rules promoted to CLAUDE.md Promoted Learnings (managed region, 1->3 lines): oracle-independence + mutation-discipline/stream-not-exit-code. Candidate 3 (gate-against-own-build) rejected — install-hooks still emits global form; filed as follow-up in archive.md instead. See archive.md ## Lessons Promoted to Standards." }
