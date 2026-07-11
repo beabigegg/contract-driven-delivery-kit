@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { makeTempDir, cleanupDir } from '../helpers.js';
 import { openapiExport } from '../../src/commands/openapi-export.js';
@@ -487,11 +487,25 @@ describe('resolveCitation: sixth citation form (ci-gate:) — against the real c
   // exactly one occurrence; the deliberately-too-loose substrings are rejected.
   const repoRoot = process.cwd();
 
+  // The change may be live under specs/changes/ or already closed under
+  // specs/archive/<year>/ — resolve either, so archiving it does not break this
+  // regression guard (the archived design's anchors must still resolve against the
+  // current contract; a contract edit that breaks one is exactly what this catches).
+  function designPath() {
+    const active = join(repoRoot, 'specs', 'changes', 'enforce-human-confirmation', 'interaction-design.md');
+    if (existsSync(active)) return active;
+    const archiveRoot = join(repoRoot, 'specs', 'archive');
+    if (existsSync(archiveRoot)) {
+      for (const year of readdirSync(archiveRoot)) {
+        const p = join(archiveRoot, year, 'enforce-human-confirmation', 'interaction-design.md');
+        if (existsSync(p)) return p;
+      }
+    }
+    throw new Error('enforce-human-confirmation/interaction-design.md not found under specs/changes or specs/archive');
+  }
+
   function extractAnchors() {
-    const id = readFileSync(
-      join(repoRoot, 'specs', 'changes', 'enforce-human-confirmation', 'interaction-design.md'),
-      'utf8',
-    );
+    const id = readFileSync(designPath(), 'utf8');
     const anchors = [];
     for (const line of id.split('\n')) {
       const idx = line.indexOf('ci-gate:');
