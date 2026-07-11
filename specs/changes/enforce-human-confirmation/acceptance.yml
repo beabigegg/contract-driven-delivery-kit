@@ -28,8 +28,20 @@
 #   - The draft expected the hook's stderr to contain "is blocked unconditionally", and
 #     the allow path to emit "is always allowed". Measured: zero occurrences of either.
 #     Both are contract prose describing the hook, not strings the hook prints. The allow
-#     path emits zero bytes on stdout and stderr, and must: a hook that speaks when it
-#     permits is indistinguishable from a hook nobody installed.
+#     path emits zero bytes on stdout and stderr, and must -- but the reason first written
+#     here ("a hook that speaks when it permits is indistinguishable from a hook nobody
+#     installed") was backwards: output would DISTINGUISH a present hook from an absent
+#     one. The real reason, now a contract requirement (ci 0.9.0), is that the broad
+#     `Write|Edit|MultiEdit` matcher fires this hook on every edit, so speaking on permit
+#     would narrate every unrelated write.
+#
+# Round-3 external review (2026-07-11) found three `expect` leaves that had been read off
+# the running system rather than derived from a source: the refusal naming the file, the
+# permitting hook's silence, and the no-op result line. The human chose to PROMOTE all
+# three: the first two are now requirements in `contracts/ci/ci-gate-contract.md`
+# (ci 0.9.0), and the third cites the `already matches` result line that section already
+# documented. Every `expect` below therefore now traces to the contract or the human's
+# `## Confirmed`, which is the property this file claims and had partially broken.
 #   - The draft folded "settings file absent" and "hook not registered" into one case.
 #     They are two of six causes carrying six distinct messages. Collapsing any two is
 #     the precise defect this change exists to delete.
@@ -42,7 +54,7 @@
 #     own git identity. Rewritten to pin the absence of the guarantee instead of
 #     asserting it.
 
-oracle-version: 0.1.0
+oracle-version: 0.2.0
 authored-by: "human maintainer (decisions, corrections, and the relock stamp); drafted by main Claude under explicit delegation on 2026-07-10 -- see PROVENANCE above"
 
 cases:
@@ -60,6 +72,23 @@ cases:
         - ".cdd//design-lock.json"
         - "D:\\repo\\.cdd\\design-lock.json"
         - ".CDD/design-lock.json"
+    expect:
+      every-path-is-refused: true
+      the-refusal-names-the-file: true
+
+  - id: acceptance-lock-sidecar-write-is-refused
+    given: "the acceptance write-block hook is installed, and an agent holds the editing tools"
+    when: "the agent tries to write the human's acceptance baseline file directly, in the shapes a real editor sends"
+    then: "every one is refused, and the refusal names the file; Decision 1 names BOTH lock sidecars, so the acceptance lock is protected exactly as the design lock is -- a case that tested only one would leave half of the human's decision unproven"
+    input:
+      hook: acceptance-write
+      tool: Write
+      target-paths:
+        - ".cdd/acceptance-lock.json"
+        - "./.cdd/acceptance-lock.json"
+        - ".cdd//acceptance-lock.json"
+        - "D:\\repo\\.cdd\\acceptance-lock.json"
+        - ".CDD/acceptance-lock.json"
     expect:
       every-path-is-refused: true
       the-refusal-names-the-file: true
@@ -188,12 +217,15 @@ cases:
     expect:
       the-second-run-rewrites-the-file: false
       the-recorded-provenance-survives: true
-      the-output-says-it-was-left-untouched: true
+      # The documented no-op result line (ci-gate-contract.md, Write-block hook
+      # discrimination axis, "Confirm result line"), NOT the incidental `left untouched`
+      # addendum the driver used to hardcode.
+      the-message-contains: "already matches"
 
   - id: bash-self-stamp-is-not-prevented
     given: "an agent that holds a shell, on a machine where that shell runs as the human, with the human's files and the human's git identity"
     when: "the agent runs the confirmation command itself instead of reaching for the editing tools"
-    then: "it succeeds, and nothing in this system may claim otherwise; the recorded author, terminal flag, and timestamp are only what the recorder said about itself, and a human running the same command from a script records identical values"
+    then: "it succeeds, and nothing in this system may claim otherwise; the recorded author and terminal flag are only what the recorder said about itself, and a human running the same command from a script records the same author and the same terminal flag -- the timestamp necessarily differs between two runs, but a timestamp is not an actor signal, so no recorded field tells an agent apart from a human"
     input:
       actor: bash-holding-agent
       method: runs-the-confirmation-command

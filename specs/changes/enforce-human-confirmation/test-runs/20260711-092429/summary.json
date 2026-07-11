@@ -1,0 +1,15 @@
+{
+  "change_id": "enforce-human-confirmation",
+  "phase": "acceptance",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node node_modules/vitest/vitest.mjs run test/acceptance/enforce-human-confirmation.driver.test.ts",
+  "duration_ms": 24209,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/enforce-human-confirmation/test-runs/20260711-092429/summary.json",
+    "stdout": "specs/changes/enforce-human-confirmation/test-runs/20260711-092429/stdout.log",
+    "stderr": "specs/changes/enforce-human-confirmation/test-runs/20260711-092429/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

@@ -13,14 +13,43 @@ delegation:
   what-it-costs: >
     The answer key is no longer independent of the agent whose work it grades.
   what-preserves-its-value:
-    - "Every `expect` is derived from the human's `## Confirmed` decisions and from contracts/ci/ci-gate-contract.md — never from observing what the code currently does. An oracle copied from the implementation asserts only that the code does what the code does."
+    - >
+        Every `expect` is derived from the human's `## Confirmed` decisions and from
+        contracts/ci/ci-gate-contract.md — never from observing what the code currently
+        does. An oracle copied from the implementation asserts only that the code does what
+        the code does. CORRECTED, external review round 3 (2026-07-11): I had failed this on
+        THREE leaves — `the-refusal-names-the-file`, `the-hook-says-nothing`, and the no-op
+        result line — each read off the running system, not derived from a source. The human
+        chose to promote all three; the first two are now requirements in `ci 0.9.0` and the
+        third cites the `already matches` result line that contract section already
+        documented. The claim is true now; it was partially false when first written, and
+        an external reviewer caught it, not a gate.
     - "`cdd-kit accept relock` was NOT run by any agent. The hash-lock stamp is the human's alone; the gate stays red until they give it. Verified: the acceptance-write hook still refuses `.cdd/acceptance-lock.json` (exit 2) while allowing `acceptance.yml`'s body (exit 0) — the exact asymmetry that made this delegation possible without surrendering the stamp."
-    - "Case `bash-self-stamp-is-not-prevented` pins an ABSENCE. It fails the moment anything in this system begins claiming a guarantee DAC-1 records as unmet."
+    - >
+        Case `bash-self-stamp-is-not-prevented` pins an ABSENCE. It fails when the shipped
+        artifacts the driver scans (the two hooks, gate-shared, design/accept, the ci
+        contract) assert prevention against a shell agent, and when the recorded provenance
+        gains a field that varies by actor. CORRECTED, external review round 3: an earlier
+        revision said it "fails the moment ANYTHING in this system begins claiming a
+        guarantee DAC-1 records as unmet." That over-claimed. The rule scans a fixed file
+        list with a narrow regex; `Human-only` in the CLI help (`index.ts:598,611`) and
+        `run by the human` in the hook messages are prescriptive statements of who SHOULD
+        stamp, not assertions that an agent is prevented, and the rule neither flags them
+        nor should. What is pinned is narrower and true.
 
 corrections-to-the-humans-draft:
   note: "each measured against the real system before being changed"
   items:
-    - "The draft expected the hook's stderr to contain `is blocked unconditionally`, and the allow path to print `is always allowed`. Measured: zero occurrences of either. Both are contract prose describing the hook, not strings the hook prints. The allow path emits zero bytes on both streams — and must, because a hook that speaks when it permits is indistinguishable from a hook nobody installed."
+    - >
+        The draft expected the hook's stderr to contain `is blocked unconditionally`, and
+        the allow path to print `is always allowed`. Measured: zero occurrences of either.
+        Both are contract prose describing the hook, not strings the hook prints. The allow
+        path emits zero bytes on both streams — and must. CORRECTED, round 3: the reason I
+        first gave ("a hook that speaks when it permits is indistinguishable from a hook
+        nobody installed") is backwards — output would DISTINGUISH a present hook from an
+        absent one. The real reason, now a contract requirement (`ci 0.9.0`), is that the
+        broad `Write|Edit|MultiEdit` matcher fires this hook on every edit, so speaking on
+        permit would narrate every unrelated write.
     - "The draft folded `settings file absent` and `hook not registered` into one case. They are two of six causes with six distinct messages. Collapsing any two is the precise defect this change exists to delete."
     - "The draft's audit case expected TTY or git-author to `expose non-human operation`. Measured in one temp repo: a human running `design confirm` from a non-interactive shell records tty=false, git-author=The Human; a Bash-holding agent running the identical command records tty=false, git-author=The Human. Identical. TTY separates interactive from non-interactive, never human from agent, and the agent runs under the human's own git identity. Encoding that expectation would have made the oracle certify DAC-1 as met. Rewritten to pin the absence."
 
@@ -72,15 +101,71 @@ my-own-errors:
       real prose with genuinely empty tables.
 
 verified-by-running:
-  - "driver: 16/16 passing, executed on win32 through `sh` on PATH (the older hook tests hardcode /bin/sh and skip here; a case proven only by a skipped test is not proven — AC-5)"
-  - "AC-4 mock-of-SUT and hardcoded-expect scan on the new driver: 0 violations"
-  - "gate --strict: 0 unbound rules — all four `rules[]` carry a bound test"
-  - "test-evidence.yml: collect, targeted, changed-area, acceptance — all recorded as passed by `cdd-kit test run`, final-status passed"
-  - "full suite: 1441 passed / 74 skipped / 0 failed, identical with CI unset and CI=true"
-  - "validate PASS; check:mojibake PASS"
-  - "acceptance-write hook: `acceptance.yml` body -> exit 0; `.cdd/acceptance-lock.json` -> exit 2"
+  note: "figures updated after the round-3 edits (2026-07-11); the earlier 16/16 and 1441/74 were pre-round-3 and are superseded."
+  results:
+    - "driver: 17/17 passing (was 16/16; +1 = acceptance-lock-sidecar-write-is-refused), executed on win32 through `sh` on PATH (the older hook tests hardcode /bin/sh and skip here; a case proven only by a skipped test is not proven — AC-5)"
+    - "AC-4 mock-of-SUT and hardcoded-expect scan on the new driver: 0 violations"
+    - "gate --strict: 0 unbound rules — all four `rules[]` carry a bound test"
+    - "test-evidence.yml: acceptance phase recorded passed via `node node_modules/vitest/vitest.mjs` (NOT `npx vitest`, which hangs to the 300s timeout without a TTY and writes a false failure), final-status passed"
+    - "full suite: 1477 passed / 48 skipped / 0 failed, identical with CI unset and CI=true"
+    - "validate PASS; check:mojibake PASS"
+    - "acceptance-write hook: `acceptance.yml` body -> exit 0; `.cdd/acceptance-lock.json` -> exit 2"
+    - "gate enforce-human-confirmation: exit 0 after the human relock (2026-07-11T02:11:51, git-author beabigegg)"
 
+round-3-external-review:
+  verdict: "NOT approved as-was. Three findings confirmed by measurement, not accepted on Codex's word."
+  what-codex-independently-verified: >
+    Codex re-ran two of my self-reported mutations (dormant registration, AC-1 empty-chain)
+    baseline -> mutate -> restore, and confirmed both turn their case red with the source
+    files clean afterward. Those two matrix rows are real, checked by the reviewer rather
+    than only by me.
+  confirmed-findings:
+    - >
+        THREE `expect` leaves were implementation-derived, the fatal class: `the-hook-says-
+        nothing`, `the-refusal-names-the-file`, and the no-op result line (`left untouched`,
+        hardcoded in the driver). None traced to the human's `## Confirmed` or the contract.
+        Human chose PROMOTE: silence and file-naming are now requirements in
+        `ci 0.9.0`; the no-op leaf now cites the `already matches` result line the contract
+        already documented, read from the case instead of hardcoded.
+    - >
+        rule-distinct-situations-carry-distinct-words claimed six situations but the driver
+        proved only two distinct (unregistered vs untracked-settings). Expanded: the rule
+        test now produces all six causes — absent, untracked-settings, unregistered, dormant,
+        untracked-script, git-declined — each in its own fresh repo, and asserts the six
+        messages pairwise distinct.
+    - >
+        Decision 1 names BOTH lock sidecars; only the design lock was directly tested. Added
+        `acceptance-lock-sidecar-write-is-refused`.
+    - >
+        The DAC-1 test was theatre: two identical `runCli` calls labelled "agent" and
+        "human". Rewritten to DEMONSTRATE the bypass — a real `sh -c` redirect overwrites the
+        lock, which the PreToolUse hook cannot intercept by construction — and to assert
+        honestly that no recorded field distinguishes the actor (two runs, identical tty +
+        git-author, only the timestamp moves).
+    - >
+        Two agent-log/contract over-claims corrected: the silence rationale was backwards
+        (output distinguishes a present hook from an absent one; the real reason is matcher
+        noise), and "anything claiming the guarantee goes red" ignored that `Human-only` /
+        `run by the human` exist and are not flagged. Both fixed in place.
+  narrative-not-locked:
+    verdict: "QA + Codex agree: deliberately not locked, not gated."
+    recorded-at: "contracts/ci/ci-gate-contract.md, enforceAcceptanceOracle AC-2"
+    why: >
+      given/when/then is documentation the driver never reads; locking it adds zero
+      executable discrimination while forcing a human relock for a typo and laundering
+      agent-reworded prose into human-locked provenance.
+  fresh-mutation-proof:
+    note: "the round-3 additions re-proven; a green oracle proves nothing until a mutation turns a case red."
+    results:
+      - "acceptance hook `exit 2 -> exit 0`         -> acceptance-lock-sidecar-write-is-refused RED (design case stays green)"
+      - "design hook prints on the permit branch    -> artifact-body-write-is-allowed-and-silent + rule-a-permitting-hook-is-silent RED"
+      - "gate-shared `dormant = false`              -> six-cause test RED (dormant collapses onto 'does not register' = 5 distinct, not 6) AND a-registration-that-never-fires RED"
+      - "design.ts no-op line drops `already`       -> repeating-a-confirmation... RED (the case-read needle is no longer found)"
+    all-reverted: "src reverted + rebuilt; driver back to 17/17 green"
+
+done-since:
+  - "HUMAN relock landed 2026-07-11T02:11:51 (git-author beabigegg); `.cdd/acceptance-lock.json` re-baselined 1a24d4ad -> 0d24d24d; no agent ran `accept relock`."
+  - "test-evidence.yml refreshed: acceptance phase passed, final-status passed."
+  - "gate enforce-human-confirmation: exit 0. qa-reviewer (5.4) verdict APPROVED with its own independent mutation + gate-tamper checks (agent-log/qa-reviewer.yml)."
 remaining:
-  - "`cdd-kit accept relock enforce-human-confirmation` — HUMAN ONLY. It is the last red line on the gate, and it should be."
-  - "7 pending tasks under --strict (archive items + review tasks)"
-  - "`.cdd/design-lock.json` exists but is untracked; it commits alongside interaction-design.md"
+  - "close-out only: promote durable learnings + archive via /cdd-close (tasks 7.1/7.2)."

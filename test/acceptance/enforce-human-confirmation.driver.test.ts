@@ -18,11 +18,11 @@
  * an acceptance case proven only by a skipped test is not proven at all (AC-5).
  */
 import { describe, it, expect as expectFn, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
+import { runCli, makeTempDir, cleanupDir, CLI_PATH } from '../helpers.js';
 import { loadCase } from '../../specs/templates/acceptance-driver/acceptance.loader.js';
 
 const CHANGE_ID = 'enforce-human-confirmation';
@@ -168,6 +168,24 @@ describe('acceptance: enforce-human-confirmation', () => {
     expectFn(everyNames).toBe(want['the-refusal-names-the-file']);
   });
 
+  it('acceptance-lock-sidecar-write-is-refused', () => {
+    const c = loadCase(CHANGE_ID, 'acceptance-lock-sidecar-write-is-refused');
+    const input = c.input as { hook: string; tool: string; 'target-paths': string[] };
+    const want = c.expect as Record<string, boolean>;
+
+    const results = input['target-paths'].map(p =>
+      runHook(`pre-tool-use-${input.hook}.sh`, input.tool, p),
+    );
+
+    const everyRefused = results.every(r => r.status === REFUSAL_EXIT);
+    // Decision 1 names BOTH locks; this case proves the acceptance half the design
+    // case cannot — the acceptance hook refuses the acceptance lock and names it.
+    const everyNames = results.every(r => r.stderr.includes('acceptance-lock.json'));
+
+    expectFn(everyRefused, JSON.stringify(results.map(r => r.status))).toBe(want['every-path-is-refused']);
+    expectFn(everyNames).toBe(want['the-refusal-names-the-file']);
+  });
+
   it('artifact-body-write-is-allowed-and-silent', () => {
     const c = loadCase(CHANGE_ID, 'artifact-body-write-is-allowed-and-silent');
     const input = c.input as { hook: string; tool: string; 'target-path': string };
@@ -295,7 +313,9 @@ describe('acceptance: enforce-human-confirmation', () => {
 
   it('repeating-a-confirmation-does-not-rewrite-its-provenance', async () => {
     const c = loadCase(CHANGE_ID, 'repeating-a-confirmation-does-not-rewrite-its-provenance');
-    const want = c.expect as Record<string, boolean>;
+    const want = c.expect as Record<string, unknown>;
+    // The documented no-op result line, read from the case — never typed here.
+    const needle = want['the-message-contains'] as string;
 
     scaffoldChange('noop-confirm', { confirmedText: 'The human answered yes.' });
     gitInit(repo);
@@ -309,9 +329,9 @@ describe('acceptance: enforce-human-confirmation', () => {
     const second = runCli(['design', 'confirm', 'noop-confirm'], { cwd: repo, home });
     const after = readFileSync(lockPath, 'utf8');
 
-    expectFn(after !== first).toBe(want['the-second-run-rewrites-the-file']);
-    expectFn(after === first).toBe(want['the-recorded-provenance-survives']);
-    expectFn(/left untouched/.test(second.stdout)).toBe(want['the-output-says-it-was-left-untouched']);
+    expectFn(after !== first).toBe(want['the-second-run-rewrites-the-file'] as boolean);
+    expectFn(after === first).toBe(want['the-recorded-provenance-survives'] as boolean);
+    expectFn(second.stdout.includes(needle), `stdout lacked "${needle}": ${second.stdout}`).toBe(true);
   });
 
   it('bash-self-stamp-is-not-prevented', () => {
@@ -320,25 +340,44 @@ describe('acceptance: enforce-human-confirmation', () => {
 
     scaffoldChange('self-stamp', { confirmedText: 'The human answered yes.' });
     gitInit(repo);
-
-    // (a) an agent holding a shell runs the confirmation command itself.
-    const agentRun = runCli(['design', 'confirm', 'self-stamp'], { cwd: repo, home });
     const lockPath = join(repo, '.cdd', 'design-lock.json');
-    const agentEntry = JSON.parse(readFileSync(lockPath, 'utf8'))['self-stamp'];
 
+    // (1) The sanctioned confirm, run by a shell-holding agent, succeeds and stamps.
+    const agentRun = runCli(['design', 'confirm', 'self-stamp'], { cwd: repo, home });
     expectFn(agentRun.status === PERMIT_EXIT && existsSync(lockPath)).toBe(want['the-stamp-succeeds']);
-    expectFn(agentRun.status !== PERMIT_EXIT).toBe(want['the-agent-is-prevented']);
+    const firstEntry = JSON.parse(readFileSync(lockPath, 'utf8'))['self-stamp'];
 
-    // (b) the human runs the identical command from a non-interactive shell. If the
-    // provenance told the two apart, these would differ. They do not.
+    // (2) DAC-1 core, DEMONSTRATED not mimed. A raw shell redirect overwrites the lock
+    // directly. The write-block hook is a Claude Code PreToolUse chokepoint — it fires
+    // only when the harness invokes a tool, never on a shell's `>`, so the lock is a
+    // plain file any shell on this machine can rewrite. The previous version of this
+    // case called runCli twice and labelled the two runs "agent" and "human", which
+    // proved nothing about either; this executes the actual bypass Crux B describes.
+    // Forward slashes + single quotes so Git Bash reads the Windows path literally.
+    const shLock = lockPath.replace(/\\/g, '/');
+    const before = readFileSync(lockPath, 'utf8');
+    const redirect = spawnSync('sh', ['-c', `printf '%s' 'FORGED' > '${shLock}'`], { encoding: 'utf8' });
+    const reachedLock = redirect.status === 0
+      && readFileSync(lockPath, 'utf8') === 'FORGED'
+      && before !== 'FORGED';
+    // The agent is NOT prevented: the redirect reached the lock. `the-agent-is-prevented`
+    // is false, so `!reachedLock` must equal it.
+    expectFn(!reachedLock, `redirect status=${redirect.status}, stderr=${redirect.stderr}`)
+      .toBe(want['the-agent-is-prevented']);
+
+    // (3) No recorded field distinguishes the actor, because there is no actor check to
+    // record one. Re-stamp the identical command — the two runs are the same invocation
+    // BY DESIGN, which is the point: the discriminating fields (tty, git-author) are
+    // byte-identical across runs; only the timestamp, a clock read, moves. A label of
+    // "agent" or "human" would have nothing in the record to attach to.
     writeFileSync(lockPath, '{}', 'utf8');
     runCli(['design', 'confirm', 'self-stamp'], { cwd: repo, home });
-    const humanEntry = JSON.parse(readFileSync(lockPath, 'utf8'))['self-stamp'];
-
-    const distinguishable = agentEntry.tty !== humanEntry.tty
-      || agentEntry['git-author'] !== humanEntry['git-author'];
+    const secondEntry = JSON.parse(readFileSync(lockPath, 'utf8'))['self-stamp'];
+    const distinguishable = firstEntry.tty !== secondEntry.tty
+      || firstEntry['git-author'] !== secondEntry['git-author'];
     expectFn(distinguishable).toBe(want['the-provenance-distinguishes-the-actor']);
 
+    // (4) No output claims prevention or detection anywhere.
     const everything = agentRun.stdout + agentRun.stderr;
     expectFn(/prevent|detected|blocked/i.test(everything)).toBe(want['any-output-claims-prevention-or-detection']);
   });
@@ -411,27 +450,57 @@ describe('acceptance rules: enforce-human-confirmation', () => {
   });
 
   it('rule rule-distinct-situations-carry-distinct-words: the six hook-absence causes carry six different messages', () => {
-    // Two of the six are exercised here against the real gate; the remaining four are
-    // exercised by their own cases above. What this rule pins is that no two of them
-    // share message text — so the messages are compared, not merely produced.
-    scaffoldChange('distinct-1');
-    unregisterWriteBlockHooks(repo);
-    gitInit(repo);
-    gitAdd(repo, '.claude/settings.json');
-    const unregistered = runCli(['gate', 'distinct-1'], { cwd: repo, home, env: { CI: 'true' } }).stderr;
+    // The rule names SIX situations a person exits six different ways. The previous
+    // binding compared only two (unregistered vs untracked-settings), so it let the rule
+    // over-claim four situations it never exercised — the exact over-claim external
+    // review caught. Every cause below is produced against the real gate in its own fresh
+    // repo, and all six messages are asserted pairwise distinct.
+    const causeMessage = (setup: (r: string, h: string) => void): string => {
+      const r = makeTempDir('cdd-ehc-cause-repo-');
+      const h = makeTempDir('cdd-ehc-cause-home-');
+      try {
+        const init = runCli(['init', '--local-only'], { cwd: r, home: h });
+        if (init.status !== 0) throw new Error(`init failed: ${init.stderr}`);
+        runCli(['new', 'cause-c'], { cwd: r, home: h });
+        setup(r, h);
+        const g = runCli(['gate', 'cause-c'], { cwd: r, home: h, env: { CI: 'true' } });
+        // Each hook-install finding begins with `.claude/settings.json`; the first is the
+        // design-hook line, chosen consistently across every cause so only the CAUSE, not
+        // which hook, varies the text being compared.
+        return (g.stderr.split('\n').find(l => l.includes('.claude/settings.json')) ?? '').trim();
+      } finally {
+        cleanupDir(r);
+        cleanupDir(h);
+      }
+    };
 
-    const s = readSettings(repo);
-    writeFileSync(settingsPath(repo), JSON.stringify(s, null, 2), 'utf8');
-    spawnSync('git', ['rm', '--cached', '.claude/settings.json'], { cwd: repo, encoding: 'utf8' });
-    const untracked = runCli(['gate', 'distinct-1'], { cwd: repo, home, env: { CI: 'true' } }).stderr;
+    const messages: Record<string, string> = {
+      // 1. the settings file is absent (short-circuits before any git probe)
+      absent: causeMessage((r) => { rmSync(settingsPath(r), { force: true }); gitInit(r); }),
+      // 2. settings present but never `git add`ed — a bare CI checkout would not contain it
+      untrackedSettings: causeMessage((r) => { gitInit(r); }),
+      // 3. settings tracked, but no PreToolUse entry registers the hook
+      unregistered: causeMessage((r) => {
+        unregisterWriteBlockHooks(r); gitInit(r); gitAdd(r, '.claude/settings.json');
+      }),
+      // 4. registered in the dormant top-level shape Claude Code never executes
+      dormant: causeMessage((r) => {
+        gitInit(r); gitAdd(r, '.claude/settings.json', '.claude/hooks'); makeRegistrationDormant(r);
+      }),
+      // 5. registered and settings tracked, but the hook SCRIPT path is untracked
+      untrackedScript: causeMessage((r) => { gitInit(r); gitAdd(r, '.claude/settings.json'); }),
+      // 6. git declined to answer at all (the directory is not a git repository)
+      gitDeclined: causeMessage(() => { /* no git init: git cannot answer */ }),
+    };
 
-    const line = (out: string, re: RegExp): string => (out.split('\n').find(l => re.test(l)) ?? '').trim();
-    const a = line(unregistered, /does not register/);
-    const b = line(untracked, /not git-tracked/);
-
-    expectFn(a.length > PERMIT_EXIT, 'the unregistered cause produced no message').toBe(true);
-    expectFn(b.length > PERMIT_EXIT, 'the untracked-settings cause produced no message').toBe(true);
-    expectFn(a === b, 'two situations a person exits differently share one message').toBe(false);
+    for (const [cause, msg] of Object.entries(messages)) {
+      expectFn(msg.length > PERMIT_EXIT, `cause "${cause}" produced no hook-install message`).toBe(true);
+    }
+    const lines = Object.values(messages);
+    expectFn(
+      new Set(lines).size,
+      `six causes must carry six distinct messages; got ${new Set(lines).size}:\n${lines.map((l, i) => `${Object.keys(messages)[i]}: ${l}`).join('\n')}`,
+    ).toBe(6);
   });
 
   it('rule rule-a-permitting-hook-is-silent: both hooks emit nothing when they permit a write', () => {

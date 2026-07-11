@@ -1,0 +1,99 @@
+agent: qa-reviewer
+change-id: enforce-human-confirmation
+task: "5.4 QA gate — release-readiness verdict"
+decision: approved
+reviewer-count: 1
+sign-off-note: >-
+  Low/medium-risk change to the kit's own gate machinery; single-reviewer sign-off
+  per threshold policy. Verified by running and reading, not by trusting prose.
+
+gate-results:
+  project-gate: "pass (node dist/cli/index.js gate enforce-human-confirmation -> exit 0)"
+  acceptance-driver: "pass (17/17, test/acceptance/enforce-human-confirmation.driver.test.ts)"
+  contract-validators: "pass (validate: all validations passed)"
+  test-evidence-final-status: passed
+
+evidence-quality: repro
+
+checks:
+  - id: 1-gate-passes
+    verdict: PASS
+    evidence: >-
+      node dist/cli/index.js gate enforce-human-confirmation -> exit 0, "gate passed".
+      Project dist CLI, not the stale global 2.2.1.
+  - id: 2-oracle-independence
+    verdict: PASS
+    evidence: >-
+      Traced every expect leaf of all 13 cases and 4 rules. Each resolves to
+      contracts/ci/ci-gate-contract.md (schema 0.9.0, last-changed 2026-07-11) or to
+      the human's ## Confirmed section of interaction-design.md. The three leaves
+      round-3 external review flagged as implementation-derived
+      (the-refusal-names-the-file, the-hook-says-nothing, the "already matches" no-op
+      line) are now promoted into the contract: "names the blocked lock file" and
+      "permitting hook emits nothing on stdout or stderr" in the Write-block hook
+      discrimination axis, and the "already matches the current interaction-design.md"
+      Confirm result line. No leaf traces only to observed code behavior.
+  - id: 3-driver-is-real
+    verdict: PASS
+    evidence: >-
+      SUT is the real hook scripts run through `sh` on a real PreToolUse payload and the
+      real dist CLI (design confirm / gate); nothing mocked or spied. Every expect and
+      substring needle is read at runtime via loadCase(...c.expect / c.input); no
+      answer-key literal typed in the driver. sh resolved via PATH so it executes on
+      win32 Git Bash (not skipped). Ran: 17/17 passed.
+  - id: 4-anti-vacuity-mutation
+    verdict: PASS
+    picked: "design.ts no-op line: drop the word `already` from the confirm result line"
+    evidence: >-
+      Applied to src/commands/design.ts, npm run build, ran the driver: case
+      repeating-a-confirmation-does-not-rewrite-its-provenance turned RED
+      ("stdout lacked 'already matches'") because the needle is read from the oracle and
+      matched against real dist output. Reverted source + npm run build -> case green,
+      git diff clean. Additional gate-level check: tampering one locked expect leaf in
+      acceptance.yml made the gate FAIL with "acceptance oracle modified after authoring
+      — human must re-confirm" (exit 1), then reverted to exit 0 — proving the oracle
+      hash-lock is live for this change, not silently skipped.
+  - id: 5-narrative-not-locked
+    verdict: "defensible — should NOT block"
+    evidence: >-
+      given/when/then is documentation the driver never reads; input+expect ARE locked
+      and driver-checked. Locking the narrative would add zero executable discrimination,
+      force a human relock for a typo, and — the decisive reason — launder agent-reworded
+      prose into human-locked provenance, the exact confirmed-region-padding failure this
+      project has been bitten by. Not locking it is the safer provenance choice. Recorded
+      as an accepted documentation-integrity tradeoff in ci-gate-contract.md
+      enforceAcceptanceOracle AC-2. Residual risk (narrative can drift from input/expect
+      with no gate) is a human-review concern, low, accepted.
+  - id: 6-test-evidence
+    verdict: PASS
+    evidence: >-
+      test-evidence.yml: acceptance phase status passed (summary 20260711-092429,
+      exit_code 0); required phases collect/targeted/changed-area all passed;
+      final-status passed; no waiver fields; every run points at this change's
+      test-runs/. Acceptance summary.json confirms status passed, first_failure null.
+
+human-relock-verified:
+  evidence: >-
+    .cdd/acceptance-lock.json enforce-human-confirmation entry locked-at
+    2026-07-11T02:11:51 with git-author "beabigegg <lin4637lin4637@gmail.com>", recorded
+    AFTER the round-3 edits. The gate's exit 0 confirms AC-2 currently matches. No agent
+    ran accept relock. The agent-log/main-claude-oracle.yml "remaining" note ("gate is
+    red until human re-stamps") and its "16/16" line are STALE (pre-relock, pre-17th
+    case) and superseded by the lock and by test-evidence.
+
+residual-risks-accepted:
+  - "narrative (given/when/then) is outside the locked region; drift is a human-review concern, not gated. Documented tradeoff, ci-gate-contract.md AC-2."
+  - "oracle drafted by main Claude under recorded human delegation — independence is compromised by design; mitigated by per-leaf traceability to contract/Confirmed, human-only relock stamp, and a third external review that caught+fixed the 3 implementation-derived leaves."
+  - "provider carve-out: on non-Claude harnesses the write-block hooks do not exist, so human-confirmation rests on hash-lock + gate alone. Advisory-only by design, documented."
+
+non-blocking-followups:
+  - "refresh agent-log/main-claude-oracle.yml: verified-by-running says 16/16 (now 17/17) and remaining[] still describes a pre-relock red gate. Cosmetic staleness only."
+
+failure-routing: none
+
+artifacts:
+  - { type: gate-results, pointer: "project-gate: pass, acceptance-driver: pass (17/17), contract-validators: pass, test-evidence-final-status: passed" }
+  - { type: ci-run-url, pointer: "n/a (local-only verification on win32)" }
+  - { type: evidence-quality, pointer: "repro (mutation applied+reverted, gate tamper applied+reverted)" }
+  - { type: decision, pointer: approved }
+  - { type: failure-routing, pointer: none }

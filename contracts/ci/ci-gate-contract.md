@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.8.0
-last-changed: 2026-07-10
+schema-version: 0.9.0
+last-changed: 2026-07-11
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -70,7 +70,15 @@ Pass/fail conditions — ALL must hold to pass; any one failing fails the gate:
 2. **AC-2** — the recorded oracle hash (locked region: `cases[].{id,input,expect}`,
    `rules[].{id,statement}`) matches the author-time baseline in
    `.cdd/acceptance-lock.json`; a mismatch fails with "acceptance oracle
-   modified after authoring — human must re-confirm." A `acceptance.yml` with **no**
+   modified after authoring — human must re-confirm." The `given`/`when`/`then`
+   narrative of each case is deliberately OUTSIDE the locked region: the driver
+   asserts against `input` and `expect`, never the prose, so locking the narrative
+   would add zero executable discrimination while forcing a human relock for a typo
+   fix or a clarifying reword — and would launder agent-reworded narrative into
+   human-locked provenance. The narrative is documentation the mechanism does not
+   read; its integrity is a review concern, not a gate one. (Accepted
+   documentation-integrity tradeoff, external review round 3, 2026-07-11.) A
+   `acceptance.yml` with **no**
    recorded baseline at all also fails (under `isNewChange || strict`; a legacy dir
    is warned). An unlocked oracle is not evidence of human authorship: the
    acceptance-write hook allows `acceptance.yml`'s body by design — that is the
@@ -323,11 +331,21 @@ does not replace it, and neither of them is a wall.
 the write TARGET PATH, never on a global strict/advisory toggle:
 
 - An agent `Write`/`Edit`/`MultiEdit` whose target is `.cdd/design-lock.json` or
-  `.cdd/acceptance-lock.json` is blocked unconditionally (exit 2, stderr), whatever
-  any environment variable says.
+  `.cdd/acceptance-lock.json` is blocked unconditionally (exit 2), whatever any
+  environment variable says. The refusal is written to stderr and **names the blocked
+  lock file**, so the agent is told which file it may not write rather than merely
+  that something failed — a refusal that does not identify its target sends the reader
+  hunting.
 - An agent `Write`/`Edit`/`MultiEdit` whose target is the artifact BODY
   (`interaction-design.md`, `acceptance.yml`) is always allowed, so the sanctioned
-  first write and the transcription of the human's answers still go through.
+  first write and the transcription of the human's answers still go through. A
+  **permitting hook emits nothing on stdout or stderr** and exits 0. It must stay
+  silent on the path it allows: the matcher `Write|Edit|MultiEdit` fires this hook on
+  *every* edit in the session, so a hook that spoke when it permits would narrate every
+  unrelated file write an agent makes. (An earlier draft of this requirement justified
+  the silence as "a hook that speaks cannot be told from an absent one" — that reason
+  is backwards; output would *distinguish* a present hook from an absent one. The real
+  reason is transcript noise on the broad matcher, and it is recorded here corrected.)
 
 **"Whose target is" means the canonical path, not the string.** The hook canonicalizes
 before comparing: unescape JSON backslash pairs, fold `\` to `/`, collapse repeated

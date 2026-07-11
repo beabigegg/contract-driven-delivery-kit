@@ -8,8 +8,8 @@ required-phases:
 runs:
   - phase: acceptance
     status: passed
-    command: npx vitest run test/acceptance/enforce-human-confirmation.driver.test.ts
-    summary: specs/changes/enforce-human-confirmation/test-runs/20260710-192902/summary.json
+    command: node node_modules/vitest/vitest.mjs run test/acceptance/enforce-human-confirmation.driver.test.ts
+    summary: specs/changes/enforce-human-confirmation/test-runs/20260711-092429/summary.json
   - phase: collect
     status: passed
     command: npx tsc --noEmit

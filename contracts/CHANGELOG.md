@@ -8,6 +8,23 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.9.0] — 2026-07-11
+### Added
+- **Two write-block hook behaviours promoted from implementation detail to contract
+  requirement**, so the acceptance oracle can assert them from a real source instead of
+  from observed behaviour (external review, round 3, found the oracle asserting both as
+  if derived from the human's confirmed decisions when neither was written down):
+  - A refusal (exit 2) **names the blocked lock file** on stderr, not merely that
+    something failed.
+  - A **permitting hook emits nothing** on stdout or stderr. The stated reason is
+    corrected here: not "a speaking hook is indistinguishable from an absent one" (that
+    is backwards — output would distinguish them), but that the broad `Write|Edit|
+    MultiEdit` matcher fires the hook on every edit, so speaking on permit would narrate
+    every unrelated write.
+- The no-op confirm result line (`already matches …`) was already documented under
+  `### Write-block hook discrimination axis` and needed no change; the oracle now cites
+  that documented line rather than the incidental `left untouched` addendum.
+
 ## [ci 0.8.0] — 2026-07-10
 ### Changed
 - **The write-block axis compares canonical paths, not strings.** External review of

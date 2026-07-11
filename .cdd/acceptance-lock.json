@@ -12,10 +12,10 @@
     "locked-at": "2026-07-09T05:37:26.188Z"
   },
   "enforce-human-confirmation": {
-    "hash": "1a24d4ad3acd2e5336943af8ac2852b20f65524c4027d3e2d09ce28719a9d6de",
-    "locked-at": "2026-07-10T12:11:59.867Z",
+    "hash": "0d24d24d23d7f3e93b39f71cded04c9af29d6de8e7e0efaa7d682c402c80240c",
+    "locked-at": "2026-07-11T02:11:51.638Z",
     "tty": true,
-    "timestamp": "2026-07-10T12:11:59.867Z",
+    "timestamp": "2026-07-11T02:11:51.638Z",
     "git-author": "beabigegg <lin4637lin4637@gmail.com>"
   }
 }
