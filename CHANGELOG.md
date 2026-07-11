@@ -2,6 +2,93 @@
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-07-11
+
+Completes the human-confirmation guarantee that 3.11.0 only made half-real. Change:
+`enforce-human-confirmation`.
+
+### Added
+
+- **`enforceConfirmationHookInstallation` gate check.** Verifies the two write-block
+  PreToolUse hooks are actually armed in a project's git-tracked `.claude/settings.json`,
+  rather than merely shipped as scripts nobody registered. Six DISTINCT causes each carry
+  their own message (settings absent / untracked / hook unregistered / registered in the
+  dormant shape Claude Code never executes / script path untracked / git declined to
+  answer) — collapsing any two is the defect this check exists to catch. `ci-or-strict`:
+  a hard error on stderr in CI or under `--strict`, an advisory warning in a default local
+  run. A non-Claude provider (per `.cdd/model-policy.json`) gets one advisory line instead
+  of a failure, since the hooks are a Claude Code mechanism.
+- **`enforceInteractionDesign` AC-1** — a confirmed interaction design whose
+  `## Presented Information` or `## States` table has zero rows now fails, so a
+  confirmed-but-vacuous derivation chain can no longer pass silently.
+
+### Changed
+
+- **The write-block hooks are now actually a chokepoint, not a decoration.** They are
+  git-tracked, invoked through `sh` (so a Windows-committed mode `100644` script still
+  runs in POSIX CI), and compare the **canonical** target path — unescaping JSON
+  backslashes, folding separators, collapsing `//` and `/./`, dropping `./`, lowercasing —
+  so `.cdd/./design-lock.json`, `.cdd//design-lock.json`, a Windows absolute path (what
+  Claude Code actually sends), and a case-variant no longer slip through. A permitting hook
+  emits nothing; a refusal names the blocked file.
+- **A no-op `design confirm` / `accept relock` preserves provenance.** A re-run whose hash
+  is unchanged now writes nothing and says so, instead of overwriting `locked-at`,
+  `timestamp`, `tty`, and `git-author` — the audit clue of the original confirmation
+  survives.
+- `contracts/ci` → 0.9.0, `contracts/env` → 0.4.0 (`CDD_*_WRITE_STRICT` retired; `CI`
+  documented as a consumed input).
+
+### Fixed
+
+- **The hash-lock gate tests were vacuous.** Both hash-lock checks had a test that merged
+  stdout+stderr and never asserted `status`, so they were green whether the check warned or
+  hard-failed — the enforcement gap survived a whole release under a green test. Fixed to
+  assert the stream (`log.warn`→stdout, `log.error`→stderr). Two hook test suites also
+  skipped on win32 (hardcoded `/bin/sh`); switched to `sh` on PATH, which un-skipped 26
+  tests and immediately surfaced one real failure.
+- **Oracle independence (round-3 external review).** Three acceptance-oracle `expect` leaves
+  had been read off the running system rather than derived from a source; the properties
+  were promoted into `contracts/ci/ci-gate-contract.md` so the oracle asserts them from a
+  real source. The `given`/`when`/`then` narrative is deliberately left outside the
+  hash-locked region (documented tradeoff).
+
+## [3.11.0] - 2026-07-09
+
+External review of 3.10.0 (codex) filed four findings; two further defects were found
+while verifying them. Change: the review-fix pass.
+
+### Fixed
+
+- **The hash-lock gates treated a MISSING baseline as a warning.** `enforceInteractionDesign`
+  and `enforceAcceptanceOracle` let any Edit-capable agent author its own `## Confirmed`
+  section or `acceptance.yml`, never run confirm/relock, and pass the gate — the
+  human-confirmation guarantee at the centre of ADR 0010/0012 did not exist in the default
+  configuration. A missing baseline is now an ERROR under `isNewChange || strict`. (The
+  write-block enforcement, hook arming, and path canonicalization were still incomplete
+  here — 3.12.0 finishes them.)
+
+### Changed
+
+- Hardened the CI changed-spec-directory detection step and related gate wiring.
+
+## [3.10.0] - 2026-07-09
+
+### Added
+
+- **Interaction-design loop (ADR 0012)** — the design-side counterpart to the ADR 0010
+  acceptance oracle. A read-only `interaction-designer` agent (Read/Grep/Glob only, so it
+  cannot author the design it proposes) emits a derivation chain: presented information +
+  why → user intents by frequency → every control citing exactly one intent → state
+  reversibility → a meaning⇄form bijection → Open Decisions.
+  `specs/changes/<id>/interaction-design.md` carries it; `## Confirmed` is human-only,
+  `cdd-kit design confirm` is the sole writer of `.cdd/design-lock.json`, and
+  `pre-tool-use-design-write.sh` blocks agent writes. A semantic edit after confirmation
+  fails with "interaction design modified after confirmation — human must re-confirm".
+  Every information item and UI state must cite a supplier in the API or data-shape
+  contract, and two meaning-distinct states must cite DISTINCT discriminators.
+  `enforceInteractionDesign` is a required check behind the `isNewChange || strict`
+  migration window.
+
 ## [3.9.0] - 2026-07-09
 
 ### Added
