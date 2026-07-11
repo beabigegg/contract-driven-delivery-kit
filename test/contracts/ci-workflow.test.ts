@@ -14,10 +14,12 @@
  * unnoticed there.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdirSync } from 'fs';
+import { spawnSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import { makeTempDir, cleanupDir } from '../helpers.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ADOPTER_TEMPLATE_PATH = join(REPO_ROOT, 'github-workflows', 'contract-driven-gates.yml');
@@ -122,4 +124,45 @@ describe('CI workflows — ci-gates.md § Workflow Changes', () => {
     // install, so the failure costs seconds rather than a full dependency fetch.
     expect(guardIndex).toBeLessThan(installIndex);
   });
+});
+
+// A change archived by /cdd-close is a DELETION from specs/changes/. The changed-dirs
+// diff reports deletions, so without a filter the workflow gates a path that no longer
+// exists and `cdd-kit gate` exits 1 ("change not found") — every close would red-line CI.
+// The step must keep only change dirs that still exist at the checked-out head.
+describe('CI workflows — an archived change dir is not gated', () => {
+  for (const [label, path] of [
+    ['adopter template (github-workflows/)', ADOPTER_TEMPLATE_PATH],
+    ["this repo's own (.github/workflows/)", OWN_WORKFLOW_PATH],
+  ] as const) {
+    it(`${label}: the changed-dirs step filters to change dirs that still exist`, () => {
+      expect(read(path)).toMatch(/\[ -d "specs\/changes\/\$id" \]/);
+    });
+
+    it(`${label}: the SHIPPED IDS pipeline drops an archived (missing) id, keeps a live one`, () => {
+      // Run the exact `IDS=` line the workflow ships, so this test cannot drift from it.
+      const idsLine = read(path)
+        .split('\n')
+        .map((l) => l.trim())
+        .find((l) => l.startsWith('IDS='));
+      expect(idsLine, 'no IDS= line found in workflow').toBeTruthy();
+
+      const repo = makeTempDir('cdd-ci-idfilter-');
+      try {
+        // `live` still exists; `archived` was moved out by /cdd-close (never created here).
+        mkdirSync(join(repo, 'specs', 'changes', 'live'), { recursive: true });
+        const script = [
+          `CHANGED="$(printf 'specs/changes/archived/tasks.yml\\nspecs/changes/live/interaction-design.md\\n')"`,
+          idsLine as string,
+          `printf '%s' "$IDS"`,
+        ].join('\n');
+        const r = spawnSync('sh', ['-c', script], { cwd: repo, encoding: 'utf8' });
+        expect(r.status, r.stderr).toBe(0);
+        const ids = r.stdout.split('\n').map((s) => s.trim()).filter(Boolean);
+        expect(ids, `IDS pipeline output: ${JSON.stringify(r.stdout)}`).toEqual(['live']);
+      } finally {
+        cleanupDir(repo);
+      }
+    });
+  }
 });

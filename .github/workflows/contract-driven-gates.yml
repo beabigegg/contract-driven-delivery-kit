@@ -84,7 +84,12 @@ jobs:
             fi
           fi
           CHANGED="$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'specs/changes/')"
-          IDS="$(printf '%s\n' "$CHANGED" | sed -n 's|^specs/changes/\([^/][^/]*\)/.*|\1|p' | sort -u)"
+          # Keep only change dirs that STILL EXIST at the checked-out head. A diff
+          # against specs/changes/ also reports DELETIONS, so a change archived by
+          # /cdd-close (moved to specs/archive/) would otherwise be gated at a path
+          # that no longer exists and fail `cdd-kit gate` with "change not found" —
+          # turning every close into a red CI run. An archive-only push yields zero ids.
+          IDS="$(printf '%s\n' "$CHANGED" | sed -n 's|^specs/changes/\([^/][^/]*\)/.*|\1|p' | sort -u | while IFS= read -r id; do [ -n "$id" ] && [ -d "specs/changes/$id" ] && printf '%s\n' "$id"; done)"
           echo "::group::Changed spec directories"
           echo "$IDS"
           echo "::endgroup::"
