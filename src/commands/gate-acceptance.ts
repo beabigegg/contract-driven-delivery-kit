@@ -1,28 +1,3 @@
-// `enforceAcceptanceOracle` (ADR 0010; ci-gate-contract.md `enforceAcceptanceOracle`
-// row) -- the gate check for the human-owned `acceptance.yml` per change. Mirrors
-// the module shape of gate-evidence.ts: a present-artifact validator (schema +
-// cross-field semantics) plus a missing-artifact migration-window branch.
-//
-// Enforces AC-1 (existence/placeholder/case-count), AC-2 (hash-lock reconcile),
-// AC-4 (mock-of-SUT + hardcoded-expect driver scan, src/utils/mock-of-sut-scan.ts),
-// AC-5 (executed, passed `acceptance`-phase test-evidence), and -- `--strict`
-// only -- the `rules[]` invariant-binding scan (ci-gate-contract.md
-// `enforceAcceptanceOracle` condition 6; ADR 0010 §4; findUnboundRules in
-// src/utils/mock-of-sut-scan.ts, added by interaction-design-loop scope
-// expansion 2 -- this contract line was previously undocumented-but-absent).
-// AC-7 needs no separate code: once `acceptance.yml` is backfilled (IP-11) into
-// a migrated change, the AC-1 placeholder check below already fails it until
-// real cases are supplied.
-//
-// Missing-artifact semantics (both the file itself, AC-1, and the executed
-// evidence, AC-5) deliberately mirror `enforceTestEvidence` (gate-evidence.ts)
-// rather than ci-gate-contract.md's eventual required-from-day-one text: not
-// every existing change dir has authored real cases or run the acceptance
-// phase yet, so a hard requirement for every legacy/non-strict change would
-// fail the kit's own existing change dirs and test fixtures overnight. The
-// `isNewChange || strict` split is the same migration-window device the
-// context-manifest and test-evidence checks already use.
-
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { ajv, ajvErrorsToMessages, loadYamlFile } from './gate-shared.js';
@@ -32,27 +7,16 @@ import {
   readAcceptanceLock,
   type AcceptanceFile,
 } from '../utils/acceptance-hash.js';
+import { verifyChatAcceptance } from '../utils/acceptance-confirmation.js';
 import { findUnboundRules, scanAcceptanceDrivers } from '../utils/mock-of-sut-scan.js';
 
 const validateAcceptance = ajv.compile(acceptanceSchema);
 
-/**
- * True when a case's `input`/`expect` value is a real answer, not an unfilled
- * placeholder. Mirrors the spirit of gate-artifacts.ts's `meaningfulChars`/
- * `findPlaceholders` (AC-1 explicitly reuses that detection philosophy) but
- * operates on a single parsed YAML value rather than markdown/frontmatter text:
- * a bare `<...>` bracket token (the same fill-in convention
- * `PLACEHOLDER_LITERALS` uses, generalized since the template's own tokens
- * -- e.g. `<input-value>` -- are not yet fixed at this pass, IP-10) or an empty
- * string/collection is not meaningful; any other scalar, or a non-empty
- * array/object containing at least one meaningful value, is.
- */
 function isMeaningfulValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (trimmed === '') return false;
-    if (/^<[^<>]+>$/.test(trimmed)) return false;
+    if (trimmed === '' || /^<[^<>]+>$/.test(trimmed)) return false;
     return true;
   }
   if (typeof value === 'number' || typeof value === 'boolean') return true;
@@ -62,14 +26,11 @@ function isMeaningfulValue(value: unknown): boolean {
 }
 
 /**
- * ADR 0010 / ci-gate-contract.md `enforceAcceptanceOracle` -- validate this
- * change's `acceptance.yml`:
- *   - present + valid shape + >=1 non-placeholder case (AC-1)
- *   - hash-lock reconcile against `.cdd/acceptance-lock.json` (AC-2)
- *   - no acceptance driver mocks the resolved SUT, and none hardcodes a
- *     case's `expect` value (AC-4)
- *   - a recorded, passed `acceptance`-phase run in test-evidence.yml (AC-5)
- *   - missing -> migration-window graceful degradation (see module header)
+ * Validate a change's acceptance oracle. Legacy/human-relock mode uses the
+ * local acceptance lock. chat-confirmed mode instead verifies a GitHub PR
+ * comment authored by a repository owner/member/collaborator and bound to the
+ * exact oracle hash and current HEAD. In both modes, real acceptance execution
+ * evidence remains mandatory.
  */
 export function enforceAcceptanceOracle(
   cwd: string,
@@ -85,14 +46,11 @@ export function enforceAcceptanceOracle(
   if (!existsSync(oraclePath)) {
     if (isNewChange || strict) {
       errors.push(
-        'missing required artifact: acceptance.yml (ADR 0010 — this gate invocation requires a human-authored ' +
-        'acceptance oracle pairing input/expect answer keys with the behavior; author one, or scaffold ' +
-        'it once `cdd-kit migrate`/`cdd-kit new` backfill support lands).',
+        'missing required artifact: acceptance.yml — the main agent may draft plain-language criteria, ' +
+        'but a human must confirm them through either the legacy relock path or chat-confirmed receipt.',
       );
     } else {
-      warnings.push(
-        'missing acceptance.yml (legacy change; ADR 0010 acceptance oracle not yet backfilled for this change)',
-      );
+      warnings.push('missing acceptance.yml (legacy change; acceptance oracle not yet backfilled)');
     }
     return;
   }
@@ -112,92 +70,57 @@ export function enforceAcceptanceOracle(
     const out = ajvErrorsToMessages(validateAcceptance.errors, 'acceptance.yml', Object.keys(acceptanceSchema.properties));
     errors.push(...out.errors);
     warnings.push(...out.warnings);
-    if (out.errors.length > 0) return; // shape is not trustworthy for the checks below
+    if (out.errors.length > 0) return;
   }
 
-  // AC-1 -- at least one case must carry a real (non-placeholder) input/expect.
   const cases = Array.isArray(data.cases) ? data.cases : [];
   const realCases = cases.filter((c) => isMeaningfulValue(c?.input) && isMeaningfulValue(c?.expect));
   if (realCases.length === 0) {
-    errors.push(
-      'acceptance.yml: every case still has a placeholder (or missing) `input`/`expect` — author at least ' +
-      'one real case with a concrete answer key before the gate can pass (AC-1; ADR 0010 §1).',
-    );
-    return; // hashing/locking a still-placeholder oracle is not meaningful
+    errors.push('acceptance.yml: author at least one real case with a concrete input and expected outcome.');
+    return;
   }
 
-  // AC-2 -- hash-lock reconcile against the author-time baseline.
-  //
-  // A MISSING baseline is a hard failure under `isNewChange || strict`, not a
-  // warning. The acceptance-write hook is advisory by default, so an Edit-capable
-  // agent can author `acceptance.yml` itself; a warn-only branch here would let
-  // that AI-written answer key pass the gate, leaving ADR 0010's "human ground
-  // truth" guarantee unenforced in the default configuration. Only `cdd-kit
-  // accept relock` writes the lock. Same `isNewChange || strict` migration window
-  // as AC-5 below, so no legacy change dir is newly broken.
   const currentHash = computeAcceptanceHash(data);
-  const lock = readAcceptanceLock(cwd);
-  const baseline = lock[changeId];
-  if (!baseline) {
-    const detail =
-      'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json — an unlocked oracle proves ' +
-      'nothing (an agent can write one). A human must record the baseline by running ' +
-      `\`cdd-kit accept relock ${changeId}\`.`;
-    if (isNewChange || strict) {
-      errors.push(detail);
-    } else {
-      warnings.push(detail + ' (legacy change; not yet migrated to the ADR 0010 hash-lock)');
+  if (data['confirmation-mode'] === 'chat-confirmed') {
+    const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
+    if (!confirmation.ok) {
+      errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
     }
-  } else if (baseline.hash !== currentHash) {
-    errors.push('acceptance oracle modified after authoring — human must re-confirm.');
+  } else {
+    const lock = readAcceptanceLock(cwd);
+    const baseline = lock[changeId];
+    if (!baseline) {
+      const detail =
+        'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json. ' +
+        `Run \`cdd-kit accept relock ${changeId}\`, or set confirmation-mode: chat-confirmed and attach a verified PR confirmation receipt.`;
+      if (isNewChange || strict) errors.push(detail);
+      else warnings.push(detail + ' (legacy change; not yet migrated)');
+    } else if (baseline.hash !== currentHash) {
+      errors.push('acceptance oracle modified after confirmation — human must re-confirm.');
+    }
   }
 
-  // AC-4 -- no acceptance driver mocks the resolved SUT, and none hardcodes a
-  // case's expect value instead of reading it from the emitted loader
-  // (design.md Q2). Scans only discovered driver files (tests/acceptance/ or
-  // test/acceptance/); no drivers found is a silent no-op here -- AC-5 below
-  // separately requires a recorded, passed run, so "no driver at all" is
-  // still caught, just by a different signal.
   for (const finding of scanAcceptanceDrivers(cwd, changeDir, changeId, realCases)) {
     if (finding.kind === 'mock-of-sut') {
-      // finding.detail already carries the "supposed to verify" framing and the
-      // AC-4/ADR pointer (mock-of-sut-scan.ts), so the gate message need not
-      // duplicate it -- one source of truth for the phrase.
       errors.push(`${finding.file}: acceptance driver ${finding.detail}.`);
     } else {
       errors.push(
         `${finding.file}: acceptance driver ${finding.detail} — read it from the acceptance loader instead ` +
-        'of hardcoding the answer key (AC-4; design.md Q2).',
+        'of hardcoding the answer key.',
       );
     }
   }
 
-  // ADR 0010 §4 / ci-gate-contract.md `enforceAcceptanceOracle` condition 6 --
-  // `--strict` only (never the default mode): every `rules[]` invariant must
-  // have >=1 bound driver test. `rules: []` (or no `rules` key at all -- true
-  // for every pre-existing change dir today, verified: none but this change's
-  // own acceptance.yml declares any) passes trivially -- there is nothing to
-  // bind, so this newly-implemented check cannot regress a legacy change dir
-  // that has never used `rules[]`. See src/utils/mock-of-sut-scan.ts
-  // findUnboundRules for the binding convention and the two anti-false-
-  // positive guards it reuses from the AC-4 scan above.
   if (strict) {
     const rules = Array.isArray(data.rules) ? data.rules : [];
     const ruleIds = rules
       .map((r) => r?.id)
       .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
     for (const ruleId of findUnboundRules(cwd, changeId, ruleIds)) {
-      errors.push(
-        `acceptance rule "${ruleId}" has no bound test in test/acceptance/ (--strict; ADR 0010 §4).`,
-      );
+      errors.push(`acceptance rule "${ruleId}" has no bound test in test/acceptance/.`);
     }
   }
 
-  // AC-5 -- a case's pass must be a recorded, bounded, passed `acceptance`-
-  // phase run in test-evidence.yml; a self-reported pass with no recorded run
-  // fails. Mirrors the isNewChange||strict migration-window split above (see
-  // module header) so a legacy/non-strict change is not newly hard-failed by
-  // this check landing.
   const evidencePath = join(changeDir, 'test-evidence.yml');
   const hasPassedAcceptanceRun = (() => {
     if (!existsSync(evidencePath)) return false;
@@ -207,14 +130,11 @@ export function enforceAcceptanceOracle(
   if (!hasPassedAcceptanceRun) {
     if (isNewChange || strict) {
       errors.push(
-        'acceptance.yml: no passed `acceptance`-phase run recorded in test-evidence.yml — a self-reported ' +
-        'pass is not enough (AC-5; ADR 0005 §6). Run `cdd-kit test run <change-id> --phase acceptance`.',
+        'acceptance.yml: no passed acceptance-phase run recorded in test-evidence.yml. ' +
+        `The main agent should run \`cdd-kit test run ${changeId} --phase acceptance\`; the user does not need to run it.`,
       );
     } else {
-      warnings.push(
-        'missing a passed `acceptance`-phase test-evidence run (legacy change; run `cdd-kit test run ' +
-        '<change-id> --phase acceptance`)',
-      );
+      warnings.push('missing a passed acceptance-phase test-evidence run (legacy change)');
     }
   }
 }
