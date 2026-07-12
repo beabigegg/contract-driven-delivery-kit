@@ -6,6 +6,11 @@
 // (existence/placeholder detection, hash-lock reconcile) — an already-valid
 // shape is a precondition for those checks to trust the parsed structure.
 //
+// `confirmation-mode: chat-confirmed` allows the main agent to translate a
+// user's plain-language acceptance into this file while the actual approval is
+// independently verified from a GitHub PR comment receipt. Omitting the field
+// retains the original human-relock behavior.
+//
 // `input`/`expect` are intentionally left unconstrained (`{}` — any JSON
 // value): the answer key can be a scalar, string, or nested object depending
 // on what the case exercises (ADR 0010 §1 example uses objects). The locked
@@ -20,6 +25,7 @@ export const acceptanceSchema = {
   required: ["oracle-version", "authored-by", "cases"],
   properties: {
     "oracle-version": { type: "string", pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "confirmation-mode": { type: "string", enum: ["human-relock", "chat-confirmed"] },
     // Provenance marker (ADR 0010 §1/§3): who authored the oracle. Free text
     // rather than a closed enum so a named human author is not artificially
     // forced into a fixed vocabulary.
