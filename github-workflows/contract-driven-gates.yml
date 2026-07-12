@@ -78,10 +78,17 @@ jobs:
           echo "$IDS"
           echo "::endgroup::"
           {
+            echo "base_sha=$BASE_SHA"
             echo "ids<<EOF"
             echo "$IDS"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Boundary Guard (PR diff)
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          CDD_BASE_SHA: ${{ steps.changed.outputs.base_sha }}
+        run: cdd-kit boundary check --json
 
       - name: cdd-kit gate (changed specs)
         # Zero changed spec dirs is a no-op success, not a failure (this step

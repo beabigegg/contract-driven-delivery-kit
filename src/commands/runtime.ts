@@ -3,6 +3,10 @@ import { planRuntime, resumeRuntime, runtimeDirectory, runtimeStatus, verifyRunt
 import type { WorkflowProfile } from '../runtime/types.js';
 import type { Provider } from '../utils/provider.js';
 import { log } from '../utils/logger.js';
+import { runAllRuntimeChecks, runRuntimeCheck, runtimeCheckPlan } from '../runtime/checks.js';
+import { recordRuntimeApproval, recordRuntimeReview } from '../runtime/decisions.js';
+import { buildRuntimeAgentPrompt, recordRuntimeAgentResult, type RuntimeAgentRole } from '../runtime/agent.js';
+import { compareRuntimeWithStrict } from '../runtime/parity.js';
 
 export function runtimePlan(options: { changeId: string; objective: string; provider?: Provider; profile?: WorkflowProfile; base?: string; requireAcceptance?: boolean; json?: boolean }): number {
   try {
@@ -55,5 +59,95 @@ export function runtimeVerify(options: { runId?: string; json?: boolean }): numb
       else log.warn(`Runtime verification blocked: ${result.path}`);
     }
     return result.evidence.final_status === 'passed' ? 0 : 1;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeChecksPlan(options: { runId?: string; json?: boolean }): number {
+  try {
+    const plan = runtimeCheckPlan(process.cwd(), options.runId);
+    if (options.json) process.stdout.write(JSON.stringify({ checks: plan }, null, 2) + '\n');
+    else if (plan.length === 0) log.warn('No runtime-native checks could be selected; configure a project test/build script or explicit check plan.');
+    else for (const check of plan) log.info(`${check.required ? 'required' : 'optional'} ${check.id}: ${check.command}`);
+    return plan.length ? 0 : 1;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeChecksRun(options: { runId?: string; check?: string; all?: boolean; timeout?: number; json?: boolean }): number {
+  try {
+    if (!options.all && !options.check) throw new Error('Choose --all or --check <id>.');
+    const results = options.all
+      ? runAllRuntimeChecks(process.cwd(), options.runId, options.timeout)
+      : [runRuntimeCheck(process.cwd(), options.runId, options.check!, options.timeout)];
+    if (options.json) process.stdout.write(JSON.stringify({ results: results.map(result => result.result) }, null, 2) + '\n');
+    else for (const { result, path } of results) {
+      const message = `${result.check_id}: ${result.status} (${result.duration_ms}ms) → ${path}`;
+      if (result.status === 'passed') log.ok(message); else log.error(message);
+    }
+    return results.every(result => result.result.status === 'passed') ? 0 : 1;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeReview(options: { runId?: string; actor: string; summary: string; verdict: 'passed' | 'failed'; json?: boolean }): number {
+  try {
+    const result = recordRuntimeReview(process.cwd(), options.runId, options);
+    if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    else {
+      const message = `Review ${result.record.verdict}: ${result.path}`;
+      if (result.record.verdict === 'passed') log.ok(message); else log.error(message);
+    }
+    return result.record.verdict === 'passed' ? 0 : 1;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeApproval(options: {
+  runId?: string;
+  approvalId: string;
+  actor: string;
+  reason: string;
+  scope: string;
+  verdict: 'approved' | 'rejected';
+  json?: boolean;
+}): number {
+  try {
+    const result = recordRuntimeApproval(process.cwd(), options.runId, options.approvalId, options);
+    if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    else {
+      const message = `${options.approvalId} ${result.record.verdict}: ${result.path}`;
+      if (result.record.verdict === 'approved') log.ok(message); else log.error(message);
+    }
+    return result.record.verdict === 'approved' ? 0 : 1;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeAgentPrompt(options: { runId?: string; role: RuntimeAgentRole; json?: boolean }): number {
+  try {
+    const result = buildRuntimeAgentPrompt(process.cwd(), options.runId, options.role);
+    if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    else process.stdout.write(result.prompt + '\n');
+    return 0;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeAgentComplete(options: {
+  runId?: string; actor: string; summary: string; status: 'passed' | 'failed' | 'blocked'; files: string[]; json?: boolean;
+}): number {
+  try {
+    const result = recordRuntimeAgentResult(process.cwd(), options.runId, options);
+    if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    else log.info(`Agent result ${options.status}: ${result.path}`);
+    return options.status === 'passed' ? 0 : 1;
+  } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
+}
+
+export function runtimeParity(options: { runId?: string; json?: boolean }): number {
+  try {
+    const result = compareRuntimeWithStrict(process.cwd(), options.runId);
+    if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    else {
+      log.info(`Runtime: ${result.report.verdicts.runtime}; strict: ${result.report.verdicts.strict}`);
+      log.info(`Estimated token reduction: ${result.report.metrics.estimated_token_reduction_percent}%`);
+      log.info(`Parity report: ${result.path}`);
+    }
+    return result.report.verdicts.equivalent ? 0 : 1;
   } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
 }

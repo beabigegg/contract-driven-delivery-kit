@@ -1,5 +1,26 @@
 # Migration plan: current CDD workflow to agent-native runtime
 
+## Implementation status (2026-07-12)
+
+Phases 5–8 are implemented behind profile/runtime selection while strict remains
+the no-capsule compatibility fallback:
+
+- non-strict gates consume capsule/runtime evidence instead of seven legacy
+  artifacts;
+- test/quality commands, implementation records, review verdicts and approvals
+  are runtime-native and digest-bound;
+- implementer/reviewer prompts load only selected Doctrine for Claude or Codex;
+- Boundary Guard reconciles typed parameters/body/variants, backend routes,
+  captures, consumers and generated artifacts, including committed CI diffs;
+- guidance migration measures tokens and creates rollback copies;
+- active legacy changes may be imported as strict capsules without rewrites;
+- strict/runtime parity reports and seeded boundary mutations are executable.
+
+See [agent-native-parity-report.md](agent-native-parity-report.md) for measured
+token and mutation coverage. Promotion of a specific project from shadow policy
+still requires that project's own parity evidence and human acceptance; the
+tooling does not manufacture either decision.
+
 ## Purpose
 
 This plan migrates the kit and existing consumer repositories without discarding

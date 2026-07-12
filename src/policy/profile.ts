@@ -21,6 +21,7 @@ export interface GateProfileResolution {
 }
 
 const WORKFLOW_PROFILES = new Set<WorkflowProfile>(['lightweight', 'balanced', 'controlled', 'strict']);
+const PROFILE_ORDER: WorkflowProfile[] = ['lightweight', 'balanced', 'controlled', 'strict'];
 
 function policyDigest(cwd: string): string | null {
   const path = join(cwd, '.cdd', 'policy.yml');
@@ -68,7 +69,13 @@ export function resolveGateProfile(
     const policy = readPolicy(cwd);
     if (!policy) throw new Error(`--profile ${requested} requires a valid .cdd/policy.yml.`);
     if (!policy.profiles?.[requested]) throw new Error(`Profile ${requested} is not configured in .cdd/policy.yml.`);
-    return { profile: requested, source: 'explicit', capsule };
+    if (capsule) {
+      if (PROFILE_ORDER.indexOf(capsule.profile) < PROFILE_ORDER.indexOf(requested)) {
+        throw new Error(`Runtime capsule profile ${capsule.profile} is weaker than requested profile ${requested}; create a new runtime plan.`);
+      }
+      return { profile: capsule.profile, source: 'runtime', capsule };
+    }
+    return { profile: requested, source: 'explicit', capsule: null };
   }
   if (capsule) return { profile: capsule.profile, source: 'runtime', capsule };
   // No explicit/runtime profile means the existing gate keeps its exact legacy

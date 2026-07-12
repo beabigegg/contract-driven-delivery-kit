@@ -246,7 +246,7 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
 
     const controlled = runCli(['gate', 'acc-profile-required', '--profile', 'controlled', '--require-acceptance'], { cwd: tmpRepo, home: tmpHome });
-    expect(controlled.stdout + controlled.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
+    expect(controlled.stdout + controlled.stderr).toMatch(/requires a matching runtime capsule/i);
   });
 
   it('profile policy: a runtime capsule carries --require-acceptance into a later plain gate', () => {
@@ -259,7 +259,7 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     expect(plan.status, plan.stderr).toBe(0);
 
     const gate = runCli(['gate', 'acc-runtime-required'], { cwd: tmpRepo, home: tmpHome });
-    expect(gate.stdout + gate.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
+    expect(gate.stdout + gate.stderr).toMatch(/runtime check acceptance-oracle: failed/i);
   });
 
   it('profile policy: rejects contradictory --strict and non-strict profile flags', () => {

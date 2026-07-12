@@ -30,12 +30,18 @@ impact finding. Unknowns fail upward according to policy.
 
 ## Enforced invariants
 
-- changed write operations have resolved typed request schemas;
+- changed write operations have resolved typed body schemas;
+- path and query parameters have typed optionality metadata;
 - changed operations have resolved typed response schemas or an owned,
   unexpired exception;
+- broad/generic response schemas are denied or escalated to Controlled review;
+- mapped backend files exist and declare the contracted method/path;
+- recorded consumers exist and call the contracted method/path;
+- generated client/type artifacts match their recorded digests;
 - manifest contract digest is current;
 - at least one required response variant exists;
-- every required variant has an existing real-boundary capture;
+- every required variant has a digest-bound framework-test-client capture;
+- captures are bound to the current backend producer digest;
 - captured JSON validates against the canonical schema;
 - variant discovery is complete when policy requires it;
 - zero applicable typed checks cannot pass an API-affecting change.
@@ -50,6 +56,11 @@ passed. The strict legacy workflow remains available independently.
 cdd-kit work my-change "add async job status"
 cdd-kit runtime status
 cdd-kit runtime resume
+cdd-kit runtime agent prompt
+cdd-kit runtime agent complete
+cdd-kit runtime check run --all
+cdd-kit runtime review
+cdd-kit runtime approve
 cdd-kit runtime verify
 ```
 
@@ -69,3 +80,8 @@ Migration adds missing policy/guidance, installs provider assets and scaffolds
 Boundary Guard without rewriting active changes or archives. User-level assets
 are ownership-tracked in `~/.cdd-kit/install-manifest.json`; npm postinstall
 never overwrites user-modified assets.
+
+It also writes a guidance token audit and replacement proposals under
+`.cdd/migration/`. Existing guidance is preserved unless the user explicitly
+runs `cdd-kit guidance migrate --apply --replace`; rollback copies are created
+before replacement.

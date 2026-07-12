@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Added
+
+- Runtime-native implementation, test/quality, independent-review and approval
+  records with working-tree/policy digest invalidation.
+- Dynamic implementer/reviewer prompt composition that loads only the Doctrine
+  selected by the execution capsule, exposed through CLI and MCP for Claude Code
+  and Codex.
+- Boundary capture adapters, typed path/query metadata, generic-schema policy,
+  backend route and consumer-call reconciliation, generated artifact checks,
+  capture/producer provenance and automatic CI base detection.
+- Guidance token audits, rollback-backed migration proposals, optional import of
+  active legacy changes as strict runtime capsules, and strict/runtime parity
+  reports with token and artifact metrics.
+
+### Changed
+
+- Lightweight, balanced and controlled gates now use runtime-native evidence and
+  no longer require the seven legacy change artifacts. Strict remains unchanged
+  as the compatibility and rollback lane.
+- Claude, Codex and AGENTS templates now lead with `cdd-kit work`; fixed legacy
+  agents and `cdd-kit new` are loaded only for strict compatibility.
+- Field-table JSON Schemas are closed by default (`additionalProperties: false`)
+  so undeclared serialized fields cannot pass boundary capture validation.
+
+### Fixed
+
+- Clean CI checkouts now derive changed operations from the PR/push base instead
+  of incorrectly reporting zero changed files.
+- Untracked directories are expanded to individual files for risk routing.
+- The legacy Python response-shape validator now imports `jsonschema` only when a
+  typed sampled endpoint actually needs schema validation.
+
 ## [3.13.0] - 2026-07-11
 
 ### Added

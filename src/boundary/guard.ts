@@ -113,18 +113,75 @@ function loadManifest(cwd: string, path: string): BoundaryManifest | null {
 
 function git(cwd: string, args: string[]): string | null {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-  return result.status === 0 ? (result.stdout ?? '').trim() : null;
+  return result.status === 0 ? (result.stdout ?? '').trimEnd() : null;
 }
 
 function changedFiles(cwd: string, base?: string, head = 'HEAD'): string[] {
-  const args = base ? ['diff', '--name-only', `${base}...${head}`] : ['diff', '--name-only', 'HEAD'];
+  const ciBase = process.env.CDD_BASE_SHA || process.env.GITHUB_BASE_SHA
+    || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined)
+    || (process.env.CI && git(cwd, ['rev-parse', 'HEAD^']) ? 'HEAD^' : undefined);
+  const resolvedBase = base ?? ciBase;
+  const args = resolvedBase ? ['diff', '--name-only', `${resolvedBase}...${head}`] : ['diff', '--name-only', 'HEAD'];
   const output = git(cwd, args);
   const files = new Set((output ?? '').split(/\r?\n/).filter(Boolean));
-  const status = git(cwd, ['status', '--porcelain']);
+  const status = git(cwd, ['status', '--porcelain', '--untracked-files=all']);
   for (const line of (status ?? '').split(/\r?\n/)) {
     if (line.length >= 4) files.add(line.slice(3).replace(/^"|"$/g, ''));
   }
   return [...files].filter(file => !file.startsWith('.cdd/runtime/')).sort();
+}
+
+function expectedParameters(path: string): Array<{ name: string; in: 'path' | 'query'; required: boolean }> {
+  const [pathname, query = ''] = path.split('?', 2);
+  const parameters: Array<{ name: string; in: 'path' | 'query'; required: boolean }> = [...pathname.matchAll(/(?::([A-Za-z_][\w-]*)|\{\s*([^}]+)\s*\})/g)]
+    .map(match => ({ name: (match[1] ?? match[2]).trim(), in: 'path' as const, required: true }));
+  for (const part of query.split('&').filter(Boolean)) {
+    const rawName = part.split('=', 1)[0].trim();
+    const optional = rawName.endsWith('?');
+    const name = rawName.replace(/\?$/, '');
+    if (name) parameters.push({ name, in: 'query', required: !optional });
+  }
+  return parameters;
+}
+
+function aggregateFileDigest(cwd: string, paths: string[]): string | null {
+  const entries: string[] = [];
+  for (const path of [...paths].sort()) {
+    const absolute = join(cwd, path);
+    if (!existsSync(absolute)) return null;
+    entries.push(`${path}:${sha256(readFileSync(absolute))}`);
+  }
+  return sha256(entries.join('\n'));
+}
+
+function routeLooksDeclared(content: string, method: string, path: string): boolean {
+  const normalized = normalizeApiPath(path);
+  const express = normalized.replace(/\{([^}]+)\}/g, ':$1');
+  const staticSegments = normalized.split('/').filter(segment => segment && !segment.startsWith('{'));
+  const hasPath = content.includes(normalized) || content.includes(express)
+    || (staticSegments.length > 0 && staticSegments.every(segment => content.includes(segment)));
+  const methodPattern = new RegExp(`(?:\\.|@|\\b)${method.toLowerCase()}\\s*\\(`, 'i');
+  return hasPath && methodPattern.test(content);
+}
+
+function consumerLooksCompatible(content: string, method: string, path: string): boolean {
+  const normalized = normalizeApiPath(path);
+  const staticSegments = normalized.split('/').filter(segment => segment && !segment.startsWith('{'));
+  const hasPath = content.includes(normalized)
+    || staticSegments.length > 0 && staticSegments.every(segment => content.includes(segment));
+  const methodMentioned = method === 'GET' || new RegExp(`method\\s*:\\s*['\"]${method}['\"]|\\.${method.toLowerCase()}\\s*\\(`, 'i').test(content);
+  return hasPath && methodMentioned;
+}
+
+function genericSchemaReason(name: string, schema: Record<string, unknown>): string | null {
+  if (/^(Generic|Any|Base|Common)?(Success|Response|Result|Payload)(Response|Result)?$/i.test(name)) return `schema name ${name} is generic`;
+  if (schema.type === 'object') {
+    const properties = schema.properties && typeof schema.properties === 'object' && !Array.isArray(schema.properties)
+      ? Object.keys(schema.properties as Record<string, unknown>) : [];
+    if (properties.length === 0) return 'object schema has no declared properties';
+    if (schema.additionalProperties === true || typeof schema.additionalProperties === 'object') return 'object schema permits open-ended additional properties';
+  }
+  return null;
 }
 
 function contractAtRevision(cwd: string, revision: string, contract: string): string | null {
@@ -149,6 +206,7 @@ function activeException(policy: Policy, operation: string): BoundaryException |
 }
 
 function isApiLookingPath(path: string): boolean {
+  if (/\.md$/i.test(path) && !/(^|\/)contracts\/api\//i.test(path)) return false;
   return /(^|\/)(api|routes?|controllers?|clients?|serializers?)(\/|\.|-)/i.test(path)
     || /(^|\/)contracts\/api\//i.test(path)
     || /(^|\/)[^/]*api[^/]*schemas?(\/|\.|-)/i.test(path);
@@ -176,6 +234,7 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
 
   const contractText = readFileSync(contractPath, 'utf8');
   const contractDigest = sha256(contractText);
+  const files = changedFiles(cwd, options.base, options.head);
   const body = stripFrontmatter(contractText).body;
   const endpoints = parseEndpoints(body);
   const schemas = parseContractSchemas(body);
@@ -183,12 +242,11 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
   const rows = new Map(endpoints.map(row => [operationKey(row), row]));
   const manifest = loadManifest(cwd, manifestPath);
   const manifestOps = new Map((manifest?.operations ?? []).map(operation => [`${operation.method.toUpperCase()} ${normalizeApiPath(operation.path)}`, operation]));
-  const files = changedFiles(cwd, options.base, options.head);
 
   const selected = new Set<string>();
   if (options.all) for (const key of rows.keys()) selected.add(key);
   for (const operation of options.operations ?? []) selected.add(operation.trim().replace(/^([a-z]+)/, method => method.toUpperCase()));
-  if (!options.all && !options.operations?.length) {
+  if (!options.all) {
     if (files.includes(contractRel)) {
       const previous = options.base ? contractAtRevision(cwd, options.base, contractRel) : null;
       for (const key of changedContractOperations(endpoints, previous)) selected.add(key);
@@ -215,9 +273,21 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
     }
 
     const requestRef = parseSchemaCellRef(row.request);
-    const requestApplicable = ['POST', 'PUT', 'PATCH'].includes(row.method.toUpperCase());
+    const requestApplicable = ['POST', 'PUT', 'PATCH'].includes(row.method.toUpperCase()) || (!!row.request.trim() && row.request.trim() !== '-');
     if (policy.boundary_guard.changed_api_requires_typed_request && requestApplicable && (!requestRef || !definedSchemas.has(requestRef.name))) {
       findings.push({ code: 'request-schema-missing', level: 'error', operation: key, message: 'Changed write operation has no resolved typed request schema.', evidence: [contractRel] });
+    }
+    if (requestRef && operation?.request_schema !== requestRef.name) {
+      findings.push({ code: 'request-schema-drift', level: 'error', operation: key, message: `Manifest request schema does not match contract schema ${requestRef.name}.`, evidence: [contractRel, relative(cwd, manifestPath)] });
+    }
+    const expectedParams = expectedParameters(row.path);
+    for (const expected of expectedParams) {
+      const declared = operation?.parameters?.find(parameter => parameter.name === expected.name && parameter.in === expected.in);
+      if (!declared || declared.required !== expected.required || !declared.schema) {
+        findings.push({ code: `${expected.in}-parameter-untyped`, level: 'error', operation: key, message: `${expected.in} parameter ${expected.name} is missing typed optionality metadata.`, evidence: [contractRel, relative(cwd, manifestPath)] });
+      } else if (!['string', 'integer', 'number', 'boolean'].includes(declared.schema) && !definedSchemas.has(declared.schema)) {
+        findings.push({ code: `${expected.in}-parameter-schema-undefined`, level: 'error', operation: key, message: `${expected.in} parameter ${expected.name} references undefined schema ${declared.schema}.`, evidence: [contractRel, relative(cwd, manifestPath)] });
+      }
     }
     const responseRef = parseSchemaCellRef(row.response);
     if (policy.boundary_guard.changed_api_requires_typed_response && (!responseRef || !definedSchemas.has(responseRef.name))) {
@@ -228,12 +298,32 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
         evidence: [contractRel],
       });
     }
+    if (responseRef && definedSchemas.has(responseRef.name)) {
+      const reason = genericSchemaReason(responseRef.name, schemas.schemas[responseRef.name]);
+      if (reason && policy.boundary_guard.generic_schema_policy !== 'allow') {
+        findings.push({
+          code: 'generic-response-schema', level: policy.boundary_guard.generic_schema_policy === 'deny' ? 'error' : 'warning', operation: key,
+          message: `Response schema ${responseRef.name} is too broad (${reason}); migrate it or require Controlled review.`, evidence: [contractRel],
+        });
+      }
+    }
     if (!operation) {
       findings.push({ code: 'operation-manifest-missing', level: 'error', operation: key, message: 'Changed operation has no Boundary Guard manifest entry.', evidence: [relative(cwd, manifestPath)] });
       continue;
     }
     if (manifest?.contract_digest !== contractDigest) {
       findings.push({ code: 'manifest-contract-stale', level: 'error', operation: key, message: 'Boundary manifest contract digest does not match the canonical contract.', evidence: [relative(cwd, manifestPath), contractRel] });
+    }
+    if (operation.source_files.length === 0) {
+      findings.push({ code: 'backend-route-unmapped', level: 'error', operation: key, message: 'No backend route source is mapped for this operation.', evidence: [relative(cwd, manifestPath)] });
+    } else {
+      const existingSources = operation.source_files.filter(path => existsSync(join(cwd, path)));
+      for (const path of operation.source_files.filter(path => !existingSources.includes(path))) {
+        findings.push({ code: 'backend-source-missing', level: 'error', operation: key, message: `Mapped backend source does not exist: ${path}`, evidence: [path] });
+      }
+      if (existingSources.length > 0 && !existingSources.some(path => routeLooksDeclared(readFileSync(join(cwd, path), 'utf8'), row.method, row.path))) {
+        findings.push({ code: 'backend-route-mismatch', level: 'error', operation: key, message: 'Mapped backend sources do not declare a matching method/path route.', evidence: existingSources });
+      }
     }
     const requiredVariants = operation.variants.filter(variant => variant.required);
     if (requiredVariants.length === 0) {
@@ -243,6 +333,18 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
       if (!variant.capture || !existsSync(join(cwd, variant.capture.path))) {
         findings.push({ code: 'variant-capture-missing', level: 'error', operation: key, message: `Required variant ${variant.id} has no existing real-boundary capture.`, evidence: [variant.capture?.path ?? relative(cwd, manifestPath)] });
         continue;
+      }
+      const capturePath = join(cwd, variant.capture.path);
+      const captureDigest = sha256(readFileSync(capturePath));
+      if (!variant.capture.digest || variant.capture.digest !== captureDigest) {
+        findings.push({ code: 'variant-capture-stale', level: 'error', operation: key, message: `Required variant ${variant.id} capture digest is missing or stale.`, evidence: [variant.capture.path, relative(cwd, manifestPath)] });
+      }
+      if (!/framework[-_ ]?test[-_ ]?client|test[-_ ]?client/i.test(variant.capture.source)) {
+        findings.push({ code: 'variant-capture-provenance-invalid', level: 'error', operation: key, message: `Required variant ${variant.id} is not attributed to a framework test client.`, evidence: [variant.capture.source] });
+      }
+      const producerDigest = aggregateFileDigest(cwd, operation.source_files);
+      if (!producerDigest || variant.capture.producer_digest !== producerDigest) {
+        findings.push({ code: 'variant-producer-stale', level: 'error', operation: key, message: `Required variant ${variant.id} is not bound to the current backend producer sources.`, evidence: operation.source_files });
       }
       const expectedSchema = schemas.schemas[variant.schema];
       if (!expectedSchema) {
@@ -274,6 +376,24 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
     }
     if (operation.consumers.length === 0) {
       findings.push({ code: 'consumer-coverage-unknown', level: 'warning', operation: key, message: 'No known consumer is recorded; verify this is intentionally backend-only.', evidence: [relative(cwd, manifestPath)] });
+    } else {
+      for (const consumer of operation.consumers) {
+        if (!existsSync(join(cwd, consumer))) {
+          findings.push({ code: 'consumer-missing', level: 'error', operation: key, message: `Recorded consumer does not exist: ${consumer}`, evidence: [consumer] });
+        } else if (!consumerLooksCompatible(readFileSync(join(cwd, consumer), 'utf8'), row.method.toUpperCase(), row.path)) {
+          findings.push({ code: 'consumer-call-mismatch', level: 'error', operation: key, message: `Consumer does not contain a compatible method/path call: ${consumer}`, evidence: [consumer] });
+        }
+      }
+      const frontendConsumers = operation.consumers.filter(path => /(^|\/)(frontend|web|client|src\/api)(\/|\.)/i.test(path) || /\.(tsx?|jsx?)$/i.test(path));
+      if (frontendConsumers.length > 0 && (!operation.generated_artifacts || operation.generated_artifacts.length === 0)) {
+        findings.push({ code: 'consumer-type-compatibility-unproven', level: 'warning', operation: key, message: 'Frontend consumers are present but no digest-bound generated type/client artifact is recorded; require Controlled review.', evidence: frontendConsumers });
+      }
+    }
+    for (const artifact of operation.generated_artifacts ?? []) {
+      const absolute = join(cwd, artifact.path);
+      if (!existsSync(absolute) || sha256(readFileSync(absolute)) !== artifact.digest) {
+        findings.push({ code: 'generated-artifact-stale', level: 'error', operation: key, message: `Generated boundary artifact is missing or stale: ${artifact.path}`, evidence: [artifact.path] });
+      }
     }
   }
 

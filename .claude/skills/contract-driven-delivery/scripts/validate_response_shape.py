@@ -270,17 +270,6 @@ def main() -> None:
         print(f'Response-shape: {cfg["manifest"]} has no entries; nothing to check.')
         sys.exit(0)
 
-    # jsonschema is only required once a manifest exists (i.e. the project opted
-    # in). Fail loudly with an install hint rather than silently skipping.
-    try:
-        import jsonschema
-        from jsonschema import Draft202012Validator as ValidatorCls
-    except ImportError:
-        print('Response-shape validation failed:')
-        print(f'  {cfg["manifest"]} exists but the `jsonschema` package is not installed.')
-        print('  Install it (e.g. `pip install jsonschema` or `conda install jsonschema`) to enforce response shapes.')
-        sys.exit(1)
-
     components = openapi.get('components', {}) if isinstance(openapi.get('components'), dict) else {}
     endpoint_schemas = build_endpoint_schema_map(openapi)
     unresolved_cells = build_unresolved_cell_map(openapi)
@@ -290,6 +279,7 @@ def main() -> None:
     errors = []
     warnings = []
     checked = 0
+    validator_cls = None
 
     for key, entry in manifest.items():
         parsed = parse_endpoint_key(key)
@@ -325,6 +315,19 @@ def main() -> None:
                 f'Declare a typed `## Schemas` entry and reference it to enforce this endpoint.')
             continue
 
+        # Load the optional dependency only when at least one sampled endpoint
+        # actually resolves to a typed schema. Prose-only and near-miss checks
+        # are useful without jsonschema and must not be hidden by an unrelated
+        # dependency error.
+        if validator_cls is None:
+            try:
+                from jsonschema import Draft202012Validator as validator_cls
+            except ImportError:
+                errors.append(
+                    f'{cfg["manifest"]} contains a typed response sample but the `jsonschema` package is not installed. '
+                    'Install it (e.g. `pip install jsonschema` or `conda install jsonschema`) to enforce response shapes.')
+                continue
+
         sample_path = (manifest_dir / entry['sample']).resolve()
         if not sample_path.exists():
             errors.append(f'{key}: sample file not found: {entry["sample"]}')
@@ -343,7 +346,7 @@ def main() -> None:
                 continue
             instance = drilled
 
-        violations = validate_one(ValidatorCls, instance, schema, components)
+        violations = validate_one(validator_cls, instance, schema, components)
         checked += 1
         if violations:
             head = f'{key}: response sample does not match the contract schema:'

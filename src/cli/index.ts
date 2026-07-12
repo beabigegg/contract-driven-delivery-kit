@@ -212,6 +212,16 @@ boundary
     const { boundaryCheck } = await import('../commands/boundary.js');
     process.exitCode = boundaryCheck({ ...opts, operations: opts.operation });
   });
+boundary.command('capture <operation>')
+  .description('Run configured framework-test-client capture adapters and refresh digest provenance')
+  .option('--variant <id>', 'Capture one variant; defaults to all required variants')
+  .option('--manifest <path>', 'Boundary manifest path', '.cdd/boundary-manifest.yml')
+  .option('--timeout <ms>', 'Per-capture timeout', '300000')
+  .option('--json', 'Emit JSON', false)
+  .action(async (operation: string, opts: { variant?: string; manifest?: string; timeout?: string; json?: boolean }) => {
+    const { boundaryCapture } = await import('../commands/boundary.js');
+    process.exitCode = boundaryCapture({ operation, variant: opts.variant, manifest: opts.manifest, timeout: Number(opts.timeout), json: opts.json });
+  });
 
 // ── cdd work/runtime ─────────────────────────────────────────────────────────
 program
@@ -243,12 +253,79 @@ runtime.command('resume [run-id]').option('--json', 'Emit JSON', false).action(a
 runtime.command('verify [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
   const { runtimeVerify } = await import('../commands/runtime.js'); process.exitCode = runtimeVerify({ runId, json: opts.json });
 });
+runtime.command('parity [run-id]').description('Dual-run runtime verification and the strict compatibility gate')
+  .option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+    const { runtimeParity } = await import('../commands/runtime.js'); process.exitCode = runtimeParity({ runId, json: opts.json });
+  });
+runtime.command('review [run-id]')
+  .requiredOption('--verdict <verdict>', 'Review verdict: passed or failed')
+  .requiredOption('--actor <actor>', 'Reviewer identity')
+  .requiredOption('--summary <summary>', 'Review rationale (at least 10 characters)')
+  .option('--json', 'Emit JSON', false)
+  .action(async (runId: string | undefined, opts: { verdict: string; actor: string; summary: string; json?: boolean }) => {
+    if (!['passed', 'failed'].includes(opts.verdict)) {
+      console.error(`Invalid review verdict: ${opts.verdict}. Use passed or failed.`); process.exitCode = 2; return;
+    }
+    const { runtimeReview } = await import('../commands/runtime.js');
+    process.exitCode = runtimeReview({ runId, actor: opts.actor, summary: opts.summary, verdict: opts.verdict as 'passed' | 'failed', json: opts.json });
+  });
+for (const [command, verdict] of [['approve', 'approved'], ['reject', 'rejected']] as const) {
+  runtime.command(`${command} [run-id] <approval-id>`)
+    .requiredOption('--actor <actor>', 'Approver identity')
+    .requiredOption('--reason <reason>', 'Decision rationale (at least 10 characters)')
+    .requiredOption('--scope <scope>', 'Approved or rejected scope')
+    .option('--json', 'Emit JSON', false)
+    .action(async (runId: string | undefined, approvalId: string, opts: { actor: string; reason: string; scope: string; json?: boolean }) => {
+      const { runtimeApproval } = await import('../commands/runtime.js');
+      process.exitCode = runtimeApproval({ runId, approvalId, actor: opts.actor, reason: opts.reason, scope: opts.scope, verdict, json: opts.json });
+    });
+}
+const runtimeAgent = runtime.command('agent').description('Build and record doctrine-selected dynamic agent work');
+runtimeAgent.command('prompt [run-id]')
+  .option('--role <role>', 'Agent role: implementer or reviewer', 'implementer')
+  .option('--json', 'Emit prompt envelope as JSON', false)
+  .action(async (runId: string | undefined, opts: { role: string; json?: boolean }) => {
+    if (!['implementer', 'reviewer'].includes(opts.role)) {
+      console.error(`Invalid agent role: ${opts.role}. Use implementer or reviewer.`); process.exitCode = 2; return;
+    }
+    const { runtimeAgentPrompt } = await import('../commands/runtime.js');
+    process.exitCode = runtimeAgentPrompt({ runId, role: opts.role as 'implementer' | 'reviewer', json: opts.json });
+  });
+runtimeAgent.command('complete [run-id]')
+  .requiredOption('--status <status>', 'Result: passed, failed, or blocked')
+  .requiredOption('--actor <actor>', 'Agent identity')
+  .requiredOption('--summary <summary>', 'Result summary (at least 10 characters)')
+  .option('--file <paths...>', 'Files changed by the agent', [])
+  .option('--json', 'Emit JSON', false)
+  .action(async (runId: string | undefined, opts: { status: string; actor: string; summary: string; file?: string[]; json?: boolean }) => {
+    if (!['passed', 'failed', 'blocked'].includes(opts.status)) {
+      console.error(`Invalid agent status: ${opts.status}. Use passed, failed, or blocked.`); process.exitCode = 2; return;
+    }
+    const { runtimeAgentComplete } = await import('../commands/runtime.js');
+    process.exitCode = runtimeAgentComplete({
+      runId, actor: opts.actor, summary: opts.summary, status: opts.status as 'passed' | 'failed' | 'blocked', files: opts.file ?? [], json: opts.json,
+    });
+  });
+const runtimeCheck = runtime.command('check').description('Plan and execute runtime-native test/quality evidence');
+runtimeCheck.command('plan [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeChecksPlan } = await import('../commands/runtime.js'); process.exitCode = runtimeChecksPlan({ runId, json: opts.json });
+});
+runtimeCheck.command('run [run-id]')
+  .option('--check <id>', 'Run one check id from the capsule')
+  .option('--all', 'Run every selected check in order', false)
+  .option('--timeout <ms>', 'Per-check timeout', '300000')
+  .option('--json', 'Emit JSON', false)
+  .action(async (runId: string | undefined, opts: { check?: string; all?: boolean; timeout?: string; json?: boolean }) => {
+    const { runtimeChecksRun } = await import('../commands/runtime.js');
+    process.exitCode = runtimeChecksRun({ runId, check: opts.check, all: opts.all, timeout: Number(opts.timeout), json: opts.json });
+  });
 runtime.command('migrate')
   .description('Dry-run or apply the reversible project/user migration to the agent-native runtime')
   .option('--yes', 'Apply missing project assets and provider updates', false)
   .option('--provider <provider>', 'Provider: auto, claude, codex, or both', 'auto')
+  .option('--import-active', 'Import active legacy changes as strict runtime capsules without rewriting them', false)
   .option('--json', 'Emit JSON', false)
-  .action(async (opts: { yes?: boolean; provider?: ProviderOption; json?: boolean }) => {
+  .action(async (opts: { yes?: boolean; provider?: ProviderOption; importActive?: boolean; json?: boolean }) => {
     const { agentNativeMigrate } = await import('../commands/agent-native-migrate.js');
     process.exitCode = await agentNativeMigrate(opts);
   });
@@ -260,6 +337,18 @@ policyCommand.command('check')
   .action(async (opts: { path?: string; json?: boolean }) => {
     const { policyCheck } = await import('../commands/policy.js');
     process.exitCode = policyCheck(opts);
+  });
+
+const guidance = program.command('guidance').description('Measure and safely migrate recurring provider guidance');
+guidance.command('audit').option('--json', 'Emit JSON', false).action(async (opts: { json?: boolean }) => {
+  const { guidanceAuditCommand } = await import('../commands/guidance.js'); process.exitCode = guidanceAuditCommand(opts);
+});
+guidance.command('migrate')
+  .option('--apply', 'Write migration proposals and audit record', false)
+  .option('--replace', 'Replace project guidance after creating rollback copies', false)
+  .option('--json', 'Emit JSON', false)
+  .action(async (opts: { apply?: boolean; replace?: boolean; json?: boolean }) => {
+    const { guidanceMigrateCommand } = await import('../commands/guidance.js'); process.exitCode = guidanceMigrateCommand(opts);
   });
 
 // ── cdd lint-agents ───────────────────────────────────────────────────────────

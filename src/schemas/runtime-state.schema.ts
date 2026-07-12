@@ -33,6 +33,8 @@ export const runtimeStateSchema = {
           attempt: { type: 'integer', minimum: 1 },
           evidence: { type: 'array', items: { type: 'string', minLength: 1 } },
           supersedes: { type: 'string', minLength: 1 },
+          phase: { type: 'string', minLength: 1 },
+          command: { type: 'string', minLength: 1 },
         },
       },
     },

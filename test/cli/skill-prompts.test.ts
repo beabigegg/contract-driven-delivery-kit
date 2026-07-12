@@ -118,8 +118,9 @@ describe('CDD skill prompt integration', () => {
 
     expect(cddNew).toMatch(/optional handoff notes/i);
     expect(cddNew).toMatch(/only when useful/i);
-    expect(codex).toMatch(/agent-log\/\*\.yml/);
-    expect(codex).toMatch(/optional/i);
+    expect(codex).toMatch(/runtime evidence/i);
+    expect(codex).toMatch(/digest-bound/i);
+    expect(codex).not.toMatch(/agent-log\/\*\.yml/);
     expect(contractReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
     expect(qaReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
     // backend/frontend now require their own agent-log when listed in

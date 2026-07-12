@@ -30,7 +30,7 @@ profiles:
     fail_on_unknown: true
     acceptance_oracle: not-required
   controlled:
-    validators: [impact, boundary, tests, review, approvals]
+    validators: [impact, boundary, tests, quality, review, approvals]
     independent_review: true
     state_persistence: runtime
     fail_on_unknown: true

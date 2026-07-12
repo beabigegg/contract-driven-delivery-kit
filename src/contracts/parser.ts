@@ -511,7 +511,12 @@ function compileFieldTable(section: SchemaSection, rows: FieldRow[], schemaNames
     if (row.required.trim().toLowerCase() === 'yes') required.push(field);
   }
 
-  const compiled: JsonSchema = { type: 'object', properties };
+  // Field-table contracts enumerate the complete serialized shape. Keep them
+  // closed by default so an undeclared backend field cannot silently pass a
+  // response capture and surprise generated/typed consumers. Authors who need
+  // dynamic keys can opt into a Tier-B json-schema block with an explicit
+  // additionalProperties policy.
+  const compiled: JsonSchema = { type: 'object', properties, additionalProperties: false };
   if (required.length > 0) compiled.required = required;
   return compiled;
 }

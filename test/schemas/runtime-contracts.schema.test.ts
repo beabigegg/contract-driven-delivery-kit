@@ -44,7 +44,9 @@ const capsule = {
   risk_signals: [{ id: 'api-response', source: 'diff', confidence: 'high', evidence: ['contracts/api/api-contract.md'] }],
   affected: { files: ['src/status.ts'], symbols: ['getStatus'], operations: ['GET /status'], contracts: ['contracts/api/api-contract.md'], tests: ['test/status.test.ts'] },
   write_scope: ['src/status.ts', 'test/status.test.ts'], invariants: ['Existing fields remain compatible'],
-  required_evidence: ['response-200'], approvals: [], input_digests: { contract: digest },
+  required_evidence: ['response-200'],
+  check_plan: [{ id: 'tests', kind: 'test', command: 'npm test', required: true }],
+  approvals: [], input_digests: { contract: digest },
 };
 
 describe('agent-native runtime contracts', () => {

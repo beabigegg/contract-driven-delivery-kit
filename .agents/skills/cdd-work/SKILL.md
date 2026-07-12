@@ -8,19 +8,26 @@ description: Use Contract-Driven Delivery in Codex for non-trivial repository ch
 Use the `cdd-kit` CLI and MCP server as the deterministic authority. Do not
 recreate CDD workflow state in chat.
 
-1. Read the repository `AGENTS.md` and `.cdd/model-policy.json`.
-2. For a new tracked change, run `cdd-kit new <change-id>` and inspect the
-   generated classification and context manifest.
-3. Query `cdd-kit graph`, `cdd-kit index`, and `cdd-kit contract` before broad
-   source reads. Prefer equivalent cdd-kit MCP tools when registered.
-4. Treat `contracts/` as canonical. Update affected contracts before or with
-   implementation and never hand-edit generated projections.
-5. Work only inside the approved scope. Escalate unknown boundaries instead of
-   silently widening the change.
-6. Select and record bounded tests with `cdd-kit test select` and
-   `cdd-kit test run`.
-7. Run `cdd-kit gate <change-id>` before completion. A confident agent report is
-   not evidence in place of a passing deterministic check.
+1. Read `AGENTS.md`, then create the runtime with
+   `cdd-kit work <change-id> <objective> --provider codex`.
+2. Read the returned capsule. Generate the bounded implementer instruction with
+   `cdd-kit runtime agent prompt <run-id>`; it loads only the selected Doctrine.
+3. Resolve empty/unknown scope with `cdd-kit graph`, `cdd-kit index`, and
+   `cdd-kit contract` before editing. Treat `contracts/` as canonical and never
+   hand-edit generated projections.
+4. Work inside the capsule scope. Record completion using
+   `cdd-kit runtime agent complete <run-id> --status passed --actor codex --summary "..." --file ...`.
+5. Produce runtime-native evidence with
+   `cdd-kit runtime check run <run-id> --all`.
+6. For Controlled work, use a separate reviewer context with
+   `cdd-kit runtime agent prompt <run-id> --role reviewer`, then record the
+   verdict with `cdd-kit runtime review`. Obtain every pending named approval
+   through `cdd-kit runtime approve`; never self-approve.
+7. Run `cdd-kit runtime verify <run-id>` and `cdd-kit gate <change-id>`.
+
+Do not create the seven legacy change artifacts for lightweight, balanced, or
+controlled profiles. `cdd-kit new`, tracked `specs/changes/<id>` artifacts, and
+legacy `test-evidence.yml` remain the strict compatibility lane only.
 
 Use the runtime-selected profile when invoking the gate. Human acceptance is
 not routine ceremony: strict always requires it; controlled requires it only

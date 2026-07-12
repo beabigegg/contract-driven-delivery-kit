@@ -40,7 +40,7 @@ describe('agent-native migration', () => {
     const customizedSkill = join(home, '.agents', 'skills', 'cdd-work', 'SKILL.md');
     writeFileSync(customizedSkill, 'USER CUSTOMIZATION\n', 'utf8');
 
-    const apply = runCli(['runtime', 'migrate', '--provider', 'codex', '--yes', '--json'], { cwd: repo, home });
+    const apply = runCli(['runtime', 'migrate', '--provider', 'codex', '--yes', '--import-active', '--json'], { cwd: repo, home });
     expect(apply.status, apply.stderr).toBe(0);
     const jsonStart = apply.stdout.lastIndexOf('\n{\n  "schema_version"');
     const result = JSON.parse(apply.stdout.slice(jsonStart >= 0 ? jsonStart + 1 : 0)); // command logs may precede the final JSON
@@ -49,6 +49,12 @@ describe('agent-native migration', () => {
     expect(existsSync(join(repo, '.cdd', 'policy.yml'))).toBe(true);
     expect(existsSync(join(repo, '.cdd', 'boundary-manifest.yml'))).toBe(true);
     expect(existsSync(join(repo, '.cdd', 'migration', 'agent-native.json'))).toBe(true);
+    const migration = JSON.parse(readFileSync(join(repo, '.cdd', 'migration', 'agent-native.json'), 'utf8'));
+    expect(migration.legacy_imports).toEqual(expect.arrayContaining([
+      expect.objectContaining({ change_id: 'active-change', status: 'imported' }),
+    ]));
+    expect(existsSync(join(repo, '.cdd', 'migration', 'guidance-audit.json'))).toBe(true);
+    expect(existsSync(join(repo, '.cdd', 'migration', 'guidance-proposals', 'AGENTS.md'))).toBe(true);
     expect(existsSync(join(home, '.agents', 'skills', 'cdd-work', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(home, '.cdd-kit', 'install-manifest.json'))).toBe(true);
     expect(readFileSync(customizedSkill, 'utf8')).toBe('USER CUSTOMIZATION\n');

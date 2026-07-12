@@ -8,16 +8,25 @@ export interface BoundaryVariant {
   schema: string;
   dimensions?: Record<string, string>;
   required: boolean;
-  capture?: { path: string; source: string; digest?: string };
+  capture?: { path: string; source: string; digest?: string; producer_digest?: string; produced_at?: string; commit?: string; command?: string };
+}
+
+export interface BoundaryParameter {
+  name: string;
+  in: 'path' | 'query';
+  schema: string;
+  required: boolean;
 }
 
 export interface BoundaryOperation {
   method: string;
   path: string;
   request_schema?: string;
+  parameters?: BoundaryParameter[];
   variants: BoundaryVariant[];
   consumers: string[];
   source_files: string[];
+  generated_artifacts?: Array<{ path: string; digest: string }>;
   discovery: {
     adapter: string;
     completeness: 'complete' | 'partial' | 'unknown';
@@ -44,6 +53,12 @@ export interface ExecutionCapsule {
   write_scope: string[];
   invariants: string[];
   required_evidence: string[];
+  check_plan: Array<{
+    id: string;
+    kind: 'test' | 'quality';
+    command: string;
+    required: boolean;
+  }>;
   approvals: string[];
   input_digests: Record<string, string>;
 }

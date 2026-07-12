@@ -8,7 +8,7 @@ export const executionCapsuleSchema = {
   title: 'CDD Execution Capsule v1',
   type: 'object',
   additionalProperties: false,
-  required: ['schema_version', 'change_id', 'objective', 'profile', 'capabilities', 'doctrine', 'independent_review', 'risk_signals', 'affected', 'write_scope', 'invariants', 'required_evidence', 'approvals', 'input_digests'],
+  required: ['schema_version', 'change_id', 'objective', 'profile', 'capabilities', 'doctrine', 'independent_review', 'risk_signals', 'affected', 'write_scope', 'invariants', 'required_evidence', 'check_plan', 'approvals', 'input_digests'],
   properties: {
     schema_version: { const: '1.0.0' },
     change_id: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$' },
@@ -34,6 +34,18 @@ export const executionCapsuleSchema = {
     write_scope: stringArray,
     invariants: stringArray,
     required_evidence: stringArray,
+    check_plan: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false, required: ['id', 'kind', 'command', 'required'],
+        properties: {
+          id: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$' },
+          kind: { type: 'string', enum: ['test', 'quality'] },
+          command: { type: 'string', minLength: 1 },
+          required: { type: 'boolean' },
+        },
+      },
+    },
     approvals: stringArray,
     input_digests: { type: 'object', additionalProperties: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' } },
   },

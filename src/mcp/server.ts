@@ -241,6 +241,28 @@ const tools: ToolDef[] = [
     description: 'Run Boundary Guard and evidence checks for a runtime run and append immutable runtime evidence.',
     inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
   },
+  {
+    name: 'cdd_runtime_agent_prompt',
+    description: 'Build the provider-neutral implementer or independent-reviewer prompt using only Doctrine selected by the runtime capsule.',
+    inputSchema: {
+      type: 'object', properties: { runId: { type: 'string' }, role: { type: 'string', enum: ['implementer', 'reviewer'], default: 'implementer' } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'cdd_runtime_check_run',
+    description: 'Execute every runtime-native test and quality check selected by the capsule and capture digest-bound evidence.',
+    inputSchema: { type: 'object', properties: { runId: { type: 'string' }, timeout: { type: 'integer', minimum: 1 } }, additionalProperties: false },
+  },
+  {
+    name: 'cdd_runtime_review',
+    description: 'Record a digest-bound independent reviewer verdict for a Controlled runtime.',
+    inputSchema: {
+      type: 'object', properties: {
+        runId: { type: 'string' }, verdict: { type: 'string', enum: ['passed', 'failed'] }, actor: { type: 'string' }, summary: { type: 'string' },
+      }, required: ['verdict', 'actor', 'summary'], additionalProperties: false,
+    },
+  },
 ];
 
 export async function runMcpServer(opts: RunMcpServerOptions): Promise<void> {
@@ -455,6 +477,22 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
       const cmd = ['runtime', 'verify'];
       const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
       cmd.push('--json'); return runCddJson(cmd);
+    }
+    case 'cdd_runtime_agent_prompt': {
+      const cmd = ['runtime', 'agent', 'prompt'];
+      const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
+      cmd.push('--role', optionalString(args.role, 'implementer'), '--json'); return runCddJson(cmd);
+    }
+    case 'cdd_runtime_check_run': {
+      const cmd = ['runtime', 'check', 'run'];
+      const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
+      cmd.push('--all', '--timeout', String(optionalInt(args.timeout, 300000)), '--json'); return runCddJson(cmd);
+    }
+    case 'cdd_runtime_review': {
+      const cmd = ['runtime', 'review'];
+      const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
+      cmd.push('--verdict', requireString(args, 'verdict'), '--actor', requireString(args, 'actor'), '--summary', requireString(args, 'summary'), '--json');
+      return runCddJson(cmd);
     }
     default:
       return {

@@ -21,6 +21,18 @@ export const boundaryManifestSchema = {
           method: { type: 'string', enum: HTTP_METHODS },
           path: { type: 'string', pattern: '^/' },
           request_schema: { type: 'string', minLength: 1 },
+          parameters: {
+            type: 'array', uniqueItems: true,
+            items: {
+              type: 'object', additionalProperties: false, required: ['name', 'in', 'schema', 'required'],
+              properties: {
+                name: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_-]*$' },
+                in: { type: 'string', enum: ['path', 'query'] },
+                schema: { type: 'string', minLength: 1 },
+                required: { type: 'boolean' },
+              },
+            },
+          },
           variants: {
             type: 'array',
             items: {
@@ -40,13 +52,27 @@ export const boundaryManifestSchema = {
                     path: { type: 'string', minLength: 1, pattern: '^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+' },
                     source: { type: 'string', minLength: 1 },
                     digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+                    producer_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+                    produced_at: { type: 'string', format: 'date-time' },
+                    commit: { type: 'string', pattern: '^[a-f0-9]{7,64}$' },
+                    command: { type: 'string', minLength: 1 },
                   },
                 },
               },
             },
           },
-          consumers: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
-          source_files: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
+          consumers: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1, pattern: '^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+' } },
+          source_files: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1, pattern: '^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+' } },
+          generated_artifacts: {
+            type: 'array', uniqueItems: true,
+            items: {
+              type: 'object', additionalProperties: false, required: ['path', 'digest'],
+              properties: {
+                path: { type: 'string', minLength: 1, pattern: '^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+' },
+                digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+              },
+            },
+          },
           discovery: {
             type: 'object',
             additionalProperties: false,

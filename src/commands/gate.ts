@@ -26,6 +26,7 @@ import yaml from 'js-yaml';
 import { runBoundaryGuard } from '../boundary/guard.js';
 import { acceptanceOracleRequired, resolveGateProfile } from '../policy/profile.js';
 import type { WorkflowProfile } from '../runtime/types.js';
+import { verifyRuntime } from '../runtime/engine.js';
 
 export interface GateOptions {
   strict?: boolean;
@@ -84,15 +85,6 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   const changeDir = join(cwd, 'specs', 'changes', changeId);
 
-  if (!existsSync(changeDir)) {
-    log.error(`change not found: ${changeId} (looked in ${changeDir})`);
-    if (explain) {
-      log.dim('      Why: there is no change folder with that name under specs/changes/.');
-      log.info('      Say this to Claude: "What is the exact id of the change I should run the gate on?"');
-    }
-    process.exit(1);
-  }
-
   let profileResolution;
   try {
     profileResolution = resolveGateProfile(cwd, changeId, opts.profile, opts.strict ?? false);
@@ -101,6 +93,40 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     process.exit(2);
   }
   const strict = profileResolution.profile === 'strict' || (opts.strict ?? false);
+
+  if (profileResolution.profile && !strict) {
+    if (!profileResolution.capsule) {
+      log.error(`Profile ${profileResolution.profile} requires a matching runtime capsule. Run \`cdd-kit work ${changeId} "<objective>" --profile ${profileResolution.profile}\` first.`);
+      process.exit(1);
+    }
+    if (opts.requireAcceptance && !profileResolution.capsule.required_evidence.includes('acceptance-oracle')) {
+      log.error(`The existing runtime capsule does not require acceptance. Re-plan with \`cdd-kit work ${changeId} "<objective>" --require-acceptance\`.`);
+      process.exit(1);
+    }
+    const result = verifyRuntime(cwd);
+    if (result.state.change_id !== changeId) {
+      log.error(`Current runtime run belongs to ${result.state.change_id}, not ${changeId}.`);
+      process.exit(1);
+    }
+    if (result.evidence.final_status !== 'passed') {
+      const failures = result.evidence.checks
+        .filter(check => check.status === 'failed' || check.status === 'unknown')
+        .map(check => `runtime check ${check.id}: ${check.status}`);
+      if (result.evidence.approvals.some(approval => approval.status === 'pending')) failures.push('runtime approvals are still pending');
+      reportGateFailure(changeId, failures.length ? failures : ['runtime verification is blocked'], explain);
+    }
+    log.ok(`gate passed for change: ${changeId} (${profileResolution.profile} runtime; ${result.path})`);
+    return;
+  }
+
+  if (!existsSync(changeDir)) {
+    log.error(`change not found: ${changeId} (looked in ${changeDir})`);
+    if (explain) {
+      log.dim('      Why: there is no change folder with that name under specs/changes/.');
+      log.info('      Say this to Claude: "What is the exact id of the change I should run the gate on?"');
+    }
+    process.exit(1);
+  }
 
   const errors: string[] = [];
   const warnings: string[] = [];

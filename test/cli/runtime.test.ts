@@ -43,6 +43,14 @@ function git(args: string[]) {
   if (r.status !== 0) throw new Error(r.stderr);
 }
 
+function recordAgent(runId: string) {
+  const result = runCli([
+    'runtime', 'agent', 'complete', runId, '--status', 'passed', '--actor', 'test-agent',
+    '--summary', 'Implementation completed inside the selected runtime scope.', '--json',
+  ], { cwd: repo, home });
+  expect(result.status, result.stderr).toBe(0);
+}
+
 beforeEach(() => {
   repo = makeTempDir('cdd-runtime-'); home = makeTempDir('cdd-runtime-home-');
   mkdirSync(join(repo, '.cdd'), { recursive: true });
@@ -66,8 +74,12 @@ describe('agent-native runtime', () => {
     expect(state.status).toBe('planned');
     expect(readFileSync(join(repo, '.cdd', 'runtime', state.run_id, 'capsule.json'), 'utf8')).toContain('documentation-only');
 
+    recordAgent(state.run_id);
+    const checks = runCli(['runtime', 'check', 'run', state.run_id, '--all', '--json'], { cwd: repo, home });
+    expect(checks.status, checks.stderr).toBe(0);
+
     const verify = runCli(['runtime', 'verify', state.run_id, '--json'], { cwd: repo, home });
-    expect(verify.status, verify.stderr).toBe(0);
+    expect(verify.status, verify.stdout + verify.stderr).toBe(0);
     expect(JSON.parse(verify.stdout).evidence.final_status).toBe('passed');
   });
 
@@ -146,13 +158,118 @@ describe('agent-native runtime', () => {
       'final-status': 'passed',
     }), 'utf8');
     writeFileSync(join(repo, 'README.md'), '# Project\n\nAccepted docs.\n', 'utf8');
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({
+      name: 'accepted-runtime-project', private: true,
+      scripts: { test: 'node -e "process.exit(0)"' },
+    }, null, 2) + '\n', 'utf8');
 
     const plan = runCli(['work', changeId, 'Update', 'documentation', '--require-acceptance', '--json'], { cwd: repo, home });
     const state = JSON.parse(plan.stdout);
+    recordAgent(state.run_id);
+    const checks = runCli(['runtime', 'check', 'run', state.run_id, '--all', '--json'], { cwd: repo, home });
+    expect(checks.status, checks.stderr).toBe(0);
     const verify = runCli(['runtime', 'verify', state.run_id, '--json'], { cwd: repo, home });
-    expect(verify.status, verify.stderr).toBe(0);
+    expect(verify.status, verify.stdout + verify.stderr).toBe(0);
     expect(JSON.parse(verify.stdout).evidence.checks).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'acceptance-oracle', status: 'passed' }),
     ]));
+  });
+
+  it('gates a balanced runtime with native evidence and no legacy change directory', () => {
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({
+      name: 'runtime-only-project', private: true,
+      scripts: { test: 'node -e "process.exit(0)"' },
+    }, null, 2) + '\n', 'utf8');
+    const plan = runCli(['work', 'runtime-only', 'Add', 'a', 'normal', 'feature', '--profile', 'balanced', '--json'], { cwd: repo, home });
+    expect(plan.status, plan.stderr).toBe(0);
+    const state = JSON.parse(plan.stdout);
+    expect(existsSync(join(repo, 'specs', 'changes', 'runtime-only'))).toBe(false);
+    expect(state.capsule.check_plan).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'tests', required: true })]));
+    const prompt = runCli(['runtime', 'agent', 'prompt', state.run_id, '--json'], { cwd: repo, home });
+    expect(prompt.status, prompt.stderr).toBe(0);
+    const promptEnvelope = JSON.parse(prompt.stdout);
+    expect(promptEnvelope.doctrine).toEqual(state.capsule.doctrine);
+    expect(promptEnvelope.prompt).toContain('runtime-only');
+    expect(promptEnvelope.estimated_tokens).toBeGreaterThan(0);
+    recordAgent(state.run_id);
+    const resumed = runCli(['runtime', 'resume', state.run_id, '--json'], { cwd: repo, home });
+    expect(resumed.status, resumed.stderr).toBe(0);
+    expect(JSON.parse(resumed.stdout).invalidated).toEqual([]);
+    const checks = runCli(['runtime', 'check', 'run', state.run_id, '--all', '--json'], { cwd: repo, home });
+    expect(checks.status, checks.stderr).toBe(0);
+    const gate = runCli(['gate', 'runtime-only'], { cwd: repo, home });
+    expect(gate.status, gate.stdout + gate.stderr).toBe(0);
+    expect(gate.stdout + gate.stderr).toMatch(/balanced runtime/i);
+    const parity = runCli(['runtime', 'parity', state.run_id, '--json'], { cwd: repo, home });
+    expect(parity.status).toBe(1); // strict correctly rejects the intentionally absent legacy artifacts
+    const parityReport = JSON.parse(parity.stdout).report;
+    expect(parityReport.verdicts).toMatchObject({ runtime: 'passed', strict: 'failed', equivalent: false, strict_compatible: true });
+    expect(parityReport.metrics.legacy_required_artifacts).toBe(7);
+    expect(parityReport.metrics.dynamic_prompt_estimated_tokens).toBeGreaterThan(0);
+  });
+
+  it('requires digest-bound independent review and approval for controlled work', () => {
+    mkdirSync(join(repo, 'src'), { recursive: true });
+    writeFileSync(join(repo, 'src', 'auth.ts'), 'export const role = "admin";\n', 'utf8');
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({
+      name: 'controlled-runtime-project', private: true,
+      scripts: { test: 'node -e "process.exit(0)"' },
+    }, null, 2) + '\n', 'utf8');
+
+    const planned = runCli(['work', 'auth-change', 'Change', 'authorization', 'policy', '--json'], { cwd: repo, home });
+    expect(planned.status, planned.stderr).toBe(0);
+    const state = JSON.parse(planned.stdout);
+    expect(state.capsule.profile).toBe('controlled');
+    expect(state.capsule.approvals).toContain('auth_policy');
+    expect(state.capsule.required_evidence).toContain('review');
+    const reviewerPrompt = runCli(['runtime', 'agent', 'prompt', state.run_id, '--role', 'reviewer', '--json'], { cwd: repo, home });
+    expect(reviewerPrompt.status, reviewerPrompt.stderr).toBe(0);
+    expect(JSON.parse(reviewerPrompt.stdout).prompt).toContain('Independently review');
+
+    recordAgent(state.run_id);
+    expect(runCli(['runtime', 'check', 'run', state.run_id, '--all'], { cwd: repo, home }).status).toBe(0);
+    const beforeDecisions = runCli(['runtime', 'verify', state.run_id, '--json'], { cwd: repo, home });
+    expect(beforeDecisions.status).toBe(1);
+    expect(JSON.parse(beforeDecisions.stdout).evidence.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'review', status: 'unknown' }),
+    ]));
+
+    const selfReview = runCli([
+      'runtime', 'review', state.run_id, '--verdict', 'passed', '--actor', 'test-agent',
+      '--summary', 'The implementation agent attempted to self review.',
+    ], { cwd: repo, home });
+    expect(selfReview.status).toBe(2);
+    expect(selfReview.stderr).toContain('must differ');
+
+    const review = runCli([
+      'runtime', 'review', state.run_id, '--verdict', 'passed', '--actor', 'reviewer@example.com',
+      '--summary', 'Authorization behavior and tests were independently reviewed.', '--json',
+    ], { cwd: repo, home });
+    expect(review.status, review.stderr).toBe(0);
+    const selfApproval = runCli([
+      'runtime', 'approve', state.run_id, 'auth_policy', '--actor', 'test-agent',
+      '--reason', 'The implementation agent attempted self approval.', '--scope', 'src/auth.ts',
+    ], { cwd: repo, home });
+    expect(selfApproval.status).toBe(2);
+    expect(selfApproval.stderr).toContain('cannot approve its own change');
+    const approval = runCli([
+      'runtime', 'approve', state.run_id, 'auth_policy', '--actor', 'owner@example.com',
+      '--reason', 'The authorization policy change is approved.', '--scope', 'src/auth.ts', '--json',
+    ], { cwd: repo, home });
+    expect(approval.status, approval.stderr).toBe(0);
+
+    const passed = runCli(['runtime', 'verify', state.run_id, '--json'], { cwd: repo, home });
+    expect(passed.status, passed.stdout + passed.stderr).toBe(0);
+    expect(JSON.parse(passed.stdout).evidence.approvals).toContainEqual({ id: 'auth_policy', status: 'approved', actor: 'owner@example.com' });
+
+    writeFileSync(join(repo, 'src', 'auth.ts'), 'export const role = "superadmin";\n', 'utf8');
+    const stale = runCli(['runtime', 'verify', state.run_id, '--json'], { cwd: repo, home });
+    expect(stale.status).toBe(1);
+    const staleEvidence = JSON.parse(stale.stdout).evidence;
+    expect(staleEvidence.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'tests', status: 'unknown' }),
+      expect.objectContaining({ id: 'review', status: 'unknown' }),
+    ]));
+    expect(staleEvidence.approvals).toContainEqual({ id: 'auth_policy', status: 'pending' });
   });
 });

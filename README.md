@@ -1,6 +1,10 @@
 # Contract-Driven Delivery Kit
 
-**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification, with deterministic context indexes to keep agent work targeted.
+**cdd-kit** is a contract-driven delivery runtime for Claude Code and Codex. Its
+default agent-native flow selects a risk profile, a small capability/Doctrine
+set, executable checks, independent review, and approvals. Contracts and
+deterministic evidence remain authoritative; routine work no longer requires a
+fixed agent procession or seven hand-authored change artifacts.
 
 Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps), especially when non-engineers or product owners want AI to do the implementation while they stay in the spec-author and reviewer seat.
 
@@ -30,8 +34,8 @@ cd your-repo
 # 3. Deploy the kit (one command: scaffold + arm chokepoints + MCP + indexes)
 cdd-kit setup
 
-# 4. Open Claude Code in your repo and tell Claude:
-# "Use /cdd-new to set up the project. My system is a <brief description>."
+# 4. Start agent-native work from Claude Code or Codex:
+cdd-kit work add-jwt-auth "Add JWT authentication to the API"
 ```
 
 > `cdd-kit setup` is the one-command path: it scaffolds the project, arms the
@@ -43,7 +47,39 @@ cdd-kit setup
 
 ---
 
-## How to Direct Claude Code
+## Agent-native workflow (default)
+
+```bash
+cdd-kit work add-jwt-auth "Add JWT authentication to the API" --provider claude
+cdd-kit runtime agent prompt <run-id>
+# implement inside capsule scope
+cdd-kit runtime agent complete <run-id> --status passed --actor claude --summary "Implemented scoped JWT behavior"
+cdd-kit runtime check run <run-id> --all
+# Controlled only: independent reviewer + named approvals
+cdd-kit runtime verify <run-id>
+cdd-kit gate add-jwt-auth
+```
+
+Use `--provider codex` for Codex. Lightweight, balanced, and controlled profiles
+store concise state/evidence under `.cdd/runtime/`; `specs/changes/<id>` and the
+legacy seven artifacts are not required. Controlled work cannot pass without a
+digest-bound independent review, and configured approvals cannot be skipped.
+The human-authored acceptance oracle is retained: strict always requires it;
+controlled requires it when policy/capsule risk activates it or the user passes
+`--require-acceptance`. The runtime never invents or silently relocks an oracle.
+
+`cdd-kit runtime agent prompt` loads only Doctrine selected by the capsule.
+Checks, implementation records, review, and approvals become stale after source
+or policy changes. `cdd-kit guidance audit` measures recurring guidance cost;
+`cdd-kit runtime parity` compares a completed runtime with the strict lane.
+
+## Strict compatibility workflow
+
+The following `/cdd-new` documentation describes the preserved strict workflow
+for existing projects and explicit maximum-ceremony changes. It is no longer the
+default for balanced/controlled work.
+
+### How to Direct Claude Code in strict mode
 
 > All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills — not shell commands.
 
@@ -75,7 +111,7 @@ Then fill your contracts in this order (Claude can help draft them):
 
 ---
 
-### Starting a new task / feature / bug fix
+### Starting a strict legacy task / feature / bug fix
 
 Type this in Claude Code:
 
@@ -635,7 +671,8 @@ cdd-kit doctor --strict
 
 ### Agent-native runtime and Boundary Guard
 
-The new runtime is opt-in and shadow-first; the existing strict workflow remains
+The agent-native runtime is the default for lightweight, balanced, and
+controlled profiles; the existing strict workflow remains
 available while parity is measured.
 
 ```bash
@@ -645,7 +682,12 @@ cdd-kit work <change-id> "<objective>"
 cdd-kit work <change-id> "<human-sensitive objective>" --require-acceptance
 cdd-kit runtime status
 cdd-kit runtime resume
+cdd-kit runtime agent prompt
+cdd-kit runtime check run --all
+cdd-kit runtime review --verdict passed --actor reviewer --summary "Independent review passed"
 cdd-kit runtime verify
+cdd-kit runtime parity
+cdd-kit guidance audit
 cdd-kit runtime migrate --provider codex       # dry run
 cdd-kit runtime migrate --provider codex --yes # reversible apply
 ```

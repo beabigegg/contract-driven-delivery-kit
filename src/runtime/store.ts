@@ -52,6 +52,13 @@ function atomicJson(path: string, value: unknown): void {
   renameSync(tmp, path);
 }
 
+function atomicText(path: string, value: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync(tmp, value, 'utf8');
+  renameSync(tmp, path);
+}
+
 export function writeRuntimeState(cwd: string, state: StoredRuntimeState): void {
   if (!validateState(state)) throw new Error(`Invalid runtime state: ${(validateState.errors ?? []).map(e => `${e.instancePath} ${e.message}`).join('; ')}`);
   atomicJson(join(runDir(cwd, state.run_id), 'state.json'), state);
@@ -76,5 +83,12 @@ export function writeRuntimeArtifact(cwd: string, runId: string, name: string, v
   if (!SAFE_ARTIFACT_NAME.test(name)) throw new Error(`Invalid runtime artifact name: ${name}`);
   const path = join(runDir(cwd, runId), name);
   atomicJson(path, value);
+  return path;
+}
+
+export function writeRuntimeTextArtifact(cwd: string, runId: string, name: string, value: string): string {
+  if (!SAFE_ARTIFACT_NAME.test(name)) throw new Error(`Invalid runtime artifact name: ${name}`);
+  const path = join(runDir(cwd, runId), name);
+  atomicText(path, value);
   return path;
 }

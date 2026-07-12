@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseEndpoints, stripFrontmatter } from '../contracts/parser.js';
 import { inferProvider, type ProviderOption } from '../utils/provider.js';
@@ -7,6 +7,8 @@ import { upgrade } from './upgrade.js';
 import { update } from './update.js';
 import { boundaryInit } from './boundary.js';
 import { log } from '../utils/logger.js';
+import { writeGuidanceMigration } from './guidance.js';
+import { planRuntime } from '../runtime/engine.js';
 
 interface MigrationReadiness {
   schema_version: '1.0.0';
@@ -36,7 +38,24 @@ export function agentNativeReadiness(cwd = process.cwd(), requested: ProviderOpt
   };
 }
 
-export async function agentNativeMigrate(options: { yes?: boolean; provider?: ProviderOption; json?: boolean } = {}): Promise<number> {
+function importActiveChanges(cwd: string): Array<{ change_id: string; run_id?: string; status: 'imported' | 'failed'; error?: string }> {
+  const root = join(cwd, 'specs', 'changes');
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => {
+    try {
+      const request = join(root, entry.name, 'change-request.md');
+      const objective = existsSync(request)
+        ? readFileSync(request, 'utf8').replace(/^---[\s\S]*?---\s*/, '').replace(/[#*_`>-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+        : `Continue migrated legacy change ${entry.name}`;
+      const state = planRuntime({ cwd, changeId: entry.name, objective: objective || `Continue migrated legacy change ${entry.name}`, profile: 'strict' });
+      return { change_id: entry.name, run_id: state.run_id, status: 'imported' as const };
+    } catch (error) {
+      return { change_id: entry.name, status: 'failed' as const, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+}
+
+export async function agentNativeMigrate(options: { yes?: boolean; provider?: ProviderOption; importActive?: boolean; json?: boolean } = {}): Promise<number> {
   const cwd = process.cwd();
   const provider = options.provider ?? 'auto';
   const before = agentNativeReadiness(cwd, provider);
@@ -54,10 +73,12 @@ export async function agentNativeMigrate(options: { yes?: boolean; provider?: Pr
   const afterUpgrade = agentNativeReadiness(cwd, provider);
   const boundaryMissing = afterUpgrade.items.some(item => item.id === 'boundary-manifest' && item.status === 'missing');
   if (boundaryMissing) boundaryInit({});
+  const guidance = writeGuidanceMigration(cwd, false);
+  const legacy_imports = options.importActive ? importActiveChanges(cwd) : [];
   const after = agentNativeReadiness(cwd, provider);
   const recordPath = join(cwd, '.cdd', 'migration', 'agent-native.json');
   mkdirSync(join(cwd, '.cdd', 'migration'), { recursive: true });
-  writeFileSync(recordPath, JSON.stringify({ schema_version: '1.0.0', migrated_at: new Date().toISOString(), provider: after.provider, before, after }, null, 2) + '\n', 'utf8');
+  writeFileSync(recordPath, JSON.stringify({ schema_version: '1.0.0', migrated_at: new Date().toISOString(), provider: after.provider, before, after, guidance, legacy_imports }, null, 2) + '\n', 'utf8');
   if (options.json) process.stdout.write(JSON.stringify(after, null, 2) + '\n');
   else {
     log.ok(`Agent-native migration applied; record: .cdd/migration/agent-native.json`);

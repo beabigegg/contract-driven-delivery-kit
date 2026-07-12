@@ -76,6 +76,9 @@ describe('cdd-kit mcp', () => {
     expect(toolNames).toContain('cdd_runtime_plan');
     expect(toolNames).toContain('cdd_runtime_status');
     expect(toolNames).toContain('cdd_runtime_verify');
+    expect(toolNames).toContain('cdd_runtime_agent_prompt');
+    expect(toolNames).toContain('cdd_runtime_check_run');
+    expect(toolNames).toContain('cdd_runtime_review');
   });
 
   it('calls graph query and returns JSON content', () => {
