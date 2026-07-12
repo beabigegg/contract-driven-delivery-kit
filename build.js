@@ -138,6 +138,7 @@ const SHIPPED_CDD_FILES = [
   'model-policy.json',
   'tier-policy.json',
   'policy.yml',
+  'approval-policy.yml',
 ];
 // Wipe first: `assets/` is not cleaned between builds, so anything a previous
 // denylist build left behind would survive the switch to an allowlist.

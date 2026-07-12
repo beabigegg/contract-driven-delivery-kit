@@ -8,7 +8,16 @@ export interface BoundaryVariant {
   schema: string;
   dimensions?: Record<string, string>;
   required: boolean;
-  capture?: { path: string; source: string; digest?: string; producer_digest?: string; produced_at?: string; commit?: string; command?: string };
+  capture?: {
+    path: string;
+    adapter: 'fastapi-testclient' | 'flask-test-client' | 'express-supertest';
+    target: string;
+    request?: { path?: string; query?: Record<string, string>; headers?: Record<string, string>; json?: unknown };
+    provenance?: {
+      adapter_version: string; runner_version: string; target_digest: string; contract_digest: string;
+      producer_digest: string; capture_digest: string; commit: string; produced_at: string;
+    };
+  };
 }
 
 export interface BoundaryParameter {
@@ -26,7 +35,9 @@ export interface BoundaryOperation {
   variants: BoundaryVariant[];
   consumers: string[];
   source_files: string[];
-  generated_artifacts?: Array<{ path: string; digest: string }>;
+  generated_artifacts?: Array<{
+    path: string; digest: string; input_contract_digest: string; generator: 'openapi-typescript'; generator_version: string; input: string;
+  }>;
   discovery: {
     adapter: string;
     completeness: 'complete' | 'partial' | 'unknown';

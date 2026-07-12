@@ -5,9 +5,12 @@ import { spawnSync } from 'child_process';
 import { cleanupDir, makeTempDir, runCli } from '../helpers.js';
 import yaml from 'js-yaml';
 import { computeAcceptanceHash, writeAcceptanceLock, type AcceptanceFile } from '../../src/utils/acceptance-hash.js';
+import { generateKeyPairSync, sign as cryptoSign, type KeyObject } from 'crypto';
+import { decisionPolicyDigest, decisionWorkingTreeDigest, signedApprovalPayload, type SignedApprovalEnvelope } from '../../src/runtime/decisions.js';
 
 let repo: string;
 let home: string;
+let approverPrivateKey: KeyObject;
 
 const policy = `version: 1
 default_profile: balanced
@@ -56,6 +59,13 @@ beforeEach(() => {
   mkdirSync(join(repo, '.cdd'), { recursive: true });
   mkdirSync(join(repo, 'contracts', 'api'), { recursive: true });
   writeFileSync(join(repo, '.cdd', 'policy.yml'), policy, 'utf8');
+  const keys = generateKeyPairSync('ed25519');
+  approverPrivateKey = keys.privateKey;
+  writeFileSync(join(repo, '.cdd', 'approver-public.pem'), keys.publicKey.export({ type: 'spki', format: 'pem' }), 'utf8');
+  writeFileSync(join(repo, '.cdd', 'approval-policy.yml'), yaml.dump({
+    version: 1,
+    approvals: { auth_policy: { provider: 'signed-file', actors: { 'owner@example.com': { public_key: '.cdd/approver-public.pem' } } } },
+  }), 'utf8');
   writeFileSync(join(repo, 'contracts', 'api', 'api-contract.md'), contract, 'utf8');
   writeFileSync(join(repo, 'README.md'), '# Project\n', 'utf8');
   git(['init']); git(['config', 'user.email', 'test@example.com']); git(['config', 'user.name', 'Test']);
@@ -200,10 +210,23 @@ describe('agent-native runtime', () => {
     const gate = runCli(['gate', 'runtime-only'], { cwd: repo, home });
     expect(gate.status, gate.stdout + gate.stderr).toBe(0);
     expect(gate.stdout + gate.stderr).toMatch(/balanced runtime/i);
-    const parity = runCli(['runtime', 'parity', state.run_id, '--json'], { cwd: repo, home });
+    const other = runCli(['work', 'other-change', 'Update', 'another', 'module', '--profile', 'balanced', '--json'], { cwd: repo, home });
+    expect(other.status, other.stderr).toBe(0);
+    const gateByChange = runCli(['gate', 'runtime-only'], { cwd: repo, home });
+    expect(gateByChange.status, gateByChange.stdout + gateByChange.stderr).toBe(0);
+    const gateAfterOtherRun = runCli(['gate', 'runtime-only', '--run-id', state.run_id], { cwd: repo, home });
+    expect(gateAfterOtherRun.status, gateAfterOtherRun.stdout + gateAfterOtherRun.stderr).toBe(0);
+    const mutationsPath = join(repo, '.cdd', 'runtime', state.run_id, 'mutation-results.json');
+    writeFileSync(mutationsPath, JSON.stringify({ mutations: {
+      'response-field-removed': { strict: 'caught', runtime: 'caught', strict_category: 'boundary', runtime_category: 'boundary' },
+      'cache-branch-shape-drift': { strict: 'missed', runtime: 'caught', strict_category: 'boundary', runtime_category: 'boundary' },
+    } }), 'utf8');
+    const parity = runCli(['runtime', 'parity', state.run_id, '--mutations', mutationsPath, '--json'], { cwd: repo, home });
     expect(parity.status).toBe(1); // strict correctly rejects the intentionally absent legacy artifacts
     const parityReport = JSON.parse(parity.stdout).report;
     expect(parityReport.verdicts).toMatchObject({ runtime: 'passed', strict: 'failed', equivalent: false, strict_compatible: true });
+    expect(parityReport.verdicts.mutation_equivalent).toBe(false);
+    expect(parityReport.detection.false_positives).toContain('cache-branch-shape-drift');
     expect(parityReport.metrics.legacy_required_artifacts).toBe(7);
     expect(parityReport.metrics.dynamic_prompt_estimated_tokens).toBeGreaterThan(0);
   });
@@ -246,17 +269,46 @@ describe('agent-native runtime', () => {
       '--summary', 'Authorization behavior and tests were independently reviewed.', '--json',
     ], { cwd: repo, home });
     expect(review.status, review.stderr).toBe(0);
-    const selfApproval = runCli([
-      'runtime', 'approve', state.run_id, 'auth_policy', '--actor', 'test-agent',
-      '--reason', 'The implementation agent attempted self approval.', '--scope', 'src/auth.ts',
-    ], { cwd: repo, home });
-    expect(selfApproval.status).toBe(2);
-    expect(selfApproval.stderr).toContain('cannot approve its own change');
-    const approval = runCli([
-      'runtime', 'approve', state.run_id, 'auth_policy', '--actor', 'owner@example.com',
-      '--reason', 'The authorization policy change is approved.', '--scope', 'src/auth.ts', '--json',
-    ], { cwd: repo, home });
+    mkdirSync(join(repo, '.cdd', 'approvals'), { recursive: true });
+    const approvalPolicyPath = join(repo, '.cdd', 'approval-policy.yml');
+    const trustedApprovalPolicy = readFileSync(approvalPolicyPath, 'utf8');
+    writeFileSync(approvalPolicyPath, trustedApprovalPolicy + '# agent-added trust root\n', 'utf8');
+    const tamperedTrustPayload: Omit<SignedApprovalEnvelope, 'signature'> = {
+      schema_version: '1.0.0', run_id: state.run_id, change_id: 'auth-change', approval_id: 'auth_policy', verdict: 'approved',
+      actor: 'owner@example.com', reason: 'Attempted approval with a modified trust root.', scope: 'src/auth.ts',
+      working_tree_digest: decisionWorkingTreeDigest(repo), policy_digest: decisionPolicyDigest(repo),
+      head_commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
+      issued_at: new Date().toISOString(), nonce: 'tampered-root-000001',
+    };
+    const tamperedTrustPath = join(repo, '.cdd', 'approvals', 'tampered-trust.json');
+    writeFileSync(tamperedTrustPath, JSON.stringify({
+      ...tamperedTrustPayload, signature: cryptoSign(null, Buffer.from(signedApprovalPayload(tamperedTrustPayload)), approverPrivateKey).toString('base64'),
+    }), 'utf8');
+    const tamperedTrust = runCli(['runtime', 'approval', 'import', tamperedTrustPath, state.run_id], { cwd: repo, home });
+    expect(tamperedTrust.status).toBe(2);
+    expect(tamperedTrust.stderr).toContain('not identical to trusted base');
+    writeFileSync(approvalPolicyPath, trustedApprovalPolicy, 'utf8');
+    const unsigned: Omit<SignedApprovalEnvelope, 'signature'> = {
+      schema_version: '1.0.0', run_id: state.run_id, change_id: 'auth-change', approval_id: 'auth_policy', verdict: 'approved',
+      actor: 'owner@example.com', reason: 'The authorization policy change is approved.', scope: 'src/auth.ts',
+      working_tree_digest: decisionWorkingTreeDigest(repo), policy_digest: decisionPolicyDigest(repo),
+      head_commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
+      issued_at: new Date().toISOString(), nonce: 'human-nonce-00000001',
+    };
+    const envelopePath = join(repo, '.cdd', 'approvals', 'auth-policy.json');
+    const fakeEnvelopePath = join(repo, '.cdd', 'approvals', 'fake-auth-policy.json');
+    writeFileSync(fakeEnvelopePath, JSON.stringify({ ...unsigned, actor: 'codex-as-owner@example.com', signature: 'ZmFrZQ==' }), 'utf8');
+    const forged = runCli(['runtime', 'approval', 'import', fakeEnvelopePath, state.run_id], { cwd: repo, home });
+    expect(forged.status).toBe(2);
+    expect(forged.stderr).toContain('not a configured signed approver');
+    writeFileSync(envelopePath, JSON.stringify({
+      ...unsigned, signature: cryptoSign(null, Buffer.from(signedApprovalPayload(unsigned)), approverPrivateKey).toString('base64'),
+    }, null, 2) + '\n', 'utf8');
+    const approval = runCli(['runtime', 'approval', 'import', envelopePath, state.run_id, '--json'], { cwd: repo, home });
     expect(approval.status, approval.stderr).toBe(0);
+    const replayedApproval = runCli(['runtime', 'approval', 'import', envelopePath, state.run_id], { cwd: repo, home });
+    expect(replayedApproval.status).toBe(2);
+    expect(replayedApproval.stderr).toContain('nonce has already been imported');
 
     const passed = runCli(['runtime', 'verify', state.run_id, '--json'], { cwd: repo, home });
     expect(passed.status, passed.stdout + passed.stderr).toBe(0);

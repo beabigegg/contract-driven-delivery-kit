@@ -9,11 +9,13 @@ import { boundaryInit } from './boundary.js';
 import { log } from '../utils/logger.js';
 import { writeGuidanceMigration } from './guidance.js';
 import { planRuntime } from '../runtime/engine.js';
+import { runBoundaryGuard } from '../boundary/guard.js';
 
 interface MigrationReadiness {
   schema_version: '1.0.0';
   provider: string;
   ready: boolean;
+  readiness: { installed: boolean; configured: boolean; shadow_ready: boolean; promotion_ready: boolean };
   items: Array<{ id: string; status: 'ready' | 'missing' | 'optional'; path: string; action?: string }>;
   guarantees: { active_changes_rewritten: false; archives_rewritten: false; strict_preserved: boolean };
 }
@@ -23,6 +25,7 @@ export function agentNativeReadiness(cwd = process.cwd(), requested: ProviderOpt
   const items: MigrationReadiness['items'] = [];
   const add = (id: string, path: string, required: boolean, action?: string) => items.push({ id, path, status: existsSync(join(cwd, path)) ? 'ready' : required ? 'missing' : 'optional', action });
   add('project-policy', '.cdd/policy.yml', true, 'cdd-kit upgrade --yes');
+  add('approval-policy', '.cdd/approval-policy.yml', true, 'Configure trusted signed approval identities before Controlled work');
   if (provider === 'claude' || provider === 'both') add('claude-guidance', 'CLAUDE.md', true, 'cdd-kit upgrade --provider claude --yes');
   if (provider === 'codex' || provider === 'both') add('codex-guidance', 'AGENTS.md', true, 'cdd-kit upgrade --provider codex --yes');
   const contractPath = join(cwd, 'contracts', 'api', 'api-contract.md');
@@ -32,8 +35,20 @@ export function agentNativeReadiness(cwd = process.cwd(), requested: ProviderOpt
   let strictPreserved = false;
   const policyPath = join(cwd, '.cdd', 'policy.yml');
   if (existsSync(policyPath)) strictPreserved = /strict:[\s\S]*?legacy_workflow:\s*true/.test(readFileSync(policyPath, 'utf8'));
+  const installed = items.every(item => item.status !== 'missing') && strictPreserved;
+  let boundaryConfigured = !hasEndpoints;
+  if (hasEndpoints && existsSync(join(cwd, '.cdd', 'boundary-manifest.yml')) && existsSync(policyPath)) {
+    try { boundaryConfigured = runBoundaryGuard({ cwd, all: true }).status !== 'failed'; } catch { boundaryConfigured = false; }
+  }
+  const runtimeRoot = join(cwd, '.cdd', 'runtime');
+  const parityPresent = existsSync(runtimeRoot) && readdirSync(runtimeRoot, { withFileTypes: true })
+    .some(entry => entry.isDirectory() && existsSync(join(runtimeRoot, entry.name, 'parity.json')));
+  const configured = installed && boundaryConfigured;
+  const shadowReady = installed && (!hasEndpoints || existsSync(join(cwd, '.cdd', 'boundary-manifest.yml')));
+  const promotionReady = configured && parityPresent;
   return {
-    schema_version: '1.0.0', provider, ready: items.every(item => item.status !== 'missing') && strictPreserved,
+    schema_version: '1.0.0', provider, ready: promotionReady,
+    readiness: { installed, configured, shadow_ready: shadowReady, promotion_ready: promotionReady },
     items, guarantees: { active_changes_rewritten: false, archives_rewritten: false, strict_preserved: strictPreserved },
   };
 }
@@ -58,6 +73,7 @@ function importActiveChanges(cwd: string): Array<{ change_id: string; run_id?: s
 export async function agentNativeMigrate(options: { yes?: boolean; provider?: ProviderOption; importActive?: boolean; json?: boolean } = {}): Promise<number> {
   const cwd = process.cwd();
   const provider = options.provider ?? 'auto';
+  const policyExistedBeforeMigration = existsSync(join(cwd, '.cdd', 'policy.yml'));
   const before = agentNativeReadiness(cwd, provider);
   if (!options.yes) {
     if (options.json) process.stdout.write(JSON.stringify(before, null, 2) + '\n');
@@ -66,10 +82,17 @@ export async function agentNativeMigrate(options: { yes?: boolean; provider?: Pr
       for (const item of before.items) log.info(`${item.status.padEnd(8)} ${item.id}: ${item.path}${item.action && item.status === 'missing' ? ` → ${item.action}` : ''}`);
       log.info('Dry run only. Re-run with --yes to add missing assets and safely sync user-level provider files.');
     }
-    return before.ready ? 0 : 1;
+    return before.readiness.installed ? 0 : 1;
   }
   await upgrade({ yes: true, provider });
   await update({ yes: true, provider, preserveModified: true });
+  if (!policyExistedBeforeMigration) {
+    const policyPath = join(cwd, '.cdd', 'policy.yml');
+    if (existsSync(policyPath)) {
+      const policy = readFileSync(policyPath, 'utf8').replace(/default_profile:\s*balanced/, 'default_profile: strict');
+      writeFileSync(policyPath, policy, 'utf8');
+    }
+  }
   const afterUpgrade = agentNativeReadiness(cwd, provider);
   const boundaryMissing = afterUpgrade.items.some(item => item.id === 'boundary-manifest' && item.status === 'missing');
   if (boundaryMissing) boundaryInit({});
@@ -84,5 +107,5 @@ export async function agentNativeMigrate(options: { yes?: boolean; provider?: Pr
     log.ok(`Agent-native migration applied; record: .cdd/migration/agent-native.json`);
     log.info('Active changes and archives were not rewritten. Strict compatibility remains available.');
   }
-  return after.ready ? 0 : 1;
+  return after.readiness.installed ? 0 : 1;
 }

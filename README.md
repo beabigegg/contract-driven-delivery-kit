@@ -56,6 +56,7 @@ cdd-kit runtime agent prompt <run-id>
 cdd-kit runtime agent complete <run-id> --status passed --actor claude --summary "Implemented scoped JWT behavior"
 cdd-kit runtime check run <run-id> --all
 # Controlled only: independent reviewer + named approvals
+cdd-kit runtime approval import signed-approval.json <run-id>
 cdd-kit runtime verify <run-id>
 cdd-kit gate add-jwt-auth
 ```
@@ -63,7 +64,9 @@ cdd-kit gate add-jwt-auth
 Use `--provider codex` for Codex. Lightweight, balanced, and controlled profiles
 store concise state/evidence under `.cdd/runtime/`; `specs/changes/<id>` and the
 legacy seven artifacts are not required. Controlled work cannot pass without a
-digest-bound independent review, and configured approvals cannot be skipped.
+digest-bound independent review. High-risk approval identity is verified using
+trusted public keys in `.cdd/approval-policy.yml`; free-form `--actor` text
+cannot approve work, and configured approvals cannot be skipped.
 The human-authored acceptance oracle is retained: strict always requires it;
 controlled requires it when policy/capsule risk activates it or the user passes
 `--require-acceptance`. The runtime never invents or silently relocks an oracle.
@@ -678,6 +681,7 @@ available while parity is measured.
 ```bash
 cdd-kit boundary init
 cdd-kit boundary check --base origin/main
+cdd-kit boundary check --base origin/main --verify-captures --verify-generated
 cdd-kit work <change-id> "<objective>"
 cdd-kit work <change-id> "<human-sensitive objective>" --require-acceptance
 cdd-kit runtime status
@@ -685,8 +689,10 @@ cdd-kit runtime resume
 cdd-kit runtime agent prompt
 cdd-kit runtime check run --all
 cdd-kit runtime review --verdict passed --actor reviewer --summary "Independent review passed"
+cdd-kit runtime approval import signed-approval.json <run-id>
 cdd-kit runtime verify
 cdd-kit runtime parity
+cdd-kit runtime parity <run-id> --mutations mutation-results.json
 cdd-kit guidance audit
 cdd-kit runtime migrate --provider codex       # dry run
 cdd-kit runtime migrate --provider codex --yes # reversible apply

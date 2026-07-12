@@ -1,5 +1,7 @@
 # Contract-Driven Delivery
 
+<!-- cdd-kit:managed:start -->
+
 This repository uses cdd-kit. `contracts/` is canonical and deterministic
 runtime evidence is authoritative over agent confidence.
 
@@ -23,3 +25,4 @@ only for strict compatibility.
 
 Evidence is digest-bound. Re-run checks, review, and approvals after source or
 policy changes. Never self-approve a human approval.
+<!-- cdd-kit:managed:end -->

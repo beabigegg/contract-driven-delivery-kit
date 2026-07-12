@@ -207,8 +207,10 @@ boundary
   .option('--head <revision>', 'Git head revision', 'HEAD')
   .option('--all', 'Check every contracted operation', false)
   .option('--operation <method-path...>', 'Check one or more explicit operations, e.g. "GET /health"')
+  .option('--verify-generated', 'Replay registered generators and compare their output with committed artifacts', false)
+  .option('--verify-captures', 'Replay registered framework adapters and compare observed serialized boundaries', false)
   .option('--json', 'Emit machine-readable Boundary Guard result', false)
-  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; json?: boolean }) => {
+  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; verifyGenerated?: boolean; verifyCaptures?: boolean; json?: boolean }) => {
     const { boundaryCheck } = await import('../commands/boundary.js');
     process.exitCode = boundaryCheck({ ...opts, operations: opts.operation });
   });
@@ -217,10 +219,11 @@ boundary.command('capture <operation>')
   .option('--variant <id>', 'Capture one variant; defaults to all required variants')
   .option('--manifest <path>', 'Boundary manifest path', '.cdd/boundary-manifest.yml')
   .option('--timeout <ms>', 'Per-capture timeout', '300000')
+  .option('--verify', 'Replay the registered adapter and compare with the committed capture/provenance', false)
   .option('--json', 'Emit JSON', false)
-  .action(async (operation: string, opts: { variant?: string; manifest?: string; timeout?: string; json?: boolean }) => {
+  .action(async (operation: string, opts: { variant?: string; manifest?: string; timeout?: string; verify?: boolean; json?: boolean }) => {
     const { boundaryCapture } = await import('../commands/boundary.js');
-    process.exitCode = boundaryCapture({ operation, variant: opts.variant, manifest: opts.manifest, timeout: Number(opts.timeout), json: opts.json });
+    process.exitCode = boundaryCapture({ operation, variant: opts.variant, manifest: opts.manifest, timeout: Number(opts.timeout), verify: opts.verify, json: opts.json });
   });
 
 // ── cdd work/runtime ─────────────────────────────────────────────────────────
@@ -254,8 +257,9 @@ runtime.command('verify [run-id]').option('--json', 'Emit JSON', false).action(a
   const { runtimeVerify } = await import('../commands/runtime.js'); process.exitCode = runtimeVerify({ runId, json: opts.json });
 });
 runtime.command('parity [run-id]').description('Dual-run runtime verification and the strict compatibility gate')
-  .option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
-    const { runtimeParity } = await import('../commands/runtime.js'); process.exitCode = runtimeParity({ runId, json: opts.json });
+  .option('--mutations <path>', 'Mutation detection matrix JSON for category-level parity')
+  .option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { mutations?: string; json?: boolean }) => {
+    const { runtimeParity } = await import('../commands/runtime.js'); process.exitCode = runtimeParity({ runId, mutations: opts.mutations, json: opts.json });
   });
 runtime.command('review [run-id]')
   .requiredOption('--verdict <verdict>', 'Review verdict: passed or failed')
@@ -269,17 +273,13 @@ runtime.command('review [run-id]')
     const { runtimeReview } = await import('../commands/runtime.js');
     process.exitCode = runtimeReview({ runId, actor: opts.actor, summary: opts.summary, verdict: opts.verdict as 'passed' | 'failed', json: opts.json });
   });
-for (const [command, verdict] of [['approve', 'approved'], ['reject', 'rejected']] as const) {
-  runtime.command(`${command} [run-id] <approval-id>`)
-    .requiredOption('--actor <actor>', 'Approver identity')
-    .requiredOption('--reason <reason>', 'Decision rationale (at least 10 characters)')
-    .requiredOption('--scope <scope>', 'Approved or rejected scope')
-    .option('--json', 'Emit JSON', false)
-    .action(async (runId: string | undefined, approvalId: string, opts: { actor: string; reason: string; scope: string; json?: boolean }) => {
-      const { runtimeApproval } = await import('../commands/runtime.js');
-      process.exitCode = runtimeApproval({ runId, approvalId, actor: opts.actor, reason: opts.reason, scope: opts.scope, verdict, json: opts.json });
-    });
-}
+const runtimeApproval = runtime.command('approval').description('Import externally signed high-risk approval decisions');
+runtimeApproval.command('import <file> [run-id]')
+  .option('--json', 'Emit JSON', false)
+  .action(async (file: string, runId: string | undefined, opts: { json?: boolean }) => {
+    const { runtimeApprovalImport } = await import('../commands/runtime.js');
+    process.exitCode = runtimeApprovalImport({ runId, file, json: opts.json });
+  });
 const runtimeAgent = runtime.command('agent').description('Build and record doctrine-selected dynamic agent work');
 runtimeAgent.command('prompt [run-id]')
   .option('--role <role>', 'Agent role: implementer or reviewer', 'implementer')
@@ -650,12 +650,13 @@ program
   .option('--strict', 'Treat pending tasks (except section 7) as errors', false)
   .option('--profile <profile>', 'Agent-native profile: lightweight, balanced, controlled, or strict')
   .option('--require-acceptance', 'Require the human-authored acceptance oracle for this invocation', false)
+  .option('--run-id <run-id>', 'Use a specific runtime run; otherwise the newest valid run for this change is selected')
   .option('--explain', 'On failure, add a plain-language reason and a "say this to Claude" hint for each problem', false)
-  .action(async (id: string, opts: { strict?: boolean; profile?: string; requireAcceptance?: boolean; explain?: boolean }) => {
+  .action(async (id: string, opts: { strict?: boolean; profile?: string; requireAcceptance?: boolean; runId?: string; explain?: boolean }) => {
     if (opts.profile && !['lightweight', 'balanced', 'controlled', 'strict'].includes(opts.profile)) {
       console.error(`Invalid profile: ${opts.profile}`); process.exitCode = 2; return;
     }
-    await gate(id, { strict: opts.strict, profile: opts.profile as WorkflowProfile | undefined, requireAcceptance: opts.requireAcceptance, explain: opts.explain });
+    await gate(id, { strict: opts.strict, profile: opts.profile as WorkflowProfile | undefined, requireAcceptance: opts.requireAcceptance, runId: opts.runId, explain: opts.explain });
   });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────

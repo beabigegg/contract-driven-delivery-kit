@@ -44,9 +44,11 @@ describe('agent-native migration', () => {
     expect(apply.status, apply.stderr).toBe(0);
     const jsonStart = apply.stdout.lastIndexOf('\n{\n  "schema_version"');
     const result = JSON.parse(apply.stdout.slice(jsonStart >= 0 ? jsonStart + 1 : 0)); // command logs may precede the final JSON
-    expect(result.ready).toBe(true);
+    expect(result.ready).toBe(false);
+    expect(result.readiness).toMatchObject({ installed: true, configured: false, shadow_ready: true, promotion_ready: false });
     expect(existsSync(join(repo, 'AGENTS.md'))).toBe(true);
     expect(existsSync(join(repo, '.cdd', 'policy.yml'))).toBe(true);
+    expect(readFileSync(join(repo, '.cdd', 'policy.yml'), 'utf8')).toMatch(/default_profile:\s*strict/);
     expect(existsSync(join(repo, '.cdd', 'boundary-manifest.yml'))).toBe(true);
     expect(existsSync(join(repo, '.cdd', 'migration', 'agent-native.json'))).toBe(true);
     const migration = JSON.parse(readFileSync(join(repo, '.cdd', 'migration', 'agent-native.json'), 'utf8'));

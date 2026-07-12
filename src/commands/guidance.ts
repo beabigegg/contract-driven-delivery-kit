@@ -51,7 +51,24 @@ export function auditGuidance(cwd = process.cwd()): GuidanceAudit {
   };
 }
 
-export function writeGuidanceMigration(cwd = process.cwd(), replace = false): { audit: GuidanceAudit; proposals: string[]; backups: string[] } {
+const MANAGED_START = '<!-- cdd-kit:managed:start -->';
+const MANAGED_END = '<!-- cdd-kit:managed:end -->';
+
+function managedBlock(content: string): string | null {
+  const start = content.indexOf(MANAGED_START);
+  const end = content.indexOf(MANAGED_END, start + MANAGED_START.length);
+  return start >= 0 && end >= 0 ? content.slice(start, end + MANAGED_END.length) : null;
+}
+
+function mergeManaged(existing: string, template: string): string | null {
+  const replacement = managedBlock(template);
+  const start = existing.indexOf(MANAGED_START);
+  const end = existing.indexOf(MANAGED_END, start + MANAGED_START.length);
+  if (!replacement || start < 0 || end < 0) return null;
+  return existing.slice(0, start) + replacement + existing.slice(end + MANAGED_END.length);
+}
+
+export function writeGuidanceMigration(cwd = process.cwd(), replace = false): { audit: GuidanceAudit; proposals: string[]; backups: string[]; skipped: Array<{ path: string; reason: string }> } {
   const root = join(cwd, '.cdd', 'migration');
   const proposalDir = join(root, 'guidance-proposals');
   const backupDir = join(root, 'guidance-backups');
@@ -61,6 +78,7 @@ export function writeGuidanceMigration(cwd = process.cwd(), replace = false): { 
   ];
   const proposals: string[] = [];
   const backups: string[] = [];
+  const skipped: Array<{ path: string; reason: string }> = [];
   for (const [name, template] of mappings) {
     if (!existsSync(template)) continue;
     const proposal = join(proposalDir, name);
@@ -69,21 +87,29 @@ export function writeGuidanceMigration(cwd = process.cwd(), replace = false): { 
     if (replace) {
       const target = join(cwd, name);
       if (existsSync(target)) {
+        const existing = readFileSync(target, 'utf8');
+        const merged = mergeManaged(existing, readFileSync(template, 'utf8'));
+        if (merged === null) {
+          skipped.push({ path: name, reason: 'Existing guidance has no complete cdd-kit managed markers; review the proposal and merge project knowledge manually.' });
+          continue;
+        }
         mkdirSync(backupDir, { recursive: true });
         const backup = join(backupDir, name);
         cpSync(target, backup);
         backups.push(`.cdd/migration/guidance-backups/${name}`);
+        writeFileSync(target, merged, 'utf8');
+      } else {
+        cpSync(template, target);
       }
-      cpSync(template, target);
     }
   }
   const audit = auditGuidance(cwd);
   writeFileSync(join(root, 'guidance-audit.json'), JSON.stringify(audit, null, 2) + '\n', 'utf8');
   writeFileSync(join(root, 'guidance-migration.json'), JSON.stringify({
-    schema_version: '1.0.0', created_at: new Date().toISOString(), replace, proposals, backups,
+    schema_version: '1.0.0', created_at: new Date().toISOString(), replace, proposals, backups, skipped,
     rollback: backups.length ? 'Restore files from .cdd/migration/guidance-backups/.' : 'No project guidance was replaced.',
   }, null, 2) + '\n', 'utf8');
-  return { audit, proposals, backups };
+  return { audit, proposals, backups, skipped };
 }
 
 export function guidanceAuditCommand(options: { json?: boolean }): number {
@@ -104,8 +130,9 @@ export function guidanceMigrateCommand(options: { apply?: boolean; replace?: boo
   if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   else {
     log.ok(`Guidance proposals written: ${result.proposals.join(', ')}`);
-    if (result.backups.length) log.warn(`Guidance replaced with rollback copies: ${result.backups.join(', ')}`);
-    else log.info('Existing guidance was preserved; review proposals before using --replace.');
+    if (result.backups.length) log.warn(`Managed guidance blocks updated with rollback copies: ${result.backups.join(', ')}`);
+    for (const item of result.skipped) log.warn(`${item.path} preserved: ${item.reason}`);
+    if (!result.backups.length && !result.skipped.length) log.info('Existing guidance was preserved; review proposals before using --replace.');
   }
   return 0;
 }

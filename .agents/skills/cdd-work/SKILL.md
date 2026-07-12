@@ -22,7 +22,9 @@ recreate CDD workflow state in chat.
 6. For Controlled work, use a separate reviewer context with
    `cdd-kit runtime agent prompt <run-id> --role reviewer`, then record the
    verdict with `cdd-kit runtime review`. Obtain every pending named approval
-   through `cdd-kit runtime approve`; never self-approve.
+   from a trusted human/provider as a signed envelope, then import it with
+   `cdd-kit runtime approval import <file> <run-id>`. The CLI has no free-form
+   self-approval command.
 7. Run `cdd-kit runtime verify <run-id>` and `cdd-kit gate <change-id>`.
 
 Do not create the seven legacy change artifacts for lightweight, balanced, or

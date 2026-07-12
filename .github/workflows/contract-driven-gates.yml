@@ -42,6 +42,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Install legacy response-shape validator
+        run: python -m pip install jsonschema pyyaml
+
       # Before `npm ci` — it reads two JSON files and needs no node_modules, and
       # a lockfile that disagrees with the manifest should not cost a full
       # install to discover. `npm ci` itself does NOT catch this: it compares the
@@ -104,7 +107,7 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         env:
           CDD_BASE_SHA: ${{ steps.changed.outputs.base_sha }}
-        run: node dist/cli/index.js boundary check --json
+        run: node dist/cli/index.js boundary check --verify-generated --verify-captures --json
 
       - name: cdd-kit gate (changed specs)
         # Zero changed spec dirs is a no-op success, not a failure (this step

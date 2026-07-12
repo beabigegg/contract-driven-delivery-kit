@@ -4,9 +4,10 @@ Measured on 2026-07-12 against the cdd-kit repository. Token figures use the
 CLI's deterministic four-characters-per-token estimate and are intended for
 before/after trend comparison, not provider billing.
 
-The final repository regression run completed with **120 files passed, 1,571
-tests passed, and 4 environment-dependent tests skipped** (the optional Python
-`jsonschema` package was absent locally).
+The final repository regression run completed with **120 files passed and 1,576
+tests passed** when Python `jsonschema` is installed. Both shipped CI workflows
+install that legacy-validator dependency explicitly, so Strict response-shape
+coverage is not skipped in CI.
 
 ## Recurring context baseline
 
@@ -33,16 +34,21 @@ The suite includes seeded failures for:
 - response field/type mismatch, required fields, enums, and variants;
 - zero required variants and incomplete runtime-branch discovery;
 - capture content digest and backend producer digest staleness;
-- invalid capture provenance and repository-escaping paths;
+- invalid capture provenance, adapter replay drift, and repository-escaping paths;
 - missing/mismatched frontend consumer calls;
-- stale generated client/type artifacts;
+- stale generated artifacts, contract projection drift, generator version drift,
+  and generator replay mismatch;
 - a clean CI checkout whose changed operations are derived from the PR base;
 - stale implementation, test, review, and human-approval evidence.
+- forged/free-form approval identities and signed-approval nonce replay.
 
 `cdd-kit runtime parity <run-id>` dual-runs runtime verification and the strict
 compatibility gate and writes `.cdd/runtime/<run-id>/parity.json`, including
-verdicts, selected agent calls, token estimates, and artifact counts. A mismatch
-blocks parity promotion; it does not silently choose the weaker verdict.
+verdicts, normalized detection categories, selected agent calls, token
+estimates, and artifact counts. Equal exit codes with different blocking
+categories are not parity. Pass `--mutations <matrix.json>` to compare each
+seeded mutation's caught/missed verdict and category and report false positives
+and false negatives. A mismatch blocks parity promotion.
 
 ## Migration and rollback
 
@@ -50,5 +56,5 @@ blocks parity promotion; it does not silently choose the weaker verdict.
 guidance audit plus proposals, and keeps strict available. Add `--import-active`
 to create strict runtime capsules from active legacy changes without rewriting
 their files. Guidance replacement requires the separate explicit command
-`cdd-kit guidance migrate --apply --replace`, which creates rollback copies
-before changing project guidance.
+`cdd-kit guidance migrate --apply --replace`, which creates rollback copies and
+updates only managed marker blocks. Guidance without markers remains untouched.

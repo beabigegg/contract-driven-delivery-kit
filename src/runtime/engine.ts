@@ -22,11 +22,11 @@ function git(cwd: string, args: string[]): string | null {
   return output.length ? output : null;
 }
 function dirtyDigest(cwd: string): string {
-  const diff = git(cwd, ['diff', 'HEAD', '--', '.', ':(exclude).cdd/runtime']) ?? '';
+  const diff = git(cwd, ['diff', 'HEAD', '--', '.', ':(exclude).cdd/runtime', ':(exclude).cdd/approvals']) ?? '';
   const status = (git(cwd, ['status', '--porcelain', '--untracked-files=all']) ?? '').split(/\r?\n/)
-    .filter(line => !line.slice(3).startsWith('.cdd/runtime/')).join('\n');
+    .filter(line => !line.slice(3).startsWith('.cdd/runtime/') && !line.slice(3).startsWith('.cdd/approvals/')).join('\n');
   const untracked = (git(cwd, ['ls-files', '--others', '--exclude-standard']) ?? '').split(/\r?\n/)
-    .filter(path => path && !path.startsWith('.cdd/runtime/'))
+    .filter(path => path && !path.startsWith('.cdd/runtime/') && !path.startsWith('.cdd/approvals/'))
     .map(path => {
       const absolute = join(cwd, path);
       return existsSync(absolute) && statSync(absolute).isFile() ? `${path}:${fileDigest(absolute)}` : `${path}:non-file`;
@@ -134,7 +134,12 @@ export function planRuntime(options: PlanRuntimeOptions): StoredRuntimeState {
       affected: { files: impactFiles, symbols: [], operations: impactOperations, contracts: [boundary.contract], tests: [] },
       write_scope: impactFiles, invariants: ['Canonical contracts remain authoritative.', 'Unknown boundary impact fails upward.'],
       required_evidence: [...requiredEvidence], check_plan: checkPlan, approvals,
-      input_digests: { contract: boundary.contract_digest, policy: fileDigest(join(cwd, '.cdd', 'policy.yml')), working_tree: dirtyDigest(cwd) },
+      input_digests: {
+        contract: boundary.contract_digest,
+        policy: fileDigest(join(cwd, '.cdd', 'policy.yml')),
+        approval_policy: fileDigest(join(cwd, '.cdd', 'approval-policy.yml')),
+        working_tree: dirtyDigest(cwd),
+      },
     };
     const timestamp = now();
     const state: StoredRuntimeState = {
@@ -159,6 +164,7 @@ export function resumeRuntime(cwd = process.cwd(), runId?: string): { state: Sto
     const current = {
       contract: fileDigest(join(cwd, 'contracts', 'api', 'api-contract.md')),
       policy: fileDigest(join(cwd, '.cdd', 'policy.yml')),
+      approval_policy: fileDigest(join(cwd, '.cdd', 'approval-policy.yml')),
       working_tree: dirtyDigest(cwd),
     };
     const invalidated = Object.entries(current).filter(([key, value]) => capsule.input_digests[key] !== value).map(([key]) => key);
@@ -174,7 +180,7 @@ export function verifyRuntime(cwd = process.cwd(), runId?: string): { state: Sto
   return withRuntimeLock(cwd, () => {
     const state = readRuntimeState(cwd, runId);
     const capsule = state.capsule as unknown as ExecutionCapsule;
-    const boundary = runBoundaryGuard({ cwd, operations: capsule.affected.operations });
+    const boundary = runBoundaryGuard({ cwd, operations: capsule.affected.operations, verifyGenerated: true, verifyCaptures: true });
     const testEvidencePath = join(cwd, 'specs', 'changes', state.change_id, 'test-evidence.yml');
     const latestCheckStep = (checkId: string) => [...state.steps].reverse().find(step => step.kind === 'test' && step.phase === checkId);
     const stepEvidence = (step: Record<string, unknown> | undefined): string[] => Array.isArray(step?.evidence)

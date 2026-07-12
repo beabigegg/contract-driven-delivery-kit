@@ -1,13 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import { spawnSync } from 'child_process';
 import { cleanupDir, makeTempDir, runCli } from '../helpers.js';
+import { captureTargetDigest } from '../../src/boundary/adapters.js';
 
 let repo: string;
 let home: string;
+
+const hash = (content: string) => `sha256:${createHash('sha256').update(content).digest('hex')}`;
+const stable = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`).join(',')}}`;
+  return JSON.stringify(value);
+};
+function registeredCapture(contractDigest: string, producerDigest: string, body: unknown, commit = 'deadbee') {
+  const variant: any = {
+    id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
+    capture: { path: 'tests/contract/samples/health.json', adapter: 'flask-test-client', target: 'app:app' },
+  };
+  variant.capture.provenance = {
+    adapter_version: '1.0.0', runner_version: '3.1.2', target_digest: captureTargetDigest({ method: 'GET', path: '/health' }, variant),
+    contract_digest: contractDigest, producer_digest: producerDigest, capture_digest: hash(stable(body)), commit, produced_at: new Date().toISOString(),
+  };
+  return variant.capture;
+}
 
 const contract = `---
 contract: api
@@ -98,10 +117,10 @@ describe('cdd-kit boundary', () => {
     const generatedContent = 'export interface Health { ok: boolean }\n';
     writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), captureContent, 'utf8');
     writeFileSync(join(repo, 'src', 'health.ts'), producerContent, 'utf8');
-    writeFileSync(join(repo, 'monitoring', 'health-check.ts'), `fetch('/health');\n`, 'utf8');
+    writeFileSync(join(repo, 'monitoring', 'health-check.ts'), `import type { Health } from '../generated/api-types';\nfetch('/health');\n`, 'utf8');
     writeFileSync(join(repo, 'generated', 'api-types.ts'), generatedContent, 'utf8');
+    writeFileSync(join(repo, 'contracts', 'api', 'openapi.json'), '{}\n', 'utf8');
     const digest = `sha256:${createHash('sha256').update(contract).digest('hex')}`;
-    const captureDigest = `sha256:${createHash('sha256').update(captureContent).digest('hex')}`;
     const sourceDigest = `sha256:${createHash('sha256').update(producerContent).digest('hex')}`;
     const producerDigest = `sha256:${createHash('sha256').update(`src/health.ts:${sourceDigest}`).digest('hex')}`;
     const generatedDigest = `sha256:${createHash('sha256').update(generatedContent).digest('hex')}`;
@@ -110,10 +129,13 @@ describe('cdd-kit boundary', () => {
       operations: [{
         method: 'GET', path: '/health', variants: [{
           id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
-          capture: { path: 'tests/contract/samples/health.json', source: 'framework-test-client', digest: captureDigest, producer_digest: producerDigest },
+          capture: registeredCapture(digest, producerDigest, { ok: true }),
         }],
         consumers: ['monitoring/health-check.ts'], source_files: ['src/health.ts'],
-        generated_artifacts: [{ path: 'generated/api-types.ts', digest: generatedDigest }],
+        generated_artifacts: [{
+          path: 'generated/api-types.ts', digest: generatedDigest, input_contract_digest: digest,
+          generator: 'openapi-typescript', generator_version: '7.0.0', input: 'contracts/api/openapi.json',
+        }],
         discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] },
       }],
     };
@@ -126,7 +148,7 @@ describe('cdd-kit boundary', () => {
 
     const extraFieldCapture = '{"ok":true,"undeclared":1}\n';
     writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), extraFieldCapture, 'utf8');
-    manifest.operations[0].variants[0].capture.digest = `sha256:${createHash('sha256').update(extraFieldCapture).digest('hex')}`;
+    manifest.operations[0].variants[0].capture.provenance.capture_digest = hash(stable({ ok: true, undeclared: 1 }));
     writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump(manifest), 'utf8');
     const openShape = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
     expect(openShape.status).toBe(1);
@@ -134,7 +156,7 @@ describe('cdd-kit boundary', () => {
       expect.objectContaining({ code: 'variant-shape-mismatch' }),
     ]));
     writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), captureContent, 'utf8');
-    manifest.operations[0].variants[0].capture.digest = captureDigest;
+    manifest.operations[0].variants[0].capture.provenance.capture_digest = hash(stable({ ok: true }));
     writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump(manifest), 'utf8');
 
     writeFileSync(join(repo, 'src', 'health.ts'), producerContent + '// implementation changed\n', 'utf8');
@@ -151,6 +173,39 @@ describe('cdd-kit boundary', () => {
     ]));
   });
 
+  it('replays a registered generator from the current contract projection', () => {
+    mkdirSync(join(repo, 'tests', 'contract', 'samples'), { recursive: true });
+    mkdirSync(join(repo, 'src'), { recursive: true });
+    mkdirSync(join(repo, 'generated'), { recursive: true });
+    mkdirSync(join(repo, 'bin'), { recursive: true });
+    writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), '{"ok":true}\n', 'utf8');
+    const producer = `router.get('/health', healthHandler);\n`;
+    writeFileSync(join(repo, 'src', 'health.ts'), producer, 'utf8');
+    writeFileSync(join(repo, 'src', 'consumer.ts'), `import type { Health } from '../generated/api-types';\nfetch('/health');\n`, 'utf8');
+    expect(runCli(['openapi', 'export', '--out', 'contracts/api/openapi.json'], { cwd: repo, home }).status).toBe(0);
+    const generated = readFileSync(join(repo, 'contracts', 'api', 'openapi.json'));
+    writeFileSync(join(repo, 'generated', 'api-types.ts'), generated);
+    const fakeNpx = join(repo, 'bin', 'npx');
+    writeFileSync(fakeNpx, '#!/bin/sh\nif [ "$3" = "--version" ]; then echo 7.0.0; exit 0; fi\ncp "$3" "$5"\n', 'utf8');
+    chmodSync(fakeNpx, 0o755);
+    const digest = hash(contract);
+    const producerDigest = hash(`src/health.ts:${hash(producer)}`);
+    writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump({
+      schema_version: '1.0.0', contract_digest: digest,
+      operations: [{ method: 'GET', path: '/health', variants: [{
+        id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
+        capture: registeredCapture(digest, producerDigest, { ok: true }),
+      }], consumers: ['src/consumer.ts'], source_files: ['src/health.ts'], generated_artifacts: [{
+        path: 'generated/api-types.ts', digest: hash(generated), input_contract_digest: digest,
+        generator: 'openapi-typescript', generator_version: '7.0.0', input: 'contracts/api/openapi.json',
+      }], discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] } }],
+    }), 'utf8');
+    const checked = runCli(['boundary', 'check', '--operation', 'GET /health', '--verify-generated', '--json'], {
+      cwd: repo, home, env: { PATH: `${join(repo, 'bin')}:${process.env.PATH}` },
+    });
+    expect(checked.status, checked.stdout + checked.stderr).toBe(0);
+  });
+
   it('catches a real response-shape mutation instead of accepting an existing capture file', () => {
     mkdirSync(join(repo, 'tests', 'contract', 'samples'), { recursive: true });
     writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), '{"healthy":"yes"}\n', 'utf8');
@@ -159,7 +214,7 @@ describe('cdd-kit boundary', () => {
       schema_version: '1.0.0', contract_digest: digest,
       operations: [{ method: 'GET', path: '/health', variants: [{
         id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
-        capture: { path: 'tests/contract/samples/health.json', source: 'framework-test-client' },
+        capture: registeredCapture(digest, hash('missing-producer'), { healthy: 'yes' }),
       }], consumers: ['monitor'], source_files: ['src/health.ts'], discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] } }],
     }), 'utf8');
     const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
@@ -173,7 +228,7 @@ describe('cdd-kit boundary', () => {
       schema_version: '1.0.0', contract_digest: digest,
       operations: [{ method: 'GET', path: '/health', variants: [{
         id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
-        capture: { path: '../../private.json', source: 'untrusted-path' },
+        capture: { path: '../../private.json', adapter: 'flask-test-client', target: 'app:app' },
       }], consumers: [], source_files: [], discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] } }],
     }), 'utf8');
     const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
@@ -199,26 +254,37 @@ describe('cdd-kit boundary', () => {
   });
 
   it('runs a configured capture adapter and binds the sample to current producer sources', () => {
-    mkdirSync(join(repo, 'src'), { recursive: true });
+    if (spawnSync('python', ['-c', 'import flask'], { stdio: 'ignore' }).status !== 0) return;
     mkdirSync(join(repo, 'tests', 'contract', 'samples'), { recursive: true });
-    writeFileSync(join(repo, 'src', 'health.ts'), `router.get('/health', healthHandler);\n`, 'utf8');
+    writeFileSync(join(repo, 'app.py'), `from flask import Flask, jsonify\napp = Flask(__name__)\n@app.get('/health')\ndef health(): return jsonify(ok=True)\n`, 'utf8');
     const digest = `sha256:${createHash('sha256').update(contract).digest('hex')}`;
     writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump({
       schema_version: '1.0.0', contract_digest: digest,
       operations: [{ method: 'GET', path: '/health', variants: [{
         id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
         capture: {
-          path: 'tests/contract/samples/health.json', source: 'framework-test-client',
-          command: `node -e "require('fs').writeFileSync('tests/contract/samples/health.json','{\\"ok\\":true}\\n')"`,
+          path: 'tests/contract/samples/health.json', adapter: 'flask-test-client', target: 'app:app',
         },
-      }], consumers: [], source_files: ['src/health.ts'], discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] } }],
+      }], consumers: [], source_files: ['app.py'], discovery: { adapter: 'flask-test-client', completeness: 'complete', unknown_reasons: [] } }],
     }), 'utf8');
+    const git = (args: string[]) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    git(['init']); git(['config', 'user.email', 'test@example.com']); git(['config', 'user.name', 'Test']); git(['add', '.']); git(['commit', '-m', 'producer']);
     const capture = runCli(['boundary', 'capture', 'GET /health', '--json'], { cwd: repo, home });
     expect(capture.status, capture.stderr).toBe(0);
     const manifest = yaml.load(readFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), 'utf8')) as any;
-    expect(manifest.operations[0].variants[0].capture.digest).toMatch(/^sha256:/);
-    expect(manifest.operations[0].variants[0].capture.producer_digest).toMatch(/^sha256:/);
-    expect(manifest.operations[0].variants[0].capture.produced_at).toBeTruthy();
+    expect(manifest.operations[0].variants[0].capture.provenance.capture_digest).toMatch(/^sha256:/);
+    expect(manifest.operations[0].variants[0].capture.provenance.producer_digest).toMatch(/^sha256:/);
+    expect(manifest.operations[0].variants[0].capture.provenance.produced_at).toBeTruthy();
+    const replay = runCli(['boundary', 'capture', 'GET /health', '--verify', '--json'], { cwd: repo, home });
+    expect(replay.status, replay.stderr).toBe(0);
+    const guardReplay = runCli(['boundary', 'check', '--operation', 'GET /health', '--verify-captures', '--json'], { cwd: repo, home });
+    expect(guardReplay.status, guardReplay.stderr).toBe(0);
+    writeFileSync(join(repo, 'app.py'), `from flask import Flask, jsonify\napp = Flask(__name__)\n@app.get('/health')\ndef health(): return jsonify(ok=False)\n`, 'utf8');
+    const forged = runCli(['boundary', 'check', '--operation', 'GET /health', '--verify-captures', '--json'], { cwd: repo, home });
+    expect(forged.status).toBe(1);
+    expect(JSON.parse(forged.stdout).findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'variant-capture-replay-failed' }),
+    ]));
   });
 
   it('uses the CI base revision on a clean committed checkout', () => {
@@ -229,26 +295,26 @@ describe('cdd-kit boundary', () => {
     writeFileSync(sourcePath, `router.get('/health', healthHandler);\n`, 'utf8');
     writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), captureContent, 'utf8');
     const contractDigest = `sha256:${createHash('sha256').update(contract).digest('hex')}`;
-    const captureDigest = `sha256:${createHash('sha256').update(captureContent).digest('hex')}`;
-    const writeManifest = (source: string) => {
+    const writeManifest = (source: string, commit: string) => {
       const sourceDigest = `sha256:${createHash('sha256').update(source).digest('hex')}`;
       const producerDigest = `sha256:${createHash('sha256').update(`src/health.ts:${sourceDigest}`).digest('hex')}`;
       writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump({
         schema_version: '1.0.0', contract_digest: contractDigest,
         operations: [{ method: 'GET', path: '/health', variants: [{
           id: 'healthy-200', status: 200, content_type: 'application/json', schema: 'Health', required: true,
-          capture: { path: 'tests/contract/samples/health.json', source: 'framework-test-client', digest: captureDigest, producer_digest: producerDigest },
+          capture: registeredCapture(contractDigest, producerDigest, { ok: true }, commit),
         }], consumers: [], source_files: ['src/health.ts'], discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] } }],
       }), 'utf8');
     };
-    writeManifest(`router.get('/health', healthHandler);\n`);
     const git = (args: string[]) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
     git(['init']); git(['config', 'user.email', 'test@example.com']); git(['config', 'user.name', 'Test']); git(['add', '.']); git(['commit', '-m', 'base']);
     const base = git(['rev-parse', 'HEAD']).stdout.trim();
     const changedSource = `router.get('/health', healthHandler);\n// changed producer\n`;
     writeFileSync(sourcePath, changedSource, 'utf8');
-    writeManifest(changedSource);
-    git(['add', '.']); git(['commit', '-m', 'change producer']);
+    git(['add', 'src/health.ts']); git(['commit', '-m', 'change producer']);
+    const producerCommit = git(['rev-parse', 'HEAD']).stdout.trim();
+    writeManifest(changedSource, producerCommit);
+    git(['add', '.cdd/boundary-manifest.yml']); git(['commit', '-m', 'record boundary provenance']);
 
     const result = runCli(['boundary', 'check', '--json'], { cwd: repo, home, env: { CI: 'true', CDD_BASE_SHA: base } });
     expect(result.status, result.stderr).toBe(0);

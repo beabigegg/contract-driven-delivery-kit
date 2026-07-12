@@ -4,7 +4,7 @@ import type { WorkflowProfile } from '../runtime/types.js';
 import type { Provider } from '../utils/provider.js';
 import { log } from '../utils/logger.js';
 import { runAllRuntimeChecks, runRuntimeCheck, runtimeCheckPlan } from '../runtime/checks.js';
-import { recordRuntimeApproval, recordRuntimeReview } from '../runtime/decisions.js';
+import { importRuntimeApproval, recordRuntimeReview } from '../runtime/decisions.js';
 import { buildRuntimeAgentPrompt, recordRuntimeAgentResult, type RuntimeAgentRole } from '../runtime/agent.js';
 import { compareRuntimeWithStrict } from '../runtime/parity.js';
 
@@ -99,20 +99,12 @@ export function runtimeReview(options: { runId?: string; actor: string; summary:
   } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
 }
 
-export function runtimeApproval(options: {
-  runId?: string;
-  approvalId: string;
-  actor: string;
-  reason: string;
-  scope: string;
-  verdict: 'approved' | 'rejected';
-  json?: boolean;
-}): number {
+export function runtimeApprovalImport(options: { runId?: string; file: string; json?: boolean }): number {
   try {
-    const result = recordRuntimeApproval(process.cwd(), options.runId, options.approvalId, options);
+    const result = importRuntimeApproval(process.cwd(), options.runId, options.file);
     if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     else {
-      const message = `${options.approvalId} ${result.record.verdict}: ${result.path}`;
+      const message = `${result.record.decision_id} ${result.record.verdict} by verified identity ${result.record.actor}: ${result.path}`;
       if (result.record.verdict === 'approved') log.ok(message); else log.error(message);
     }
     return result.record.verdict === 'approved' ? 0 : 1;
@@ -139,9 +131,9 @@ export function runtimeAgentComplete(options: {
   } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
 }
 
-export function runtimeParity(options: { runId?: string; json?: boolean }): number {
+export function runtimeParity(options: { runId?: string; mutations?: string; json?: boolean }): number {
   try {
-    const result = compareRuntimeWithStrict(process.cwd(), options.runId);
+    const result = compareRuntimeWithStrict(process.cwd(), options.runId, options.mutations);
     if (options.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     else {
       log.info(`Runtime: ${result.report.verdicts.runtime}; strict: ${result.report.verdicts.strict}`);

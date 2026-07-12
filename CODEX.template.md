@@ -1,5 +1,7 @@
 # CODEX.md
 
+<!-- cdd-kit:managed:start -->
+
 This project uses Contract-Driven Delivery (CDD).
 
 Codex reads the repository `AGENTS.md` as the durable project instruction file.
@@ -55,3 +57,4 @@ Cold historical data is evidence, not current requirements.
 
 Runtime evidence, reviewer verdicts, and approvals are digest-bound. Re-run them
 after implementation changes; stale evidence never passes.
+<!-- cdd-kit:managed:end -->

@@ -31,7 +31,7 @@ function currentPolicyDigest(cwd: string): string {
 describe('profile-aware acceptance policy', () => {
   it('preserves legacy gate semantics until a profile is explicit or runtime-selected', () => {
     const cwd = project();
-    expect(resolveGateProfile(cwd, 'change-a')).toEqual({ profile: null, source: 'legacy', capsule: null });
+    expect(resolveGateProfile(cwd, 'change-a')).toEqual({ profile: null, source: 'legacy', capsule: null, run_id: null });
     expect(acceptanceOracleRequired(cwd, resolveGateProfile(cwd, 'change-a'))).toBeNull();
   });
 
@@ -48,6 +48,7 @@ describe('profile-aware acceptance policy', () => {
     mkdirSync(join(cwd, '.cdd', 'runtime', runId), { recursive: true });
     writeFileSync(join(cwd, '.cdd', 'runtime', 'current.json'), JSON.stringify({ run_id: runId, change_id: 'change-a' }));
     writeFileSync(join(cwd, '.cdd', 'runtime', runId, 'state.json'), JSON.stringify({
+      change_id: 'change-a', created_at: '2026-01-01T00:00:00.000Z',
       capsule: { profile: 'controlled', required_evidence: ['tests', 'acceptance-oracle'], input_digests: { policy: currentPolicyDigest(cwd) } },
     }));
     const resolution = resolveGateProfile(cwd, 'change-a');
@@ -61,6 +62,7 @@ describe('profile-aware acceptance policy', () => {
     mkdirSync(join(cwd, '.cdd', 'runtime', runId), { recursive: true });
     writeFileSync(join(cwd, '.cdd', 'runtime', 'current.json'), JSON.stringify({ run_id: runId, change_id: 'change-b' }));
     writeFileSync(join(cwd, '.cdd', 'runtime', runId, 'state.json'), JSON.stringify({
+      change_id: 'change-b', created_at: '2026-01-01T00:00:00.000Z',
       capsule: { profile: 'balanced', required_evidence: ['acceptance-oracle'], input_digests: { policy: currentPolicyDigest(cwd) } },
     }));
     expect(acceptanceOracleRequired(cwd, resolveGateProfile(cwd, 'change-b'))).toBe(true);
@@ -77,6 +79,7 @@ describe('profile-aware acceptance policy', () => {
     mkdirSync(join(cwd, '.cdd', 'runtime', runId), { recursive: true });
     writeFileSync(join(cwd, '.cdd', 'runtime', 'current.json'), JSON.stringify({ run_id: runId, change_id: 'stale-change' }));
     writeFileSync(join(cwd, '.cdd', 'runtime', runId, 'state.json'), JSON.stringify({
+      change_id: 'stale-change', created_at: '2026-01-01T00:00:00.000Z',
       capsule: { profile: 'balanced', required_evidence: [], input_digests: { policy: `sha256:${'0'.repeat(64)}` } },
     }));
     expect(resolveGateProfile(cwd, 'stale-change').source).toBe('legacy');

@@ -12,6 +12,8 @@
 
 ## Contract-Driven Delivery
 
+<!-- cdd-kit:managed:start -->
+
 - `contracts/` is canonical; tests prove serialized behavior.
 - Start non-trivial work with `/cdd-work` or
   `cdd-kit work <change-id> <objective> --provider claude`.
@@ -39,6 +41,7 @@ Prefer `cdd_graph_context`, `cdd_graph_impact`, `cdd_index_query`,
 fallback is `cdd-kit graph ...`. Claude writes this registration to
 `~/.claude.json`; do not confuse it with `~/.claude/settings.json`.
 Never hand-edit generated contract projections.
+<!-- cdd-kit:managed:end -->
 
 ### Promoted Learnings
 

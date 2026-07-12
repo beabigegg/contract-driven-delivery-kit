@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
-import { join, relative } from 'path';
+import { basename, dirname, join, relative, resolve } from 'path';
 import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import Ajv from 'ajv';
@@ -17,6 +17,8 @@ import {
 import { cddPolicySchema } from '../schemas/cdd-policy.schema.js';
 import { boundaryManifestSchema } from '../schemas/boundary-manifest.schema.js';
 import type { BoundaryOperation, WorkflowProfile } from '../runtime/types.js';
+import { captureTargetDigest, executeRegisteredCapture } from './adapters.js';
+import { replayGeneratedArtifact } from './generators.js';
 
 export interface BoundaryGuardOptions {
   cwd?: string;
@@ -27,6 +29,8 @@ export interface BoundaryGuardOptions {
   head?: string;
   all?: boolean;
   operations?: string[];
+  verifyGenerated?: boolean;
+  verifyCaptures?: boolean;
 }
 
 export interface BoundaryFinding {
@@ -83,6 +87,12 @@ const validateManifest = ajv.compile(boundaryManifestSchema);
 
 function sha256(content: string | Buffer): string {
   return `sha256:${createHash('sha256').update(content).digest('hex')}`;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(',')}}`;
+  return JSON.stringify(value);
 }
 
 function operationKey(row: Pick<EndpointRow, 'method' | 'path'>): string {
@@ -154,6 +164,16 @@ function aggregateFileDigest(cwd: string, paths: string[]): string | null {
   return sha256(entries.join('\n'));
 }
 
+function aggregateFileDigestAtRevision(cwd: string, paths: string[], revision: string): string | null {
+  const entries: string[] = [];
+  for (const path of [...paths].sort()) {
+    const result = spawnSync('git', ['show', `${revision}:${path}`], { cwd });
+    if (result.status !== 0) return null;
+    entries.push(`${path}:${sha256(result.stdout)}`);
+  }
+  return sha256(entries.join('\n'));
+}
+
 function routeLooksDeclared(content: string, method: string, path: string): boolean {
   const normalized = normalizeApiPath(path);
   const express = normalized.replace(/\{([^}]+)\}/g, ':$1');
@@ -171,6 +191,19 @@ function consumerLooksCompatible(content: string, method: string, path: string):
     || staticSegments.length > 0 && staticSegments.every(segment => content.includes(segment));
   const methodMentioned = method === 'GET' || new RegExp(`method\\s*:\\s*['\"]${method}['\"]|\\.${method.toLowerCase()}\\s*\\(`, 'i').test(content);
   return hasPath && methodMentioned;
+}
+
+function consumerImportsArtifact(cwd: string, consumer: string, content: string, artifact: string): boolean {
+  const artifactStem = basename(artifact).replace(/\.[^.]+$/, '');
+  for (const match of content.matchAll(/(?:from\s*|import\s*\()\s*['"]([^'"]+)['"]/g)) {
+    const specifier = match[1];
+    if (specifier.includes(artifactStem)) return true;
+    if (specifier.startsWith('.')) {
+      const resolved = relative(cwd, resolve(cwd, dirname(consumer), specifier)).replace(/\.[^.]+$/, '');
+      if (artifact.replace(/\.[^.]+$/, '') === resolved) return true;
+    }
+  }
+  return false;
 }
 
 function genericSchemaReason(name: string, schema: Record<string, unknown>): string | null {
@@ -335,16 +368,41 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
         continue;
       }
       const capturePath = join(cwd, variant.capture.path);
-      const captureDigest = sha256(readFileSync(capturePath));
-      if (!variant.capture.digest || variant.capture.digest !== captureDigest) {
+      const sample = JSON.parse(readFileSync(capturePath, 'utf8')) as unknown;
+      const captureDigest = sha256(stableJson(sample));
+      const provenance = variant.capture.provenance;
+      const currentHead = git(cwd, ['rev-parse', 'HEAD']);
+      const provenanceCommitValid = !currentHead || (!!provenance
+        && spawnSync('git', ['merge-base', '--is-ancestor', provenance.commit, currentHead], { cwd }).status === 0
+        && aggregateFileDigestAtRevision(cwd, operation.source_files, provenance.commit) === provenance.producer_digest);
+      if (!provenance || provenance.capture_digest !== captureDigest) {
         findings.push({ code: 'variant-capture-stale', level: 'error', operation: key, message: `Required variant ${variant.id} capture digest is missing or stale.`, evidence: [variant.capture.path, relative(cwd, manifestPath)] });
       }
-      if (!/framework[-_ ]?test[-_ ]?client|test[-_ ]?client/i.test(variant.capture.source)) {
-        findings.push({ code: 'variant-capture-provenance-invalid', level: 'error', operation: key, message: `Required variant ${variant.id} is not attributed to a framework test client.`, evidence: [variant.capture.source] });
+      if (!provenance || provenance.adapter_version !== '1.0.0' || provenance.contract_digest !== contractDigest || !provenanceCommitValid
+        || provenance.target_digest !== captureTargetDigest(operation, variant)) {
+        findings.push({ code: 'variant-capture-provenance-invalid', level: 'error', operation: key, message: `Required variant ${variant.id} lacks valid registered-adapter provenance.`, evidence: [variant.capture.adapter, relative(cwd, manifestPath)] });
       }
       const producerDigest = aggregateFileDigest(cwd, operation.source_files);
-      if (!producerDigest || variant.capture.producer_digest !== producerDigest) {
+      if (!producerDigest || provenance?.producer_digest !== producerDigest) {
         findings.push({ code: 'variant-producer-stale', level: 'error', operation: key, message: `Required variant ${variant.id} is not bound to the current backend producer sources.`, evidence: operation.source_files });
+      }
+      if (options.verifyCaptures) {
+        try {
+          const observed = executeRegisteredCapture(cwd, operation, variant);
+          if (observed.status !== variant.status || observed.content_type !== variant.content_type || stableJson(observed.body) !== stableJson(sample)) {
+            findings.push({
+              code: 'variant-capture-replay-failed', level: 'error', operation: key,
+              message: `Registered adapter replay for ${variant.id} does not match the committed status, content type, or serialized body.`,
+              evidence: [variant.capture.adapter, variant.capture.target, variant.capture.path],
+            });
+          }
+        } catch (error) {
+          findings.push({
+            code: 'variant-capture-replay-failed', level: 'error', operation: key,
+            message: `Registered adapter replay failed for ${variant.id}: ${error instanceof Error ? error.message : String(error)}`,
+            evidence: [variant.capture.adapter, variant.capture.target, variant.capture.path],
+          });
+        }
       }
       const expectedSchema = schemas.schemas[variant.schema];
       if (!expectedSchema) {
@@ -352,7 +410,6 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
         continue;
       }
       try {
-        const sample = JSON.parse(readFileSync(join(cwd, variant.capture.path), 'utf8')) as unknown;
         const sampleAjv = new Ajv({ allErrors: true, strict: false });
         addFormats(sampleAjv);
         const validateSample = sampleAjv.compile({ ...expectedSchema, components: { schemas: schemas.schemas } });
@@ -388,11 +445,34 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
       if (frontendConsumers.length > 0 && (!operation.generated_artifacts || operation.generated_artifacts.length === 0)) {
         findings.push({ code: 'consumer-type-compatibility-unproven', level: 'warning', operation: key, message: 'Frontend consumers are present but no digest-bound generated type/client artifact is recorded; require Controlled review.', evidence: frontendConsumers });
       }
+      for (const consumer of frontendConsumers.filter(path => existsSync(join(cwd, path)))) {
+        const content = readFileSync(join(cwd, consumer), 'utf8');
+        for (const artifact of operation.generated_artifacts ?? []) {
+          if (!consumerImportsArtifact(cwd, consumer, content, artifact.path)) {
+            findings.push({ code: 'consumer-generated-type-unused', level: 'error', operation: key, message: `Frontend consumer does not import the registered generated API artifact: ${consumer}`, evidence: [consumer, artifact.path] });
+          }
+          if (existsSync(join(cwd, artifact.path))) {
+            const generated = readFileSync(join(cwd, artifact.path), 'utf8');
+            for (const schemaName of new Set(operation.variants.map(variant => variant.schema))) {
+              if (!new RegExp(`\\b${schemaName}\\b`).test(generated)) findings.push({ code: 'generated-type-missing', level: 'error', operation: key, message: `Generated artifact does not expose response schema ${schemaName}.`, evidence: [artifact.path] });
+              if (new RegExp(`\\b(?:interface|type)\\s+${schemaName}\\b`).test(content)) findings.push({ code: 'consumer-duplicate-api-type', level: 'error', operation: key, message: `Consumer duplicates generated API type ${schemaName}: ${consumer}`, evidence: [consumer, artifact.path] });
+            }
+          }
+        }
+      }
     }
     for (const artifact of operation.generated_artifacts ?? []) {
       const absolute = join(cwd, artifact.path);
-      if (!existsSync(absolute) || sha256(readFileSync(absolute)) !== artifact.digest) {
+      if (!existsSync(absolute) || !existsSync(join(cwd, artifact.input)) || sha256(readFileSync(absolute)) !== artifact.digest || artifact.input_contract_digest !== contractDigest) {
         findings.push({ code: 'generated-artifact-stale', level: 'error', operation: key, message: `Generated boundary artifact is missing or stale: ${artifact.path}`, evidence: [artifact.path] });
+      }
+      if (options.verifyGenerated && existsSync(absolute) && existsSync(join(cwd, artifact.input))) {
+        const replay = replayGeneratedArtifact(cwd, artifact, contractRel);
+        if (!replay.passed) findings.push({
+          code: 'generated-artifact-replay-failed', level: 'error', operation: key,
+          message: `Registered generator replay failed for ${artifact.path}: ${replay.error ?? 'output mismatch'}`,
+          evidence: [artifact.input, artifact.path, replay.command],
+        });
       }
     }
   }

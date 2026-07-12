@@ -15,6 +15,9 @@
 - Guidance token audits, rollback-backed migration proposals, optional import of
   active legacy changes as strict runtime capsules, and strict/runtime parity
   reports with token and artifact metrics.
+- Registered FastAPI, Flask, and Express boundary-capture adapters; signed
+  high-risk approval import with trusted public keys, nonce replay protection,
+  run/commit/digest binding, and PR-base trust-anchor verification.
 
 ### Changed
 
@@ -25,6 +28,13 @@
   agents and `cdd-kit new` are loaded only for strict compatibility.
 - Field-table JSON Schemas are closed by default (`additionalProperties: false`)
   so undeclared serialized fields cannot pass boundary capture validation.
+- Boundary CI now replays registered captures and generators, verifies the
+  contract-to-OpenAPI projection and generator version, and requires frontend
+  consumers to import the registered generated API artifact.
+- Existing-project migration starts on Strict, exposes four readiness tiers,
+  and guidance replacement updates only marked managed blocks.
+- Parity compares blocking categories and optional per-mutation detection, not
+  only final exit codes; gates can resolve concurrent runs by change or run ID.
 
 ### Fixed
 
@@ -33,6 +43,8 @@
 - Untracked directories are expanded to individual files for risk routing.
 - The legacy Python response-shape validator now imports `jsonschema` only when a
   typed sampled endpoint actually needs schema validation.
+- CI installs Python `jsonschema`, preventing Strict response-shape tests from
+  being silently skipped.
 
 ## [3.13.0] - 2026-07-11
 

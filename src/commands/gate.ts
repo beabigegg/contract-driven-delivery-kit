@@ -32,6 +32,7 @@ export interface GateOptions {
   strict?: boolean;
   profile?: WorkflowProfile;
   requireAcceptance?: boolean;
+  runId?: string;
   /** Append plain-language explanations + a "say this to Claude" hint to each failure. */
   explain?: boolean;
 }
@@ -87,7 +88,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   let profileResolution;
   try {
-    profileResolution = resolveGateProfile(cwd, changeId, opts.profile, opts.strict ?? false);
+    profileResolution = resolveGateProfile(cwd, changeId, opts.profile, opts.strict ?? false, opts.runId);
   } catch (error) {
     log.error(error instanceof Error ? error.message : String(error));
     process.exit(2);
@@ -103,7 +104,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
       log.error(`The existing runtime capsule does not require acceptance. Re-plan with \`cdd-kit work ${changeId} "<objective>" --require-acceptance\`.`);
       process.exit(1);
     }
-    const result = verifyRuntime(cwd);
+    const result = verifyRuntime(cwd, profileResolution.run_id ?? opts.runId);
     if (result.state.change_id !== changeId) {
       log.error(`Current runtime run belongs to ${result.state.change_id}, not ${changeId}.`);
       process.exit(1);
