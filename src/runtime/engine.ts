@@ -10,7 +10,7 @@ import { detectRiskSignals, requiredApprovals, selectCapabilitiesAndDoctrine, se
 import { readRuntimeState, runDir, withRuntimeLock, writeRuntimeArtifact, writeRuntimeState, type StoredRuntimeState } from './store.js';
 import { acceptanceOracleMode } from '../policy/profile.js';
 import { enforceAcceptanceOracle } from '../commands/gate-acceptance.js';
-import { decisionPolicyDigest, decisionWorkingTreeDigest } from './decisions.js';
+import { decisionPolicyDigest, decisionWorkingTreeDigest, verifyRuntimeApprovalEvidence } from './decisions.js';
 import { normalizeApiPath, parseEndpoints, stripFrontmatter } from '../contracts/parser.js';
 
 function digest(content: string | Buffer): string { return `sha256:${createHash('sha256').update(content).digest('hex')}`; }
@@ -197,14 +197,6 @@ export function verifyRuntime(cwd = process.cwd(), runId?: string): { state: Sto
           && decision.policy_digest === decisionPolicyDigest(cwd);
       } catch { return false; }
     };
-    const decisionActor = (step: Record<string, unknown> | undefined): string | undefined => {
-      const evidenceFiles = stepEvidence(step);
-      if (evidenceFiles.length === 0) return undefined;
-      try {
-        const decision = JSON.parse(readFileSync(join(runDir(cwd, state.run_id), evidenceFiles[0]), 'utf8')) as { actor?: string };
-        return decision.actor;
-      } catch { return undefined; }
-    };
     const checkIsFresh = (step: Record<string, unknown> | undefined): boolean => {
       const evidenceFiles = stepEvidence(step);
       if (evidenceFiles.length === 0) return false;
@@ -244,15 +236,7 @@ export function verifyRuntime(cwd = process.cwd(), runId?: string): { state: Sto
     const acceptanceErrors: string[] = [];
     const acceptanceWarnings: string[] = [];
     if (acceptanceRequired) {
-      enforceAcceptanceOracle(
-        cwd,
-        join(cwd, 'specs', 'changes', state.change_id),
-        state.change_id,
-        true,
-        true,
-        acceptanceErrors,
-        acceptanceWarnings,
-      );
+      enforceAcceptanceOracle(cwd, join(cwd, 'specs', 'changes', state.change_id), state.change_id, true, true, acceptanceErrors, acceptanceWarnings);
     }
     const acceptanceStatus: 'passed' | 'failed' | 'not-applicable' = acceptanceRequired
       ? acceptanceErrors.length > 0 ? 'failed' : 'passed'
@@ -263,8 +247,9 @@ export function verifyRuntime(cwd = process.cwd(), runId?: string): { state: Sto
     });
     const approvals: RuntimeEvidence['approvals'] = capsule.approvals.map(id => {
       const step = [...state.steps].reverse().find(candidate => candidate.kind === 'approval' && candidate.phase === id);
-      if (!step || !decisionIsFresh(step)) return { id, status: 'pending' as const };
-      return { id, status: step.status === 'passed' ? 'approved' as const : 'rejected' as const, actor: decisionActor(step) };
+      const verified = verifyRuntimeApprovalEvidence(cwd, state, id, step);
+      if (!verified.valid) return { id, status: 'pending' as const };
+      return { id, status: verified.verdict === 'approved' ? 'approved' as const : 'rejected' as const, actor: verified.actor };
     });
     const approvalEvidenceStatus: 'passed' | 'failed' | 'unknown' | 'not-applicable' = approvals.length === 0
       ? 'not-applicable'
@@ -331,10 +316,7 @@ export function verifyRuntime(cwd = process.cwd(), runId?: string): { state: Sto
           id: 'approvals', status: approvalEvidenceStatus,
           evidence: capsule.approvals.flatMap(id => stepEvidence([...state.steps].reverse().find(step => step.kind === 'approval' && step.phase === id))),
         },
-        {
-          id: 'acceptance-oracle', status: acceptanceStatus,
-          evidence: ['acceptance-verification.json'],
-        },
+        { id: 'acceptance-oracle', status: acceptanceStatus, evidence: ['acceptance-verification.json'] },
         ...unsupportedRequired.map(id => ({ id, status: 'unknown' as const, evidence: [] })),
       ], approvals, final_status: blocked ? 'blocked' : 'passed', created_at: now(),
     };
