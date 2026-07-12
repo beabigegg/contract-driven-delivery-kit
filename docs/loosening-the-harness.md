@@ -70,9 +70,25 @@ more valuable as agents improve, not less.**
 - What counts as high-risk -- the risk-router floors and the `approvals` map
 - Reviewer independence per profile
 - `acceptance_oracle: required | conditional | not-required` per profile
+- `acceptance.chat_binds_head` -- whether a chat-confirmed receipt binds to the
+  exact commit (default `true`) or only to the acceptance-criteria hash (`false`)
 
 Loosening means moving these knobs. It does NOT mean removing the checks that
 fire once a knob says "high-risk".
+
+#### `acceptance.chat_binds_head`: bind confirmation to criteria, not to each commit
+
+A chat-confirmed receipt names the acceptance-criteria hash AND the source-branch
+HEAD. Binding to HEAD is strict -- the human approved *this exact commit* -- but it
+means every subsequent push re-stales the confirmation and the maintainer must
+re-post it. Setting `acceptance.chat_binds_head: false` binds the receipt to the
+criteria hash only: a re-confirmation is required when the *criteria* change, not
+when code changes. This is a real loosening -- it drops the "approve harmless
+criteria, then swap in different code" defense -- so the gate surfaces it as a
+warning on every run. It is defensible because that swap is already caught by
+tests, Boundary Guard, and independent review, and the acceptance oracle's own
+job is "are the criteria right", which the criteria-hash binding still pins. The
+load-bearing binding (criteria) is kept; only the commit binding is relaxed.
 
 ### Human review of acceptance criteria: default on, explicit per-run bypass
 

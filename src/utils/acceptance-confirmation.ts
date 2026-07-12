@@ -49,11 +49,34 @@ export function acceptanceAuthorization(cwd: string): AcceptanceAuthorization {
   }
 }
 
+// Whether a chat-confirmed receipt must name the exact source-branch HEAD.
+// Default true (a confirmation is bound to a specific commit and re-stales on
+// every push). `.cdd/policy.yml` `acceptance.chat_binds_head: false` relaxes
+// this so a receipt binds only to the acceptance-criteria hash and survives
+// code-only pushes -- a recorded loosening the gate surfaces as a warning.
+// Anything other than an explicit `false` keeps the strict default.
+export function acceptanceChatBindsHead(cwd: string): boolean {
+  try {
+    const path = join(cwd, '.cdd', 'policy.yml');
+    if (!existsSync(path)) return true;
+    const policy = yaml.load(readFileSync(path, 'utf8'), { schema: yaml.JSON_SCHEMA }) as {
+      acceptance?: { chat_binds_head?: unknown };
+    } | null;
+    return policy?.acceptance?.chat_binds_head === false ? false : true;
+  } catch {
+    return true;
+  }
+}
+
 export interface ChatAcceptanceVerification {
   ok: boolean;
   error?: string;
   actor?: string;
   comment_id?: number;
+  // Whether this verification bound to the exact HEAD (true) or to the criteria
+  // hash only (false, the recorded loosening). Undefined when verification never
+  // reached the comment scan (no PR context / fetch failure).
+  bindsHead?: boolean;
 }
 
 function git(cwd: string, args: string[]): string {
@@ -120,6 +143,7 @@ export function commentConfirmsAcceptance(
   acceptanceHash: string,
   head: string,
   authorization: AcceptanceAuthorization = DEFAULT_ACCEPTANCE_AUTHORIZATION,
+  bindsHead = true,
 ): boolean {
   const login = comment.user?.login ?? '';
   const association = comment.author_association ?? '';
@@ -131,11 +155,16 @@ export function commentConfirmsAcceptance(
     ? authorization.logins.includes(login)
     : authorization.associations.includes(association);
   if (!authorized) return false;
+  // The `acceptance-hash` line binds the receipt to the exact criteria and is
+  // always required. The `head-commit` line additionally binds it to a specific
+  // commit; when `chat_binds_head` is false the receipt is criteria-only and the
+  // head line is neither required nor checked (a stale head line, if present, is
+  // simply ignored).
   const expectedLines = [
     'CDD-ACCEPTANCE-CONFIRMATION v1',
     `change-id: ${changeId}`,
     `acceptance-hash: ${acceptanceHash}`,
-    `head-commit: ${head}`,
+    ...(bindsHead ? [`head-commit: ${head}`] : []),
     'decision: approved',
   ];
   const bodyLines = new Set((comment.body ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean));
@@ -163,19 +192,24 @@ export function verifyChatAcceptance(
   if (!comments) return { ok: false, error: 'unable to retrieve pull-request comments for acceptance verification' };
 
   const authorization = acceptanceAuthorization(cwd);
+  const bindsHead = acceptanceChatBindsHead(cwd);
   const match = [...comments].reverse().find(comment => commentConfirmsAcceptance(
     comment,
     changeId,
     acceptanceHash,
     context.acceptedHead,
     authorization,
+    bindsHead,
   ));
   if (!match) {
     return {
       ok: false,
-      error: 'no authorized PR comment confirms the current acceptance criteria and source-branch HEAD',
+      bindsHead,
+      error: bindsHead
+        ? 'no authorized PR comment confirms the current acceptance criteria and source-branch HEAD'
+        : 'no authorized PR comment confirms the current acceptance criteria',
     };
   }
 
-  return { ok: true, actor: match.user?.login, comment_id: match.id };
+  return { ok: true, actor: match.user?.login, comment_id: match.id, bindsHead };
 }

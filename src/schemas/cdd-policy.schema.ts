@@ -59,6 +59,14 @@ export const cddPolicySchema = {
       properties: {
         authorized_logins: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
         authorized_associations: { type: 'array', uniqueItems: true, items: { type: 'string', enum: ['OWNER', 'MEMBER', 'COLLABORATOR'] } },
+        // Whether a chat-confirmed receipt binds to the exact source-branch HEAD
+        // (default true) or only to the acceptance-criteria hash (false). Binding
+        // to HEAD means every push re-stales the confirmation; binding to the
+        // criteria hash means a re-confirmation is required only when the criteria
+        // themselves change. Setting this false is a recorded loosening -- the
+        // human approved the CRITERIA, not the exact commit -- surfaced as a gate
+        // warning (see docs/loosening-the-harness.md).
+        chat_binds_head: { type: 'boolean', default: true },
       },
     },
     // Recorded, reviewable acknowledgments for deliberately loosened "bone"

@@ -22,6 +22,12 @@
 // mechanical (not behavioral) guarantee, gate the change behind a signed
 // approval envelope (src/runtime/decisions.ts), which an agent cannot forge.
 //
+// By default a chat-confirmed receipt also binds to the exact source-branch HEAD,
+// so every push re-stales it. `.cdd/policy.yml` `acceptance.chat_binds_head:
+// false` relaxes this to bind the receipt to the criteria hash only -- a
+// re-confirmation is then needed when the criteria change, not on every push. The
+// gate surfaces that relaxation as a warning (docs/loosening-the-harness.md).
+//
 // Two lock modes back the hash-lock path (`.cdd/acceptance-lock.json`, a path
 // agents cannot write): `human` (default) is recorded by `cdd-kit accept
 // confirm`, which shows the criteria and needs an interactive human keystroke;

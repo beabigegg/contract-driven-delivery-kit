@@ -16,6 +16,15 @@ approvals:
   auth_policy: required
   production_operation: required
 
+acceptance:
+  # Recorded loosening (docs/loosening-the-harness.md): a chat-confirmed receipt
+  # binds to the acceptance-criteria hash only, not to the exact source-branch
+  # HEAD. A re-confirmation is required when the criteria change, not on every
+  # push. The dropped "approve harmless criteria, then swap in different code"
+  # defense is covered by tests + Boundary Guard + independent review; the gate
+  # surfaces this relaxation as a warning on every run.
+  chat_binds_head: false
+
 profiles:
   lightweight:
     validators: [quality]

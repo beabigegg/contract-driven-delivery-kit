@@ -122,6 +122,12 @@ export function enforceAcceptanceOracle(
       const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
       if (!confirmation.ok) {
         errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
+      } else if (confirmation.bindsHead === false) {
+        warnings.push(
+          `chat-confirmed acceptance for ${changeId} is bound to the criteria hash only ` +
+          '(acceptance.chat_binds_head: false) — a re-confirmation is not required on every push, but the ' +
+          'human approved the CRITERIA, not this exact commit. See docs/loosening-the-harness.md.',
+        );
       }
     } else {
       // Human hash-lock path. An autonomous receipt is NOT a human baseline, so
