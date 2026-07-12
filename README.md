@@ -82,6 +82,11 @@ kit's upstream repo. It only files when you add `--confirm`, so an agent shows
 you the draft first and files it only after you approve. The same capability is
 exposed to MCP clients (Claude Code, Codex) as the `cdd_report_problem` tool.
 
+Thinking about giving agents more autonomy and dropping some of this harness?
+Read `docs/loosening-the-harness.md` first -- it is the decision rule for which
+checks are ceremony you can drop and which are load-bearing bone to keep as
+agents get stronger, plus how to loosen reversibly on mutation evidence.
+
 ## Strict compatibility workflow
 
 The following `/cdd-new` documentation describes the preserved strict workflow
