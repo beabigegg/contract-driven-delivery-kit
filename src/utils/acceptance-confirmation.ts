@@ -20,20 +20,26 @@ function git(cwd: string, args: string[]): string {
   return result.status === 0 ? (result.stdout ?? '').trim() : '';
 }
 
-function githubContext(): { repository: string; prNumber: number } | null {
+function githubContext(): { repository: string; prNumber: number; acceptedHead: string } | null {
   const repository = process.env.CDD_ACCEPTANCE_REPOSITORY || process.env.GITHUB_REPOSITORY || '';
   const explicitPr = Number(process.env.CDD_ACCEPTANCE_PR || 0);
-  if (repository && Number.isInteger(explicitPr) && explicitPr > 0) {
-    return { repository, prNumber: explicitPr };
+  const explicitHead = process.env.CDD_ACCEPTANCE_HEAD || '';
+  if (repository && Number.isInteger(explicitPr) && explicitPr > 0 && explicitHead) {
+    return { repository, prNumber: explicitPr, acceptedHead: explicitHead };
   }
 
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!repository || !eventPath || !existsSync(eventPath)) return null;
   try {
-    const event = JSON.parse(readFileSync(eventPath, 'utf8')) as { pull_request?: { number?: number }; number?: number };
+    const event = JSON.parse(readFileSync(eventPath, 'utf8')) as {
+      pull_request?: { number?: number; head?: { sha?: string } };
+      number?: number;
+      after?: string;
+    };
     const prNumber = event.pull_request?.number ?? event.number;
-    return Number.isInteger(prNumber) && Number(prNumber) > 0
-      ? { repository, prNumber: Number(prNumber) }
+    const acceptedHead = event.pull_request?.head?.sha ?? explicitHead ?? event.after ?? '';
+    return Number.isInteger(prNumber) && Number(prNumber) > 0 && Boolean(acceptedHead)
+      ? { repository, prNumber: Number(prNumber), acceptedHead }
       : null;
   } catch {
     return null;
@@ -95,21 +101,26 @@ export function verifyChatAcceptance(
   if (!context) {
     return {
       ok: false,
-      error: 'chat-confirmed acceptance requires a pull-request context (GITHUB_REPOSITORY plus GITHUB_EVENT_PATH, or CDD_ACCEPTANCE_REPOSITORY/CDD_ACCEPTANCE_PR)',
+      error: 'chat-confirmed acceptance requires a pull-request context with repository, PR number, and source-branch HEAD',
     };
   }
 
-  const head = git(cwd, ['rev-parse', 'HEAD']);
-  if (!head) return { ok: false, error: 'unable to resolve current HEAD for acceptance confirmation' };
+  const checkedOutHead = git(cwd, ['rev-parse', 'HEAD']);
+  if (!checkedOutHead) return { ok: false, error: 'unable to resolve checked-out HEAD for acceptance verification' };
 
   const comments = fetchComments(cwd, context.repository, context.prNumber);
   if (!comments) return { ok: false, error: 'unable to retrieve pull-request comments for acceptance verification' };
 
-  const match = [...comments].reverse().find(comment => commentConfirmsAcceptance(comment, changeId, acceptanceHash, head));
+  const match = [...comments].reverse().find(comment => commentConfirmsAcceptance(
+    comment,
+    changeId,
+    acceptanceHash,
+    context.acceptedHead,
+  ));
   if (!match) {
     return {
       ok: false,
-      error: 'no authorized PR comment confirms the current acceptance criteria and HEAD',
+      error: 'no authorized PR comment confirms the current acceptance criteria and source-branch HEAD',
     };
   }
 
