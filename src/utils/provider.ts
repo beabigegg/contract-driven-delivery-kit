@@ -23,8 +23,9 @@ export function inferProvider(cwd: string, requested: ProviderOption = 'auto'): 
     }
   }
 
-  const hasClaude = existsSync(join(cwd, 'CLAUDE.md')) || existsSync(join(cwd, 'AGENTS.md'));
-  const hasCodex = existsSync(join(cwd, 'CODEX.md'));
+  const hasClaude = existsSync(join(cwd, 'CLAUDE.md'));
+  const hasAgents = existsSync(join(cwd, 'AGENTS.md'));
+  const hasCodex = existsSync(join(cwd, 'CODEX.md')) || (hasAgents && !hasClaude);
   if (hasClaude && hasCodex) return 'both';
   if (hasCodex) return 'codex';
   return 'claude';

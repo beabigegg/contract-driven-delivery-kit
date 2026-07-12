@@ -433,6 +433,11 @@ Default evidence is concise JSON:
 Detailed logs exist only for failures, human decisions, approved risk or audit
 export. Routine success does not create one Markdown file per agent.
 
+Human acceptance follows the same rule. The oracle and its tamper-evident lock
+remain available, but become required evidence only in strict or when a
+controlled/explicit capsule selects `acceptance-oracle`. Ordinary balanced and
+lightweight work is proven by deterministic boundary/test evidence instead.
+
 ### F. Project policy
 
 A minimal `.cdd/policy.yml` controls profiles and exceptions.
@@ -455,8 +460,15 @@ approvals:
   production_operation: required
 
 profiles:
+  lightweight:
+    acceptance_oracle: not-required
+  balanced:
+    acceptance_oracle: not-required
+  controlled:
+    acceptance_oracle: conditional
   strict:
-    legacy_workflow: enabled
+    legacy_workflow: true
+    acceptance_oracle: required
 
 exceptions:
   - id: legacy-ai-output
@@ -719,6 +731,11 @@ This RFC does not propose:
 - representing advisory prompts as security boundaries.
 
 ## Implementation workstreams
+
+The normative component, state, provider and upgrade contracts are defined in
+`docs/rfc/agent-native-cdd-runtime-contracts.md`. Follow-up implementation must
+conform to that document rather than treating the examples in this RFC as
+complete schemas.
 
 ### Workstream 1: Inventory and doctrine extraction
 

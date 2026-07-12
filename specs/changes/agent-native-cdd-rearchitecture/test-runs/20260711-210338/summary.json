@@ -1,0 +1,15 @@
+{
+  "change_id": "agent-native-cdd-rearchitecture",
+  "phase": "quality",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm run check:lockfile && npm run check:mojibake && npm run build && npm run typecheck",
+  "duration_ms": 2613,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210338/summary.json",
+    "stdout": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210338/stdout.log",
+    "stderr": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210338/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

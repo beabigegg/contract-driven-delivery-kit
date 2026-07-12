@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 import { tmpdir } from 'os';
@@ -82,9 +82,9 @@ describe('cdd-kit update', () => {
     const r = runCli(['update', '--yes'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
-    // Backup directory should exist under ~/.claude/.cdd-kit-backup/<timestamp>/
-    const backupRoot = join(tmpHome, '.claude', '.cdd-kit-backup');
-    expect(existsSync(backupRoot), '.cdd-kit-backup dir missing').toBe(true);
+    // Provider-neutral backup directory keeps Claude and Codex assets together.
+    const backupRoot = join(tmpHome, '.cdd-kit', 'backups');
+    expect(existsSync(backupRoot), '.cdd-kit/backups dir missing').toBe(true);
 
     // Should have exactly one timestamp subdirectory
     const timestampDirs = readdirSync(backupRoot);
@@ -124,7 +124,7 @@ describe('cdd-kit update', () => {
     expect(restoredContent).not.toBe('MODIFIED');
   });
 
-  it('update auto-detects codex provider and does not create ~/.claude assets', () => {
+  it('update auto-detects codex provider, updates Codex skills, and does not create ~/.claude assets', () => {
     rmSync(join(tmpHome, '.claude'), { recursive: true, force: true });
     writeFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), JSON.stringify({
       provider: 'codex',
@@ -135,7 +135,8 @@ describe('cdd-kit update', () => {
     const r = runCli(['update', '--yes'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/Provider: codex/i);
-    expect(r.stdout + r.stderr).toMatch(/no global cdd-kit assets/i);
+    expect(r.stdout + r.stderr).toMatch(/Codex skills/i);
+    expect(existsSync(join(tmpHome, '.agents', 'skills', 'cdd-work', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(tmpHome, '.claude'))).toBe(false);
   });
 
@@ -163,34 +164,36 @@ describe('cdd-kit update', () => {
     expect((r.stdout + r.stderr).trim()).toBe('');
   });
 
-  it('update --postinstall auto-applies changes without explicit --yes', () => {
+  it('update --postinstall preserves user-modified agent assets', () => {
     const agentsDir = join(tmpHome, '.claude', 'agents');
     const agentFiles = readdirSync(agentsDir).filter((f) => f.endsWith('.md'));
     expect(agentFiles.length).toBeGreaterThan(0);
     const targetFile = join(agentsDir, agentFiles[0]);
-    const originalContent = readFileSync(targetFile, 'utf8');
     writeFileSync(targetFile, 'MODIFIED');
 
     const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
-    const restoredContent = readFileSync(targetFile, 'utf8');
-    expect(restoredContent).toBe(originalContent);
-    expect(restoredContent).not.toBe('MODIFIED');
+    expect(readFileSync(targetFile, 'utf8')).toBe('MODIFIED');
   });
 
-  it('update --postinstall syncs standalone workflow skills that teach optional handoff notes', () => {
+  it('update --postinstall preserves user-modified workflow skills', () => {
     const skillPath = join(tmpHome, '.claude', 'skills', 'cdd-new', 'SKILL.md');
-    const originalContent = readFileSync(skillPath, 'utf8');
     writeFileSync(skillPath, 'MODIFIED');
 
     const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
-    const restoredContent = readFileSync(skillPath, 'utf8');
-    expect(restoredContent).toBe(originalContent);
-    expect(restoredContent).toMatch(/optional handoff note/i);
-    expect(restoredContent).not.toBe('MODIFIED');
+    expect(readFileSync(skillPath, 'utf8')).toBe('MODIFIED');
+  });
+
+  it('update --postinstall safely restores a missing package asset', () => {
+    const skillPath = join(tmpHome, '.claude', 'skills', 'cdd-new', 'SKILL.md');
+    unlinkSync(skillPath);
+
+    const r = runCli(['update', '--postinstall'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(existsSync(skillPath)).toBe(true);
   });
 
   it('update --postinstall syncs correctly even from a non-project cwd', () => {
@@ -204,8 +207,7 @@ describe('cdd-kit update', () => {
       const r = runCli(['update', '--postinstall'], { cwd: nonProjectDir, home: tmpHome });
       expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
-      const restoredContent = readFileSync(targetFile, 'utf8');
-      expect(restoredContent).not.toBe('MODIFIED');
+      expect(readFileSync(targetFile, 'utf8')).toBe('MODIFIED');
     } finally {
       cleanupDir(nonProjectDir);
     }

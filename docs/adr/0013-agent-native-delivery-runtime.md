@@ -8,6 +8,7 @@
   0012 (interaction-design loop), `cdd-kit gate`, `cdd-kit graph`,
   `.claude/agents/`, `.claude/skills/`, `CLAUDE.template.md`
 - Detailed design: `docs/rfc/agent-native-cdd-rearchitecture.md`
+- Runtime contracts: `docs/rfc/agent-native-cdd-runtime-contracts.md`
 - Migration plan: `docs/migration/agent-native-cdd-migration.md`
 - Feature disposition: `docs/migration/agent-native-cdd-feature-map.md`
 
@@ -190,6 +191,7 @@ Default for ordinary bugs and features.
 - optional independent reviewer based on affected boundaries;
 - deterministic verification;
 - concise machine evidence.
+- no acceptance oracle unless explicitly escalated by capsule/policy.
 
 ### Controlled
 
@@ -200,12 +202,19 @@ or other broad surfaces.
 - selected specialist profiles;
 - strengthened Boundary Guard and tests;
 - human PR review.
+- conditional human-origin oracle when the capsule marks acceptance as
+  materially authoritative.
 
 ### Strict
 
 The current full tracked workflow, retained for high-risk work, regulated
 contexts, fully autonomous delivery without a human reviewer, and migration
 fallback.
+
+Strict preserves ADR 0010 acceptance-oracle enforcement. Other profiles do not
+create an oracle as routine ceremony; they activate it only as required
+human-origin evidence. Existing repositories retain legacy gate behavior until
+they explicitly select a profile or run through the new runtime.
 
 ## Artifact policy
 

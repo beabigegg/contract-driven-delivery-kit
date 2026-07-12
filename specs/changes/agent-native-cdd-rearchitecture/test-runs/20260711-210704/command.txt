@@ -1,0 +1,1 @@
+npx vitest run test/cli/runtime.test.ts test/cli/boundary.test.ts test/cli/policy.test.ts test/cli/update.test.ts test/cli/agent-native-migrate.test.ts test/schemas/runtime-contracts.schema.test.ts test/contracts/doctrine-ledger.test.ts

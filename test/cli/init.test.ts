@@ -78,21 +78,32 @@ describe('cdd-kit init', () => {
 
     const skillFile = join(tmpHome, '.claude', 'skills', 'contract-driven-delivery', 'SKILL.md');
     expect(existsSync(skillFile), 'SKILL.md missing').toBe(true);
+    const manifest = JSON.parse(readFileSync(join(tmpHome, '.cdd-kit', 'install-manifest.json'), 'utf8'));
+    expect(manifest.providers).toContain('claude');
   });
 
-  it('--provider codex scaffolds CODEX.md and skips Claude project files', () => {
+  it('--provider codex scaffolds AGENTS.md, CODEX.md, and skips Claude-only guidance', () => {
     const r = runCli(['init', '--local-only', '--provider', 'codex'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
     expect(existsSync(join(tmpRepo, 'CODEX.md')), 'CODEX.md missing').toBe(true);
     expect(existsSync(join(tmpRepo, 'CLAUDE.md')), 'CLAUDE.md should not be created for codex-only').toBe(false);
-    expect(existsSync(join(tmpRepo, 'AGENTS.md')), 'AGENTS.md should not be created for codex-only').toBe(false);
+    expect(existsSync(join(tmpRepo, 'AGENTS.md')), 'AGENTS.md missing for codex-only').toBe(true);
 
     const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
     expect(policy.provider).toBe('codex');
     expect(policy.roles['change-classifier']).toBe('opus');
     expect(policy.roles['backend-engineer']).toBe('sonnet');
     expect(policy.roles['repo-context-scanner']).toBe('haiku');
+  });
+
+  it('--global-only --provider codex installs the Codex cdd-work skill without Claude assets', () => {
+    const r = runCli(['init', '--global-only', '--provider', 'codex'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(existsSync(join(tmpHome, '.agents', 'skills', 'cdd-work', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(tmpHome, '.claude'))).toBe(false);
+    const manifest = JSON.parse(readFileSync(join(tmpHome, '.cdd-kit', 'install-manifest.json'), 'utf8'));
+    expect(manifest.providers).toEqual(['codex']);
   });
 
   it('--provider both scaffolds Claude and Codex project files', () => {

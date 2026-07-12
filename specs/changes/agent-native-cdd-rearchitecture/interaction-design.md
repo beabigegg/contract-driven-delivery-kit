@@ -1,15 +1,18 @@
 ---
 change-id: agent-native-cdd-rearchitecture
 applicability: not-applicable
-reason: "Documentation-only architecture and migration RFC; no user-interface surface or interaction behavior is changed."
+applicability-reason: "This increment changes CLI commands, MCP tools, local files and provider installation behavior only. It adds no screen, visual control or browser/application state; CLI behavior is specified in the runtime contracts and implementation plan."
 last-changed: 2026-07-11
 ---
 
 # Interaction Design: not applicable
 
-This change proposes future architecture and migration policy only. It does not
-add, remove or alter a user-facing screen, control, state, copy flow or visual
-interaction.
+The user-facing surfaces are terminal commands and machine-readable MCP tools,
+not screens or visual controls. Their observable states are contractually
+defined: migration is dry-run first, customized assets are preserved during
+automatic migration, runtime invalidation is explicit, and Boundary Guard
+distinguishes shadow warnings from blocking findings.
 
-Future CLI command design and any UI for runtime status/evidence must receive
-separate interaction-design review in their implementation changes.
+If a future increment adds a runtime dashboard or other visual UI, that change
+must supply a full interaction derivation and human confirmation rather than
+inheriting this CLI-only applicability decision.

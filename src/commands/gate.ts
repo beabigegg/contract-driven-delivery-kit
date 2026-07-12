@@ -22,9 +22,15 @@ import { enforceRequiredAgentEvidence } from './gate-agents.js';
 import { enforceAcceptanceOracle } from './gate-acceptance.js';
 import { enforceInteractionDesign } from './gate-design.js';
 import { isSafeChangeId } from '../utils/change-id.js';
+import yaml from 'js-yaml';
+import { runBoundaryGuard } from '../boundary/guard.js';
+import { acceptanceOracleRequired, resolveGateProfile } from '../policy/profile.js';
+import type { WorkflowProfile } from '../runtime/types.js';
 
 export interface GateOptions {
   strict?: boolean;
+  profile?: WorkflowProfile;
+  requireAcceptance?: boolean;
   /** Append plain-language explanations + a "say this to Claude" hint to each failure. */
   explain?: boolean;
 }
@@ -61,7 +67,6 @@ function reportGateFailure(
 }
 
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
-  const strict = opts.strict ?? false;
   const explain = opts.explain ?? false;
   const cwd = process.cwd();
 
@@ -87,6 +92,15 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     }
     process.exit(1);
   }
+
+  let profileResolution;
+  try {
+    profileResolution = resolveGateProfile(cwd, changeId, opts.profile, opts.strict ?? false);
+  } catch (error) {
+    log.error(error instanceof Error ? error.message : String(error));
+    process.exit(2);
+  }
+  const strict = profileResolution.profile === 'strict' || (opts.strict ?? false);
 
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -178,7 +192,16 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
   enforceBugFixEvidence(changeDir, changeId, cwd, tasksData, errors, warnings);
   enforceRequiredAgentEvidence(changeDir, warnings);
-  enforceAcceptanceOracle(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
+  const acceptanceRequired = acceptanceOracleRequired(cwd, profileResolution, opts.requireAcceptance ?? false);
+  if (acceptanceRequired === null) {
+    // No explicit/runtime profile: preserve the pre-agent-native behavior byte
+    // for byte during the compatibility window.
+    enforceAcceptanceOracle(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
+  } else if (acceptanceRequired) {
+    // A required oracle receives every provenance, lock, driver and evidence
+    // check even when the surrounding profile is not strict.
+    enforceAcceptanceOracle(cwd, changeDir, changeId, true, true, errors, warnings);
+  }
   // `isNewChange` is threaded from gate.ts's single computation above (never
   // re-derived) — see gate-design.ts's module header ("TOP RISK") for why.
   await enforceInteractionDesign(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
@@ -189,6 +212,26 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   // The nested `validate` call below is invoked with `hookCheck: false` so this same
   // check does not run twice within one `gate`.
   enforceConfirmationHookInstallation(cwd, strict, errors, warnings);
+
+  // Agent-native Boundary Guard starts in shadow mode. Shadow findings remain
+  // visible but cannot break the legacy strict compatibility gate. Projects
+  // promote it explicitly by setting shadow_mode: false after parity evidence.
+  const runtimePolicyPath = join(cwd, '.cdd', 'policy.yml');
+  if (existsSync(runtimePolicyPath)) {
+    try {
+      const policy = yaml.load(readFileSync(runtimePolicyPath, 'utf8'), { schema: yaml.JSON_SCHEMA }) as { shadow_mode?: boolean };
+      const boundary = runBoundaryGuard({ cwd });
+      for (const finding of boundary.findings) {
+        if (finding.level === 'info') continue;
+        const message = `Boundary Guard${policy.shadow_mode !== false ? ' [shadow]' : ''}: ${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`;
+        if (finding.level === 'error' && policy.shadow_mode === false) errors.push(message);
+        else warnings.push(message);
+      }
+    } catch (error) {
+      const message = `Boundary Guard${' [shadow]'}: ${error instanceof Error ? error.message : String(error)}`;
+      warnings.push(message);
+    }
+  }
 
   // Derived-index freshness (P2-1): if this change has generated change.yml /
   // trace.yml that have drifted from their source artifacts, nudge a refresh.

@@ -18,7 +18,7 @@ Detailed rationale and examples live in:
 
 ## Affected Components
 
-| component | current location | target responsibility | nature of future change |
+| component | current location | target responsibility | delivered in this increment |
 |---|---|---|---|
 | Engineering doctrine | duplicated across `.claude/agents/`, skills and guidance | provider-neutral doctrine modules | extract and deduplicate without changing safety intent |
 | Agent roles | `.claude/agents/` | base roles + capability profiles + selected doctrine | shrink static prompts; inject task capsule at runtime |
@@ -212,12 +212,13 @@ The runtime must record per change:
 Program evaluation compares strict and new profiles on seeded mutations and real
 consumer changes.
 
-## Open Architecture Decisions
+## Deferred Promotion Decisions
 
-- Runtime persistence location and retention.
-- Committed vs ephemeral `change.yml` policy.
-- Doctrine file format and selection metadata.
-- Initial first-party backend model adapters.
-- Primary binary naming in the next major release.
-- Exact compatibility-window length.
-- Human-readable export formats required by audit users.
+- Retention policy for `.cdd/runtime/` evidence beyond the current local store.
+- Additional first-party backend framework adapters beyond JSON Schema.
+- Primary binary naming and compatibility-window length for a future major.
+- Human-readable export formats required by audit-heavy consumers.
+- The profile/default promotion decision after parity and token measurements.
+
+The persistence location, schema versioning, doctrine format, provider boundary
+and strict/shadow policy are fixed by the runtime contract RFC for this increment.

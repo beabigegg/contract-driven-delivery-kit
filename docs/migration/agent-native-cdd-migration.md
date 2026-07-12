@@ -154,12 +154,13 @@ Strengthen the original API/data-shape purpose before reducing workflow.
 Existing `.cdd/conformance.json` remains readable. A migration command produces a
 new policy block without deleting the old file until the project accepts it.
 
-Suggested command shape:
+Implemented command shape:
 
 ```bash
-cdd-kit boundary migrate --dry-run
-cdd-kit boundary migrate --apply
-cdd-kit boundary verify
+cdd-kit boundary init
+cdd-kit boundary check
+cdd-kit runtime migrate
+cdd-kit runtime migrate --yes
 ```
 
 ### Ratchet strategy
@@ -411,7 +412,23 @@ Priority:
 | `qa-report.md` | exception/risk report | remains for blocking or approved-risk cases |
 | `design.md` | `decision.md` | remains when architecture decisions are real |
 | `interaction-design.md` | human-confirmed decision record | retained where UI intent needs provenance |
+| `acceptance.yml` | conditional human-origin evidence | strict keeps current enforcement; non-strict profiles activate it only through policy/capsule |
 | `test-evidence.yml` | runtime evidence | schema migration with backward reader |
+
+### Acceptance-oracle migration
+
+Migration never deletes or rewrites an existing oracle or lock. A repository
+keeps legacy behavior until it explicitly invokes a profile or produces a
+matching runtime capsule. In agent-native mode:
+
+```bash
+cdd-kit gate <change-id> --profile balanced
+cdd-kit work <change-id> "objective" --require-acceptance
+cdd-kit gate <change-id> --profile controlled --require-acceptance
+```
+
+The first command does not require an oracle. The latter two make it required
+evidence. `--strict` and `--profile strict` always retain ADR 0010 behavior.
 
 ## Contract migration
 

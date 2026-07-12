@@ -477,13 +477,14 @@ change>`.
 
 ### `cdd-kit init`
 
-Installs agents and skill into `~/.claude` and scaffolds project files.
+Installs Claude assets into `~/.claude`, Codex skills into
+`$HOME/.agents/skills`, and scaffolds project files.
 
 ```bash
 cdd-kit init                  # global + local (recommended)
 cdd-kit init --global-only    # only install into ~/.claude
 cdd-kit init --local-only     # only scaffold project files
-cdd-kit init --provider codex # scaffold Codex-oriented project guidance
+cdd-kit init --provider codex # install Codex skill + scaffold AGENTS.md guidance
 cdd-kit init --provider both  # scaffold Claude Code + Codex guidance
 cdd-kit init --force          # overwrite existing project files
 cdd-kit init --no-arm         # scaffold without arming enforcement chokepoints
@@ -505,11 +506,15 @@ Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`,
 
 `.cdd/model-policy.json` stores role-to-model **classes** (`opus`, `sonnet`, `haiku`) instead of provider release IDs such as `claude-opus-4-7`. This keeps the policy stable across Claude and Codex adapters; provider-specific tooling can map the class to the concrete model available in that environment.
 
-Recommended: register the cdd-kit MCP server with Claude Code after init:
+Recommended: register the cdd-kit MCP server with the selected provider after
+init:
 
 ```bash
 claude mcp add --scope user cdd-kit -- cdd-kit mcp
 claude mcp list
+
+codex mcp add cdd-kit -- cdd-kit mcp
+codex mcp list
 ```
 
 This writes the server to `~/.claude.json` and exposes graph/code-map tools
@@ -531,14 +536,22 @@ cdd-kit update --provider codex
 cdd-kit update --provider both
 ```
 
-Codex currently has no global assets to update, so Codex-only projects report that they are already up to date. Run `cdd-kit init --local-only --provider codex` if a project is missing `CODEX.md`.
+Codex updates the provider-neutral `cdd-work` skill under
+`$HOME/.agents/skills`. Codex project guidance is `AGENTS.md`; `CODEX.md`
+remains as a compatibility pointer for older cdd-kit installations.
+
+User-level assets are tracked in `~/.cdd-kit/install-manifest.json`. Interactive
+updates show a dry-run and back up provider assets under
+`~/.cdd-kit/backups/<timestamp>/`. npm `postinstall` updates only assets that
+were previously owned by cdd-kit and remain unmodified; user-edited files are
+left untouched until an explicit `cdd-kit update --yes`.
 
 ---
 
 ### After Updating the npm Package
 
 Updating npm only replaces the `cdd-kit` CLI package. Existing repos and
-global Claude Code assets keep their previously copied agents, skills,
+global Claude Code/Codex assets keep their previously copied agents, skills,
 templates, hooks, and `.cdd/model-policy.json` until you sync them.
 
 Simplest path — one idempotent command that detects the upgrade and re-wires
@@ -617,6 +630,42 @@ cdd-kit upgrade --yes
 cdd-kit migrate --all
 cdd-kit doctor --strict
 ```
+
+---
+
+### Agent-native runtime and Boundary Guard
+
+The new runtime is opt-in and shadow-first; the existing strict workflow remains
+available while parity is measured.
+
+```bash
+cdd-kit boundary init
+cdd-kit boundary check --base origin/main
+cdd-kit work <change-id> "<objective>"
+cdd-kit work <change-id> "<human-sensitive objective>" --require-acceptance
+cdd-kit runtime status
+cdd-kit runtime resume
+cdd-kit runtime verify
+cdd-kit runtime migrate --provider codex       # dry run
+cdd-kit runtime migrate --provider codex --yes # reversible apply
+```
+
+See [Boundary Guard](docs/boundary-guard.md) and the
+[runtime contracts](docs/rfc/agent-native-cdd-runtime-contracts.md).
+
+Acceptance oracles are profile-aware. Existing projects and `--strict` retain
+the human-authored oracle and hash-lock requirements. An explicit or
+runtime-selected `balanced`/`lightweight` profile does not require
+`acceptance.yml`; `controlled` requires it only when the capsule or caller adds
+`acceptance-oracle`:
+
+```bash
+cdd-kit gate my-change --profile balanced
+cdd-kit gate sensitive-change --profile controlled --require-acceptance
+```
+
+Without `--profile` and without a matching current runtime run, `gate` keeps its
+legacy behavior. Profile adoption is therefore opt-in and rollback-safe.
 
 ---
 

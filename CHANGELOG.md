@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-07-11
+
+### Added
+
+- Versioned policy, boundary-manifest, execution-capsule, runtime-state and
+  runtime-evidence contracts.
+- Independent Boundary Guard with changed-operation discovery, non-vacuous
+  variant/capture coverage and captured-body JSON Schema validation.
+- Deterministic runtime planning, risk profiles, resumable digest-bound state,
+  evidence verification and CLI/MCP entry points.
+- First-class Codex support through `AGENTS.md`, `$HOME/.agents/skills` and Codex
+  MCP registration, alongside the existing Claude Code adapter.
+- Provider-neutral engineering doctrine modules with a traceability ledger.
+- Dry-run-first project migration and ownership-aware global asset manifests,
+  backups and customized-file preservation.
+- Profile-aware acceptance provenance: strict preserves ADR 0010, balanced and
+  lightweight avoid universal oracle ceremony, and controlled activates it
+  through capsule evidence or `--require-acceptance`.
+
+### Changed
+
+- Boundary findings participate in the existing gate but remain informational
+  under the default shadow policy; strict stays authoritative until parity is
+  independently demonstrated and approved.
+- User-level postinstall and explicit update distinguish package-owned assets
+  from user-owned modifications instead of overwriting by path alone.
+- `cdd-kit gate` consumes an explicit agent-native profile or a matching runtime
+  capsule; without either it preserves legacy behavior.
+
 ## [3.12.0] - 2026-07-11
 
 Completes the human-confirmation guarantee that 3.11.0 only made half-real. Change:

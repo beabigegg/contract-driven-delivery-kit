@@ -59,7 +59,7 @@ describe('cdd-kit upgrade', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(tmpRepo, 'CODEX.md'))).toBe(true);
     expect(existsSync(join(tmpRepo, 'CLAUDE.md'))).toBe(false);
-    expect(existsSync(join(tmpRepo, 'AGENTS.md'))).toBe(false);
+    expect(existsSync(join(tmpRepo, 'AGENTS.md'))).toBe(true);
 
     const policy = JSON.parse(readFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), 'utf8'));
     expect(policy.provider).toBe('codex');

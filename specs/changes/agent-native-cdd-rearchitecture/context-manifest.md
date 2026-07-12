@@ -22,6 +22,8 @@ last-changed: 2026-07-11
 - docs/migration/
 - .claude/agents/
 - .claude/skills/
+- .agents/skills/
+- .cdd/policy.yml
 - CLAUDE.md
 - CLAUDE.template.md
 - AGENTS.template.md
@@ -33,13 +35,25 @@ last-changed: 2026-07-11
 - src/code-map/
 - src/code-graph/
 - src/contracts/
+- src/boundary/
+- src/providers/
+- src/runtime/
+- src/schemas/
+- src/utils/
+- doctrine/
+- test/
 - hooks/
 - package.json
+- package-lock.json
+- CHANGELOG.md
+- build.js
 - README.md
 
 ## Approved Expansions
 
-None.
+Implementation scope expanded from the original documentation-only proposal to
+the executable shadow foundation at the maintainer's request. The added paths
+above are the approved expansion; archives and sibling changes remain excluded.
 
 ## Context Expansion Requests
 

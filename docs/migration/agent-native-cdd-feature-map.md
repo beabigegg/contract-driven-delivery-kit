@@ -112,6 +112,7 @@ Status values:
 | `implementation-plan.md` | conditional | execution capsule or decision plan | Keep for complex/strict changes |
 | `tasks.yml` | move-runtime | run state | Backward reader and archive support required |
 | `interaction-design.md` | conditional retain | decision record | Preserve human-confirmed intent and provenance |
+| `acceptance.yml` | conditional retain / strict compatibility | capsule human-origin evidence | Required in strict; optional unless policy/capsule activates it in other profiles |
 | `design.md` | conditional retain | `decision.md` | Only when architecture decision exists |
 | `proposal.md` / `spec.md` | conditional retain | decision/spec record | Not required by default |
 | `test-evidence.yml` | move-runtime | versioned evidence JSON/YAML | Backward reader; no loss of test pointers |
@@ -127,6 +128,7 @@ Status values:
 | `/cdd-new` | strict-only then compatibility alias | orchestration skill/runtime | New default candidate is `cdd work` after parity |
 | `/cdd-resume` | retain | runtime state | Resume must work for both legacy and new runs |
 | `/cdd-close` | retain/refactor | runtime archive/export | Learning promotion remains evidence-backed |
+| Codex `cdd-work` skill | add provider adapter | `$HOME/.agents/skills/cdd-work` | Thin provider-neutral entrypoint over the same CLI/MCP runtime |
 | `cdd-kit setup` | retain/simplify | installer | Install runtime, adapter, policy and indexes |
 | `cdd-kit gate` | retain | verifier | Becomes profile-aware; strict behavior preserved |
 | `cdd-kit validate` | retain | validators | Boundary Guard becomes a major subsystem |
@@ -135,6 +137,7 @@ Status values:
 | `cdd-kit doctor` | retain/strengthen | diagnostics | Report profile, coverage, dormant checks and migration readiness |
 | 50+ advanced subcommands | retain behind namespaces/review | CLI | Public quick path should expose fewer primary commands |
 | MCP graph/context tools | retain | MCP adapter | Add capsule, boundary and evidence tools |
+| User-level provider assets | strengthen | installation manifest + updater | Track ownership/digests separately for `~/.claude` and `$HOME/.agents`; never silently overwrite user edits |
 
 ## Hooks and gates
 
@@ -144,7 +147,7 @@ Status values:
 | graph-first PreToolUse hook | advisory/move-runtime | context steering | Runtime provides context directly |
 | test-runner PreToolUse hook | advisory/move-runtime | test steering | Runtime invokes bounded test plan |
 | contract-write hook | review | advisory or real command boundary | Do not claim hard protection if Bash bypasses it |
-| design/acceptance hash locks | retain conditional | provenance guard | Use where human-origin evidence is required |
+| design/acceptance hash locks | retain conditional | provenance guard | Mandatory in strict or when the capsule requires `acceptance-oracle`; never created solely for routine ceremony |
 | OpenAPI sync gate | strengthen | Boundary Guard | Keep blocking for contract projection drift |
 | response-shape gate | strengthen | Boundary Guard | Multi-variant and non-vacuous checks |
 | tier floor keyword scan | refactor | risk heuristic | Graph/diff evidence primary; keywords advisory |

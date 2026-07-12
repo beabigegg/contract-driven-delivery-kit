@@ -224,6 +224,51 @@ describe('cdd-kit gate -- acceptance oracle (ADR 0010, AC-1/AC-2 core)', () => {
     expect(r.stdout + r.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
   });
 
+  it('profile policy: balanced does not require an oracle that was never supplied', () => {
+    runCli(['new', 'acc-balanced-optional'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-balanced-optional');
+    writeValidChangeArtifacts(changeDir, 'acc-balanced-optional');
+    writeContextGovernanceFiles(changeDir, 'acc-balanced-optional');
+    rmSync(join(changeDir, 'acceptance.yml'));
+
+    const r = runCli(['gate', 'acc-balanced-optional', '--profile', 'balanced'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout + r.stderr).not.toMatch(/missing (?:required artifact: )?acceptance\.yml/i);
+  });
+
+  it('profile policy: strict and explicit conditional activation still require the oracle', () => {
+    runCli(['new', 'acc-profile-required'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-profile-required');
+    writeValidChangeArtifacts(changeDir, 'acc-profile-required');
+    writeContextGovernanceFiles(changeDir, 'acc-profile-required');
+    rmSync(join(changeDir, 'acceptance.yml'));
+
+    const strict = runCli(['gate', 'acc-profile-required', '--profile', 'strict'], { cwd: tmpRepo, home: tmpHome });
+    expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
+
+    const controlled = runCli(['gate', 'acc-profile-required', '--profile', 'controlled', '--require-acceptance'], { cwd: tmpRepo, home: tmpHome });
+    expect(controlled.stdout + controlled.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
+  });
+
+  it('profile policy: a runtime capsule carries --require-acceptance into a later plain gate', () => {
+    runCli(['new', 'acc-runtime-required'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-runtime-required');
+    writeValidChangeArtifacts(changeDir, 'acc-runtime-required');
+    writeContextGovernanceFiles(changeDir, 'acc-runtime-required');
+    rmSync(join(changeDir, 'acceptance.yml'));
+    const plan = runCli(['work', 'acc-runtime-required', 'Document', 'behavior', '--require-acceptance', '--json'], { cwd: tmpRepo, home: tmpHome });
+    expect(plan.status, plan.stderr).toBe(0);
+
+    const gate = runCli(['gate', 'acc-runtime-required'], { cwd: tmpRepo, home: tmpHome });
+    expect(gate.stdout + gate.stderr).toMatch(/missing required artifact: acceptance\.yml/i);
+  });
+
+  it('profile policy: rejects contradictory --strict and non-strict profile flags', () => {
+    runCli(['new', 'acc-profile-conflict'], { cwd: tmpRepo, home: tmpHome });
+    const r = runCli(['gate', 'acc-profile-conflict', '--strict', '--profile', 'balanced'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).toBe(2);
+    expect(r.stdout + r.stderr).toMatch(/cannot be combined/i);
+  });
+
   it('AC-1: a legacy change missing acceptance.yml only warns, but --strict fails', () => {
     runCli(['new', 'acc-legacy-missing'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'acc-legacy-missing');

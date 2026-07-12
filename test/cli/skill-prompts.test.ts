@@ -135,14 +135,16 @@ describe('CDD skill prompt integration', () => {
 
     for (const content of [codex, claude]) {
       expect(content).toMatch(/Recommended MCP Tools/);
-      expect(content).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/);
-      expect(content).toMatch(/~\/\.claude\.json/);
-      expect(content).toMatch(/~\/\.claude\/settings\.json/);
       expect(content).toMatch(/cdd_graph_context/);
       expect(content).toMatch(/cdd_graph_impact/);
       expect(content).toMatch(/cdd_index_query/);
       expect(content).toMatch(/cdd-kit graph/);
     }
+    expect(claude).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/);
+    expect(claude).toMatch(/~\/\.claude\.json/);
+    expect(claude).toMatch(/~\/\.claude\/settings\.json/);
+    expect(codex).toMatch(/codex mcp add cdd-kit -- cdd-kit mcp/);
+    expect(codex).toMatch(/~\/\.codex\/config\.toml/);
   });
 
   it('documents artifact pointer path-validation rules in cdd-new and agent-log protocol', () => {

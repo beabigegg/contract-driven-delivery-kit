@@ -129,6 +129,8 @@ describe('cdd-kit setup — flags', () => {
     const r = runCli(['setup', '--provider', 'codex', '--no-mcp'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(tmpRepo, 'CODEX.md'))).toBe(true);
+    expect(existsSync(join(tmpRepo, 'AGENTS.md'))).toBe(true);
+    expect(existsSync(join(tmpHome, '.agents', 'skills', 'cdd-work', 'SKILL.md'))).toBe(true);
     const out = r.stdout + r.stderr;
     expect(out).toMatch(/agent hooks skipped \(codex provider/i);
     // The pre-commit gate is provider-agnostic and should still be armed.

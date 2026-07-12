@@ -1,0 +1,46 @@
+version: 1
+default_profile: balanced
+shadow_mode: true
+
+boundary_guard:
+  enabled: true
+  fail_on_zero_coverage: true
+  changed_api_requires_typed_request: true
+  changed_api_requires_typed_response: true
+  require_complete_variant_discovery: true
+  generic_schema_policy: controlled
+
+approvals:
+  breaking_api: required
+  destructive_migration: required
+  auth_policy: required
+  production_operation: required
+
+profiles:
+  lightweight:
+    validators: [quality]
+    independent_review: false
+    state_persistence: ephemeral
+    fail_on_unknown: false
+    acceptance_oracle: not-required
+  balanced:
+    validators: [impact, boundary, tests]
+    independent_review: false
+    state_persistence: runtime
+    fail_on_unknown: true
+    acceptance_oracle: not-required
+  controlled:
+    validators: [impact, boundary, tests, review, approvals]
+    independent_review: true
+    state_persistence: runtime
+    fail_on_unknown: true
+    acceptance_oracle: conditional
+  strict:
+    validators: [legacy-gate, impact, boundary, tests, review, approvals]
+    independent_review: true
+    state_persistence: committed
+    fail_on_unknown: true
+    legacy_workflow: true
+    acceptance_oracle: required
+
+exceptions: []

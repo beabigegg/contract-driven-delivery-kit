@@ -1,0 +1,42 @@
+change-id: agent-native-cdd-rearchitecture
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+  - contract
+  - quality
+  - full
+runs:
+  - phase: targeted
+    status: passed
+    command: >-
+      npx vitest run test/policy/profile.test.ts test/cli/policy.test.ts test/cli/runtime.test.ts
+      test/cli/acceptance-oracle.test.ts test/cli/mcp.test.ts test/schemas/runtime-contracts.schema.test.ts
+      test/cli/agent-native-migrate.test.ts
+    summary: specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065431/summary.json
+  - phase: changed-area
+    status: passed
+    command: >-
+      npx vitest run test/cli/gate.test.ts test/cli/acceptance-oracle.test.ts test/cli/runtime.test.ts
+      test/cli/policy.test.ts test/cli/mcp.test.ts test/cli/agent-native-migrate.test.ts test/policy/profile.test.ts
+      test/schemas/runtime-contracts.schema.test.ts
+    summary: specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065001/summary.json
+  - phase: contract
+    status: passed
+    command: node dist/cli/index.js validate --contracts
+    summary: specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065122/summary.json
+  - phase: quality
+    status: passed
+    command: npm run check:lockfile && npm run check:mojibake && npm run build && npm run typecheck
+    summary: specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065450/summary.json
+  - phase: full
+    status: passed
+    command: npx vitest run
+    summary: specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065459/summary.json
+  - phase: collect
+    status: passed
+    command: npx vitest list
+    summary: specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210547/summary.json
+final-status: passed

@@ -15,6 +15,7 @@ import { DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH } from '../contracts/pars
 import { detectStack } from '../utils/stack-detect.js';
 import { log } from '../utils/logger.js';
 import type { ProviderOption } from '../utils/provider.js';
+import type { WorkflowProfile } from '../runtime/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string };
@@ -181,6 +182,85 @@ program
       versions:  opts.versions,
     }),
   );
+
+// ── cdd boundary ─────────────────────────────────────────────────────────────
+const boundary = program.command('boundary').description('Inspect and enforce API/data-shape boundary coverage');
+
+boundary
+  .command('init')
+  .description('Generate a fail-closed Boundary Guard manifest scaffold from the canonical API contract')
+  .option('--contract <path>', 'Canonical API contract path', DEFAULT_CONTRACT_PATH)
+  .option('--out <path>', 'Boundary manifest output path', '.cdd/boundary-manifest.yml')
+  .option('--force', 'Replace an existing generated scaffold', false)
+  .action(async (opts: { contract?: string; out?: string; force?: boolean }) => {
+    const { boundaryInit } = await import('../commands/boundary.js');
+    process.exitCode = boundaryInit(opts);
+  });
+
+boundary
+  .command('check')
+  .description('Run changed-operation and non-vacuous Boundary Guard checks')
+  .option('--contract <path>', 'Canonical API contract path', DEFAULT_CONTRACT_PATH)
+  .option('--policy <path>', 'CDD project policy path', '.cdd/policy.yml')
+  .option('--manifest <path>', 'Boundary manifest path', '.cdd/boundary-manifest.yml')
+  .option('--base <revision>', 'Git base revision for changed-operation detection')
+  .option('--head <revision>', 'Git head revision', 'HEAD')
+  .option('--all', 'Check every contracted operation', false)
+  .option('--operation <method-path...>', 'Check one or more explicit operations, e.g. "GET /health"')
+  .option('--json', 'Emit machine-readable Boundary Guard result', false)
+  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; json?: boolean }) => {
+    const { boundaryCheck } = await import('../commands/boundary.js');
+    process.exitCode = boundaryCheck({ ...opts, operations: opts.operation });
+  });
+
+// ── cdd work/runtime ─────────────────────────────────────────────────────────
+program
+  .command('work <change-id> <objective...>')
+  .description('Create a deterministic profile, execution capsule, and resumable runtime plan')
+  .option('--provider <provider>', 'Execution provider: claude, codex, or both')
+  .option('--profile <profile>', 'Minimum requested profile: lightweight, balanced, controlled, or strict')
+  .option('--require-acceptance', 'Add the human-authored acceptance oracle to required runtime evidence', false)
+  .option('--base <revision>', 'Git base revision for impact detection')
+  .option('--json', 'Emit runtime state as JSON', false)
+  .action(async (changeId: string, objective: string[], opts: { provider?: string; profile?: string; base?: string; requireAcceptance?: boolean; json?: boolean }) => {
+    if (opts.provider && !['claude', 'codex', 'both'].includes(opts.provider)) {
+      console.error(`Invalid provider: ${opts.provider}`); process.exitCode = 2; return;
+    }
+    if (opts.profile && !['lightweight', 'balanced', 'controlled', 'strict'].includes(opts.profile)) {
+      console.error(`Invalid profile: ${opts.profile}`); process.exitCode = 2; return;
+    }
+    const { runtimePlan } = await import('../commands/runtime.js');
+    process.exitCode = runtimePlan({ changeId, objective: objective.join(' '), provider: opts.provider as any, profile: opts.profile as any, base: opts.base, requireAcceptance: opts.requireAcceptance, json: opts.json });
+  });
+
+const runtime = program.command('runtime').description('Inspect, resume, and verify agent-native runtime runs');
+runtime.command('status [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeShow } = await import('../commands/runtime.js'); process.exitCode = runtimeShow({ runId, json: opts.json });
+});
+runtime.command('resume [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeResume } = await import('../commands/runtime.js'); process.exitCode = runtimeResume({ runId, json: opts.json });
+});
+runtime.command('verify [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeVerify } = await import('../commands/runtime.js'); process.exitCode = runtimeVerify({ runId, json: opts.json });
+});
+runtime.command('migrate')
+  .description('Dry-run or apply the reversible project/user migration to the agent-native runtime')
+  .option('--yes', 'Apply missing project assets and provider updates', false)
+  .option('--provider <provider>', 'Provider: auto, claude, codex, or both', 'auto')
+  .option('--json', 'Emit JSON', false)
+  .action(async (opts: { yes?: boolean; provider?: ProviderOption; json?: boolean }) => {
+    const { agentNativeMigrate } = await import('../commands/agent-native-migrate.js');
+    process.exitCode = await agentNativeMigrate(opts);
+  });
+
+const policyCommand = program.command('policy').description('Validate agent-native project policy and compatibility invariants');
+policyCommand.command('check')
+  .option('--path <path>', 'Policy path', '.cdd/policy.yml')
+  .option('--json', 'Emit JSON', false)
+  .action(async (opts: { path?: string; json?: boolean }) => {
+    const { policyCheck } = await import('../commands/policy.js');
+    process.exitCode = policyCheck(opts);
+  });
 
 // ── cdd lint-agents ───────────────────────────────────────────────────────────
 program
@@ -479,9 +559,14 @@ program
   .command('gate <change-id>')
   .description('Run delivery-quality gate for a change (required artifacts, tasks, tier, contracts)')
   .option('--strict', 'Treat pending tasks (except section 7) as errors', false)
+  .option('--profile <profile>', 'Agent-native profile: lightweight, balanced, controlled, or strict')
+  .option('--require-acceptance', 'Require the human-authored acceptance oracle for this invocation', false)
   .option('--explain', 'On failure, add a plain-language reason and a "say this to Claude" hint for each problem', false)
-  .action(async (id: string, opts: { strict?: boolean; explain?: boolean }) => {
-    await gate(id, { strict: opts.strict, explain: opts.explain });
+  .action(async (id: string, opts: { strict?: boolean; profile?: string; requireAcceptance?: boolean; explain?: boolean }) => {
+    if (opts.profile && !['lightweight', 'balanced', 'controlled', 'strict'].includes(opts.profile)) {
+      console.error(`Invalid profile: ${opts.profile}`); process.exitCode = 2; return;
+    }
+    await gate(id, { strict: opts.strict, profile: opts.profile as WorkflowProfile | undefined, requireAcceptance: opts.requireAcceptance, explain: opts.explain });
   });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────

@@ -85,7 +85,7 @@ export function enforceAcceptanceOracle(
   if (!existsSync(oraclePath)) {
     if (isNewChange || strict) {
       errors.push(
-        'missing required artifact: acceptance.yml (ADR 0010 — every change needs a human-authored ' +
+        'missing required artifact: acceptance.yml (ADR 0010 — this gate invocation requires a human-authored ' +
         'acceptance oracle pairing input/expect answer keys with the behavior; author one, or scaffold ' +
         'it once `cdd-kit migrate`/`cdd-kit new` backfill support lands).',
       );

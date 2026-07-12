@@ -200,6 +200,47 @@ const tools: ToolDef[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'cdd_boundary_check',
+    description: 'Run fail-closed changed-operation Boundary Guard checks for typed requests/responses, variants, real captures, consumers, and non-vacuous coverage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        base: { type: 'string', description: 'Optional Git base revision.' },
+        all: { type: 'boolean', default: false },
+        operations: { type: 'array', items: { type: 'string' }, description: 'Explicit operations such as GET /health.' },
+        contract: { type: 'string', default: DEFAULT_CONTRACT_PATH },
+        policy: { type: 'string', default: '.cdd/policy.yml' },
+        manifest: { type: 'string', default: '.cdd/boundary-manifest.yml' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'cdd_runtime_plan',
+    description: 'Create a deterministic risk profile, execution capsule, and resumable runtime plan. Mutates only .cdd/runtime.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        changeId: { type: 'string' }, objective: { type: 'string' },
+        provider: { type: 'string', enum: ['claude', 'codex', 'both'] },
+        profile: { type: 'string', enum: ['lightweight', 'balanced', 'controlled', 'strict'] },
+        requireAcceptance: { type: 'boolean', description: 'Require a human-authored acceptance oracle in runtime evidence.' },
+        base: { type: 'string' },
+      },
+      required: ['changeId', 'objective'], additionalProperties: false,
+    },
+  },
+  {
+    name: 'cdd_runtime_status',
+    description: 'Read the current or specified agent-native runtime state.',
+    inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
+  },
+  {
+    name: 'cdd_runtime_verify',
+    description: 'Run Boundary Guard and evidence checks for a runtime run and append immutable runtime evidence.',
+    inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
+  },
 ];
 
 export async function runMcpServer(opts: RunMcpServerOptions): Promise<void> {
@@ -381,6 +422,40 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
         '--json',
         ...refreshArgs(args),
       ]);
+    case 'cdd_boundary_check': {
+      const cmd = [
+        'boundary', 'check',
+        '--contract', optionalString(args.contract, DEFAULT_CONTRACT_PATH),
+        '--policy', optionalString(args.policy, '.cdd/policy.yml'),
+        '--manifest', optionalString(args.manifest, '.cdd/boundary-manifest.yml'),
+      ];
+      const base = optionalString(args.base, '');
+      if (base) cmd.push('--base', base);
+      if (args.all === true) cmd.push('--all');
+      const operations = optionalStringArray(args.operations);
+      if (operations.length) cmd.push('--operation', ...operations);
+      cmd.push('--json');
+      return runCddJson(cmd);
+    }
+    case 'cdd_runtime_plan': {
+      const cmd = ['work', requireString(args, 'changeId'), requireString(args, 'objective')];
+      const provider = optionalString(args.provider, ''); if (provider) cmd.push('--provider', provider);
+      const profile = optionalString(args.profile, ''); if (profile) cmd.push('--profile', profile);
+      if (args.requireAcceptance === true) cmd.push('--require-acceptance');
+      const base = optionalString(args.base, ''); if (base) cmd.push('--base', base);
+      cmd.push('--json');
+      return runCddJson(cmd);
+    }
+    case 'cdd_runtime_status': {
+      const cmd = ['runtime', 'status'];
+      const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
+      cmd.push('--json'); return runCddJson(cmd);
+    }
+    case 'cdd_runtime_verify': {
+      const cmd = ['runtime', 'verify'];
+      const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
+      cmd.push('--json'); return runCddJson(cmd);
+    }
     default:
       return {
         isError: true,
@@ -444,6 +519,10 @@ function optionalString(value: unknown, fallback: string): string {
 function optionalInt(value: unknown, fallback: number): number {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseInt(value, 10) : fallback;
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function optionalStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim() !== '') : [];
 }
 
 function writeResult(id: JsonRpcId, result: unknown): void {

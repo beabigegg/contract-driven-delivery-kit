@@ -1,6 +1,6 @@
 ---
 change-id: agent-native-cdd-rearchitecture
-status: proposed
+status: in-progress
 created: 2026-07-11
 ---
 
@@ -40,7 +40,7 @@ The redesign must answer these concerns:
 
 ## Desired Outcome
 
-Produce a complete architecture and migration RFC that:
+Deliver the first complete, shadow-mode implementation of that architecture:
 
 - restores API/data boundaries as the center of the kit;
 - separates engineering doctrine from workflow choreography;
@@ -51,19 +51,20 @@ Produce a complete architecture and migration RFC that:
 - minimizes project-local and always-loaded guidance;
 - defines compatibility, dual-run, rollback and old-project migration;
 - provides a feature-by-feature disposition map;
-- does not immediately remove current functionality.
+- does not remove current functionality or change the strict default.
 
 ## Success Criteria
 
-The proposal is successful when it is detailed enough to review and split into
-follow-up implementation PRs without re-litigating the core intent, safety
-constraints or migration guarantees.
+The increment is successful when its schemas and ownership boundaries are
+versioned, Boundary Guard cannot pass changed API work vacuously, runtime state
+is resumable and tamper-aware, Claude Code and Codex are first-class adapters,
+and user-level upgrades are ownership-aware and reversible.
 
-## Non-goals for this PR
+## Non-goals for this increment
 
-- Do not change runtime behavior.
 - Do not remove agents, skills, hooks, validators or artifacts.
 - Do not change current defaults.
-- Do not migrate consumer repositories.
+- Do not automatically migrate consumer repositories or active changes.
 - Do not select the final major-version number.
-- Do not claim token or defect-detection improvement before measurement.
+- Do not claim parity, token improvement, or authorize a default switch before
+  representative dual-run and mutation evidence exists.

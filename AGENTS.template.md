@@ -1,6 +1,16 @@
-# Agents Overview
+# Contract-Driven Delivery
 
-Use these agents as reusable Claude Code subagents. Project-level agents may be placed in `.claude/agents/`; user-level agents may be placed in `~/.claude/agents/`.
+This repository uses cdd-kit. Treat `contracts/` as canonical, use
+`specs/changes/<change-id>/` for active decision context, query cdd-kit graph
+and index commands before broad reads, record bounded tests with
+`cdd-kit test run`, and run `cdd-kit gate <change-id>` before completion.
+
+Claude Code can invoke the installed role definitions as subagents. Codex can
+compose the same responsibilities as capability profiles through the `cdd-work`
+skill. In either provider, deterministic CLI/MCP evidence is authoritative over
+an agent's confidence.
+
+## Roles overview
 
 ## Core agents
 

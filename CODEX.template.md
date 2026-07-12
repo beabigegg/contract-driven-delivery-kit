@@ -2,6 +2,10 @@
 
 This project uses Contract-Driven Delivery (CDD).
 
+Codex reads the repository `AGENTS.md` as the durable project instruction file.
+This file is retained for compatibility with older cdd-kit installations; keep
+authoritative project rules in `AGENTS.md`.
+
 ## Workflow
 
 - Treat `contracts/` as the current source of truth.
@@ -16,14 +20,12 @@ This project uses Contract-Driven Delivery (CDD).
 Configure MCP-capable agents to use the cdd-kit server:
 
 ```bash
-claude mcp add --scope user cdd-kit -- cdd-kit mcp
-claude mcp list
+codex mcp add cdd-kit -- cdd-kit mcp
+codex mcp list
 ```
 
-For Claude Code, use `claude mcp add` so the server is written to
-`~/.claude.json`. Do not rely on manually adding `mcpServers` to
-`~/.claude/settings.json`; that is a Claude Code UI settings format and is not
-the MCP registry read by the CLI.
+Codex stores MCP configuration in `~/.codex/config.toml`. The CLI command above
+is preferred over editing the TOML by hand.
 
 Prefer these MCP tools before reading source files: `cdd_graph_context`,
 `cdd_graph_query`, `cdd_graph_impact`, `cdd_index_query`, and

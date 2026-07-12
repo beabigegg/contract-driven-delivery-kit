@@ -1,74 +1,51 @@
 # CI/CD Gate Plan
 
-## Change ID
-
-`agent-native-cdd-rearchitecture`
-
 ## Required Gates
 
-| gate | tier | required | trigger | command/workflow | expected artifact |
-|---|---:|---:|---|---|---|
-| encoding quality | 1 | yes | pull_request | `npm run check:mojibake` | clean CI log |
-| lockfile consistency | 1 | existing policy | pull_request | `npm run check:lockfile` | clean CI log |
-| build | 1 | existing policy | pull_request | `npm run build` | successful bundle |
-| typecheck | 1 | existing policy | pull_request | `npm run typecheck` | zero TypeScript errors |
-| unit/regression | 1 | existing policy | pull_request | `npm test` | existing suite passes |
-| architecture review | 5 | yes | pull_request review | maintainer review of ADR/RFC/migration | approval or requested changes |
-| contract | 1 | no new behavior | pull_request | existing contract checks only | no new drift |
-| integration | 3 | no | n/a | documentation-only change | n/a |
-| e2e-critical | 1 | no | n/a | documentation-only change | n/a |
-| visual | 2 | no | n/a | no UI surface | n/a |
-| data-boundary | 1 | no | n/a | no runtime change | n/a |
-| resilience | 3 | no | n/a | no runtime change | n/a |
-| fuzz/monkey | 3 | no | n/a | no runtime change | n/a |
-| stress | 4 | no | n/a | no runtime change | n/a |
-| soak | 5 | no | n/a | no runtime change | n/a |
+| tier | gate | required | trigger | command / evidence |
+|---:|---|---:|---|---|
+| 0 | lockfile | yes | pull request | `npm run check:lockfile` |
+| 0 | encoding | yes | pull request | `npm run check:mojibake` |
+| 0 | build | yes | pull request | `npm run build` |
+| 0 | typecheck | yes | pull request | `npm run typecheck` |
+| 0 | full regression | yes | pull request | `npx vitest run` |
+| 0 | runtime schemas | yes | pull request | runtime-contract schema tests |
+| 0 | boundary negative/mutation | yes | pull request | Boundary Guard CLI tests |
+| 0 | provider compatibility | yes | pull request | Claude/Codex init and setup tests |
+| 0 | upgrade safety | yes | pull request | update, upgrade and migration tests |
+| 0 | architecture review | yes | maintainer review | ADR/RFC/runtime-contract review |
 
-## New Workflow Changes
+## Enforcement Staging
 
-None. This PR must not alter required checks, hooks, workflows or release policy.
-Future workstreams will define their own gate changes.
+Boundary Guard is composed into `cdd-kit gate`. With `shadow_mode: true`, its
+findings are informational and the existing strict workflow remains the blocking
+authority. A project may explicitly set `shadow_mode: false` after reviewing its
+manifest, captures and exceptions. This increment does not change that default.
 
-## Required Check Policy
+## Promotion Policy
 
-Use the repository's existing pull-request checks. The architecture RFC requires
-maintainer review because it governs future removal, relocation and default
-changes, but it does not itself authorize those changes.
+Balanced or controlled profiles may replace strict only after a separate change
+demonstrates:
 
-## Informational Gate Promotion Policy
-
-Future shadow checks may become required only when:
-
-- they pass the seeded mutation corpus;
-- strict/new parity is demonstrated on representative projects;
-- false positives and exception behavior are reviewed;
-- rollback to strict has been exercised;
-- the maintainer approves promotion in a separate PR.
+- seeded mutation-catching parity on boundary and risk cases;
+- representative consumer dual-runs and reviewed false positives;
+- no regression in required test selection or independent review;
+- measured token/call improvement;
+- exercised strict rollback;
+- maintainer approval.
 
 ## Rollback Policy
 
-Revert this documentation PR. It does not change runtime behavior, generated
-assets, contracts, consumer repositories or project defaults.
+- set the project policy to strict/shadow;
+- stop invoking runtime planning while leaving existing artifacts intact;
+- restore package-owned global assets from timestamped backups;
+- preserve contracts, archives, active changes and evidence;
+- never use a migration rollback to overwrite a customized user asset.
 
-Future implementation increments must retain an independent rollback to strict
-mode.
+## Merge Eligibility
 
-## Artifact Retention
-
-Keep the ADR, RFC, migration plan, feature map and change artifacts in repository
-history. Follow-up PRs should cite decision IDs and workstreams instead of
-copying the complete rationale.
-
-## Merge Eligibility Decision
-
-Eligible for merge when:
-
-- current CI is green;
-- architecture/contract/QA review concerns are resolved or explicitly recorded;
-- the maintainer agrees that the proposal preserves existing safety outcomes;
-- the PR remains documentation-only.
-
-## Notes
-
-This proposal deliberately separates approval of the direction from approval of
-any specific runtime or default change.
+The implementation is technically eligible when all mechanical checks pass and
+the content review confirms the runtime contracts, non-vacuous Boundary Guard,
+provider separation and upgrade ownership guarantees. Human acceptance is
+required only when the selected profile/capsule says so; strict preserves ADR
+0010 unchanged.

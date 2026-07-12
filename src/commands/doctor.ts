@@ -611,7 +611,7 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   const provider = inferProvider(cwd, requestedProvider);
   const findings: Finding[] = [];
 
-  for (const relPath of ['contracts', 'specs/templates', '.cdd/context-policy.json', '.cdd/model-policy.json']) {
+  for (const relPath of ['contracts', 'specs/templates', '.cdd/context-policy.json', '.cdd/model-policy.json', '.cdd/policy.yml']) {
     findings.push(fileExists(cwd, relPath)
       ? { level: 'ok', message: `${relPath} exists` }
       : { level: 'warning', message: `${relPath} is missing; run cdd-kit upgrade --yes` });
@@ -623,8 +623,8 @@ async function buildDoctorReport(cwd: string, opts: DoctorOptions): Promise<Doct
   if ((provider === 'claude' || provider === 'both') && !fileExists(cwd, 'AGENTS.md')) {
     findings.push({ level: 'warning', message: 'AGENTS.md is missing for Claude provider; run cdd-kit upgrade --provider claude --yes' });
   }
-  if ((provider === 'codex' || provider === 'both') && !fileExists(cwd, 'CODEX.md')) {
-    findings.push({ level: 'warning', message: 'CODEX.md is missing for Codex provider; run cdd-kit upgrade --provider codex --yes' });
+  if ((provider === 'codex' || provider === 'both') && !fileExists(cwd, 'AGENTS.md')) {
+    findings.push({ level: 'warning', message: 'AGENTS.md is missing for Codex provider; run cdd-kit upgrade --provider codex --yes' });
   }
 
   findings.push(...checkContextFreshness(cwd));
