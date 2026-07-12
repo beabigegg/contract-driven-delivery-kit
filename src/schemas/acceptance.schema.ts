@@ -11,6 +11,17 @@
 // independently verified from a GitHub PR comment receipt. Omitting the field
 // retains the original human-relock behavior.
 //
+// Trust model (be honest about the boundary): chat-confirmed proves the
+// maintainer's DECISION, not an unspoofable human ORIGIN. Its guarantee reduces
+// to "the process that posted the receipt is a GitHub identity trusted to
+// confirm, and no automated agent holds that identity's credential." Harden it
+// by pinning `acceptance.authorized_logins` in `.cdd/policy.yml` (default is
+// OWNER-only) so trust is a named identity, not a broad role. `chat-confirmed`
+// is a balanced/controlled convenience only: it is NOT honored under `--strict`,
+// which requires the human-authored hash lock (see gate-acceptance.ts). For a
+// mechanical (not behavioral) guarantee, gate the change behind a signed
+// approval envelope (src/runtime/decisions.ts), which an agent cannot forge.
+//
 // `input`/`expect` are intentionally left unconstrained (`{}` — any JSON
 // value): the answer key can be a scalar, string, or nested object depending
 // on what the case exercises (ADR 0010 §1 example uses objects). The locked

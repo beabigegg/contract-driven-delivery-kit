@@ -17,6 +17,14 @@
   ],
   "license": "MIT",
   "author": "Contract-Driven Delivery Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beabigegg/contract-driven-delivery-kit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beabigegg/contract-driven-delivery-kit/issues"
+  },
+  "homepage": "https://github.com/beabigegg/contract-driven-delivery-kit#readme",
   "type": "module",
   "publishConfig": {
     "access": "public"

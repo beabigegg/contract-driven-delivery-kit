@@ -1166,6 +1166,29 @@ program
     await integrate({ json: opts.json });
   });
 
+// ── cdd report ────────────────────────────────────────────────────────────────
+// File a problem about the CDD kit ITSELF as a GitHub issue on the kit's
+// upstream repo. Drafts by default; only posts with --confirm (outward-facing).
+program
+  .command('report')
+  .description('Report a cdd-kit problem to GitHub. Drafts by default; add --confirm to file it after the maintainer approves.')
+  .option('--title <title>', 'Short issue title (required)')
+  .option('--body <body>', 'What went wrong / how to reproduce (required)')
+  .option('--category <category>', 'One of: bug, gate-false-positive, crash, docs, other', 'bug')
+  .option('--repo <owner/name>', 'Target repo (default: the kit upstream repo or $CDD_REPORT_REPO)')
+  .option('--label <label...>', 'Optional existing GitHub labels to apply')
+  .option('--change-id <id>', 'Optional CDD change id for context')
+  .option('--run-id <id>', 'Optional runtime run id for context')
+  .option('--confirm', 'Actually file the issue (default is a dry-run draft)', false)
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: {
+    title?: string; body?: string; category?: string; repo?: string; label?: string[];
+    changeId?: string; runId?: string; confirm?: boolean; json?: boolean;
+  }) => {
+    const { report } = await import('../commands/report.js');
+    process.exitCode = await report(opts);
+  });
+
 // ── cdd changelog build ───────────────────────────────────────────────────────
 const changelog = program
   .command('changelog')

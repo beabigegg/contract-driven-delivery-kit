@@ -76,6 +76,12 @@ Checks, implementation records, review, and approvals become stale after source
 or policy changes. `cdd-kit guidance audit` measures recurring guidance cost;
 `cdd-kit runtime parity` compares a completed runtime with the strict lane.
 
+Hit a problem with the kit itself? `cdd-kit report --title "..." --body "..."`
+drafts a GitHub issue (enriched with version/environment context) against the
+kit's upstream repo. It only files when you add `--confirm`, so an agent shows
+you the draft first and files it only after you approve. The same capability is
+exposed to MCP clients (Claude Code, Codex) as the `cdd_report_problem` tool.
+
 ## Strict compatibility workflow
 
 The following `/cdd-new` documentation describes the preserved strict workflow

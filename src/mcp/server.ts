@@ -263,6 +263,20 @@ const tools: ToolDef[] = [
       }, required: ['verdict', 'actor', 'summary'], additionalProperties: false,
     },
   },
+  {
+    name: 'cdd_report_problem',
+    description: 'Report a problem about the CDD kit itself as a GitHub issue on the kit upstream repo. DRAFTS by default; pass confirm:true ONLY after the maintainer has approved the drafted issue, since posting publishes to GitHub. Call with confirm:false first to show the maintainer the draft.',
+    inputSchema: {
+      type: 'object', properties: {
+        title: { type: 'string', description: 'Short issue title (>= 8 chars).' },
+        body: { type: 'string', description: 'What went wrong / how to reproduce (>= 15 chars).' },
+        category: { type: 'string', enum: ['bug', 'gate-false-positive', 'crash', 'docs', 'other'], default: 'bug' },
+        repo: { type: 'string', description: 'Optional owner/name target; defaults to the kit upstream repo or $CDD_REPORT_REPO.' },
+        changeId: { type: 'string' }, runId: { type: 'string' },
+        confirm: { type: 'boolean', default: false, description: 'Set true only after maintainer approval to actually file the issue.' },
+      }, required: ['title', 'body'], additionalProperties: false,
+    },
+  },
 ];
 
 export async function runMcpServer(opts: RunMcpServerOptions): Promise<void> {
@@ -492,6 +506,16 @@ function callTool(name: string, args: Record<string, unknown>): ToolResult {
       const cmd = ['runtime', 'review'];
       const runId = optionalString(args.runId, ''); if (runId) cmd.push(runId);
       cmd.push('--verdict', requireString(args, 'verdict'), '--actor', requireString(args, 'actor'), '--summary', requireString(args, 'summary'), '--json');
+      return runCddJson(cmd);
+    }
+    case 'cdd_report_problem': {
+      const cmd = ['report', '--title', requireString(args, 'title'), '--body', requireString(args, 'body')];
+      const category = optionalString(args.category, ''); if (category) cmd.push('--category', category);
+      const repo = optionalString(args.repo, ''); if (repo) cmd.push('--repo', repo);
+      const changeId = optionalString(args.changeId, ''); if (changeId) cmd.push('--change-id', changeId);
+      const runId = optionalString(args.runId, ''); if (runId) cmd.push('--run-id', runId);
+      if (args.confirm === true) cmd.push('--confirm');
+      cmd.push('--json');
       return runCddJson(cmd);
     }
     default:

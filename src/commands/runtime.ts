@@ -13,9 +13,18 @@ export function runtimePlan(options: { changeId: string; objective: string; prov
     const state = planRuntime(options);
     if (options.json) process.stdout.write(JSON.stringify(state, null, 2) + '\n');
     else {
-      const capsule = state.capsule as { profile: string; risk_signals: unknown[] };
+      const capsule = state.capsule as { profile: string; risk_signals: unknown[]; doctrine?: unknown[]; independent_review?: boolean };
       log.ok(`Runtime plan created: ${state.run_id}`);
       log.info(`Profile: ${capsule.profile}; risk signals: ${capsule.risk_signals.length}`);
+      // Light-touch "feel the reduction" line: on the lean profiles, name what
+      // this run spends versus the legacy strict path (7 change artifacts + full
+      // agent chain), so the token/ceremony saving is visible in normal use
+      // without a measurement harness.
+      if (capsule.profile !== 'strict') {
+        const agents = capsule.independent_review ? 2 : 1;
+        const modules = Array.isArray(capsule.doctrine) ? capsule.doctrine.length : 0;
+        log.info(`Lean run: ${agents} agent${agents === 1 ? '' : 's'}, ${modules} doctrine module${modules === 1 ? '' : 's'}, runtime evidence — vs strict's 7 change artifacts + full agent chain.`);
+      }
       if (state.pending_approvals.length) log.warn(`Pending approvals: ${state.pending_approvals.join(', ')}`);
       log.info(`State: .cdd/runtime/${state.run_id}/state.json`);
     }

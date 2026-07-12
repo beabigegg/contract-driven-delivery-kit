@@ -88,9 +88,25 @@ export function enforceAcceptanceOracle(
 
   const currentHash = computeAcceptanceHash(data);
   const chatConfirmed = data['confirmation-mode'] === 'chat-confirmed';
-  if (chatConfirmed) {
+  // H2: `chat-confirmed` is a balanced/controlled convenience path. It must
+  // never silently substitute for strict acceptance, whose contract
+  // (runtime-contracts.md section 3) is the human-authored hash lock. Under
+  // strict we downgrade chat-confirmed to a warning and fall through to require
+  // the lock, so `confirmation-mode` in an agent-authored oracle can no longer
+  // weaken strict.
+  const honorChatConfirmed = chatConfirmed && !strict;
+  if (chatConfirmed && strict) {
+    warnings.push(
+      'confirmation-mode: chat-confirmed is not honored under --strict (runtime-contracts.md section 3); ' +
+      `strict requires the human-authored hash lock — run \`cdd-kit accept relock ${changeId}\`. ` +
+      'Verifying the lock instead.',
+    );
+  }
+  if (honorChatConfirmed) {
     const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
-    if (!confirmation.ok) errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
+    if (!confirmation.ok) {
+      errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
+    }
   } else {
     const lock = readAcceptanceLock(cwd);
     const baseline = lock[changeId];
@@ -136,11 +152,14 @@ export function enforceAcceptanceOracle(
   const hasPassedAcceptanceRun = (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
   const hasPassedFullRun = evidence?.['final-status'] === 'passed'
     && (evidence?.runs ?? []).some((r) => r.phase === 'full' && r.status === 'passed');
-  const executionEvidencePassed = hasPassedAcceptanceRun || (chatConfirmed && hasPassedFullRun);
+  // H2: the relaxed full-run substitute applies only when chat-confirmed is
+  // actually honored (non-strict). Under strict the acceptance-phase run is
+  // required, matching the lock requirement above.
+  const executionEvidencePassed = hasPassedAcceptanceRun || (honorChatConfirmed && hasPassedFullRun);
 
   if (!executionEvidencePassed) {
     if (isNewChange || strict) {
-      if (chatConfirmed) {
+      if (honorChatConfirmed) {
         errors.push('chat-confirmed acceptance requires a recorded passed full test run in test-evidence.yml.');
       } else {
         errors.push(
