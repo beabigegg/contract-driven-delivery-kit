@@ -1,19 +1,9 @@
 import { existsSync, readFileSync } from 'fs';
 import { spawnSync } from 'child_process';
-import { join } from 'path';
-
-export interface ChatAcceptanceReceipt {
-  schema_version: '1.0.0';
-  provider: 'github-pr-comment';
-  repository: string;
-  pr_number: number;
-  comment_id: number;
-}
 
 interface GitHubComment {
   id?: number;
   body?: string;
-  issue_url?: string;
   user?: { login?: string };
   author_association?: string;
 }
@@ -22,6 +12,7 @@ export interface ChatAcceptanceVerification {
   ok: boolean;
   error?: string;
   actor?: string;
+  comment_id?: number;
 }
 
 function git(cwd: string, args: string[]): string {
@@ -29,22 +20,28 @@ function git(cwd: string, args: string[]): string {
   return result.status === 0 ? (result.stdout ?? '').trim() : '';
 }
 
-function readReceipt(path: string): ChatAcceptanceReceipt | null {
-  if (!existsSync(path)) return null;
+function githubContext(): { repository: string; prNumber: number } | null {
+  const repository = process.env.CDD_ACCEPTANCE_REPOSITORY || process.env.GITHUB_REPOSITORY || '';
+  const explicitPr = Number(process.env.CDD_ACCEPTANCE_PR || 0);
+  if (repository && Number.isInteger(explicitPr) && explicitPr > 0) {
+    return { repository, prNumber: explicitPr };
+  }
+
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!repository || !eventPath || !existsSync(eventPath)) return null;
   try {
-    const value = JSON.parse(readFileSync(path, 'utf8')) as ChatAcceptanceReceipt;
-    if (value.schema_version !== '1.0.0' || value.provider !== 'github-pr-comment') return null;
-    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.repository)) return null;
-    if (!Number.isInteger(value.pr_number) || value.pr_number <= 0) return null;
-    if (!Number.isInteger(value.comment_id) || value.comment_id <= 0) return null;
-    return value;
+    const event = JSON.parse(readFileSync(eventPath, 'utf8')) as { pull_request?: { number?: number }; number?: number };
+    const prNumber = event.pull_request?.number ?? event.number;
+    return Number.isInteger(prNumber) && Number(prNumber) > 0
+      ? { repository, prNumber: Number(prNumber) }
+      : null;
   } catch {
     return null;
   }
 }
 
-function fetchComment(cwd: string, receipt: ChatAcceptanceReceipt): GitHubComment | null {
-  const path = `/repos/${receipt.repository}/issues/comments/${receipt.comment_id}`;
+function fetchComments(cwd: string, repository: string, prNumber: number): GitHubComment[] | null {
+  const path = `/repos/${repository}/issues/${prNumber}/comments?per_page=100`;
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   if (token) {
     const result = spawnSync('curl', [
@@ -55,42 +52,28 @@ function fetchComment(cwd: string, receipt: ChatAcceptanceReceipt): GitHubCommen
       `https://api.github.com${path}`,
     ], { cwd, encoding: 'utf8' });
     if (result.status === 0) {
-      try { return JSON.parse(result.stdout) as GitHubComment; } catch { return null; }
+      try {
+        const parsed = JSON.parse(result.stdout);
+        return Array.isArray(parsed) ? parsed as GitHubComment[] : null;
+      } catch { return null; }
     }
   }
+
   const gh = spawnSync('gh', ['api', path], { cwd, encoding: 'utf8' });
   if (gh.status !== 0) return null;
-  try { return JSON.parse(gh.stdout) as GitHubComment; } catch { return null; }
+  try {
+    const parsed = JSON.parse(gh.stdout);
+    return Array.isArray(parsed) ? parsed as GitHubComment[] : null;
+  } catch { return null; }
 }
 
-export function verifyChatAcceptance(
-  cwd: string,
-  changeDir: string,
+export function commentConfirmsAcceptance(
+  comment: GitHubComment,
   changeId: string,
   acceptanceHash: string,
-): ChatAcceptanceVerification {
-  const receiptPath = join(changeDir, 'acceptance-confirmation.json');
-  const receipt = readReceipt(receiptPath);
-  if (!receipt) return { ok: false, error: 'missing or invalid acceptance-confirmation.json for chat-confirmed acceptance' };
-
-  const configuredRepo = process.env.GITHUB_REPOSITORY;
-  if (configuredRepo && configuredRepo !== receipt.repository) {
-    return { ok: false, error: `acceptance confirmation repository mismatch: expected ${configuredRepo}` };
-  }
-
-  const comment = fetchComment(cwd, receipt);
-  if (!comment || comment.id !== receipt.comment_id) {
-    return { ok: false, error: 'unable to retrieve the referenced GitHub acceptance confirmation comment' };
-  }
-  if (!comment.issue_url?.endsWith(`/repos/${receipt.repository}/issues/${receipt.pr_number}`)) {
-    return { ok: false, error: 'acceptance confirmation comment is not attached to the declared pull request' };
-  }
-  if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association ?? '')) {
-    return { ok: false, error: 'acceptance confirmation must be authored by a repository owner, member, or collaborator' };
-  }
-
-  const head = git(cwd, ['rev-parse', 'HEAD']);
-  if (!head) return { ok: false, error: 'unable to resolve current HEAD for acceptance confirmation' };
+  head: string,
+): boolean {
+  if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association ?? '')) return false;
   const expectedLines = [
     'CDD-ACCEPTANCE-CONFIRMATION v1',
     `change-id: ${changeId}`,
@@ -99,10 +82,36 @@ export function verifyChatAcceptance(
     'decision: approved',
   ];
   const bodyLines = new Set((comment.body ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean));
-  const missing = expectedLines.filter(line => !bodyLines.has(line));
-  if (missing.length > 0) {
-    return { ok: false, error: `GitHub acceptance confirmation is stale or incomplete: missing ${missing.join(', ')}` };
+  return expectedLines.every(line => bodyLines.has(line));
+}
+
+export function verifyChatAcceptance(
+  cwd: string,
+  _changeDir: string,
+  changeId: string,
+  acceptanceHash: string,
+): ChatAcceptanceVerification {
+  const context = githubContext();
+  if (!context) {
+    return {
+      ok: false,
+      error: 'chat-confirmed acceptance requires a pull-request context (GITHUB_REPOSITORY plus GITHUB_EVENT_PATH, or CDD_ACCEPTANCE_REPOSITORY/CDD_ACCEPTANCE_PR)',
+    };
   }
 
-  return { ok: true, actor: comment.user?.login };
+  const head = git(cwd, ['rev-parse', 'HEAD']);
+  if (!head) return { ok: false, error: 'unable to resolve current HEAD for acceptance confirmation' };
+
+  const comments = fetchComments(cwd, context.repository, context.prNumber);
+  if (!comments) return { ok: false, error: 'unable to retrieve pull-request comments for acceptance verification' };
+
+  const match = [...comments].reverse().find(comment => commentConfirmsAcceptance(comment, changeId, acceptanceHash, head));
+  if (!match) {
+    return {
+      ok: false,
+      error: 'no authorized PR comment confirms the current acceptance criteria and HEAD',
+    };
+  }
+
+  return { ok: true, actor: match.user?.login, comment_id: match.id };
 }
