@@ -143,6 +143,19 @@ export async function validate(opts: ValidateOptions): Promise<void> {
     if (findings.length > 0) log.blank();
   }
 
+  // Agent-native policy bone-audit (docs/loosening-the-harness.md). Opt-in: only
+  // when the project has adopted `.cdd/policy.yml`, so legacy strict-only repos
+  // are unaffected. This gives the loosening acknowledgments CI teeth — a policy
+  // that silently disables a load-bearing protection fails `validate`, while a
+  // recorded `loosening:` entry passes with a warning.
+  const policyPath = join(process.cwd(), '.cdd', 'policy.yml');
+  if (existsSync(policyPath)) {
+    log.info('Validating CDD policy (loosening bone-audit)…');
+    const { policyCheck } = await import('./policy.js');
+    if (policyCheck({ path: policyPath }) !== 0) failed = true;
+    log.blank();
+  }
+
   if (failed) {
     log.error('One or more validations failed.');
     process.exit(1);

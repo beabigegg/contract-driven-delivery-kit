@@ -128,7 +128,9 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
   const initialized = existsSync(join(cwd, '.cdd'));
   const mode: 'fresh' | 'upgrade' = initialized ? 'upgrade' : 'fresh';
   const provider: Provider = opts.provider ?? (mode === 'fresh' ? 'claude' : inferProvider(cwd, 'auto'));
-  const wantsClaude = provider !== 'codex';
+  // Consume the adapter capability model instead of hardcoding provider names:
+  // arm agent hooks for any selected provider whose adapter declares hook support.
+  const wantsAgentHooks = providerAdapters(provider).some(adapter => adapter.supportsAgentHooks);
 
   log.blank();
   log.info(`cdd-kit setup — one-command ${mode} (idempotent; safe to re-run)`);
@@ -197,9 +199,10 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
       results.push({ label: 'Pre-commit gate', status: 'warn', detail: 'not armed' });
     }
 
-    // Agent PreToolUse hooks (Claude only): graph-first + test-runner, both
-    // advisory so they steer without blocking a non-engineer.
-    if (wantsClaude) {
+    // Agent PreToolUse hooks: graph-first + test-runner, both advisory so they
+    // steer without blocking a non-engineer. Armed for providers whose adapter
+    // declares agent-hook support.
+    if (wantsAgentHooks) {
       try {
         const { installAgentHooks } = await import('./install-agent-hooks.js');
         await installAgentHooks({ graphFirst: 'advisory', testRunner: 'advisory', fromInit: true });

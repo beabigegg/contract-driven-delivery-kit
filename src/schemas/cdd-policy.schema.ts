@@ -61,6 +61,27 @@ export const cddPolicySchema = {
         authorized_associations: { type: 'array', uniqueItems: true, items: { type: 'string', enum: ['OWNER', 'MEMBER', 'COLLABORATOR'] } },
       },
     },
+    // Recorded, reviewable acknowledgments for deliberately loosened "bone"
+    // protections (see docs/loosening-the-harness.md). Each entry names the
+    // disabled protection by id and records why it is safe. `cdd-kit policy
+    // check` errors on a disabled bone with no matching acknowledgment and warns
+    // (does not fail) when one is present -- loosening becomes explicit and
+    // evidence-gated instead of silent.
+    loosening: {
+      type: 'array',
+      default: [],
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'reason'],
+        properties: {
+          id: { type: 'string', minLength: 1 },
+          reason: { type: 'string', minLength: 10 },
+          reversible: { type: 'boolean' },
+          evidence: { type: 'string', minLength: 1 },
+        },
+      },
+    },
     exceptions: {
       type: 'array',
       default: [],

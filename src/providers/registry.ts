@@ -1,5 +1,3 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import type { Provider, ProviderOption } from '../utils/provider.js';
 import type { ProviderAdapter } from './types.js';
 
@@ -9,9 +7,6 @@ export function providerAdapters(provider: Provider): ProviderAdapter[] {
     adapters.push({
       id: 'claude',
       displayName: 'Claude Code',
-      projectGuidance: ['CLAUDE.md', 'AGENTS.md'],
-      userSkillHome: join(homedir(), '.claude', 'skills'),
-      supportsUserAgents: true,
       supportsAgentHooks: true,
       mcpCommand: 'claude',
       mcpArgs: ['mcp', 'add', '--scope', 'user', 'cdd-kit', '--', 'cdd-kit', 'mcp'],
@@ -21,9 +16,6 @@ export function providerAdapters(provider: Provider): ProviderAdapter[] {
     adapters.push({
       id: 'codex',
       displayName: 'Codex',
-      projectGuidance: ['AGENTS.md', 'CODEX.md'],
-      userSkillHome: join(homedir(), '.agents', 'skills'),
-      supportsUserAgents: false,
       supportsAgentHooks: false,
       mcpCommand: 'codex',
       mcpArgs: ['mcp', 'add', 'cdd-kit', '--', 'cdd-kit', 'mcp'],
