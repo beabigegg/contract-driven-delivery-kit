@@ -74,6 +74,19 @@ more valuable as agents improve, not less.**
 Loosening means moving these knobs. It does NOT mean removing the checks that
 fire once a knob says "high-risk".
 
+### Human review of acceptance criteria: default on, explicit per-run bypass
+
+The acceptance oracle records what "done" means in the user's own words. By
+default the agent cannot self-sign it: a human runs `cdd-kit accept confirm
+<id>`, which shows the criteria and requires an interactive keystroke (an agent
+shelling out non-interactively is refused). For an explicitly delegated loop run
+-- where the user told the agent to handle the whole thing -- `cdd-kit accept
+confirm <id> --autonomous --reason "..."` records the acceptance without human
+review. That is a deliberate, recorded loosening: the gate passes the non-strict
+change but always surfaces it as agent-delegated (never a human sign-off), and
+strict refuses it outright. Autonomy waives human review of the criteria, never
+the test evidence.
+
 ## How to loosen responsibly: reversible + evidence-gated
 
 1. Move one knob (for example, drop a check from `balanced`).

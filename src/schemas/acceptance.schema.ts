@@ -22,6 +22,13 @@
 // mechanical (not behavioral) guarantee, gate the change behind a signed
 // approval envelope (src/runtime/decisions.ts), which an agent cannot forge.
 //
+// Two lock modes back the hash-lock path (`.cdd/acceptance-lock.json`, a path
+// agents cannot write): `human` (default) is recorded by `cdd-kit accept
+// confirm`, which shows the criteria and needs an interactive human keystroke;
+// `autonomous` is recorded by `cdd-kit accept confirm --autonomous` for an
+// explicitly delegated loop run. The gate surfaces `autonomous` as un-reviewed
+// and refuses it under strict. See docs/loosening-the-harness.md.
+//
 // `input`/`expect` are intentionally left unconstrained (`{}` — any JSON
 // value): the answer key can be a scalar, string, or nested object depending
 // on what the case exercises (ADR 0010 §1 example uses objects). The locked

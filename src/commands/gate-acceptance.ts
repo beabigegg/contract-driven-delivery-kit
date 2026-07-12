@@ -90,35 +90,53 @@ export function enforceAcceptanceOracle(
   const chatConfirmed = data['confirmation-mode'] === 'chat-confirmed';
   // H2: `chat-confirmed` is a balanced/controlled convenience path. It must
   // never silently substitute for strict acceptance, whose contract
-  // (runtime-contracts.md section 3) is the human-authored hash lock. Under
-  // strict we downgrade chat-confirmed to a warning and fall through to require
-  // the lock, so `confirmation-mode` in an agent-authored oracle can no longer
-  // weaken strict.
+  // (runtime-contracts.md section 3) is the human-authored hash lock.
   const honorChatConfirmed = chatConfirmed && !strict;
-  if (chatConfirmed && strict) {
+  const lock = readAcceptanceLock(cwd);
+  const baseline = lock[changeId];
+  // An explicitly delegated (loop-mode) acceptance recorded by
+  // `cdd-kit accept confirm --autonomous`. It passes NON-strict work — the agent
+  // was told to run the whole thing — but is always surfaced (never treated as a
+  // human sign-off) and is refused under strict.
+  const autonomousReceipt = !!baseline && baseline.mode === 'autonomous' && baseline.hash === currentHash;
+  const autonomousAccepted = autonomousReceipt && !strict;
+
+  if (autonomousAccepted) {
     warnings.push(
-      'confirmation-mode: chat-confirmed is not honored under --strict (runtime-contracts.md section 3); ' +
-      `strict requires the human-authored hash lock — run \`cdd-kit accept relock ${changeId}\`. ` +
-      'Verifying the lock instead.',
+      `acceptance for ${changeId} was recorded in AUTONOMOUS mode — the agent was explicitly delegated this ` +
+      `run and no human reviewed the criteria${baseline?.reason ? ` (reason: ${baseline.reason})` : ''}. ` +
+      'See docs/loosening-the-harness.md.',
     );
-  }
-  if (honorChatConfirmed) {
-    const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
-    if (!confirmation.ok) {
-      errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
-    }
   } else {
-    const lock = readAcceptanceLock(cwd);
-    const baseline = lock[changeId];
-    if (!baseline) {
-      const detail =
-        'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json — an unlocked oracle proves ' +
-        'nothing (an agent can write one). A human must record the baseline by running ' +
-        `\`cdd-kit accept relock ${changeId}\`.`;
-      if (isNewChange || strict) errors.push(detail);
-      else warnings.push(detail + ' (legacy change; not yet migrated to the ADR 0010 hash-lock)');
-    } else if (baseline.hash !== currentHash) {
-      errors.push('acceptance oracle modified after authoring — human must re-confirm.');
+    if (autonomousReceipt && strict) {
+      warnings.push('autonomous acceptance is not honored under --strict; strict requires human confirmation. Verifying the human lock instead.');
+    }
+    if (chatConfirmed && strict) {
+      warnings.push(
+        'confirmation-mode: chat-confirmed is not honored under --strict (runtime-contracts.md section 3); ' +
+        `strict requires the human-authored hash lock — run \`cdd-kit accept relock ${changeId}\`. ` +
+        'Verifying the lock instead.',
+      );
+    }
+    if (honorChatConfirmed) {
+      const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
+      if (!confirmation.ok) {
+        errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
+      }
+    } else {
+      // Human hash-lock path. An autonomous receipt is NOT a human baseline, so
+      // it cannot satisfy this branch (it only passes via `autonomousAccepted`).
+      const humanBaseline = baseline && baseline.mode !== 'autonomous' ? baseline : undefined;
+      if (!humanBaseline) {
+        const detail =
+          'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json — an unlocked oracle proves ' +
+          'nothing (an agent can write one). A human must confirm it by running ' +
+          `\`cdd-kit accept confirm ${changeId}\` (it shows the criteria first), or \`cdd-kit accept relock ${changeId}\`.`;
+        if (isNewChange || strict) errors.push(detail);
+        else warnings.push(detail + ' (legacy change; not yet migrated to the ADR 0010 hash-lock)');
+      } else if (humanBaseline.hash !== currentHash) {
+        errors.push('acceptance oracle modified after authoring — human must re-confirm.');
+      }
     }
   }
 
@@ -152,15 +170,17 @@ export function enforceAcceptanceOracle(
   const hasPassedAcceptanceRun = (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
   const hasPassedFullRun = evidence?.['final-status'] === 'passed'
     && (evidence?.runs ?? []).some((r) => r.phase === 'full' && r.status === 'passed');
-  // H2: the relaxed full-run substitute applies only when chat-confirmed is
-  // actually honored (non-strict). Under strict the acceptance-phase run is
-  // required, matching the lock requirement above.
-  const executionEvidencePassed = hasPassedAcceptanceRun || (honorChatConfirmed && hasPassedFullRun);
+  // The relaxed full-run substitute applies to the lean non-strict paths
+  // (chat-confirmed or autonomous). Under strict the acceptance-phase run is
+  // required, matching the lock requirement above. Autonomy waives human review
+  // of the criteria, never the test evidence.
+  const leanNonStrict = honorChatConfirmed || autonomousAccepted;
+  const executionEvidencePassed = hasPassedAcceptanceRun || (leanNonStrict && hasPassedFullRun);
 
   if (!executionEvidencePassed) {
     if (isNewChange || strict) {
-      if (honorChatConfirmed) {
-        errors.push('chat-confirmed acceptance requires a recorded passed full test run in test-evidence.yml.');
+      if (leanNonStrict) {
+        errors.push('this acceptance requires a recorded passed full test run in test-evidence.yml.');
       } else {
         errors.push(
           'acceptance.yml: no passed `acceptance`-phase run recorded in test-evidence.yml — a self-reported ' +

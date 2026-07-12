@@ -82,6 +82,12 @@ export interface AcceptanceLockEntry {
   'git-author'?: string;
   tty?: boolean;
   timestamp?: string;
+  // How the acceptance was confirmed. `human` (default/legacy) = a person ran an
+  // interactive confirmation after seeing the criteria. `autonomous` = the run
+  // was explicitly delegated to the agent (loop mode) and no human reviewed the
+  // criteria; the gate surfaces this rather than treating it as a human sign-off.
+  mode?: 'human' | 'autonomous';
+  reason?: string;
 }
 
 export type AcceptanceLockFile = Record<string, AcceptanceLockEntry>;
@@ -115,7 +121,12 @@ export function readAcceptanceLock(cwd: string): AcceptanceLockFile {
   }
 }
 
-export function writeAcceptanceLock(cwd: string, changeId: string, hash: string): void {
+export function writeAcceptanceLock(
+  cwd: string,
+  changeId: string,
+  hash: string,
+  options: { mode?: 'human' | 'autonomous'; reason?: string } = {},
+): void {
   const p = lockPath(cwd);
   const current = readAcceptanceLock(cwd);
   const now = new Date().toISOString();
@@ -127,6 +138,8 @@ export function writeAcceptanceLock(cwd: string, changeId: string, hash: string)
   };
   const author = gitAuthorIdentity(cwd);
   if (author !== undefined) entry['git-author'] = author;
+  if (options.mode) entry.mode = options.mode;
+  if (options.reason && options.reason.trim()) entry.reason = options.reason.trim();
   current[changeId] = entry;
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, `${JSON.stringify(current, null, 2)}\n`, 'utf8');

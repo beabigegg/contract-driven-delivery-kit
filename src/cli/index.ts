@@ -780,6 +780,16 @@ accept
     await acceptRelock(changeId);
   });
 
+accept
+  .command('confirm <change-id>')
+  .description('Show the acceptance criteria and record confirmation. Interactive by default (a human types the change id to approve); --autonomous records an explicitly delegated loop-mode acceptance the gate surfaces as un-reviewed.')
+  .option('--autonomous', 'Record an agent-delegated acceptance without human review (loop mode)', false)
+  .option('--reason <reason>', 'Why this run is autonomous (recorded with the acceptance)')
+  .action(async (changeId: string, opts: { autonomous?: boolean; reason?: string }) => {
+    const { acceptConfirm } = await import('../commands/accept.js');
+    await acceptConfirm(changeId, { autonomous: opts.autonomous, reason: opts.reason });
+  });
+
 // ── cdd design confirm ────────────────────────────────────────────────────────
 const design = program
   .command('design')

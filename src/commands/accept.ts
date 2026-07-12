@@ -1,14 +1,20 @@
-// `cdd-kit accept relock <change-id>` (ADR 0010 SS3.1; design.md Maintainer
-// Decisions, 2026-07-08). The ONLY sanctioned way to re-baseline
-// `.cdd/acceptance-lock.json` after a legitimate human edit to `acceptance.yml`
-// -- `.cdd/acceptance-lock.json` is a HARD forbidden path in
-// `.cdd/context-policy.json` (src/commands/context.ts DEFAULT_FORBIDDEN_PATHS),
-// so an agent cannot write it via Edit/Write, and this command is a plain CLI
-// entry point a human runs themselves; it never fires as a side effect of
-// gating, authoring, or any other agent-facing action.
+// `cdd-kit accept relock <change-id>` and `cdd-kit accept confirm <change-id>`
+// (ADR 0010 SS3.1; design.md Maintainer Decisions, 2026-07-08).
+//
+// `.cdd/acceptance-lock.json` is a HARD forbidden path in `.cdd/context-policy.json`
+// (src/commands/context.ts DEFAULT_FORBIDDEN_PATHS), so an agent cannot write it
+// via Edit/Write -- the only way to record acceptance is these sanctioned CLI
+// entry points.
+//
+//   relock   -- re-baseline the lock after a legitimate human edit (legacy path).
+//   confirm  -- show the criteria and require an interactive human keystroke
+//               before recording a `human` acceptance; or, with `--autonomous`,
+//               record an explicitly delegated (loop-mode) acceptance that the
+//               gate surfaces as "no human reviewed the criteria".
 
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { createInterface } from 'readline';
 import { log } from '../utils/logger.js';
 import { isSafeChangeId } from '../utils/change-id.js';
 import { ajv, loadYamlFile } from './gate-shared.js';
@@ -22,25 +28,22 @@ import {
 
 const validateAcceptance = ajv.compile(acceptanceSchema);
 
-export async function acceptRelock(changeId: string): Promise<void> {
+function loadValidatedOracle(changeId: string): { cwd: string; data: AcceptanceFile; hash: string } {
   if (!isSafeChangeId(changeId)) {
     log.error(`Invalid change id "${changeId}". Use letters, numbers, hyphens, or underscores (max 64 chars).`);
     process.exit(1);
   }
-
   const cwd = process.cwd();
   const changeDir = join(cwd, 'specs', 'changes', changeId);
   if (!existsSync(changeDir)) {
     log.error(`change not found: ${changeId} (looked in ${changeDir})`);
     process.exit(1);
   }
-
   const oraclePath = join(changeDir, 'acceptance.yml');
   if (!existsSync(oraclePath)) {
-    log.error(`missing specs/changes/${changeId}/acceptance.yml -- author the oracle before relocking it.`);
+    log.error(`missing specs/changes/${changeId}/acceptance.yml -- author the oracle before confirming it.`);
     process.exit(1);
   }
-
   const { data, parseError } = loadYamlFile<AcceptanceFile>(oraclePath);
   if (parseError) {
     log.error(`acceptance.yml: invalid YAML: ${parseError}`);
@@ -50,16 +53,18 @@ export async function acceptRelock(changeId: string): Promise<void> {
     log.error('acceptance.yml: file is empty or not a YAML mapping');
     process.exit(1);
   }
-
   if (!validateAcceptance(data)) {
-    log.error('acceptance.yml does not match the schema -- fix it before relocking:');
+    log.error('acceptance.yml does not match the schema -- fix it before confirming:');
     for (const e of validateAcceptance.errors ?? []) {
       log.error(`  ${e.instancePath || '/'} ${e.message ?? 'invalid'}`);
     }
     process.exit(1);
   }
+  return { cwd, data: data as AcceptanceFile, hash: computeAcceptanceHash(data as AcceptanceFile) };
+}
 
-  const newHash = computeAcceptanceHash(data as AcceptanceFile);
+export async function acceptRelock(changeId: string): Promise<void> {
+  const { cwd, hash: newHash } = loadValidatedOracle(changeId);
   const existing = readAcceptanceLock(cwd)[changeId];
 
   if (existing && existing.hash === newHash) {
@@ -70,12 +75,70 @@ export async function acceptRelock(changeId: string): Promise<void> {
     return;
   }
 
-  writeAcceptanceLock(cwd, changeId, newHash);
+  writeAcceptanceLock(cwd, changeId, newHash, { mode: 'human' });
 
   if (!existing) {
     log.ok(`recorded a new baseline for ${changeId}: ${newHash}`);
   } else {
     log.ok(`re-baselined ${changeId}: ${existing.hash} -> ${newHash}`);
   }
+  log.info('.cdd/acceptance-lock.json updated. Commit it alongside the acceptance.yml change.');
+}
+
+function printCriteria(data: AcceptanceFile): void {
+  log.info('Acceptance criteria awaiting your approval:');
+  log.blank();
+  for (const c of Array.isArray(data.cases) ? data.cases : []) {
+    const id = typeof c.id === 'string' ? c.id : '(unnamed case)';
+    log.info(`  • ${id}`);
+    for (const field of ['given', 'when', 'then'] as const) {
+      const value = (c as Record<string, unknown>)[field];
+      if (typeof value === 'string' && value.trim()) log.info(`      ${field}: ${value.trim()}`);
+    }
+  }
+  log.blank();
+}
+
+function promptLine(question: string): Promise<string> {
+  return new Promise(resolve => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, answer => { rl.close(); resolve(answer); });
+  });
+}
+
+export async function acceptConfirm(
+  changeId: string,
+  opts: { autonomous?: boolean; reason?: string } = {},
+): Promise<void> {
+  const { cwd, data, hash } = loadValidatedOracle(changeId);
+
+  if (opts.autonomous) {
+    const reason = (opts.reason ?? '').trim() || 'loop mode: run explicitly delegated to the agent';
+    writeAcceptanceLock(cwd, changeId, hash, { mode: 'autonomous', reason });
+    log.warn(`Recorded AUTONOMOUS acceptance for ${changeId} — no human reviewed the criteria.`);
+    log.info(`Reason: ${reason}`);
+    log.info('The gate will surface this as an agent-delegated acceptance, not a human sign-off.');
+    return;
+  }
+
+  // Interactive human confirmation. A non-interactive invocation (e.g. an agent
+  // shelling out) has no TTY and cannot silently satisfy this — it must either
+  // route the human to a terminal or use the explicit --autonomous delegation.
+  if (!process.stdin.isTTY) {
+    log.error('cdd-kit accept confirm needs an interactive terminal so a human can review the criteria.');
+    log.info(`A person should run \`cdd-kit accept confirm ${changeId}\` in a terminal, or, for an explicitly`);
+    log.info(`delegated loop run, use \`cdd-kit accept confirm ${changeId} --autonomous --reason "..."\`.`);
+    process.exit(1);
+  }
+
+  printCriteria(data);
+  const answer = await promptLine(`Type "${changeId}" to confirm you have read and approve these criteria (Ctrl-C to abort): `);
+  if (answer.trim() !== changeId) {
+    log.error('Input did not match the change id — acceptance NOT recorded.');
+    process.exit(1);
+  }
+
+  writeAcceptanceLock(cwd, changeId, hash, { mode: 'human' });
+  log.ok(`Recorded human acceptance for ${changeId}.`);
   log.info('.cdd/acceptance-lock.json updated. Commit it alongside the acceptance.yml change.');
 }
