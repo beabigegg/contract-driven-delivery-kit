@@ -25,13 +25,6 @@ function isMeaningfulValue(value: unknown): boolean {
   return true;
 }
 
-/**
- * Validate a change's acceptance oracle. Legacy/human-relock mode uses the
- * local acceptance lock. chat-confirmed mode instead verifies a GitHub PR
- * comment authored by a repository owner/member/collaborator and bound to the
- * exact oracle hash and current HEAD. In both modes, real acceptance execution
- * evidence remains mandatory.
- */
 export function enforceAcceptanceOracle(
   cwd: string,
   changeDir: string,
@@ -47,7 +40,7 @@ export function enforceAcceptanceOracle(
     if (isNewChange || strict) {
       errors.push(
         'missing required artifact: acceptance.yml — the main agent may draft plain-language criteria, ' +
-        'but a human must confirm them through either the legacy relock path or chat-confirmed receipt.',
+        'but a human must confirm them through either the legacy relock path or an authorized PR comment.',
       );
     } else {
       warnings.push('missing acceptance.yml (legacy change; acceptance oracle not yet backfilled)');
@@ -81,18 +74,17 @@ export function enforceAcceptanceOracle(
   }
 
   const currentHash = computeAcceptanceHash(data);
-  if (data['confirmation-mode'] === 'chat-confirmed') {
+  const chatConfirmed = data['confirmation-mode'] === 'chat-confirmed';
+  if (chatConfirmed) {
     const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
-    if (!confirmation.ok) {
-      errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
-    }
+    if (!confirmation.ok) errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
   } else {
     const lock = readAcceptanceLock(cwd);
     const baseline = lock[changeId];
     if (!baseline) {
       const detail =
         'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json. ' +
-        `Run \`cdd-kit accept relock ${changeId}\`, or set confirmation-mode: chat-confirmed and attach a verified PR confirmation receipt.`;
+        `Run \`cdd-kit accept relock ${changeId}\`, or use confirmation-mode: chat-confirmed with an authorized PR comment.`;
       if (isNewChange || strict) errors.push(detail);
       else warnings.push(detail + ' (legacy change; not yet migrated)');
     } else if (baseline.hash !== currentHash) {
@@ -105,8 +97,7 @@ export function enforceAcceptanceOracle(
       errors.push(`${finding.file}: acceptance driver ${finding.detail}.`);
     } else {
       errors.push(
-        `${finding.file}: acceptance driver ${finding.detail} — read it from the acceptance loader instead ` +
-        'of hardcoding the answer key.',
+        `${finding.file}: acceptance driver ${finding.detail} — read it from the acceptance loader instead of hardcoding the answer key.`,
       );
     }
   }
@@ -122,19 +113,23 @@ export function enforceAcceptanceOracle(
   }
 
   const evidencePath = join(changeDir, 'test-evidence.yml');
-  const hasPassedAcceptanceRun = (() => {
-    if (!existsSync(evidencePath)) return false;
-    const { data: evidence } = loadYamlFile<{ runs?: Array<{ phase?: string; status?: string }> }>(evidencePath);
-    return (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
-  })();
-  if (!hasPassedAcceptanceRun) {
+  const evidence = existsSync(evidencePath)
+    ? loadYamlFile<{ runs?: Array<{ phase?: string; status?: string }>; 'final-status'?: string }>(evidencePath).data
+    : undefined;
+  const hasPassedAcceptanceRun = (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
+  const hasPassedFullEvidence = evidence?.['final-status'] === 'passed'
+    && (evidence?.runs ?? []).some((r) => r.phase === 'full' && r.status === 'passed');
+  const executionEvidencePassed = hasPassedAcceptanceRun || (chatConfirmed && hasPassedFullEvidence);
+
+  if (!executionEvidencePassed) {
     if (isNewChange || strict) {
       errors.push(
-        'acceptance.yml: no passed acceptance-phase run recorded in test-evidence.yml. ' +
-        `The main agent should run \`cdd-kit test run ${changeId} --phase acceptance\`; the user does not need to run it.`,
+        chatConfirmed
+          ? 'chat-confirmed acceptance requires a passed full test run in test-evidence.yml.'
+          : `acceptance.yml: no passed acceptance-phase run recorded. Run \`cdd-kit test run ${changeId} --phase acceptance\`.`,
       );
     } else {
-      warnings.push('missing a passed acceptance-phase test-evidence run (legacy change)');
+      warnings.push('missing passed acceptance execution evidence (legacy change)');
     }
   }
 }
