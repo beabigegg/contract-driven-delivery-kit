@@ -1,3 +1,9 @@
+// `enforceAcceptanceOracle` (ADR 0010; ci-gate-contract.md `enforceAcceptanceOracle`
+// row) -- the gate check for the human-owned `acceptance.yml` per change.
+// Legacy human-relock behavior remains unchanged. `chat-confirmed` is an
+// additional confirmation source that binds an authorized PR comment to the
+// exact oracle hash and PR source-branch HEAD.
+
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { ajv, ajvErrorsToMessages, loadYamlFile } from './gate-shared.js';
@@ -16,7 +22,8 @@ function isMeaningfulValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (trimmed === '' || /^<[^<>]+>$/.test(trimmed)) return false;
+    if (trimmed === '') return false;
+    if (/^<[^<>]+>$/.test(trimmed)) return false;
     return true;
   }
   if (typeof value === 'number' || typeof value === 'boolean') return true;
@@ -39,11 +46,14 @@ export function enforceAcceptanceOracle(
   if (!existsSync(oraclePath)) {
     if (isNewChange || strict) {
       errors.push(
-        'missing required artifact: acceptance.yml — the main agent may draft plain-language criteria, ' +
-        'but a human must confirm them through either the legacy relock path or an authorized PR comment.',
+        'missing required artifact: acceptance.yml (ADR 0010 — this gate invocation requires a human-authored ' +
+        'acceptance oracle pairing input/expect answer keys with the behavior; author one, or scaffold ' +
+        'it once `cdd-kit migrate`/`cdd-kit new` backfill support lands).',
       );
     } else {
-      warnings.push('missing acceptance.yml (legacy change; acceptance oracle not yet backfilled)');
+      warnings.push(
+        'missing acceptance.yml (legacy change; ADR 0010 acceptance oracle not yet backfilled for this change)',
+      );
     }
     return;
   }
@@ -69,13 +79,15 @@ export function enforceAcceptanceOracle(
   const cases = Array.isArray(data.cases) ? data.cases : [];
   const realCases = cases.filter((c) => isMeaningfulValue(c?.input) && isMeaningfulValue(c?.expect));
   if (realCases.length === 0) {
-    errors.push('acceptance.yml: author at least one real case with a concrete input and expected outcome.');
+    errors.push(
+      'acceptance.yml: every case still has a placeholder (or missing) `input`/`expect` — author at least ' +
+      'one real case with a concrete answer key before the gate can pass (AC-1; ADR 0010 §1).',
+    );
     return;
   }
 
   const currentHash = computeAcceptanceHash(data);
-  const chatConfirmed = data['confirmation-mode'] === 'chat-confirmed';
-  if (chatConfirmed) {
+  if (data['confirmation-mode'] === 'chat-confirmed') {
     const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
     if (!confirmation.ok) errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
   } else {
@@ -83,12 +95,13 @@ export function enforceAcceptanceOracle(
     const baseline = lock[changeId];
     if (!baseline) {
       const detail =
-        'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json. ' +
-        `Run \`cdd-kit accept relock ${changeId}\`, or use confirmation-mode: chat-confirmed with an authorized PR comment.`;
+        'acceptance.yml has no recorded baseline in .cdd/acceptance-lock.json — an unlocked oracle proves ' +
+        'nothing (an agent can write one). A human must record the baseline by running ' +
+        `\`cdd-kit accept relock ${changeId}\`.`;
       if (isNewChange || strict) errors.push(detail);
-      else warnings.push(detail + ' (legacy change; not yet migrated)');
+      else warnings.push(detail + ' (legacy change; not yet migrated to the ADR 0010 hash-lock)');
     } else if (baseline.hash !== currentHash) {
-      errors.push('acceptance oracle modified after confirmation — human must re-confirm.');
+      errors.push('acceptance oracle modified after authoring — human must re-confirm.');
     }
   }
 
@@ -97,7 +110,8 @@ export function enforceAcceptanceOracle(
       errors.push(`${finding.file}: acceptance driver ${finding.detail}.`);
     } else {
       errors.push(
-        `${finding.file}: acceptance driver ${finding.detail} — read it from the acceptance loader instead of hardcoding the answer key.`,
+        `${finding.file}: acceptance driver ${finding.detail} — read it from the acceptance loader instead ` +
+        'of hardcoding the answer key (AC-4; design.md Q2).',
       );
     }
   }
@@ -108,28 +122,29 @@ export function enforceAcceptanceOracle(
       .map((r) => r?.id)
       .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
     for (const ruleId of findUnboundRules(cwd, changeId, ruleIds)) {
-      errors.push(`acceptance rule "${ruleId}" has no bound test in test/acceptance/.`);
+      errors.push(
+        `acceptance rule "${ruleId}" has no bound test in test/acceptance/ (--strict; ADR 0010 §4).`,
+      );
     }
   }
 
   const evidencePath = join(changeDir, 'test-evidence.yml');
-  const evidence = existsSync(evidencePath)
-    ? loadYamlFile<{ runs?: Array<{ phase?: string; status?: string }>; 'final-status'?: string }>(evidencePath).data
-    : undefined;
-  const hasPassedAcceptanceRun = (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
-  const hasPassedFullEvidence = evidence?.['final-status'] === 'passed'
-    && (evidence?.runs ?? []).some((r) => r.phase === 'full' && r.status === 'passed');
-  const executionEvidencePassed = hasPassedAcceptanceRun || (chatConfirmed && hasPassedFullEvidence);
-
-  if (!executionEvidencePassed) {
+  const hasPassedAcceptanceRun = (() => {
+    if (!existsSync(evidencePath)) return false;
+    const { data: evidence } = loadYamlFile<{ runs?: Array<{ phase?: string; status?: string }> }>(evidencePath);
+    return (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
+  })();
+  if (!hasPassedAcceptanceRun) {
     if (isNewChange || strict) {
       errors.push(
-        chatConfirmed
-          ? 'chat-confirmed acceptance requires a passed full test run in test-evidence.yml.'
-          : `acceptance.yml: no passed acceptance-phase run recorded. Run \`cdd-kit test run ${changeId} --phase acceptance\`.`,
+        'acceptance.yml: no passed `acceptance`-phase run recorded in test-evidence.yml — a self-reported ' +
+        'pass is not enough (AC-5; ADR 0005 §6). Run `cdd-kit test run <change-id> --phase acceptance`.',
       );
     } else {
-      warnings.push('missing passed acceptance execution evidence (legacy change)');
+      warnings.push(
+        'missing a passed `acceptance`-phase test-evidence run (legacy change; run `cdd-kit test run ' +
+        '<change-id> --phase acceptance`)',
+      );
     }
   }
 }
