@@ -87,7 +87,8 @@ export function enforceAcceptanceOracle(
   }
 
   const currentHash = computeAcceptanceHash(data);
-  if (data['confirmation-mode'] === 'chat-confirmed') {
+  const chatConfirmed = data['confirmation-mode'] === 'chat-confirmed';
+  if (chatConfirmed) {
     const confirmation = verifyChatAcceptance(cwd, changeDir, changeId, currentHash);
     if (!confirmation.ok) errors.push(`chat-confirmed acceptance is not verified: ${confirmation.error}`);
   } else {
@@ -129,17 +130,24 @@ export function enforceAcceptanceOracle(
   }
 
   const evidencePath = join(changeDir, 'test-evidence.yml');
-  const hasPassedAcceptanceRun = (() => {
-    if (!existsSync(evidencePath)) return false;
-    const { data: evidence } = loadYamlFile<{ runs?: Array<{ phase?: string; status?: string }> }>(evidencePath);
-    return (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
-  })();
-  if (!hasPassedAcceptanceRun) {
+  const evidence = existsSync(evidencePath)
+    ? loadYamlFile<{ runs?: Array<{ phase?: string; status?: string }>; 'final-status'?: string }>(evidencePath).data
+    : undefined;
+  const hasPassedAcceptanceRun = (evidence?.runs ?? []).some((r) => r.phase === 'acceptance' && r.status === 'passed');
+  const hasPassedFullRun = evidence?.['final-status'] === 'passed'
+    && (evidence?.runs ?? []).some((r) => r.phase === 'full' && r.status === 'passed');
+  const executionEvidencePassed = hasPassedAcceptanceRun || (chatConfirmed && hasPassedFullRun);
+
+  if (!executionEvidencePassed) {
     if (isNewChange || strict) {
-      errors.push(
-        'acceptance.yml: no passed `acceptance`-phase run recorded in test-evidence.yml — a self-reported ' +
-        'pass is not enough (AC-5; ADR 0005 §6). Run `cdd-kit test run <change-id> --phase acceptance`.',
-      );
+      if (chatConfirmed) {
+        errors.push('chat-confirmed acceptance requires a recorded passed full test run in test-evidence.yml.');
+      } else {
+        errors.push(
+          'acceptance.yml: no passed `acceptance`-phase run recorded in test-evidence.yml — a self-reported ' +
+          'pass is not enough (AC-5; ADR 0005 §6). Run `cdd-kit test run <change-id> --phase acceptance`.',
+        );
+      }
     } else {
       warnings.push(
         'missing a passed `acceptance`-phase test-evidence run (legacy change; run `cdd-kit test run ' +
