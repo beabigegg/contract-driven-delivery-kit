@@ -140,6 +140,9 @@ export function runtimeParity(options: { runId?: string; mutations?: string; jso
       log.info(`Estimated token reduction: ${result.report.metrics.estimated_token_reduction_percent}%`);
       log.info(`Parity report: ${result.path}`);
     }
-    return result.report.verdicts.equivalent ? 0 : 1;
+    // Only a proven `equivalent` verdict is a success; `inconclusive` (no
+    // mutation corpus) and `divergent` both exit non-zero so parity is never
+    // rubber-stamped from two green runs alone.
+    return result.report.verdicts.equivalent === 'equivalent' ? 0 : 1;
   } catch (error) { log.error(error instanceof Error ? error.message : String(error)); return 2; }
 }

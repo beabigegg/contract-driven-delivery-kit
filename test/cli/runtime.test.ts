@@ -224,7 +224,7 @@ describe('agent-native runtime', () => {
     const parity = runCli(['runtime', 'parity', state.run_id, '--mutations', mutationsPath, '--json'], { cwd: repo, home });
     expect(parity.status).toBe(1); // strict correctly rejects the intentionally absent legacy artifacts
     const parityReport = JSON.parse(parity.stdout).report;
-    expect(parityReport.verdicts).toMatchObject({ runtime: 'passed', strict: 'failed', equivalent: false, strict_compatible: true });
+    expect(parityReport.verdicts).toMatchObject({ runtime: 'passed', strict: 'failed', equivalent: 'divergent', strict_compatible: true });
     expect(parityReport.verdicts.mutation_equivalent).toBe(false);
     expect(parityReport.detection.false_positives).toContain('cache-branch-shape-drift');
     expect(parityReport.metrics.legacy_required_artifacts).toBe(7);

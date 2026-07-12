@@ -1,11 +1,52 @@
 import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { spawnSync } from 'child_process';
+import yaml from 'js-yaml';
 
 interface GitHubComment {
   id?: number;
   body?: string;
   user?: { login?: string };
   author_association?: string;
+}
+
+export interface AcceptanceAuthorization {
+  logins: string[];
+  associations: string[];
+}
+
+// Who may confirm chat-native acceptance. Default: only the repository OWNER.
+// `MEMBER`/`COLLABORATOR` are deliberately NOT trusted by default -- both are
+// broad (any org member, anyone with write access, including bot accounts). A
+// project widens or pins trust explicitly in `.cdd/policy.yml`:
+//
+//   acceptance:
+//     authorized_logins: [maintainer]        # pin to specific GitHub identities
+//     authorized_associations: [OWNER, MEMBER] # or re-broaden by role
+//
+// This does not make the confirmation unforgeable by an agent that holds a
+// qualifying credential -- that requires binding the approval to the human's
+// own session/channel -- but it removes needless trust surface.
+export const DEFAULT_ACCEPTANCE_AUTHORIZATION: AcceptanceAuthorization = { logins: [], associations: ['OWNER'] };
+
+export function acceptanceAuthorization(cwd: string): AcceptanceAuthorization {
+  try {
+    const path = join(cwd, '.cdd', 'policy.yml');
+    if (!existsSync(path)) return DEFAULT_ACCEPTANCE_AUTHORIZATION;
+    const policy = yaml.load(readFileSync(path, 'utf8'), { schema: yaml.JSON_SCHEMA }) as {
+      acceptance?: { authorized_logins?: unknown; authorized_associations?: unknown };
+    } | null;
+    const config = policy?.acceptance ?? {};
+    const logins = Array.isArray(config.authorized_logins)
+      ? config.authorized_logins.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    const associations = Array.isArray(config.authorized_associations) && config.authorized_associations.length > 0
+      ? config.authorized_associations.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : ['OWNER'];
+    return { logins, associations };
+  } catch {
+    return DEFAULT_ACCEPTANCE_AUTHORIZATION;
+  }
 }
 
 export interface ChatAcceptanceVerification {
@@ -78,8 +119,18 @@ export function commentConfirmsAcceptance(
   changeId: string,
   acceptanceHash: string,
   head: string,
+  authorization: AcceptanceAuthorization = DEFAULT_ACCEPTANCE_AUTHORIZATION,
 ): boolean {
-  if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association ?? '')) return false;
+  const login = comment.user?.login ?? '';
+  const association = comment.author_association ?? '';
+  // A named-login allowlist is the strongest binding (GitHub logins are unique,
+  // authenticated identities), so when present it fully governs and the coarse
+  // association tier is ignored. Otherwise fall back to the association
+  // allowlist, which defaults to OWNER-only.
+  const authorized = authorization.logins.length > 0
+    ? authorization.logins.includes(login)
+    : authorization.associations.includes(association);
+  if (!authorized) return false;
   const expectedLines = [
     'CDD-ACCEPTANCE-CONFIRMATION v1',
     `change-id: ${changeId}`,
@@ -111,11 +162,13 @@ export function verifyChatAcceptance(
   const comments = fetchComments(cwd, context.repository, context.prNumber);
   if (!comments) return { ok: false, error: 'unable to retrieve pull-request comments for acceptance verification' };
 
+  const authorization = acceptanceAuthorization(cwd);
   const match = [...comments].reverse().find(comment => commentConfirmsAcceptance(
     comment,
     changeId,
     acceptanceHash,
     context.acceptedHead,
+    authorization,
   ));
   if (!match) {
     return {

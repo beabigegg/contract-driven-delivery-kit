@@ -10,6 +10,18 @@ import type { ExecutionCapsule } from './types.js';
 type MutationVerdict = 'caught' | 'missed' | 'not-applicable';
 interface MutationMatrix { mutations: Record<string, { strict: MutationVerdict; runtime: MutationVerdict; strict_category?: string; runtime_category?: string }> }
 
+export type ParityVerdict = 'equivalent' | 'inconclusive' | 'divergent';
+
+// Parity cannot be claimed from two green runs alone: runtime-contracts.md section 9
+// requires a mutation corpus, and this repo's own promoted learning is that a green
+// check proves nothing until a mutation turns it red. Without mutation evidence the
+// only honest verdict is `inconclusive` -- never `equivalent`, which the previous
+// `mutationEquivalent ?? true` fallback silently produced.
+export function classifyParityVerdict(aligned: boolean, mutationEquivalent: boolean | null): ParityVerdict {
+  if (!aligned || mutationEquivalent === false) return 'divergent';
+  return mutationEquivalent === null ? 'inconclusive' : 'equivalent';
+}
+
 function strictCategories(output: string): string[] {
   const categories = new Set<string>();
   const rules: Array<[string, RegExp]> = [
@@ -49,6 +61,7 @@ export function compareRuntimeWithStrict(cwd = process.cwd(), runId?: string, mu
   const mutations = mutationMatrix ? Object.entries(mutationMatrix.mutations).map(([id, result]) => ({ id, ...result })) : [];
   const mutationEquivalent = mutationMatrix ? mutations.every(item => item.strict === item.runtime && item.strict_category === item.runtime_category) : null;
   const categoryEquivalent = JSON.stringify(runtimeCategories) === JSON.stringify(strictCategoryList);
+  const aligned = strictPassed === runtimePassed && categoryEquivalent;
   const prompt = buildRuntimeAgentPrompt(cwd, state.run_id, 'implementer');
   const guidance = auditGuidance(cwd);
   const report = {
@@ -56,7 +69,8 @@ export function compareRuntimeWithStrict(cwd = process.cwd(), runId?: string, mu
     verdicts: {
       runtime: runtime.evidence.final_status,
       strict: strictPassed ? 'passed' : 'failed',
-      equivalent: strictPassed === runtimePassed && categoryEquivalent && (mutationEquivalent ?? true),
+      equivalent: classifyParityVerdict(aligned, mutationEquivalent),
+      parity_conclusive: mutationEquivalent !== null,
       strict_compatible: true,
       category_equivalent: categoryEquivalent,
       mutation_equivalent: mutationEquivalent,

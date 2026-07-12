@@ -24,6 +24,22 @@ describe('chat-confirmed acceptance', () => {
     expect(commentConfirmsAcceptance({ body, author_association: 'NONE' }, changeId, acceptanceHash, head)).toBe(false);
   });
 
+  it('trusts only OWNER by default -- MEMBER and COLLABORATOR are not accepted without explicit policy', () => {
+    expect(commentConfirmsAcceptance({ body, author_association: 'MEMBER' }, changeId, acceptanceHash, head)).toBe(false);
+    expect(commentConfirmsAcceptance({ body, author_association: 'COLLABORATOR' }, changeId, acceptanceHash, head)).toBe(false);
+  });
+
+  it('accepts a policy-allowlisted login regardless of association, and rejects other logins', () => {
+    const authorization = { logins: ['maintainer'], associations: ['OWNER'] };
+    expect(commentConfirmsAcceptance({ body, author_association: 'NONE', user: { login: 'maintainer' } }, changeId, acceptanceHash, head, authorization)).toBe(true);
+    expect(commentConfirmsAcceptance({ body, author_association: 'OWNER', user: { login: 'stranger' } }, changeId, acceptanceHash, head, authorization)).toBe(false);
+  });
+
+  it('can re-broaden trust to MEMBER via an explicit association allowlist', () => {
+    const authorization = { logins: [], associations: ['OWNER', 'MEMBER'] };
+    expect(commentConfirmsAcceptance({ body, author_association: 'MEMBER' }, changeId, acceptanceHash, head, authorization)).toBe(true);
+  });
+
   it('rejects stale criteria or stale HEAD', () => {
     expect(commentConfirmsAcceptance({ body, author_association: 'OWNER' }, changeId, 'c'.repeat(64), head)).toBe(false);
     expect(commentConfirmsAcceptance({ body, author_association: 'OWNER' }, changeId, acceptanceHash, 'd'.repeat(40))).toBe(false);

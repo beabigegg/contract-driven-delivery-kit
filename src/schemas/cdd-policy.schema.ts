@@ -53,6 +53,14 @@ export const cddPolicySchema = {
         },
       }])),
     },
+    acceptance: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        authorized_logins: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
+        authorized_associations: { type: 'array', uniqueItems: true, items: { type: 'string', enum: ['OWNER', 'MEMBER', 'COLLABORATOR'] } },
+      },
+    },
     exceptions: {
       type: 'array',
       default: [],
