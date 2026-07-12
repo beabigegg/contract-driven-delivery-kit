@@ -50,7 +50,7 @@ export function decisionPolicyDigest(cwd: string): string {
   return digest(paths.map(path => existsSync(path) ? digest(readFileSync(path)) : digest('missing')).join('\n'));
 }
 
-interface DecisionRecord {
+export interface DecisionRecord {
   schema_version: '1.0.0';
   run_id: string;
   kind: 'review' | 'approval';
@@ -107,6 +107,109 @@ function latestAgentActor(cwd: string, state: StoredRuntimeState): string | null
   catch { return null; }
 }
 
+interface VerifiedApproval {
+  envelope: SignedApprovalEnvelope;
+  publicKeyFingerprint: string;
+  envelopeDigest: string;
+}
+
+function verifySignedApprovalEnvelope(
+  cwd: string,
+  state: StoredRuntimeState,
+  approvalId: string,
+  absoluteEnvelope: string,
+): VerifiedApproval {
+  if (!existsSync(absoluteEnvelope)) throw new Error(`Signed approval envelope not found: ${absoluteEnvelope}`);
+  const envelopeBytes = readFileSync(absoluteEnvelope);
+  const envelope = JSON.parse(envelopeBytes.toString('utf8')) as SignedApprovalEnvelope;
+  const { signature, ...payload } = envelope;
+  if (envelope.schema_version !== '1.0.0' || !signature) throw new Error('Signed approval envelope is malformed.');
+  if (envelope.approval_id !== approvalId) throw new Error('Signed approval is bound to a different approval ID.');
+  if (envelope.run_id !== state.run_id || envelope.change_id !== state.change_id) throw new Error('Signed approval is bound to a different runtime/change.');
+  if (envelope.working_tree_digest !== decisionWorkingTreeDigest(cwd) || envelope.policy_digest !== decisionPolicyDigest(cwd)) {
+    throw new Error('Signed approval is stale for the current working tree or policy.');
+  }
+  const head = git(cwd, ['rev-parse', 'HEAD']);
+  if (!head || envelope.head_commit !== head) throw new Error('Signed approval is not bound to the current HEAD commit.');
+  if (!/^[a-zA-Z0-9_-]{16,128}$/.test(envelope.nonce)) throw new Error('Signed approval nonce is missing or invalid.');
+  const issued = Date.parse(envelope.issued_at);
+  if (!Number.isFinite(issued) || issued > Date.now() + 60_000) throw new Error('Signed approval timestamp is invalid.');
+
+  const policyPath = join(cwd, '.cdd', 'approval-policy.yml');
+  if (!existsSync(policyPath)) throw new Error('.cdd/approval-policy.yml is required for high-risk approvals.');
+  const trustRevision = approvalTrustRevision(cwd);
+  if (!trustedFileMatches(cwd, trustRevision, '.cdd/approval-policy.yml')) {
+    throw new Error(`Approval policy is not identical to trusted base ${trustRevision}; approver changes must be merged separately before approving high-risk work.`);
+  }
+  const policy = yaml.load(readFileSync(policyPath, 'utf8'), { schema: yaml.JSON_SCHEMA }) as {
+    version?: number; approvals?: Record<string, { provider?: string; actors?: Record<string, { public_key?: string }> }>;
+  };
+  const rule = policy.approvals?.[approvalId];
+  const keyPath = rule?.actors?.[envelope.actor]?.public_key;
+  if (policy.version !== 1 || rule?.provider !== 'signed-file' || !keyPath) throw new Error(`Actor ${envelope.actor} is not a configured signed approver for ${approvalId}.`);
+  if (!trustedFileMatches(cwd, trustRevision, keyPath)) throw new Error(`Approver key ${keyPath} is not identical to the trusted base revision.`);
+  const absoluteKey = keyPath.startsWith('/') ? keyPath : join(cwd, keyPath);
+  if (!existsSync(absoluteKey)) throw new Error(`Approver public key not found: ${keyPath}`);
+  const publicKey = createPublicKey(readFileSync(absoluteKey));
+  if (!verifySignature(null, Buffer.from(signedApprovalPayload(payload)), publicKey, Buffer.from(signature, 'base64'))) {
+    throw new Error('Signed approval signature verification failed.');
+  }
+  if (latestAgentActor(cwd, state) === envelope.actor) throw new Error('A runtime implementation identity cannot approve its own change.');
+  return {
+    envelope,
+    publicKeyFingerprint: digest(publicKey.export({ type: 'spki', format: 'der' })),
+    envelopeDigest: digest(envelopeBytes),
+  };
+}
+
+export function verifyRuntimeApprovalEvidence(
+  cwd: string,
+  state: StoredRuntimeState,
+  approvalId: string,
+  step: Record<string, unknown> | undefined,
+): { valid: boolean; actor?: string; verdict?: 'approved' | 'rejected'; error?: string } {
+  try {
+    if (!step || step.kind !== 'approval' || step.phase !== approvalId) throw new Error('Approval step is missing or mismatched.');
+    const evidenceName = Array.isArray(step.evidence) ? step.evidence.find(value => typeof value === 'string') : undefined;
+    if (typeof evidenceName !== 'string') throw new Error('Approval evidence file is missing.');
+    const recordPath = join(runDir(cwd, state.run_id), evidenceName);
+    if (!existsSync(recordPath)) throw new Error('Approval decision record is missing.');
+    const record = JSON.parse(readFileSync(recordPath, 'utf8')) as DecisionRecord;
+    if (record.schema_version !== '1.0.0' || record.kind !== 'approval' || record.decision_id !== approvalId || record.run_id !== state.run_id) {
+      throw new Error('Approval decision record is malformed or mismatched.');
+    }
+    if (!record.provenance || record.provenance.provider !== 'signed-file') throw new Error('Approval decision lacks signed provenance.');
+    if (record.working_tree_digest !== decisionWorkingTreeDigest(cwd) || record.policy_digest !== decisionPolicyDigest(cwd)) {
+      throw new Error('Approval decision is stale for the current working tree or policy.');
+    }
+    const envelopeRel = record.provenance.envelope;
+    if (envelopeRel.startsWith('/') || envelopeRel.split('/').includes('..')) throw new Error('Approval envelope path escapes the repository.');
+    const absoluteEnvelope = join(cwd, envelopeRel);
+    const verified = verifySignedApprovalEnvelope(cwd, state, approvalId, absoluteEnvelope);
+    if (record.provenance.envelope_digest !== verified.envelopeDigest
+      || record.provenance.key_fingerprint !== verified.publicKeyFingerprint
+      || record.provenance.nonce !== verified.envelope.nonce
+      || record.actor !== verified.envelope.actor
+      || record.scope !== verified.envelope.scope
+      || record.summary !== verified.envelope.reason
+      || record.verdict !== verified.envelope.verdict) {
+      throw new Error('Approval decision record does not match its signed envelope.');
+    }
+    const duplicateNonce = state.steps.filter(candidate => candidate.kind === 'approval').filter(candidate => {
+      const name = Array.isArray(candidate.evidence) ? candidate.evidence.find(value => typeof value === 'string') : undefined;
+      if (typeof name !== 'string') return false;
+      try {
+        const prior = JSON.parse(readFileSync(join(runDir(cwd, state.run_id), name), 'utf8')) as DecisionRecord;
+        return prior.provenance?.nonce === verified.envelope.nonce;
+      } catch { return false; }
+    }).length;
+    if (duplicateNonce !== 1) throw new Error('Signed approval nonce is duplicated or missing from runtime evidence.');
+    return { valid: true, actor: verified.envelope.actor, verdict: verified.envelope.verdict };
+  } catch (error) {
+    return { valid: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export function recordRuntimeReview(
   cwd = process.cwd(),
   runId: string | undefined,
@@ -146,60 +249,34 @@ export function importRuntimeApproval(
     const state = readRuntimeState(cwd, runId);
     const capsule = state.capsule as unknown as ExecutionCapsule;
     const absoluteEnvelope = envelopePath.startsWith('/') ? envelopePath : join(cwd, envelopePath);
-    if (!existsSync(absoluteEnvelope)) throw new Error(`Signed approval envelope not found: ${envelopePath}`);
-    const envelope = JSON.parse(readFileSync(absoluteEnvelope, 'utf8')) as SignedApprovalEnvelope;
-    const { signature, ...payload } = envelope;
-    if (envelope.schema_version !== '1.0.0' || !signature) throw new Error('Signed approval envelope is malformed.');
-    const approvalId = envelope.approval_id;
+    const envelopePreview = existsSync(absoluteEnvelope)
+      ? JSON.parse(readFileSync(absoluteEnvelope, 'utf8')) as SignedApprovalEnvelope
+      : null;
+    if (!envelopePreview) throw new Error(`Signed approval envelope not found: ${envelopePath}`);
+    const approvalId = envelopePreview.approval_id;
     if (!capsule.approvals.includes(approvalId)) throw new Error(`Approval is not required by this capsule: ${approvalId}`);
-    if (envelope.run_id !== state.run_id || envelope.change_id !== state.change_id) throw new Error('Signed approval is bound to a different runtime/change.');
-    if (envelope.working_tree_digest !== decisionWorkingTreeDigest(cwd) || envelope.policy_digest !== decisionPolicyDigest(cwd)) {
-      throw new Error('Signed approval is stale for the current working tree or policy.');
-    }
-    const head = git(cwd, ['rev-parse', 'HEAD']);
-    if (!head || envelope.head_commit !== head) throw new Error('Signed approval is not bound to the current HEAD commit.');
-    if (!/^[a-zA-Z0-9_-]{16,128}$/.test(envelope.nonce)) throw new Error('Signed approval nonce is missing or invalid.');
     const nonceAlreadyUsed = state.steps.some(step => (Array.isArray(step.evidence) ? step.evidence : []).some((name: string) => {
       try {
         const prior = JSON.parse(readFileSync(join(runDir(cwd, state.run_id), name), 'utf8')) as DecisionRecord;
-        return prior.kind === 'approval' && prior.provenance?.nonce === envelope.nonce;
+        return prior.kind === 'approval' && prior.provenance?.nonce === envelopePreview.nonce;
       } catch { return false; }
     }));
     if (nonceAlreadyUsed) throw new Error('Signed approval nonce has already been imported for this runtime.');
-    const issued = Date.parse(envelope.issued_at);
+    const issued = Date.parse(envelopePreview.issued_at);
     if (!Number.isFinite(issued) || issued > Date.now() + 60_000 || Date.now() - issued > 86_400_000) throw new Error('Signed approval timestamp is invalid or older than 24 hours.');
-    const policyPath = join(cwd, '.cdd', 'approval-policy.yml');
-    if (!existsSync(policyPath)) throw new Error('.cdd/approval-policy.yml is required for high-risk approvals.');
-    const trustRevision = approvalTrustRevision(cwd);
-    if (!trustedFileMatches(cwd, trustRevision, '.cdd/approval-policy.yml')) {
-      throw new Error(`Approval policy is not identical to trusted base ${trustRevision}; approver changes must be merged separately before approving high-risk work.`);
-    }
-    const policy = yaml.load(readFileSync(policyPath, 'utf8'), { schema: yaml.JSON_SCHEMA }) as {
-      version?: number; approvals?: Record<string, { provider?: string; actors?: Record<string, { public_key?: string }> }>;
-    };
-    const rule = policy.approvals?.[approvalId];
-    const keyPath = rule?.actors?.[envelope.actor]?.public_key;
-    if (policy.version !== 1 || rule?.provider !== 'signed-file' || !keyPath) throw new Error(`Actor ${envelope.actor} is not a configured signed approver for ${approvalId}.`);
-    if (!trustedFileMatches(cwd, trustRevision, keyPath)) throw new Error(`Approver key ${keyPath} is not identical to the trusted base revision.`);
-    const absoluteKey = keyPath.startsWith('/') ? keyPath : join(cwd, keyPath);
-    if (!existsSync(absoluteKey)) throw new Error(`Approver public key not found: ${keyPath}`);
-    const publicKey = createPublicKey(readFileSync(absoluteKey));
-    if (!verifySignature(null, Buffer.from(signedApprovalPayload(payload)), publicKey, Buffer.from(signature, 'base64'))) {
-      throw new Error('Signed approval signature verification failed.');
-    }
-    const actor = envelope.actor;
-    if (latestAgentActor(cwd, state) === actor) throw new Error('A runtime implementation identity cannot approve its own change.');
+    const verified = verifySignedApprovalEnvelope(cwd, state, approvalId, absoluteEnvelope);
+    const envelope = verified.envelope;
     const safeId = approvalId.replace(/[^a-zA-Z0-9_-]/g, '-');
     const attempt = state.steps.filter(step => step.kind === 'approval' && step.phase === approvalId).length + 1;
     const name = `approval-${safeId}-${String(attempt).padStart(3, '0')}.json`;
     const record: DecisionRecord = {
       schema_version: '1.0.0', run_id: state.run_id, kind: 'approval', decision_id: approvalId,
-      verdict: envelope.verdict, actor,
+      verdict: envelope.verdict, actor: envelope.actor,
       summary: requireText(envelope.reason, 'reason', 10), scope: requireText(envelope.scope, 'scope'),
       working_tree_digest: decisionWorkingTreeDigest(cwd), policy_digest: decisionPolicyDigest(cwd), created_at: new Date().toISOString(),
       provenance: {
-        provider: 'signed-file', key_fingerprint: digest(publicKey.export({ type: 'spki', format: 'der' })),
-        envelope: relative(cwd, absoluteEnvelope), envelope_digest: digest(readFileSync(absoluteEnvelope)), nonce: envelope.nonce,
+        provider: 'signed-file', key_fingerprint: verified.publicKeyFingerprint,
+        envelope: relative(cwd, absoluteEnvelope), envelope_digest: verified.envelopeDigest, nonce: envelope.nonce,
       },
     };
     const path = writeRuntimeArtifact(cwd, state.run_id, name, record);
