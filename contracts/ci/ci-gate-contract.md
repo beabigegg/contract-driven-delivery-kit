@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.9.0
-last-changed: 2026-07-11
+schema-version: 0.10.0
+last-changed: 2026-07-13
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -549,6 +549,25 @@ items) is a corpus-wide `cdd-kit doctor` report, permanently informational. It m
 never be promoted to a gate finding: a per-change artifact cannot see sibling
 screens, so a per-change computation would emit false advisories — the
 context-blind failure ADR 0012 § Never Gated condemns.
+
+### Loosening policy — bone-audit (added by agent-native-cdd-rearchitecture)
+
+Reclassifying a required protection as optional ("loosening") is governed by the
+fat/bone/knob split in `docs/loosening-the-harness.md`. The policy bone-audit
+(`cdd-kit policy check`, folded into `validate` and `gate` when `.cdd/policy.yml`
+exists) mechanically enforces exactly this: a disabled **bone** protection —
+`boundary_guard.enabled`, `fail_on_zero_coverage`,
+`changed_api_requires_typed_request`, `changed_api_requires_typed_response`, and
+any `approvals.*` below `required` — FAILS the audit unless `.cdd/policy.yml`
+records a matching `loosening` acknowledgment (`id` plus a `reason` of ≥10
+characters); a present acknowledgment downgrades the failure to a warning, and a
+stale or unknown acknowledgment warns. Mutation-corpus "no defect escapes"
+evidence is the documented promotion standard (the Promotion Policy above and
+`docs/loosening-the-harness.md`), carried in the acknowledgment's optional
+`evidence` field — recorded and reviewed, not mechanically gated. Consistent with
+this, parity reports `equivalent` only when backed by per-mutation evidence; two
+green runs with none yield `inconclusive`, never `equivalent`. Rationale: a
+stronger agent earns more freedom, never more self-certified trust.
 
 ## Artifact Retention Policy
 

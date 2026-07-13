@@ -32,5 +32,5 @@ tasks:
   - { id: "6.1", section: Verification, title: "Lockfile, encoding, build and typecheck", status: done }
   - { id: "6.2", section: Verification, title: "Targeted and full regression suite", status: done }
   - { id: "6.3", section: Verification, title: "Strict profile remains authoritative; new runtime stays shadow", status: done }
-  - { id: "7.1", section: Archive, title: "Archive change after human acceptance", status: pending }
-  - { id: "7.2", section: Archive, title: "Promote validated learnings after rollout evidence", status: pending }
+  - { id: "7.1", section: Archive, title: "Archive change after human acceptance", status: done }
+  - { id: "7.2", section: Archive, title: "Promote validated learnings after rollout evidence", status: done, note: "Promoted the loosening decision rule to contracts/ci/ci-gate-contract.md (ci 0.10.0) + CLAUDE.md learnings entry 3 (folded, net-zero); chat-confirmed trust detail do-not-promote (contract-reviewer, archive.md)." }
