@@ -222,7 +222,7 @@ describe('cdd-kit doctor', () => {
   it('auto-detects codex provider and checks CODEX.md', () => {
     mkdirSync(join(tmpRepo, '.cdd'), { recursive: true });
     writeFileSync(join(tmpRepo, '.cdd', 'model-policy.json'), JSON.stringify({ provider: 'codex' }), 'utf8');
-    writeFileSync(join(tmpRepo, 'CODEX.md'), '# Codex\n', 'utf8');
+    writeFileSync(join(tmpRepo, 'AGENTS.md'), '# Codex\n', 'utf8');
 
     const r = runCli(['doctor'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, r.stderr).toBe(0);

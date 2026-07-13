@@ -1,6 +1,6 @@
 {
   "name": "contract-driven-delivery",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "description": "Contract-driven delivery kit for AI coding agents with deterministic context indexes, manifest-backed read-scope governance, and orchestrated contracts-first delivery.",
   "keywords": [
     "contract-driven",
@@ -17,6 +17,14 @@
   ],
   "license": "MIT",
   "author": "Contract-Driven Delivery Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beabigegg/contract-driven-delivery-kit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beabigegg/contract-driven-delivery-kit/issues"
+  },
+  "homepage": "https://github.com/beabigegg/contract-driven-delivery-kit#readme",
   "type": "module",
   "publishConfig": {
     "access": "public"

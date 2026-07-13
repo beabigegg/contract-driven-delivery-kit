@@ -15,6 +15,7 @@ import { DEFAULT_CONTRACT_PATH, DEFAULT_INVENTORY_PATH } from '../contracts/pars
 import { detectStack } from '../utils/stack-detect.js';
 import { log } from '../utils/logger.js';
 import type { ProviderOption } from '../utils/provider.js';
+import type { WorkflowProfile } from '../runtime/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string };
@@ -181,6 +182,174 @@ program
       versions:  opts.versions,
     }),
   );
+
+// ── cdd boundary ─────────────────────────────────────────────────────────────
+const boundary = program.command('boundary').description('Inspect and enforce API/data-shape boundary coverage');
+
+boundary
+  .command('init')
+  .description('Generate a fail-closed Boundary Guard manifest scaffold from the canonical API contract')
+  .option('--contract <path>', 'Canonical API contract path', DEFAULT_CONTRACT_PATH)
+  .option('--out <path>', 'Boundary manifest output path', '.cdd/boundary-manifest.yml')
+  .option('--force', 'Replace an existing generated scaffold', false)
+  .action(async (opts: { contract?: string; out?: string; force?: boolean }) => {
+    const { boundaryInit } = await import('../commands/boundary.js');
+    process.exitCode = boundaryInit(opts);
+  });
+
+boundary
+  .command('check')
+  .description('Run changed-operation and non-vacuous Boundary Guard checks')
+  .option('--contract <path>', 'Canonical API contract path', DEFAULT_CONTRACT_PATH)
+  .option('--policy <path>', 'CDD project policy path', '.cdd/policy.yml')
+  .option('--manifest <path>', 'Boundary manifest path', '.cdd/boundary-manifest.yml')
+  .option('--base <revision>', 'Git base revision for changed-operation detection')
+  .option('--head <revision>', 'Git head revision', 'HEAD')
+  .option('--all', 'Check every contracted operation', false)
+  .option('--operation <method-path...>', 'Check one or more explicit operations, e.g. "GET /health"')
+  .option('--verify-generated', 'Replay registered generators and compare their output with committed artifacts', false)
+  .option('--verify-captures', 'Replay registered framework adapters and compare observed serialized boundaries', false)
+  .option('--json', 'Emit machine-readable Boundary Guard result', false)
+  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; verifyGenerated?: boolean; verifyCaptures?: boolean; json?: boolean }) => {
+    const { boundaryCheck } = await import('../commands/boundary.js');
+    process.exitCode = boundaryCheck({ ...opts, operations: opts.operation });
+  });
+boundary.command('capture <operation>')
+  .description('Run configured framework-test-client capture adapters and refresh digest provenance')
+  .option('--variant <id>', 'Capture one variant; defaults to all required variants')
+  .option('--manifest <path>', 'Boundary manifest path', '.cdd/boundary-manifest.yml')
+  .option('--timeout <ms>', 'Per-capture timeout', '300000')
+  .option('--verify', 'Replay the registered adapter and compare with the committed capture/provenance', false)
+  .option('--json', 'Emit JSON', false)
+  .action(async (operation: string, opts: { variant?: string; manifest?: string; timeout?: string; verify?: boolean; json?: boolean }) => {
+    const { boundaryCapture } = await import('../commands/boundary.js');
+    process.exitCode = boundaryCapture({ operation, variant: opts.variant, manifest: opts.manifest, timeout: Number(opts.timeout), verify: opts.verify, json: opts.json });
+  });
+
+// ── cdd work/runtime ─────────────────────────────────────────────────────────
+program
+  .command('work <change-id> <objective...>')
+  .description('Create a deterministic profile, execution capsule, and resumable runtime plan')
+  .option('--provider <provider>', 'Execution provider: claude, codex, or both')
+  .option('--profile <profile>', 'Minimum requested profile: lightweight, balanced, controlled, or strict')
+  .option('--require-acceptance', 'Add the human-authored acceptance oracle to required runtime evidence', false)
+  .option('--base <revision>', 'Git base revision for impact detection')
+  .option('--json', 'Emit runtime state as JSON', false)
+  .action(async (changeId: string, objective: string[], opts: { provider?: string; profile?: string; base?: string; requireAcceptance?: boolean; json?: boolean }) => {
+    if (opts.provider && !['claude', 'codex', 'both'].includes(opts.provider)) {
+      console.error(`Invalid provider: ${opts.provider}`); process.exitCode = 2; return;
+    }
+    if (opts.profile && !['lightweight', 'balanced', 'controlled', 'strict'].includes(opts.profile)) {
+      console.error(`Invalid profile: ${opts.profile}`); process.exitCode = 2; return;
+    }
+    const { runtimePlan } = await import('../commands/runtime.js');
+    process.exitCode = runtimePlan({ changeId, objective: objective.join(' '), provider: opts.provider as any, profile: opts.profile as any, base: opts.base, requireAcceptance: opts.requireAcceptance, json: opts.json });
+  });
+
+const runtime = program.command('runtime').description('Inspect, resume, and verify agent-native runtime runs');
+runtime.command('status [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeShow } = await import('../commands/runtime.js'); process.exitCode = runtimeShow({ runId, json: opts.json });
+});
+runtime.command('resume [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeResume } = await import('../commands/runtime.js'); process.exitCode = runtimeResume({ runId, json: opts.json });
+});
+runtime.command('verify [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeVerify } = await import('../commands/runtime.js'); process.exitCode = runtimeVerify({ runId, json: opts.json });
+});
+runtime.command('parity [run-id]').description('Dual-run runtime verification and the strict compatibility gate')
+  .option('--mutations <path>', 'Mutation detection matrix JSON for category-level parity')
+  .option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { mutations?: string; json?: boolean }) => {
+    const { runtimeParity } = await import('../commands/runtime.js'); process.exitCode = runtimeParity({ runId, mutations: opts.mutations, json: opts.json });
+  });
+runtime.command('review [run-id]')
+  .requiredOption('--verdict <verdict>', 'Review verdict: passed or failed')
+  .requiredOption('--actor <actor>', 'Reviewer identity')
+  .requiredOption('--summary <summary>', 'Review rationale (at least 10 characters)')
+  .option('--json', 'Emit JSON', false)
+  .action(async (runId: string | undefined, opts: { verdict: string; actor: string; summary: string; json?: boolean }) => {
+    if (!['passed', 'failed'].includes(opts.verdict)) {
+      console.error(`Invalid review verdict: ${opts.verdict}. Use passed or failed.`); process.exitCode = 2; return;
+    }
+    const { runtimeReview } = await import('../commands/runtime.js');
+    process.exitCode = runtimeReview({ runId, actor: opts.actor, summary: opts.summary, verdict: opts.verdict as 'passed' | 'failed', json: opts.json });
+  });
+const runtimeApproval = runtime.command('approval').description('Import externally signed high-risk approval decisions');
+runtimeApproval.command('import <file> [run-id]')
+  .option('--json', 'Emit JSON', false)
+  .action(async (file: string, runId: string | undefined, opts: { json?: boolean }) => {
+    const { runtimeApprovalImport } = await import('../commands/runtime.js');
+    process.exitCode = runtimeApprovalImport({ runId, file, json: opts.json });
+  });
+const runtimeAgent = runtime.command('agent').description('Build and record doctrine-selected dynamic agent work');
+runtimeAgent.command('prompt [run-id]')
+  .option('--role <role>', 'Agent role: implementer or reviewer', 'implementer')
+  .option('--json', 'Emit prompt envelope as JSON', false)
+  .action(async (runId: string | undefined, opts: { role: string; json?: boolean }) => {
+    if (!['implementer', 'reviewer'].includes(opts.role)) {
+      console.error(`Invalid agent role: ${opts.role}. Use implementer or reviewer.`); process.exitCode = 2; return;
+    }
+    const { runtimeAgentPrompt } = await import('../commands/runtime.js');
+    process.exitCode = runtimeAgentPrompt({ runId, role: opts.role as 'implementer' | 'reviewer', json: opts.json });
+  });
+runtimeAgent.command('complete [run-id]')
+  .requiredOption('--status <status>', 'Result: passed, failed, or blocked')
+  .requiredOption('--actor <actor>', 'Agent identity')
+  .requiredOption('--summary <summary>', 'Result summary (at least 10 characters)')
+  .option('--file <paths...>', 'Files changed by the agent', [])
+  .option('--json', 'Emit JSON', false)
+  .action(async (runId: string | undefined, opts: { status: string; actor: string; summary: string; file?: string[]; json?: boolean }) => {
+    if (!['passed', 'failed', 'blocked'].includes(opts.status)) {
+      console.error(`Invalid agent status: ${opts.status}. Use passed, failed, or blocked.`); process.exitCode = 2; return;
+    }
+    const { runtimeAgentComplete } = await import('../commands/runtime.js');
+    process.exitCode = runtimeAgentComplete({
+      runId, actor: opts.actor, summary: opts.summary, status: opts.status as 'passed' | 'failed' | 'blocked', files: opts.file ?? [], json: opts.json,
+    });
+  });
+const runtimeCheck = runtime.command('check').description('Plan and execute runtime-native test/quality evidence');
+runtimeCheck.command('plan [run-id]').option('--json', 'Emit JSON', false).action(async (runId: string | undefined, opts: { json?: boolean }) => {
+  const { runtimeChecksPlan } = await import('../commands/runtime.js'); process.exitCode = runtimeChecksPlan({ runId, json: opts.json });
+});
+runtimeCheck.command('run [run-id]')
+  .option('--check <id>', 'Run one check id from the capsule')
+  .option('--all', 'Run every selected check in order', false)
+  .option('--timeout <ms>', 'Per-check timeout', '300000')
+  .option('--json', 'Emit JSON', false)
+  .action(async (runId: string | undefined, opts: { check?: string; all?: boolean; timeout?: string; json?: boolean }) => {
+    const { runtimeChecksRun } = await import('../commands/runtime.js');
+    process.exitCode = runtimeChecksRun({ runId, check: opts.check, all: opts.all, timeout: Number(opts.timeout), json: opts.json });
+  });
+runtime.command('migrate')
+  .description('Dry-run or apply the reversible project/user migration to the agent-native runtime')
+  .option('--yes', 'Apply missing project assets and provider updates', false)
+  .option('--provider <provider>', 'Provider: auto, claude, codex, or both', 'auto')
+  .option('--import-active', 'Import active legacy changes as strict runtime capsules without rewriting them', false)
+  .option('--json', 'Emit JSON', false)
+  .action(async (opts: { yes?: boolean; provider?: ProviderOption; importActive?: boolean; json?: boolean }) => {
+    const { agentNativeMigrate } = await import('../commands/agent-native-migrate.js');
+    process.exitCode = await agentNativeMigrate(opts);
+  });
+
+const policyCommand = program.command('policy').description('Validate agent-native project policy and compatibility invariants');
+policyCommand.command('check')
+  .option('--path <path>', 'Policy path', '.cdd/policy.yml')
+  .option('--json', 'Emit JSON', false)
+  .action(async (opts: { path?: string; json?: boolean }) => {
+    const { policyCheck } = await import('../commands/policy.js');
+    process.exitCode = policyCheck(opts);
+  });
+
+const guidance = program.command('guidance').description('Measure and safely migrate recurring provider guidance');
+guidance.command('audit').option('--json', 'Emit JSON', false).action(async (opts: { json?: boolean }) => {
+  const { guidanceAuditCommand } = await import('../commands/guidance.js'); process.exitCode = guidanceAuditCommand(opts);
+});
+guidance.command('migrate')
+  .option('--apply', 'Write migration proposals and audit record', false)
+  .option('--replace', 'Replace project guidance after creating rollback copies', false)
+  .option('--json', 'Emit JSON', false)
+  .action(async (opts: { apply?: boolean; replace?: boolean; json?: boolean }) => {
+    const { guidanceMigrateCommand } = await import('../commands/guidance.js'); process.exitCode = guidanceMigrateCommand(opts);
+  });
 
 // ── cdd lint-agents ───────────────────────────────────────────────────────────
 program
@@ -479,9 +648,15 @@ program
   .command('gate <change-id>')
   .description('Run delivery-quality gate for a change (required artifacts, tasks, tier, contracts)')
   .option('--strict', 'Treat pending tasks (except section 7) as errors', false)
+  .option('--profile <profile>', 'Agent-native profile: lightweight, balanced, controlled, or strict')
+  .option('--require-acceptance', 'Require the human-authored acceptance oracle for this invocation', false)
+  .option('--run-id <run-id>', 'Use a specific runtime run; otherwise the newest valid run for this change is selected')
   .option('--explain', 'On failure, add a plain-language reason and a "say this to Claude" hint for each problem', false)
-  .action(async (id: string, opts: { strict?: boolean; explain?: boolean }) => {
-    await gate(id, { strict: opts.strict, explain: opts.explain });
+  .action(async (id: string, opts: { strict?: boolean; profile?: string; requireAcceptance?: boolean; runId?: string; explain?: boolean }) => {
+    if (opts.profile && !['lightweight', 'balanced', 'controlled', 'strict'].includes(opts.profile)) {
+      console.error(`Invalid profile: ${opts.profile}`); process.exitCode = 2; return;
+    }
+    await gate(id, { strict: opts.strict, profile: opts.profile as WorkflowProfile | undefined, requireAcceptance: opts.requireAcceptance, runId: opts.runId, explain: opts.explain });
   });
 
 // ── cdd archive <change-id> ───────────────────────────────────────────────────
@@ -603,6 +778,16 @@ accept
   .action(async (changeId: string) => {
     const { acceptRelock } = await import('../commands/accept.js');
     await acceptRelock(changeId);
+  });
+
+accept
+  .command('confirm <change-id>')
+  .description('Show the acceptance criteria and record confirmation. Interactive by default (a human types the change id to approve); --autonomous records an explicitly delegated loop-mode acceptance the gate surfaces as un-reviewed.')
+  .option('--autonomous', 'Record an agent-delegated acceptance without human review (loop mode)', false)
+  .option('--reason <reason>', 'Why this run is autonomous (recorded with the acceptance)')
+  .action(async (changeId: string, opts: { autonomous?: boolean; reason?: string }) => {
+    const { acceptConfirm } = await import('../commands/accept.js');
+    await acceptConfirm(changeId, { autonomous: opts.autonomous, reason: opts.reason });
   });
 
 // ── cdd design confirm ────────────────────────────────────────────────────────
@@ -989,6 +1174,29 @@ program
   .action(async (opts: { json?: boolean }) => {
     const { integrate } = await import('../commands/integrate.js');
     await integrate({ json: opts.json });
+  });
+
+// ── cdd report ────────────────────────────────────────────────────────────────
+// File a problem about the CDD kit ITSELF as a GitHub issue on the kit's
+// upstream repo. Drafts by default; only posts with --confirm (outward-facing).
+program
+  .command('report')
+  .description('Report a cdd-kit problem to GitHub. Drafts by default; add --confirm to file it after the maintainer approves.')
+  .option('--title <title>', 'Short issue title (required)')
+  .option('--body <body>', 'What went wrong / how to reproduce (required)')
+  .option('--category <category>', 'One of: bug, gate-false-positive, crash, docs, other', 'bug')
+  .option('--repo <owner/name>', 'Target repo (default: the kit upstream repo or $CDD_REPORT_REPO)')
+  .option('--label <label...>', 'Optional existing GitHub labels to apply')
+  .option('--change-id <id>', 'Optional CDD change id for context')
+  .option('--run-id <id>', 'Optional runtime run id for context')
+  .option('--confirm', 'Actually file the issue (default is a dry-run draft)', false)
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (opts: {
+    title?: string; body?: string; category?: string; repo?: string; label?: string[];
+    changeId?: string; runId?: string; confirm?: boolean; json?: boolean;
+  }) => {
+    const { report } = await import('../commands/report.js');
+    process.exitCode = await report(opts);
   });
 
 // ── cdd changelog build ───────────────────────────────────────────────────────

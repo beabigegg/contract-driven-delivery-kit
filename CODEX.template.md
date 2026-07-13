@@ -1,29 +1,37 @@
 # CODEX.md
 
+<!-- cdd-kit:managed:start -->
+
 This project uses Contract-Driven Delivery (CDD).
+
+Codex reads the repository `AGENTS.md` as the durable project instruction file.
+This file is retained for compatibility with older cdd-kit installations; keep
+authoritative project rules in `AGENTS.md`.
 
 ## Workflow
 
 - Treat `contracts/` as the current source of truth.
-- Treat `specs/changes/<change-id>/` as active work context.
 - Treat `specs/archive/` as historical context only; do not use it for current planning unless explicitly asked.
-- Start non-trivial work by creating a change with `cdd-kit new <change-id>`.
-- Run `cdd-kit context-scan` before classification when project context may be stale.
-- Run `cdd-kit gate <change-id>` before proposing a commit or PR.
+- Start work with `cdd-kit work <change-id> <objective> --provider codex`.
+- Follow the execution capsule and load only its selected Doctrine through
+  `cdd-kit runtime agent prompt <run-id>`.
+- Run `cdd-kit runtime check run <run-id> --all`, satisfy review/approval
+  requirements, then run `cdd-kit runtime verify <run-id>` and
+  `cdd-kit gate <change-id>`.
+- Use `cdd-kit new` and `specs/changes/<id>` only when the capsule selects the
+  strict legacy workflow.
 
 ## Recommended MCP Tools
 
 Configure MCP-capable agents to use the cdd-kit server:
 
 ```bash
-claude mcp add --scope user cdd-kit -- cdd-kit mcp
-claude mcp list
+codex mcp add cdd-kit -- cdd-kit mcp
+codex mcp list
 ```
 
-For Claude Code, use `claude mcp add` so the server is written to
-`~/.claude.json`. Do not rely on manually adding `mcpServers` to
-`~/.claude/settings.json`; that is a Claude Code UI settings format and is not
-the MCP registry read by the CLI.
+Codex stores MCP configuration in `~/.codex/config.toml`. The CLI command above
+is preferred over editing the TOML by hand.
 
 Prefer these MCP tools before reading source files: `cdd_graph_context`,
 `cdd_graph_query`, `cdd_graph_impact`, `cdd_index_query`, and
@@ -34,26 +42,10 @@ available, use the equivalent CLI commands: `cdd-kit graph ...` and
 
 ## Context Governance
 
-Read `specs/changes/<change-id>/context-manifest.md` before using file-reading or search tools.
-
-- Read only paths allowed by the manifest or approved expansions.
-- Before invoking an agent with known concrete reads, run
-  `cdd-kit context check <change-id> --path <paths...>`. If it fails and the
-  reads are legitimate, expand `Allowed Paths` or approve a Context Expansion
-  Request before the agent reads the files.
-- Do not use broad repository search unless the manifest authorizes it.
-- If more context is needed, stop and write a Context Expansion Request in the manifest.
-- Optional `agent-log/*.yml` notes may include `files-read:` when that list is cheap and accurate.
-
-Optional `agent-log/*.yml` read note:
-
-```yaml
-files-read:
-  - contracts/api/api-contract.md
-  - src/server/routes/users.ts
-```
-
-Every entry should be a repo-relative path. Do not reconstruct this list after the fact.
+Use capsule `affected` and `write_scope` as the active context boundary. If it
+is empty or incomplete, resolve impact with graph/contract tools and escalate
+unknown boundaries before editing. Strict legacy runs continue to use
+`context-manifest.md`.
 
 ## Hot And Cold Data
 
@@ -63,17 +55,6 @@ Every entry should be a repo-relative path. Do not reconstruct this list after t
 
 Cold historical data is evidence, not current requirements.
 
-## Operational Notes
-
-- After each agent returns, tick the related `tasks.yml` items immediately,
-  then move to the next agent.
-- Do not start backend/frontend/test implementation agents until
-  `implementation-plan.md` is ready; implementation agents should follow that
-  plan and report `blocked` instead of inferring missing scope from chat
-  history.
-- Pre-existing test failures may be excluded from the current gate only when
-  `qa-report.md` records the failing test, baseline evidence, why it is outside
-  scope, owner, and follow-up.
-- For MySQL migrations, treat ENUM contraction and any DDL requiring
-  `ALGORITHM=COPY` as high risk on large tables; require row-count/runtime
-  estimate, online migration or maintenance window, and rollback plan.
+Runtime evidence, reviewer verdicts, and approvals are digest-bound. Re-run them
+after implementation changes; stale evidence never passes.
+<!-- cdd-kit:managed:end -->

@@ -1,6 +1,10 @@
 # Contract-Driven Delivery Kit
 
-**cdd-kit** is a contract-driven delivery kit for AI coding agents. It started with Claude Code skills and now keeps the core workflow provider-neutral: contracts-first, test-first, spec-first. Every change goes through classification, contract review, TDD, implementation, and gate verification, with deterministic context indexes to keep agent work targeted.
+**cdd-kit** is a contract-driven delivery runtime for Claude Code and Codex. Its
+default agent-native flow selects a risk profile, a small capability/Doctrine
+set, executable checks, independent review, and approvals. Contracts and
+deterministic evidence remain authoritative; routine work no longer requires a
+fixed agent procession or seven hand-authored change artifacts.
 
 Designed for solo developers and small teams building brownfield production systems (dashboards, APIs, workflow tools, data apps), especially when non-engineers or product owners want AI to do the implementation while they stay in the spec-author and reviewer seat.
 
@@ -30,8 +34,8 @@ cd your-repo
 # 3. Deploy the kit (one command: scaffold + arm chokepoints + MCP + indexes)
 cdd-kit setup
 
-# 4. Open Claude Code in your repo and tell Claude:
-# "Use /cdd-new to set up the project. My system is a <brief description>."
+# 4. Start agent-native work from Claude Code or Codex:
+cdd-kit work add-jwt-auth "Add JWT authentication to the API"
 ```
 
 > `cdd-kit setup` is the one-command path: it scaffolds the project, arms the
@@ -43,7 +47,53 @@ cdd-kit setup
 
 ---
 
-## How to Direct Claude Code
+## Agent-native workflow (default)
+
+```bash
+cdd-kit work add-jwt-auth "Add JWT authentication to the API" --provider claude
+cdd-kit runtime agent prompt <run-id>
+# implement inside capsule scope
+cdd-kit runtime agent complete <run-id> --status passed --actor claude --summary "Implemented scoped JWT behavior"
+cdd-kit runtime check run <run-id> --all
+# Controlled only: independent reviewer + named approvals
+cdd-kit runtime approval import signed-approval.json <run-id>
+cdd-kit runtime verify <run-id>
+cdd-kit gate add-jwt-auth
+```
+
+Use `--provider codex` for Codex. Lightweight, balanced, and controlled profiles
+store concise state/evidence under `.cdd/runtime/`; `specs/changes/<id>` and the
+legacy seven artifacts are not required. Controlled work cannot pass without a
+digest-bound independent review. High-risk approval identity is verified using
+trusted public keys in `.cdd/approval-policy.yml`; free-form `--actor` text
+cannot approve work, and configured approvals cannot be skipped.
+The human-authored acceptance oracle is retained: strict always requires it;
+controlled requires it when policy/capsule risk activates it or the user passes
+`--require-acceptance`. The runtime never invents or silently relocks an oracle.
+
+`cdd-kit runtime agent prompt` loads only Doctrine selected by the capsule.
+Checks, implementation records, review, and approvals become stale after source
+or policy changes. `cdd-kit guidance audit` measures recurring guidance cost;
+`cdd-kit runtime parity` compares a completed runtime with the strict lane.
+
+Hit a problem with the kit itself? `cdd-kit report --title "..." --body "..."`
+drafts a GitHub issue (enriched with version/environment context) against the
+kit's upstream repo. It only files when you add `--confirm`, so an agent shows
+you the draft first and files it only after you approve. The same capability is
+exposed to MCP clients (Claude Code, Codex) as the `cdd_report_problem` tool.
+
+Thinking about giving agents more autonomy and dropping some of this harness?
+Read `docs/loosening-the-harness.md` first -- it is the decision rule for which
+checks are ceremony you can drop and which are load-bearing bone to keep as
+agents get stronger, plus how to loosen reversibly on mutation evidence.
+
+## Strict compatibility workflow
+
+The following `/cdd-new` documentation describes the preserved strict workflow
+for existing projects and explicit maximum-ceremony changes. It is no longer the
+default for balanced/controlled work.
+
+### How to Direct Claude Code in strict mode
 
 > All workflows are started by typing a **natural language instruction** to Claude Code in your IDE or terminal. The `/cdd-*` prefixed commands are Claude Code skills — not shell commands.
 
@@ -75,7 +125,7 @@ Then fill your contracts in this order (Claude can help draft them):
 
 ---
 
-### Starting a new task / feature / bug fix
+### Starting a strict legacy task / feature / bug fix
 
 Type this in Claude Code:
 
@@ -477,13 +527,14 @@ change>`.
 
 ### `cdd-kit init`
 
-Installs agents and skill into `~/.claude` and scaffolds project files.
+Installs Claude assets into `~/.claude`, Codex skills into
+`$HOME/.agents/skills`, and scaffolds project files.
 
 ```bash
 cdd-kit init                  # global + local (recommended)
 cdd-kit init --global-only    # only install into ~/.claude
 cdd-kit init --local-only     # only scaffold project files
-cdd-kit init --provider codex # scaffold Codex-oriented project guidance
+cdd-kit init --provider codex # install Codex skill + scaffold AGENTS.md guidance
 cdd-kit init --provider both  # scaffold Claude Code + Codex guidance
 cdd-kit init --force          # overwrite existing project files
 cdd-kit init --no-arm         # scaffold without arming enforcement chokepoints
@@ -505,11 +556,15 @@ Creates: `contracts/`, `specs/templates/`, provider guidance files (`CLAUDE.md`,
 
 `.cdd/model-policy.json` stores role-to-model **classes** (`opus`, `sonnet`, `haiku`) instead of provider release IDs such as `claude-opus-4-7`. This keeps the policy stable across Claude and Codex adapters; provider-specific tooling can map the class to the concrete model available in that environment.
 
-Recommended: register the cdd-kit MCP server with Claude Code after init:
+Recommended: register the cdd-kit MCP server with the selected provider after
+init:
 
 ```bash
 claude mcp add --scope user cdd-kit -- cdd-kit mcp
 claude mcp list
+
+codex mcp add cdd-kit -- cdd-kit mcp
+codex mcp list
 ```
 
 This writes the server to `~/.claude.json` and exposes graph/code-map tools
@@ -531,14 +586,22 @@ cdd-kit update --provider codex
 cdd-kit update --provider both
 ```
 
-Codex currently has no global assets to update, so Codex-only projects report that they are already up to date. Run `cdd-kit init --local-only --provider codex` if a project is missing `CODEX.md`.
+Codex updates the provider-neutral `cdd-work` skill under
+`$HOME/.agents/skills`. Codex project guidance is `AGENTS.md`; `CODEX.md`
+remains as a compatibility pointer for older cdd-kit installations.
+
+User-level assets are tracked in `~/.cdd-kit/install-manifest.json`. Interactive
+updates show a dry-run and back up provider assets under
+`~/.cdd-kit/backups/<timestamp>/`. npm `postinstall` updates only assets that
+were previously owned by cdd-kit and remain unmodified; user-edited files are
+left untouched until an explicit `cdd-kit update --yes`.
 
 ---
 
 ### After Updating the npm Package
 
 Updating npm only replaces the `cdd-kit` CLI package. Existing repos and
-global Claude Code assets keep their previously copied agents, skills,
+global Claude Code/Codex assets keep their previously copied agents, skills,
 templates, hooks, and `.cdd/model-policy.json` until you sync them.
 
 Simplest path — one idempotent command that detects the upgrade and re-wires
@@ -617,6 +680,51 @@ cdd-kit upgrade --yes
 cdd-kit migrate --all
 cdd-kit doctor --strict
 ```
+
+---
+
+### Agent-native runtime and Boundary Guard
+
+The agent-native runtime is the default for lightweight, balanced, and
+controlled profiles; the existing strict workflow remains
+available while parity is measured.
+
+```bash
+cdd-kit boundary init
+cdd-kit boundary check --base origin/main
+cdd-kit boundary check --base origin/main --verify-captures --verify-generated
+cdd-kit work <change-id> "<objective>"
+cdd-kit work <change-id> "<human-sensitive objective>" --require-acceptance
+cdd-kit runtime status
+cdd-kit runtime resume
+cdd-kit runtime agent prompt
+cdd-kit runtime check run --all
+cdd-kit runtime review --verdict passed --actor reviewer --summary "Independent review passed"
+cdd-kit runtime approval import signed-approval.json <run-id>
+cdd-kit runtime verify
+cdd-kit runtime parity
+cdd-kit runtime parity <run-id> --mutations mutation-results.json
+cdd-kit guidance audit
+cdd-kit runtime migrate --provider codex       # dry run
+cdd-kit runtime migrate --provider codex --yes # reversible apply
+```
+
+See [Boundary Guard](docs/boundary-guard.md) and the
+[runtime contracts](docs/rfc/agent-native-cdd-runtime-contracts.md).
+
+Acceptance oracles are profile-aware. Existing projects and `--strict` retain
+the human-authored oracle and hash-lock requirements. An explicit or
+runtime-selected `balanced`/`lightweight` profile does not require
+`acceptance.yml`; `controlled` requires it only when the capsule or caller adds
+`acceptance-oracle`:
+
+```bash
+cdd-kit gate my-change --profile balanced
+cdd-kit gate sensitive-change --profile controlled --require-acceptance
+```
+
+Without `--profile` and without a matching current runtime run, `gate` keeps its
+legacy behavior. Profile adoption is therefore opt-in and rollback-safe.
 
 ---
 

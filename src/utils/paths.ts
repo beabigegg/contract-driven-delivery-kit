@@ -28,10 +28,12 @@ export function readKitVersion(): string {
 export const CLAUDE_HOME = join(homedir(), '.claude');
 export const AGENTS_HOME = join(CLAUDE_HOME, 'agents');
 export const SKILLS_HOME = join(CLAUDE_HOME, 'skills');
+export const CODEX_SKILLS_HOME = join(homedir(), '.agents', 'skills');
 
 export const ASSET = {
   agents:         join(ASSETS_DIR, 'agents'),
   skills:         join(ASSETS_DIR, 'skills'),
+  codexSkills:    join(ASSETS_DIR, 'codex-skills'),
   skill:          join(ASSETS_DIR, 'skills', 'contract-driven-delivery'),
   contracts:      join(ASSETS_DIR, 'contracts'),
   specsTemplates: join(ASSETS_DIR, 'specs-templates'),

@@ -75,6 +75,8 @@ const copy = (src, dest) => {
 
 copy('.claude/agents',  'assets/agents');
 copy('.claude/skills', 'assets/skills');
+copy('.agents/skills', 'assets/codex-skills');
+copy('doctrine', 'assets/doctrine');
 copy('contracts',      'assets/contracts');
 
 // contracts/ is dual-purpose: it is BOTH this repo's own dogfooded contracts
@@ -135,6 +137,8 @@ const SHIPPED_CDD_FILES = [
   'context-policy.json',
   'model-policy.json',
   'tier-policy.json',
+  'policy.yml',
+  'approval-policy.yml',
 ];
 // Wipe first: `assets/` is not cleaned between builds, so anything a previous
 // denylist build left behind would survive the switch to an allowlist.

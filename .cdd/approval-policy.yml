@@ -1,0 +1,11 @@
+version: 1
+approvals: {}
+
+# High-risk approvals are imported from externally signed envelopes. Add an
+# approval ID and trusted actor public keys before a Controlled run needs it:
+# approvals:
+#   auth_policy:
+#     provider: signed-file
+#     actors:
+#       owner@example.com:
+#         public_key: .cdd/approvers/owner-ed25519.pub

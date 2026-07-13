@@ -4,11 +4,7 @@
 #
 # THIS REPO'S OWN WORKFLOW (not the adopter template in github-workflows/,
 # which build.js:114 copies to assets/github-workflows/): this repo gates
-# itself against its OWN build, never a published npm package version — a
-# published version can lag behind this commit's source (the exact disease a
-# stale global `cdd-kit` binary has; ci-gates.md § Workflow Changes 3). So
-# there is no "Install cdd-kit" step here at all; `validate` and `gate` both
-# run via `node dist/cli/index.js`, built from this checkout.
+# itself against its OWN build, never a published npm package version.
 
 name: contract-driven-gates
 
@@ -20,15 +16,17 @@ on:
   schedule:
     - cron: '0 18 * * 1'
 
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
 jobs:
   contract-and-fast-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history — the "Determine changed spec directories" step below
-          # diffs against the PR base / previous push commit, which the default
-          # shallow (depth-1) checkout does not have locally.
           fetch-depth: 0
 
       - name: Set up Python
@@ -42,10 +40,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # Before `npm ci` — it reads two JSON files and needs no node_modules, and
-      # a lockfile that disagrees with the manifest should not cost a full
-      # install to discover. `npm ci` itself does NOT catch this: it compares the
-      # dependency tree, not the root `version` field.
+      - name: Install legacy response-shape validator
+        run: python -m pip install jsonschema pyyaml
+
       - name: Lockfile sync guard
         run: npm run check:lockfile
 
@@ -55,17 +52,8 @@ jobs:
       - name: Validate contracts and gates
         run: node dist/cli/index.js validate
 
-      # ── enforceInteractionDesign / enforceAcceptanceOracle / every other
-      #    required cdd-kit gate check, actually invoked in CI (ci-gates.md
-      #    § Workflow Changes) ──────────────────────────────────────────────
       - name: Determine changed spec directories
         id: changed
-        # `shell: bash` (not the implicit default) buys `-o pipefail`, so a
-        # genuine `git diff` failure fails the step instead of being masked by
-        # the exit status of the last pipeline stage. That makes the no-match
-        # case load-bearing: `grep -oE` exits 1 when nothing matches, which under
-        # pipefail would fail every docs-only PR. `sed -n .../p` is used instead —
-        # it emits nothing and exits 0 when no line matches.
         shell: bash
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: |
@@ -74,43 +62,37 @@ jobs:
           else
             BASE_SHA="${{ github.event.before }}"
             if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-              # First push of a new branch: there is no "before" commit, and on a
-              # repo's very first commit `HEAD^` does not resolve either. Fall back
-              # to the empty tree so the diff simply yields every path in the push.
-              # `--verify --quiet` is required: a bare `git rev-parse HEAD^` echoes
-              # the unresolvable argument to STDOUT before failing, so the `||`
-              # fallback would concatenate "HEAD^" with the empty-tree sha.
               BASE_SHA="$(git rev-parse --verify --quiet HEAD^ || git hash-object -t tree /dev/null)"
             fi
           fi
           CHANGED="$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'specs/changes/')"
-          # Keep only change dirs that STILL EXIST at the checked-out head. A diff
-          # against specs/changes/ also reports DELETIONS, so a change archived by
-          # /cdd-close (moved to specs/archive/) would otherwise be gated at a path
-          # that no longer exists and fail `cdd-kit gate` with "change not found" —
-          # turning every close into a red CI run. An archive-only push yields zero ids.
           IDS="$(printf '%s\n' "$CHANGED" | sed -n 's|^specs/changes/\([^/][^/]*\)/.*|\1|p' | sort -u | while IFS= read -r id; do [ -n "$id" ] && [ -d "specs/changes/$id" ] && printf '%s\n' "$id"; done)"
           echo "::group::Changed spec directories"
           echo "$IDS"
           echo "::endgroup::"
           {
+            echo "base_sha=$BASE_SHA"
             echo "ids<<EOF"
             echo "$IDS"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Boundary Guard (PR diff)
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          CDD_BASE_SHA: ${{ steps.changed.outputs.base_sha }}
+        run: node dist/cli/index.js boundary check --verify-generated --verify-captures --json
+
       - name: cdd-kit gate (changed specs)
-        # Zero changed spec dirs is a no-op success, not a failure (this step
-        # is simply skipped). This step carries no error-suppression flag: a
-        # failing gate fails the job and blocks the PR/push, by design
-        # (ci-gates.md § Workflow Changes 4).
         shell: bash
         if: steps.changed.outputs.ids != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CDD_ACCEPTANCE_REPOSITORY: ${{ github.repository }}
+          CDD_ACCEPTANCE_PR: ${{ github.event.pull_request.number }}
+          CDD_ACCEPTANCE_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           STRICT_FLAG=""
-          # --strict on push to the default branch only, never on pull_request:
-          # a PR is legitimately opened with tasks still pending; a merged
-          # change with pending tasks is the defect (ci-gates.md § Workflow Changes 2).
           if [ "${{ github.event_name }}" = "push" ]; then
             STRICT_FLAG="--strict"
           fi
@@ -121,27 +103,17 @@ jobs:
             echo "::endgroup::"
           done <<< "${{ steps.changed.outputs.ids }}"
 
-      # These are the scripts package.json actually defines. A previous revision
-      # of this file ran `npm run lint`, which does not exist — it would have
-      # failed on this workflow's very first run (this repo had no CI until
-      # 3.10.0, so nothing ever executed the line).
       - run: npm run typecheck
       - run: npm run check:mojibake
       - run: npm test
+
   e2e-critical:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Critical E2E
         run: |
-          # TODO: add your critical E2E command here (Tier 1 — blocks merge).
-          # This step is intentionally left as a placeholder — cdd-kit does not assume your stack.
-          # Examples:
-          #   Playwright:  npx playwright test --project=critical
-          #   Cypress:     npx cypress run --spec "cypress/e2e/critical/**"
-          #   pytest:      python -m pytest tests/e2e/critical/ -x
           echo "No critical E2E command configured — add your runner command above."
 
   scheduled-stress-soak:
@@ -149,13 +121,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Stress and soak tests
         run: |
-          # TODO: add your stress/soak workflow here (Tier 4 — weekly long-run gate).
-          # This step is intentionally left as a placeholder — cdd-kit does not assume your stack.
-          # Examples:
-          #   pytest soak:  python -m pytest tests/stress/ --soak-hours=4
-          #   k6 load:      k6 run --vus=50 --duration=4h tests/load/scenario.js
-          #   locust:       locust -f tests/stress/locustfile.py --headless -u 100 -r 10 --run-time 4h
-          echo "No stress/soak command configured — add your runner command above."
+          echo "No stress/soak workflow configured."

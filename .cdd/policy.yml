@@ -1,0 +1,55 @@
+version: 1
+default_profile: balanced
+shadow_mode: true
+
+boundary_guard:
+  enabled: true
+  fail_on_zero_coverage: true
+  changed_api_requires_typed_request: true
+  changed_api_requires_typed_response: true
+  require_complete_variant_discovery: true
+  generic_schema_policy: controlled
+
+approvals:
+  breaking_api: required
+  destructive_migration: required
+  auth_policy: required
+  production_operation: required
+
+acceptance:
+  # Recorded loosening (docs/loosening-the-harness.md): a chat-confirmed receipt
+  # binds to the acceptance-criteria hash only, not to the exact source-branch
+  # HEAD. A re-confirmation is required when the criteria change, not on every
+  # push. The dropped "approve harmless criteria, then swap in different code"
+  # defense is covered by tests + Boundary Guard + independent review; the gate
+  # surfaces this relaxation as a warning on every run.
+  chat_binds_head: false
+
+profiles:
+  lightweight:
+    validators: [quality]
+    independent_review: false
+    state_persistence: ephemeral
+    fail_on_unknown: false
+    acceptance_oracle: not-required
+  balanced:
+    validators: [impact, boundary, tests]
+    independent_review: false
+    state_persistence: runtime
+    fail_on_unknown: true
+    acceptance_oracle: not-required
+  controlled:
+    validators: [impact, boundary, tests, quality, review, approvals]
+    independent_review: true
+    state_persistence: runtime
+    fail_on_unknown: true
+    acceptance_oracle: conditional
+  strict:
+    validators: [legacy-gate, impact, boundary, tests, review, approvals]
+    independent_review: true
+    state_persistence: committed
+    fail_on_unknown: true
+    legacy_workflow: true
+    acceptance_oracle: required
+
+exceptions: []

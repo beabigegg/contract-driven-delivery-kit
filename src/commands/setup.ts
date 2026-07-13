@@ -27,6 +27,7 @@ import { log } from '../utils/logger.js';
 import { detectStack } from '../utils/stack-detect.js';
 import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
 import { inferProvider, type Provider } from '../utils/provider.js';
+import { providerAdapters } from '../providers/registry.js';
 
 export interface SetupOptions {
   /** Provider adapter. Defaults to claude (fresh) or the detected provider (upgrade). */
@@ -52,32 +53,40 @@ interface StepResult {
  * fails, it prints the manual instruction and reports a skip/warn so the user
  * still ends up with a usable project (agents fall back to the slower CLI path).
  */
-function registerMcp(): StepResult {
+function registerMcp(provider: Provider): StepResult {
   const label = 'MCP server registration';
-
-  const ver = spawnSync('claude', ['--version'], { encoding: 'utf8' });
-  if (ver.error || ver.status !== 0) {
-    log.warn('Claude Code CLI (`claude`) not found on PATH — skipping automatic MCP registration.');
-    logRecommendedMcpSetup();
-    return { label, status: 'skip', detail: 'claude CLI not found; register manually (see hint above)' };
+  const outcomes: StepStatus[] = [];
+  const details: string[] = [];
+  for (const adapter of providerAdapters(provider)) {
+    const ver = spawnSync(adapter.mcpCommand, ['--version'], { encoding: 'utf8' });
+    if (ver.error || ver.status !== 0) {
+      log.warn(`${adapter.displayName} CLI (${adapter.mcpCommand}) not found — skipping MCP registration.`);
+      outcomes.push('skip');
+      details.push(`${adapter.id}: CLI not found`);
+      continue;
+    }
+    const list = spawnSync(adapter.mcpCommand, ['mcp', 'list'], { encoding: 'utf8' });
+    if (list.status === 0 && /\bcdd-kit\b/.test(`${list.stdout ?? ''}${list.stderr ?? ''}`)) {
+      log.ok(`cdd-kit MCP server already registered for ${adapter.displayName}.`);
+      outcomes.push('ok');
+      details.push(`${adapter.id}: already registered`);
+      continue;
+    }
+    const add = spawnSync(adapter.mcpCommand, adapter.mcpArgs, { encoding: 'utf8' });
+    if (add.status === 0) {
+      log.ok(`Registered cdd-kit MCP server for ${adapter.displayName}.`);
+      outcomes.push('ok');
+      details.push(`${adapter.id}: registered`);
+    } else {
+      log.warn(`${adapter.displayName} MCP registration failed (exit ${add.status ?? '?'}).`);
+      outcomes.push('warn');
+      details.push(`${adapter.id}: registration failed`);
+    }
   }
-
-  const list = spawnSync('claude', ['mcp', 'list'], { encoding: 'utf8' });
-  if (list.status === 0 && /\bcdd-kit\b/.test(list.stdout ?? '')) {
-    log.ok('cdd-kit MCP server already registered.');
-    return { label, status: 'ok', detail: 'already registered' };
-  }
-
-  const add = spawnSync('claude', ['mcp', 'add', '--scope', 'user', 'cdd-kit', '--', 'cdd-kit', 'mcp'], { encoding: 'utf8' });
-  if (add.status === 0) {
-    log.ok('Registered cdd-kit MCP server (user scope).');
-    log.dim('  Verify in Claude Code: /mcp or `claude mcp list`');
-    return { label, status: 'ok', detail: 'claude mcp add succeeded' };
-  }
-
-  log.warn(`Automatic MCP registration failed (claude mcp add exited ${add.status ?? '?'}). Register manually:`);
+  if (outcomes.includes('warn')) return { label, status: 'warn', detail: details.join('; ') };
+  if (outcomes.includes('ok')) return { label, status: 'ok', detail: details.join('; ') };
   logRecommendedMcpSetup();
-  return { label, status: 'warn', detail: 'claude mcp add failed; register manually' };
+  return { label, status: 'skip', detail: details.join('; ') || 'no provider adapter' };
 }
 
 /**
@@ -119,7 +128,9 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
   const initialized = existsSync(join(cwd, '.cdd'));
   const mode: 'fresh' | 'upgrade' = initialized ? 'upgrade' : 'fresh';
   const provider: Provider = opts.provider ?? (mode === 'fresh' ? 'claude' : inferProvider(cwd, 'auto'));
-  const wantsClaude = provider !== 'codex';
+  // Consume the adapter capability model instead of hardcoding provider names:
+  // arm agent hooks for any selected provider whose adapter declares hook support.
+  const wantsAgentHooks = providerAdapters(provider).some(adapter => adapter.supportsAgentHooks);
 
   log.blank();
   log.info(`cdd-kit setup — one-command ${mode} (idempotent; safe to re-run)`);
@@ -188,9 +199,10 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
       results.push({ label: 'Pre-commit gate', status: 'warn', detail: 'not armed' });
     }
 
-    // Agent PreToolUse hooks (Claude only): graph-first + test-runner, both
-    // advisory so they steer without blocking a non-engineer.
-    if (wantsClaude) {
+    // Agent PreToolUse hooks: graph-first + test-runner, both advisory so they
+    // steer without blocking a non-engineer. Armed for providers whose adapter
+    // declares agent-hook support.
+    if (wantsAgentHooks) {
       try {
         const { installAgentHooks } = await import('./install-agent-hooks.js');
         await installAgentHooks({ graphFirst: 'advisory', testRunner: 'advisory', fromInit: true });
@@ -212,7 +224,7 @@ export async function setup(opts: SetupOptions = {}): Promise<void> {
     log.dim('  skipped (--no-mcp)');
     results.push({ label: 'MCP server registration', status: 'skip', detail: '--no-mcp' });
   } else {
-    results.push(registerMcp());
+    results.push(registerMcp(provider));
   }
   log.blank();
 

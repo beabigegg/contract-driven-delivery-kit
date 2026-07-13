@@ -6,6 +6,35 @@
 // (existence/placeholder detection, hash-lock reconcile) — an already-valid
 // shape is a precondition for those checks to trust the parsed structure.
 //
+// `confirmation-mode: chat-confirmed` allows the main agent to translate a
+// user's plain-language acceptance into this file while the actual approval is
+// independently verified from a GitHub PR comment receipt. Omitting the field
+// retains the original human-relock behavior.
+//
+// Trust model (be honest about the boundary): chat-confirmed proves the
+// maintainer's DECISION, not an unspoofable human ORIGIN. Its guarantee reduces
+// to "the process that posted the receipt is a GitHub identity trusted to
+// confirm, and no automated agent holds that identity's credential." Harden it
+// by pinning `acceptance.authorized_logins` in `.cdd/policy.yml` (default is
+// OWNER-only) so trust is a named identity, not a broad role. `chat-confirmed`
+// is a balanced/controlled convenience only: it is NOT honored under `--strict`,
+// which requires the human-authored hash lock (see gate-acceptance.ts). For a
+// mechanical (not behavioral) guarantee, gate the change behind a signed
+// approval envelope (src/runtime/decisions.ts), which an agent cannot forge.
+//
+// By default a chat-confirmed receipt also binds to the exact source-branch HEAD,
+// so every push re-stales it. `.cdd/policy.yml` `acceptance.chat_binds_head:
+// false` relaxes this to bind the receipt to the criteria hash only -- a
+// re-confirmation is then needed when the criteria change, not on every push. The
+// gate surfaces that relaxation as a warning (docs/loosening-the-harness.md).
+//
+// Two lock modes back the hash-lock path (`.cdd/acceptance-lock.json`, a path
+// agents cannot write): `human` (default) is recorded by `cdd-kit accept
+// confirm`, which shows the criteria and needs an interactive human keystroke;
+// `autonomous` is recorded by `cdd-kit accept confirm --autonomous` for an
+// explicitly delegated loop run. The gate surfaces `autonomous` as un-reviewed
+// and refuses it under strict. See docs/loosening-the-harness.md.
+//
 // `input`/`expect` are intentionally left unconstrained (`{}` — any JSON
 // value): the answer key can be a scalar, string, or nested object depending
 // on what the case exercises (ADR 0010 §1 example uses objects). The locked
@@ -20,6 +49,7 @@ export const acceptanceSchema = {
   required: ["oracle-version", "authored-by", "cases"],
   properties: {
     "oracle-version": { type: "string", pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "confirmation-mode": { type: "string", enum: ["human-relock", "chat-confirmed"] },
     // Provenance marker (ADR 0010 §1/§3): who authored the oracle. Free text
     // rather than a closed enum so a named human author is not artificially
     // forced into a fixed vocabulary.

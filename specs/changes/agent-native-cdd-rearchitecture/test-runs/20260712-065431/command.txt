@@ -1,0 +1,1 @@
+npx vitest run test/policy/profile.test.ts test/cli/policy.test.ts test/cli/runtime.test.ts test/cli/acceptance-oracle.test.ts test/cli/mcp.test.ts test/schemas/runtime-contracts.schema.test.ts test/cli/agent-native-migrate.test.ts

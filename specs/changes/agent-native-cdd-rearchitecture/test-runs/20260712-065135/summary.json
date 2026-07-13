@@ -1,0 +1,15 @@
+{
+  "change_id": "agent-native-cdd-rearchitecture",
+  "phase": "full",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npx vitest run",
+  "duration_ms": 97246,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065135/summary.json",
+    "stdout": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065135/stdout.log",
+    "stderr": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260712-065135/stderr.log"
+  },
+  "next_action": "all phases green"
+}

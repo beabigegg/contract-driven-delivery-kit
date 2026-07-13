@@ -1,0 +1,1 @@
+npm run check:lockfile && npm run check:mojibake && npm run build && npm run typecheck

@@ -1,0 +1,15 @@
+{
+  "change_id": "agent-native-cdd-rearchitecture",
+  "phase": "changed-area",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npx vitest run test/cli/agent-native-migrate.test.ts test/cli/boundary.test.ts test/cli/doctor.test.ts test/cli/init.test.ts test/cli/mcp.test.ts test/cli/runtime.test.ts test/cli/setup.test.ts test/cli/skill-prompts.test.ts test/cli/update.test.ts test/cli/upgrade.test.ts test/contracts/doctrine-ledger.test.ts test/schemas/runtime-contracts.schema.test.ts",
+  "duration_ms": 14695,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210316/summary.json",
+    "stdout": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210316/stdout.log",
+    "stderr": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210316/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

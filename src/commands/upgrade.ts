@@ -39,12 +39,17 @@ function planProviderGuidance(cwd: string, provider: Provider, planned: PlannedC
     if (!existsSync(join(cwd, 'CLAUDE.md'))) {
       planned.push({ src: ASSET.claudeTemplate, dest: join(cwd, 'CLAUDE.md'), rel: 'CLAUDE.md' });
     }
-    if (!existsSync(join(cwd, 'AGENTS.md'))) {
+    if (!existsSync(join(cwd, 'AGENTS.md')) && !planned.some(item => item.dest === join(cwd, 'AGENTS.md'))) {
       planned.push({ src: ASSET.agentsTemplate, dest: join(cwd, 'AGENTS.md'), rel: 'AGENTS.md' });
     }
   }
-  if ((provider === 'codex' || provider === 'both') && !existsSync(join(cwd, 'CODEX.md'))) {
-    planned.push({ src: ASSET.codexTemplate, dest: join(cwd, 'CODEX.md'), rel: 'CODEX.md' });
+  if (provider === 'codex' || provider === 'both') {
+    if (!existsSync(join(cwd, 'AGENTS.md'))) {
+      planned.push({ src: ASSET.agentsTemplate, dest: join(cwd, 'AGENTS.md'), rel: 'AGENTS.md' });
+    }
+    if (!existsSync(join(cwd, 'CODEX.md'))) {
+      planned.push({ src: ASSET.codexTemplate, dest: join(cwd, 'CODEX.md'), rel: 'CODEX.md' });
+    }
   }
 }
 

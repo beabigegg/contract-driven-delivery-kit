@@ -1,0 +1,39 @@
+schema_version: 1.0.0
+status: baseline
+rules:
+  - { id: CDD-CORE-001, sources: [.claude/agents/implementation-planner.md, .claude/skills/contract-driven-delivery/SKILL.md], target: doctrine/core-engineering.md, mechanism: doctrine }
+  - { id: CDD-CORE-002, sources: [.claude/agents/backend-engineer.md, .claude/agents/frontend-engineer.md], target: doctrine/core-engineering.md, mechanism: doctrine }
+  - { id: CDD-CORE-003, sources: [.claude/agents/repo-context-scanner.md, .claude/agents/spec-architect.md], target: doctrine/core-engineering.md, mechanism: doctrine-and-routing }
+  - { id: CDD-CORE-004, sources: [.claude/agents/qa-reviewer.md, .claude/skills/contract-driven-delivery/SKILL.md], target: doctrine/core-engineering.md, mechanism: doctrine-and-runtime-evidence }
+  - { id: CDD-API-001, sources: [.claude/agents/contract-reviewer.md, contracts/api/api-contract.md], target: doctrine/api-boundary.md, mechanism: doctrine-and-boundary-guard }
+  - { id: CDD-API-002, sources: [.claude/agents/contract-reviewer.md, .claude/agents/frontend-engineer.md], target: doctrine/api-boundary.md, mechanism: doctrine-and-impact-engine }
+  - { id: CDD-API-003, sources: [.claude/agents/backend-engineer.md, docs/adr/0007-data-shape-conformance.md], target: doctrine/api-boundary.md, mechanism: boundary-guard }
+  - { id: CDD-API-004, sources: [docs/adr/0001-contract-to-openapi-export.md], target: doctrine/api-boundary.md, mechanism: contract-compiler }
+  - { id: CDD-API-005, sources: [docs/adr/0007-data-shape-conformance.md], target: doctrine/api-boundary.md, mechanism: boundary-guard }
+  - { id: CDD-BE-001, sources: [.claude/agents/backend-engineer.md], target: doctrine/backend.md, mechanism: doctrine }
+  - { id: CDD-BE-002, sources: [.claude/agents/backend-engineer.md, .claude/agents/contract-reviewer.md], target: doctrine/backend.md, mechanism: doctrine-and-boundary-guard }
+  - { id: CDD-BE-003, sources: [.claude/agents/backend-engineer.md, .claude/agents/stress-soak-engineer.md], target: doctrine/backend.md, mechanism: doctrine-and-tests }
+  - { id: CDD-BE-004, sources: [.claude/agents/backend-engineer.md, docs/adr/0007-data-shape-conformance.md], target: doctrine/backend.md, mechanism: boundary-guard }
+  - { id: CDD-FE-001, sources: [.claude/agents/frontend-engineer.md], target: doctrine/frontend.md, mechanism: doctrine-and-generated-types }
+  - { id: CDD-FE-002, sources: [.claude/agents/frontend-engineer.md, .claude/agents/ui-ux-reviewer.md], target: doctrine/frontend.md, mechanism: doctrine-and-review }
+  - { id: CDD-FE-003, sources: [.claude/agents/frontend-engineer.md, .claude/agents/visual-reviewer.md], target: doctrine/frontend.md, mechanism: doctrine }
+  - { id: CDD-FE-004, sources: [.claude/agents/frontend-engineer.md, .claude/agents/ui-ux-reviewer.md], target: doctrine/frontend.md, mechanism: doctrine-and-tests }
+  - { id: CDD-TEST-001, sources: [.claude/agents/test-strategist.md], target: doctrine/testing.md, mechanism: doctrine-and-test-runtime }
+  - { id: CDD-TEST-002, sources: [.claude/agents/test-strategist.md, docs/adr/0005-bounded-test-execution-and-structured-evidence.md], target: doctrine/testing.md, mechanism: test-runtime }
+  - { id: CDD-TEST-003, sources: [.claude/agents/qa-reviewer.md, docs/adr/0005-bounded-test-execution-and-structured-evidence.md], target: doctrine/testing.md, mechanism: evidence-gate }
+  - { id: CDD-TEST-004, sources: [docs/adr/0005-bounded-test-execution-and-structured-evidence.md], target: doctrine/testing.md, mechanism: runtime-evidence }
+  - { id: CDD-UX-001, sources: [.claude/agents/interaction-designer.md, docs/adr/0012-interaction-design-loop.md], target: doctrine/interaction-accessibility.md, mechanism: doctrine-and-approval }
+  - { id: CDD-UX-002, sources: [.claude/agents/interaction-designer.md], target: doctrine/interaction-accessibility.md, mechanism: doctrine-and-design-gate }
+  - { id: CDD-UX-003, sources: [.claude/agents/ui-ux-reviewer.md, .claude/agents/visual-reviewer.md], target: doctrine/interaction-accessibility.md, mechanism: independent-review }
+  - { id: CDD-UX-004, sources: [docs/adr/0010-acceptance-oracle.md, docs/adr/0012-interaction-design-loop.md], target: doctrine/interaction-accessibility.md, mechanism: provenance-gate }
+  - { id: CDD-MIG-001, sources: [.claude/agents/dependency-security-reviewer.md], target: doctrine/data-migration.md, mechanism: doctrine-and-review }
+  - { id: CDD-MIG-002, sources: [.claude/agents/dependency-security-reviewer.md], target: doctrine/data-migration.md, mechanism: approval }
+  - { id: CDD-MIG-003, sources: [.claude/agents/dependency-security-reviewer.md], target: doctrine/data-migration.md, mechanism: doctrine-and-migration-tests }
+  - { id: CDD-SEC-001, sources: [.claude/agents/dependency-security-reviewer.md, .claude/agents/contract-reviewer.md], target: doctrine/security-authorization.md, mechanism: review-and-approval }
+  - { id: CDD-SEC-002, sources: [.claude/agents/backend-engineer.md, .claude/agents/e2e-resilience-engineer.md], target: doctrine/security-authorization.md, mechanism: doctrine-and-tests }
+  - { id: CDD-SEC-003, sources: [.claude/agents/dependency-security-reviewer.md], target: doctrine/security-authorization.md, mechanism: policy-and-scanner }
+  - { id: CDD-SEC-004, sources: [.claude/agents/dependency-security-reviewer.md], target: doctrine/security-authorization.md, mechanism: doctrine-and-review }
+  - { id: CDD-OPS-001, sources: [.claude/agents/e2e-resilience-engineer.md, .claude/agents/stress-soak-engineer.md], target: doctrine/operations-resilience.md, mechanism: doctrine-and-tests }
+  - { id: CDD-OPS-002, sources: [.claude/agents/ci-cd-gatekeeper.md], target: doctrine/operations-resilience.md, mechanism: approval }
+  - { id: CDD-OPS-003, sources: [.claude/agents/stress-soak-engineer.md, .claude/agents/monkey-test-engineer.md], target: doctrine/operations-resilience.md, mechanism: risk-routing }
+  - { id: CDD-OPS-004, sources: [.claude/agents/ci-cd-gatekeeper.md, .claude/agents/spec-drift-auditor.md], target: doctrine/operations-resilience.md, mechanism: compatibility-and-export }

@@ -22,9 +22,17 @@ import { enforceRequiredAgentEvidence } from './gate-agents.js';
 import { enforceAcceptanceOracle } from './gate-acceptance.js';
 import { enforceInteractionDesign } from './gate-design.js';
 import { isSafeChangeId } from '../utils/change-id.js';
+import yaml from 'js-yaml';
+import { runBoundaryGuard } from '../boundary/guard.js';
+import { acceptanceOracleRequired, resolveGateProfile } from '../policy/profile.js';
+import type { WorkflowProfile } from '../runtime/types.js';
+import { verifyRuntime } from '../runtime/engine.js';
 
 export interface GateOptions {
   strict?: boolean;
+  profile?: WorkflowProfile;
+  requireAcceptance?: boolean;
+  runId?: string;
   /** Append plain-language explanations + a "say this to Claude" hint to each failure. */
   explain?: boolean;
 }
@@ -61,7 +69,6 @@ function reportGateFailure(
 }
 
 export async function gate(changeId: string, opts: GateOptions = {}): Promise<void> {
-  const strict = opts.strict ?? false;
   const explain = opts.explain ?? false;
   const cwd = process.cwd();
 
@@ -78,6 +85,40 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   }
 
   const changeDir = join(cwd, 'specs', 'changes', changeId);
+
+  let profileResolution;
+  try {
+    profileResolution = resolveGateProfile(cwd, changeId, opts.profile, opts.strict ?? false, opts.runId);
+  } catch (error) {
+    log.error(error instanceof Error ? error.message : String(error));
+    process.exit(2);
+  }
+  const strict = profileResolution.profile === 'strict' || (opts.strict ?? false);
+
+  if (profileResolution.profile && !strict) {
+    if (!profileResolution.capsule) {
+      log.error(`Profile ${profileResolution.profile} requires a matching runtime capsule. Run \`cdd-kit work ${changeId} "<objective>" --profile ${profileResolution.profile}\` first.`);
+      process.exit(1);
+    }
+    if (opts.requireAcceptance && !profileResolution.capsule.required_evidence.includes('acceptance-oracle')) {
+      log.error(`The existing runtime capsule does not require acceptance. Re-plan with \`cdd-kit work ${changeId} "<objective>" --require-acceptance\`.`);
+      process.exit(1);
+    }
+    const result = verifyRuntime(cwd, profileResolution.run_id ?? opts.runId);
+    if (result.state.change_id !== changeId) {
+      log.error(`Current runtime run belongs to ${result.state.change_id}, not ${changeId}.`);
+      process.exit(1);
+    }
+    if (result.evidence.final_status !== 'passed') {
+      const failures = result.evidence.checks
+        .filter(check => check.status === 'failed' || check.status === 'unknown')
+        .map(check => `runtime check ${check.id}: ${check.status}`);
+      if (result.evidence.approvals.some(approval => approval.status === 'pending')) failures.push('runtime approvals are still pending');
+      reportGateFailure(changeId, failures.length ? failures : ['runtime verification is blocked'], explain);
+    }
+    log.ok(`gate passed for change: ${changeId} (${profileResolution.profile} runtime; ${result.path})`);
+    return;
+  }
 
   if (!existsSync(changeDir)) {
     log.error(`change not found: ${changeId} (looked in ${changeDir})`);
@@ -178,7 +219,16 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   enforceTestEvidence(cwd, changeDir, changeId, tasksData, isNewChange, strict, errors, warnings);
   enforceBugFixEvidence(changeDir, changeId, cwd, tasksData, errors, warnings);
   enforceRequiredAgentEvidence(changeDir, warnings);
-  enforceAcceptanceOracle(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
+  const acceptanceRequired = acceptanceOracleRequired(cwd, profileResolution, opts.requireAcceptance ?? false);
+  if (acceptanceRequired === null) {
+    // No explicit/runtime profile: preserve the pre-agent-native behavior byte
+    // for byte during the compatibility window.
+    enforceAcceptanceOracle(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
+  } else if (acceptanceRequired) {
+    // A required oracle receives every provenance, lock, driver and evidence
+    // check even when the surrounding profile is not strict.
+    enforceAcceptanceOracle(cwd, changeDir, changeId, true, true, errors, warnings);
+  }
   // `isNewChange` is threaded from gate.ts's single computation above (never
   // re-derived) — see gate-design.ts's module header ("TOP RISK") for why.
   await enforceInteractionDesign(cwd, changeDir, changeId, isNewChange, strict, errors, warnings);
@@ -189,6 +239,26 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   // The nested `validate` call below is invoked with `hookCheck: false` so this same
   // check does not run twice within one `gate`.
   enforceConfirmationHookInstallation(cwd, strict, errors, warnings);
+
+  // Agent-native Boundary Guard starts in shadow mode. Shadow findings remain
+  // visible but cannot break the legacy strict compatibility gate. Projects
+  // promote it explicitly by setting shadow_mode: false after parity evidence.
+  const runtimePolicyPath = join(cwd, '.cdd', 'policy.yml');
+  if (existsSync(runtimePolicyPath)) {
+    try {
+      const policy = yaml.load(readFileSync(runtimePolicyPath, 'utf8'), { schema: yaml.JSON_SCHEMA }) as { shadow_mode?: boolean };
+      const boundary = runBoundaryGuard({ cwd });
+      for (const finding of boundary.findings) {
+        if (finding.level === 'info') continue;
+        const message = `Boundary Guard${policy.shadow_mode !== false ? ' [shadow]' : ''}: ${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`;
+        if (finding.level === 'error' && policy.shadow_mode === false) errors.push(message);
+        else warnings.push(message);
+      }
+    } catch (error) {
+      const message = `Boundary Guard${' [shadow]'}: ${error instanceof Error ? error.message : String(error)}`;
+      warnings.push(message);
+    }
+  }
 
   // Derived-index freshness (P2-1): if this change has generated change.yml /
   // trace.yml that have drifted from their source artifacts, nudge a refresh.

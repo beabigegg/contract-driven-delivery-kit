@@ -295,6 +295,7 @@ describe('parseContractSchemas', () => {
     expect(res.errors).toEqual([]);
     expect(res.schemas.CreateOrder).toEqual({
       type: 'object',
+      additionalProperties: false,
       properties: {
         email: { type: 'string', format: 'email', description: 'login identity' },
         qty: { type: 'integer', description: 'how many' },

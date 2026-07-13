@@ -1,0 +1,47 @@
+oracle-version: "1.0.0"
+confirmation-mode: chat-confirmed
+authored-by: "main-agent draft; confirmed by repository user through PR comment"
+
+cases:
+  - id: user-only-describes-request
+    given: "The user works by explaining a development request to the main agent in normal conversation."
+    when: "The main agent starts and completes the requested code change."
+    then: "The main agent handles CDD files, commands, tests, and evidence without requiring the user to understand or operate the internal workflow."
+    input:
+      user_action: "describe the request to the main agent"
+    expect:
+      user_runs_cdd_commands: false
+      user_writes_technical_cdd_files: false
+      main_agent_handles_delivery_workflow: true
+
+  - id: automatic-integration-protection
+    given: "The main agent changes frontend, backend, API, or serialized data fields."
+    when: "The frontend and backend no longer agree on a field, type, route, request, response, or required variant."
+    then: "CDD blocks completion automatically and reports the mismatch to the main agent instead of requiring the user to inspect technical artifacts."
+    input:
+      possible_problem: "frontend_backend_contract_mismatch"
+    expect:
+      mismatch_is_detected: true
+      completion_is_blocked: true
+      user_manual_contract_review_required: false
+
+  - id: normal-work-does-not-interrupt-user
+    given: "The requested change is ordinary development work whose correctness can be checked by contracts, tests, and deterministic gates."
+    when: "The main agent performs implementation and verification."
+    then: "The agent proceeds autonomously and does not ask the user to approve routine technical steps."
+    input:
+      work_type: "normal-development"
+    expect:
+      agent_proceeds_autonomously: true
+      routine_user_approvals_required: false
+
+  - id: real-high-risk-decision-returns-to-user
+    given: "A change involves a real high-risk decision such as destructive data action, authorization policy, production release, or another explicitly configured approval boundary."
+    when: "The workflow reaches that decision."
+    then: "The main agent asks the user clearly and cannot manufacture, self-sign, or infer the user's approval."
+    input:
+      work_type: "high-risk-decision"
+    expect:
+      explicit_user_confirmation_required: true
+      agent_self_approval_allowed: false
+      fabricated_user_confirmation_allowed: false

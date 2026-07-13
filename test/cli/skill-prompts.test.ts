@@ -118,8 +118,9 @@ describe('CDD skill prompt integration', () => {
 
     expect(cddNew).toMatch(/optional handoff notes/i);
     expect(cddNew).toMatch(/only when useful/i);
-    expect(codex).toMatch(/agent-log\/\*\.yml/);
-    expect(codex).toMatch(/optional/i);
+    expect(codex).toMatch(/runtime evidence/i);
+    expect(codex).toMatch(/digest-bound/i);
+    expect(codex).not.toMatch(/agent-log\/\*\.yml/);
     expect(contractReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
     expect(qaReviewer).toMatch(/optional `Agent Log` YAML block[\s\S]*for main Claude to write to/);
     // backend/frontend now require their own agent-log when listed in
@@ -135,14 +136,16 @@ describe('CDD skill prompt integration', () => {
 
     for (const content of [codex, claude]) {
       expect(content).toMatch(/Recommended MCP Tools/);
-      expect(content).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/);
-      expect(content).toMatch(/~\/\.claude\.json/);
-      expect(content).toMatch(/~\/\.claude\/settings\.json/);
       expect(content).toMatch(/cdd_graph_context/);
       expect(content).toMatch(/cdd_graph_impact/);
       expect(content).toMatch(/cdd_index_query/);
       expect(content).toMatch(/cdd-kit graph/);
     }
+    expect(claude).toMatch(/claude mcp add --scope user cdd-kit -- cdd-kit mcp/);
+    expect(claude).toMatch(/~\/\.claude\.json/);
+    expect(claude).toMatch(/~\/\.claude\/settings\.json/);
+    expect(codex).toMatch(/codex mcp add cdd-kit -- cdd-kit mcp/);
+    expect(codex).toMatch(/~\/\.codex\/config\.toml/);
   });
 
   it('documents artifact pointer path-validation rules in cdd-new and agent-log protocol', () => {

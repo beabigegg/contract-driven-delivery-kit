@@ -1,11 +1,12 @@
 import { join } from 'path';
 import { rmSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
-import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME, readKitVersion } from '../utils/paths.js';
+import { ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME, CODEX_SKILLS_HOME, readKitVersion } from '../utils/paths.js';
 import { copyDirTracked, copyFileTracked } from '../utils/copy.js';
 import { log } from '../utils/logger.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
 import { suggestCodegenScript } from './suggest-codegen.js';
 import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
+import { mappedDestinationFiles, stampUserAssets } from '../utils/user-asset-manifest.js';
 
 export interface InitOptions {
   globalOnly: boolean;
@@ -136,6 +137,8 @@ export async function init(opts: InitOptions): Promise<void> {
   const restoreActions: Array<() => void> = [];
   const installClaude = opts.provider === 'claude' || opts.provider === 'both';
   const installCodex = opts.provider === 'codex' || opts.provider === 'both';
+  const installedClaudeAssetPaths: string[] = [];
+  const installedCodexAssetPaths: string[] = [];
 
   function track(paths: string[]): void {
     createdPaths.push(...paths);
@@ -172,6 +175,7 @@ export async function init(opts: InitOptions): Promise<void> {
       const { count: agentCount, created: agentCreated } = copyDirTracked(ASSET.agents, AGENTS_HOME, { overwrite: true });
       track(agentCreated);
       log.ok(`${agentCount} agent file(s) installed.`);
+      installedClaudeAssetPaths.push(...mappedDestinationFiles(ASSET.agents, AGENTS_HOME));
 
       const skillDirs = readdirSync(ASSET.skills, { withFileTypes: true })
         .filter(d => d.isDirectory())
@@ -183,12 +187,27 @@ export async function init(opts: InitOptions): Promise<void> {
         const { count, created } = copyDirTracked(join(ASSET.skills, skillName), skillDest, { overwrite: true });
         track(created);
         totalSkillFiles += count;
+        installedClaudeAssetPaths.push(...mappedDestinationFiles(join(ASSET.skills, skillName), skillDest));
       }
       log.ok(`${totalSkillFiles} skill file(s) installed (${skillDirs.length} skills).`);
 
       log.blank();
-    } else if (!opts.localOnly && installCodex) {
-      log.info('No global assets for provider: codex.');
+    }
+
+    if (!opts.localOnly && installCodex) {
+      const skillDirs = readdirSync(ASSET.codexSkills, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name);
+      let totalSkillFiles = 0;
+      for (const skillName of skillDirs) {
+        const skillDest = join(CODEX_SKILLS_HOME, skillName);
+        log.info(`Installing Codex skill → ${skillDest}`);
+        const { count, created } = copyDirTracked(join(ASSET.codexSkills, skillName), skillDest, { overwrite: true });
+        track(created);
+        totalSkillFiles += count;
+        installedCodexAssetPaths.push(...mappedDestinationFiles(join(ASSET.codexSkills, skillName), skillDest));
+      }
+      log.ok(`${totalSkillFiles} Codex skill file(s) installed (${skillDirs.length} skills).`);
       log.blank();
     }
 
@@ -372,6 +391,17 @@ export async function init(opts: InitOptions): Promise<void> {
       }
 
       if (installCodex) {
+        // Codex reads AGENTS.md as its durable project guidance. CODEX.md is
+        // retained as a compatibility pointer for existing cdd-kit projects.
+        if (!existsSync(join(cwd, 'AGENTS.md'))) {
+          const { written: agentsWritten, created: agentsCreated } = copyFileTracked(
+            ASSET.agentsTemplate,
+            join(cwd, 'AGENTS.md'),
+            { overwrite: false, label: 'AGENTS.md' },
+          );
+          if (agentsCreated) track([join(cwd, 'AGENTS.md')]);
+          if (agentsWritten) log.ok('AGENTS.md created for Codex project guidance.');
+        }
         const { written: codexWritten, created: codexCreated } = copyFileTracked(
           ASSET.codexTemplate,
           join(cwd, 'CODEX.md'),
@@ -427,10 +457,14 @@ export async function init(opts: InitOptions): Promise<void> {
     process.exit(1);
   }
 
+  const kitVersion = readKitVersion();
+  if (installedClaudeAssetPaths.length) stampUserAssets('claude', installedClaudeAssetPaths, kitVersion);
+  if (installedCodexAssetPaths.length) stampUserAssets('codex', installedCodexAssetPaths, kitVersion);
+
   log.ok('Done.');
   log.blank();
   if (opts.provider === 'codex') {
-    log.info('Use CODEX.md and cdd-kit commands to run the contract-driven workflow.');
+    log.info('Use AGENTS.md, the cdd-work skill, and cdd-kit commands to run the contract-driven workflow in Codex.');
   } else {
     log.info('Use the contract-driven-delivery skill in Claude Code to scan this repo.');
   }

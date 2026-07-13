@@ -1,0 +1,15 @@
+{
+  "change_id": "agent-native-cdd-rearchitecture",
+  "phase": "contract",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node dist/cli/index.js validate --contracts",
+  "duration_ms": 343,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210334/summary.json",
+    "stdout": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210334/stdout.log",
+    "stderr": "specs/changes/agent-native-cdd-rearchitecture/test-runs/20260711-210334/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

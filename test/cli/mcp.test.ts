@@ -72,6 +72,13 @@ describe('cdd-kit mcp', () => {
     expect(toolNames).toContain('cdd_test_impact');
     expect(toolNames).toContain('cdd_contract_locate');
     expect(toolNames).toContain('cdd_graph_unresolved');
+    expect(toolNames).toContain('cdd_boundary_check');
+    expect(toolNames).toContain('cdd_runtime_plan');
+    expect(toolNames).toContain('cdd_runtime_status');
+    expect(toolNames).toContain('cdd_runtime_verify');
+    expect(toolNames).toContain('cdd_runtime_agent_prompt');
+    expect(toolNames).toContain('cdd_runtime_check_run');
+    expect(toolNames).toContain('cdd_runtime_review');
   });
 
   it('calls graph query and returns JSON content', () => {

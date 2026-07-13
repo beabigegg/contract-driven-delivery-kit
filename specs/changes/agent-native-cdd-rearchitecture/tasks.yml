@@ -1,0 +1,36 @@
+change-id: agent-native-cdd-rearchitecture
+status: in-progress
+tier: 0
+context-governance: v1
+archive-tasks:
+  - "7.1"
+  - "7.2"
+depends-on: []
+
+tasks:
+  - { id: "1.1", section: Preparation, title: "Confirm classification and architecture contracts", status: done }
+  - { id: "1.2", section: Preparation, title: "Inventory feature and doctrine dispositions", status: done }
+  - { id: "1.3", section: Preparation, title: "Define provider and compatibility boundaries", status: done }
+  - { id: "1.4", section: Preparation, title: "Define migration and rollback guarantees", status: done }
+  - { id: "2.1", section: Contracts, title: "Version policy, boundary, capsule, state and evidence schemas", status: done }
+  - { id: "2.2", section: Contracts, title: "Define runtime ownership and integrity invariants", status: done }
+  - { id: "2.3", section: Contracts, title: "Define user-install ownership manifest and backup rules", status: done }
+  - { id: "3.1", section: Tests, title: "Schema and runtime tests", status: done }
+  - { id: "3.2", section: Tests, title: "Boundary Guard and mutation tests", status: done }
+  - { id: "3.3", section: Tests, title: "Claude and Codex provider tests", status: done }
+  - { id: "3.4", section: Tests, title: "Migration and user-asset upgrade tests", status: done }
+  - { id: "3.5", section: Tests, title: "Doctrine traceability contract test", status: done }
+  - { id: "4.1", section: Implementation, title: "Boundary Guard subsystem and CLI", status: done }
+  - { id: "4.2", section: Implementation, title: "Deterministic routing, capsules, state and evidence runtime", status: done }
+  - { id: "4.3", section: Implementation, title: "MCP runtime and boundary tools", status: done }
+  - { id: "4.4", section: Implementation, title: "Claude Code and Codex provider adapters", status: done }
+  - { id: "4.5", section: Implementation, title: "Safe user-level install, update, backup and migration", status: done }
+  - { id: "4.6", section: Implementation, title: "Provider-neutral doctrine modules", status: done }
+  - { id: "5.1", section: Review, title: "Contract and vacuous-green review", status: done }
+  - { id: "5.2", section: Review, title: "Compatibility and rollback review", status: done }
+  - { id: "5.3", section: Review, title: "Human-authored acceptance oracle and confirmation", status: skipped, note: "Balanced does not require an oracle; strict retains it and controlled activates it through capsule/policy." }
+  - { id: "6.1", section: Verification, title: "Lockfile, encoding, build and typecheck", status: done }
+  - { id: "6.2", section: Verification, title: "Targeted and full regression suite", status: done }
+  - { id: "6.3", section: Verification, title: "Strict profile remains authoritative; new runtime stays shadow", status: done }
+  - { id: "7.1", section: Archive, title: "Archive change after human acceptance", status: pending }
+  - { id: "7.2", section: Archive, title: "Promote validated learnings after rollout evidence", status: pending }
