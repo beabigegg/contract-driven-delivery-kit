@@ -173,7 +173,9 @@ describe('cdd-kit boundary', () => {
     ]));
   });
 
-  it('replays a registered generator from the current contract projection', () => {
+  // Uses a POSIX `#!/bin/sh` npx shim on PATH to stand in for the real generator;
+  // the shim and `:`-delimited PATH are not runnable on Windows. Behavior is covered on Linux CI.
+  it.skipIf(process.platform === 'win32')('replays a registered generator from the current contract projection', () => {
     mkdirSync(join(repo, 'tests', 'contract', 'samples'), { recursive: true });
     mkdirSync(join(repo, 'src'), { recursive: true });
     mkdirSync(join(repo, 'generated'), { recursive: true });

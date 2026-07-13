@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.13.1] - 2026-07-13
+
 ### Added
 
 - Runtime-native implementation, test/quality, independent-review and approval
@@ -45,6 +47,10 @@
   typed sampled endpoint actually needs schema validation.
 - CI installs Python `jsonschema`, preventing Strict response-shape tests from
   being silently skipped.
+- `cdd-kit runtime approval import` now resolves absolute envelope paths on
+  Windows; drive-letter paths (`C:\...`) are no longer misread as relative and
+  joined to the runtime cwd, which previously made every absolute-path import
+  fail with "Signed approval envelope not found".
 
 ## [3.13.0] - 2026-07-11
 

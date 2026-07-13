@@ -1,6 +1,6 @@
 import { createHash, createPublicKey, verify as verifySignature } from 'crypto';
 import { existsSync, readFileSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { join, relative, isAbsolute } from 'path';
 import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
 import {
@@ -248,7 +248,7 @@ export function importRuntimeApproval(
   return withRuntimeLock(cwd, () => {
     const state = readRuntimeState(cwd, runId);
     const capsule = state.capsule as unknown as ExecutionCapsule;
-    const absoluteEnvelope = envelopePath.startsWith('/') ? envelopePath : join(cwd, envelopePath);
+    const absoluteEnvelope = isAbsolute(envelopePath) ? envelopePath : join(cwd, envelopePath);
     const envelopePreview = existsSync(absoluteEnvelope)
       ? JSON.parse(readFileSync(absoluteEnvelope, 'utf8')) as SignedApprovalEnvelope
       : null;
