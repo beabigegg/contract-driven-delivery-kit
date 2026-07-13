@@ -3,8 +3,8 @@ artifact: project-map
 generated-by: cdd-kit context-scan
 schema-version: 1
 root: contract-driven-delivery-kit
-visible-dirs: 63
-visible-files: 341
+visible-dirs: 71
+visible-files: 380
 omitted-dirs: 0
 truncated-dirs: 2
 inputs-digest: 62598949ece3c44e11cc87b1d5fb79466bcb39ac84b8b8b34c84bfd456da8fe7
@@ -35,20 +35,21 @@ Use this deterministic map to choose candidate context paths before reading file
 ```
 contract-driven-delivery-kit/
 |-- .agents/
+|   \-- skills/
+|       \-- cdd-work/
+|           \-- SKILL.md
 |-- .cdd/
-|   |-- asset-manifest.json
-|   |-- code-graph.index.json
-|   |-- code-map.index.json
+|   |-- approval-policy.yml
 |   |-- code-map.yml
 |   |-- conformance.json
 |   |-- context-policy.json
 |   |-- model-policy.json
+|   |-- policy.yml
 |   \-- tier-policy.json
 |-- .github/
 |   \-- workflows/
 |       |-- contract-driven-gates.yml
 |       \-- test.yml
-|-- .tmp.driveupload/
 |-- bin/
 |   |-- cdd.js
 |   \-- postinstall.js
@@ -102,17 +103,38 @@ contract-driven-delivery-kit/
 |   |   |-- 0009-parallel-change-integration.md
 |   |   |-- 0010-acceptance-oracle.md
 |   |   |-- 0011-not-applicable-contract-marker.md
-|   |   \-- 0012-interaction-design-loop.md
+|   |   |-- 0012-interaction-design-loop.md
+|   |   \-- 0013-agent-native-delivery-runtime.md
 |   |-- examples/
 |   |   \-- bug-fix/
 |   |       |-- bug-fix-engineer.sample.yml
 |   |       \-- gate-failure.txt
+|   |-- migration/
+|   |   |-- agent-native-cdd-doctrine-ledger.yml
+|   |   |-- agent-native-cdd-feature-map.md
+|   |   |-- agent-native-cdd-migration.md
+|   |   \-- agent-native-parity-report.md
 |   |-- proposals/
 |   |   \-- 2026-06-10-total-review-optimization.md
+|   |-- rfc/
+|   |   |-- agent-native-cdd-rearchitecture.md
+|   |   \-- agent-native-cdd-runtime-contracts.md
 |   |-- api-conformance.md
+|   |-- boundary-guard.md
+|   |-- loosening-the-harness.md
 |   |-- machine-readable-change-design.md
 |   |-- openapi-export.md
 |   \-- release-checklist.md
+|-- doctrine/
+|   |-- api-boundary.md
+|   |-- backend.md
+|   |-- core-engineering.md
+|   |-- data-migration.md
+|   |-- frontend.md
+|   |-- interaction-accessibility.md
+|   |-- operations-resilience.md
+|   |-- security-authorization.md
+|   \-- testing.md
 |-- github-workflows/
 |   \-- contract-driven-gates.yml
 |-- hooks/
@@ -172,6 +194,10 @@ contract-driven-delivery-kit/
 |       |-- test-plan.md
 |       \-- visual-review-report.md
 |-- src/
+|   |-- boundary/
+|   |   |-- adapters.ts
+|   |   |-- generators.ts
+|   |   \-- guard.ts
 |   |-- cli/
 |   |   \-- index.ts
 |   |-- code-graph/
@@ -202,7 +228,9 @@ contract-driven-delivery-kit/
 |   |-- commands/
 |   |   |-- abandon.ts
 |   |   |-- accept.ts
+|   |   |-- agent-native-migrate.ts
 |   |   |-- archive.ts
+|   |   |-- boundary.ts
 |   |   |-- bug-suspects.ts
 |   |   |-- changelog-build.ts
 |   |   |-- chokepoints.ts
@@ -229,6 +257,7 @@ contract-driven-delivery-kit/
 |   |   |-- gate-tier.ts
 |   |   |-- gate.ts
 |   |   |-- graph.ts
+|   |   |-- guidance.ts
 |   |   |-- index-impact.ts
 |   |   |-- index-query.ts
 |   |   |-- init.ts
@@ -244,28 +273,45 @@ contract-driven-delivery-kit/
 |   |   |-- openapi-export.ts
 |   |   |-- parallel-arm.ts
 |   |   |-- parallel-shared.ts
+|   |   |-- policy.ts
 |   |   |-- refresh.ts
-|   |   |-- reserve.ts
-|   |   |-- setup.ts
-|   |   |-- suggest-codegen.ts
-|   |   |-- test-impact.ts
-|   |   |-- test-run.ts
-|   |   \-- ... (4 more entries truncated; cap=50)
+|   |   |-- report.ts
+|   |   \-- ... (10 more entries truncated; cap=50)
 |   |-- contracts/
 |   |   \-- parser.ts
 |   |-- mcp/
 |   |   \-- server.ts
+|   |-- policy/
+|   |   \-- profile.ts
+|   |-- providers/
+|   |   |-- registry.ts
+|   |   \-- types.ts
+|   |-- runtime/
+|   |   |-- agent.ts
+|   |   |-- checks.ts
+|   |   |-- decisions.ts
+|   |   |-- engine.ts
+|   |   |-- parity.ts
+|   |   |-- router.ts
+|   |   |-- store.ts
+|   |   \-- types.ts
 |   |-- schemas/
 |   |   |-- acceptance.schema.ts
 |   |   |-- agent-log.schema.ts
+|   |   |-- boundary-manifest.schema.ts
 |   |   |-- bug-fix-evidence.schema.ts
+|   |   |-- cdd-policy.schema.ts
 |   |   |-- change-metadata.schema.ts
 |   |   |-- design-lock.schema.ts
+|   |   |-- execution-capsule.schema.ts
 |   |   |-- reservations.schema.ts
+|   |   |-- runtime-evidence.schema.ts
+|   |   |-- runtime-state.schema.ts
 |   |   |-- tasks.schema.ts
 |   |   |-- test-evidence.schema.ts
 |   |   \-- trace.schema.ts
 |   \-- utils/
+|       |-- acceptance-confirmation.ts
 |       |-- acceptance-hash.ts
 |       |-- asset-manifest.ts
 |       |-- change-id.ts
@@ -285,22 +331,28 @@ contract-driven-delivery-kit/
 |       |-- paths.ts
 |       |-- provider.ts
 |       |-- stack-detect.ts
-|       \-- tier-floor.ts
+|       |-- tier-floor.ts
+|       \-- user-asset-manifest.ts
 |-- test/
 |   |-- acceptance/
 |   |   |-- acceptance-oracle.driver.test.ts
+|   |   |-- enforce-human-confirmation.driver.test.ts
 |   |   |-- interaction-design-loop.driver.test.ts
 |   |   \-- not-applicable-contracts.driver.test.ts
 |   |-- agents/
 |   |   \-- code-map-rule.test.ts
 |   |-- cli/
 |   |   |-- abandon.test.ts
+|   |   |-- accept-autonomous.test.ts
 |   |   |-- accept-relock.test.ts
 |   |   |-- acceptance-oracle.test.ts
 |   |   |-- acceptance-write-hook.test.ts
+|   |   |-- agent-native-migrate.test.ts
 |   |   |-- agent-prompts-shape.test.ts
 |   |   |-- archive.test.ts
+|   |   |-- boundary.test.ts
 |   |   |-- bug-suspects.test.ts
+|   |   |-- chat-acceptance.test.ts
 |   |   |-- code-map-alias-and-retention.test.ts
 |   |   |-- code-map-ts-and-config.test.ts
 |   |   |-- code-map-watch.test.ts
@@ -328,6 +380,7 @@ contract-driven-delivery-kit/
 |   |   |-- git-paths.test.ts
 |   |   |-- graph-unresolved.test.ts
 |   |   |-- graph.test.ts
+|   |   |-- guidance.test.ts
 |   |   |-- hooks-graph-first.test.ts
 |   |   |-- index-impact.test.ts
 |   |   |-- index-query-with-source.test.ts
@@ -339,12 +392,7 @@ contract-driven-delivery-kit/
 |   |   |-- install-hooks.test.ts
 |   |   |-- lifecycle-json.test.ts
 |   |   |-- lint-agents.test.ts
-|   |   |-- list.test.ts
-|   |   |-- manifest.test.ts
-|   |   |-- mcp.test.ts
-|   |   |-- metadata-integration.test.ts
-|   |   |-- metadata.test.ts
-|   |   \-- ... (24 more entries truncated; cap=50)
+|   |   \-- ... (32 more entries truncated; cap=50)
 |   |-- code-graph/
 |   |   \-- queries.test.ts
 |   |-- code-map/
@@ -365,6 +413,7 @@ contract-driven-delivery-kit/
 |   |   |-- applicability-agreement.test.ts
 |   |   |-- applicability-reader.test.ts
 |   |   |-- ci-workflow.test.ts
+|   |   |-- doctrine-ledger.test.ts
 |   |   |-- interaction-design-template.test.ts
 |   |   |-- parser.test.ts
 |   |   \-- skill-workflow-order.test.ts
@@ -379,10 +428,16 @@ contract-driven-delivery-kit/
 |   |       |-- sample.tsx
 |   |       |-- sample.vue
 |   |       \-- types-only.ts
+|   |-- policy/
+|   |   \-- profile.test.ts
+|   |-- runtime/
+|   |   |-- parity.test.ts
+|   |   \-- router.test.ts
 |   |-- schemas/
 |   |   |-- acceptance.schema.test.ts
 |   |   |-- bug-fix-evidence.schema.test.ts
 |   |   |-- design-lock.schema.test.ts
+|   |   |-- runtime-contracts.schema.test.ts
 |   |   \-- test-evidence.schema.test.ts
 |   |-- utils/
 |   |   |-- acceptance-driver-templates.test.ts
@@ -392,15 +447,11 @@ contract-driven-delivery-kit/
 |   |   |-- design-provenance.test.ts
 |   |   |-- digest.test.ts
 |   |   |-- gate-explain.test.ts
+|   |   |-- markdown-section.test.ts
 |   |   \-- mock-of-sut-scan.test.ts
 |   |-- helpers.ts
 |   \-- setup-git-env.ts
 |-- tests/
-|   |-- contract/
-|   |   |-- samples/
-|   |   |   \-- .gitkeep
-|   |   |-- README.md
-|   |   \-- response-samples.example.json
 |   \-- templates/
 |       |-- data-boundary/
 |       |   \-- malformed-data.spec.md
@@ -422,10 +473,8 @@ contract-driven-delivery-kit/
 |-- tools/
 |   |-- check-lockfile-sync.mjs
 |   \-- check-mojibake.mjs
-|-- .cdd-retest.log
 |-- .gitattributes
 |-- .gitignore
-|-- AGENTS.md
 |-- AGENTS.template.md
 |-- build.js
 |-- CHANGELOG.md
@@ -435,9 +484,7 @@ contract-driven-delivery-kit/
 |-- install.md
 |-- package-lock.json
 |-- package.json
-|-- project-profile.generated.md
 |-- README.md
-|-- skill.zip
 |-- tsconfig.json
 \-- vitest.config.ts
 ```

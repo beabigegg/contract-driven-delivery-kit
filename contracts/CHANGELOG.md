@@ -8,6 +8,18 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.10.0] — 2026-07-13
+### Added
+- **Loosening policy — bone-audit** subsection under Informational Gate Promotion
+  Policy (promoted by `agent-native-cdd-rearchitecture`). States exactly what the
+  policy bone-audit mechanically enforces: a disabled bone protection
+  (`boundary_guard.*`, `approvals.*` below `required`) fails `cdd-kit policy check`
+  / `validate` / `gate` unless `.cdd/policy.yml` records a matching `loosening`
+  acknowledgment (`id` + `reason` ≥10 chars); mutation-corpus "no defect escapes"
+  evidence is the documented promotion standard carried in the optional `evidence`
+  field, recorded and reviewed rather than mechanically gated; and parity reports
+  `equivalent` only with per-mutation evidence, never from two green runs alone.
+
 ## [ci 0.9.0] — 2026-07-11
 ### Added
 - **Two write-block hook behaviours promoted from implementation detail to contract
