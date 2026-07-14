@@ -209,8 +209,9 @@ boundary
   .option('--operation <method-path...>', 'Check one or more explicit operations, e.g. "GET /health"')
   .option('--verify-generated', 'Replay registered generators and compare their output with committed artifacts', false)
   .option('--verify-captures', 'Replay registered framework adapters and compare observed serialized boundaries', false)
+  .option('--enforce', 'Fail on any error-level finding even under .cdd/policy.yml shadow_mode', false)
   .option('--json', 'Emit machine-readable Boundary Guard result', false)
-  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; verifyGenerated?: boolean; verifyCaptures?: boolean; json?: boolean }) => {
+  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; verifyGenerated?: boolean; verifyCaptures?: boolean; enforce?: boolean; json?: boolean }) => {
     const { boundaryCheck } = await import('../commands/boundary.js');
     process.exitCode = boundaryCheck({ ...opts, operations: opts.operation });
   });

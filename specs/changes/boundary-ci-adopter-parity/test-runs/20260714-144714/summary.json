@@ -1,0 +1,15 @@
+{
+  "change_id": "boundary-ci-adopter-parity",
+  "phase": "quality",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm run typecheck",
+  "duration_ms": 4061,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144714/summary.json",
+    "stdout": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144714/stdout.log",
+    "stderr": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144714/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

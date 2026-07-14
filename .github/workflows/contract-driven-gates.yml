@@ -81,7 +81,7 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         env:
           CDD_BASE_SHA: ${{ steps.changed.outputs.base_sha }}
-        run: node dist/cli/index.js boundary check --verify-generated --verify-captures --json
+        run: node dist/cli/index.js boundary check --verify-generated --verify-captures --json --base "$CDD_BASE_SHA"
 
       - name: cdd-kit gate (changed specs)
         shell: bash

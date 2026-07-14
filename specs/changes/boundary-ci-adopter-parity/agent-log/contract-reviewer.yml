@@ -1,0 +1,53 @@
+change-id: boundary-ci-adopter-parity
+timestamp: 2026-07-14T00:00:00Z
+agent: contract-reviewer
+status: approved
+re-review: >-
+  APPROVED on re-review after the code landed. All 7 AC-8 points PASS with
+  file:line evidence: shared classifyBoundaryFinding used by both gate.ts:254 +
+  boundary.ts:116 (guard.ts:78) with the AC-3 parity test; shadow default +
+  --enforce (boundary.ts:102, cli/index.ts:212) + [shadow] dropped when enforced
+  (guard.ts:80); resolveEffectiveBase (guard.ts:168) called once (312) feeding
+  changedFiles (313) + contractAtRevision (327); --base in both workflows (94/84);
+  structured-if archive-only + bash -eo pipefail test; assets byte-identical;
+  ci 0.11.0 + CHANGELOG [ci 0.11.0]. env-contract deferral confirmed recorded.
+files-read:
+  - specs/changes/boundary-ci-adopter-parity/change-request.md
+  - specs/changes/boundary-ci-adopter-parity/change-classification.md
+  - contracts/ci/ci-gate-contract.md
+  - contracts/env/env-contract.md
+  - src/commands/boundary.ts
+  - src/boundary/guard.ts
+  - src/commands/gate.ts
+  - github-workflows/contract-driven-gates.yml
+  - src/cli/index.ts
+  - src/schemas/cdd-policy.schema.ts
+  - .cdd/policy.yml
+  - docs/boundary-guard.md
+artifacts:
+  - type: contracts-reviewed
+    pointer: "contracts/ci/ci-gate-contract.md; contracts/env/env-contract.md"
+  - type: gap-analysis
+    pointer: "ci-gate-contract.md was SILENT on Boundary Guard shadow semantics; contract EXTENDED to bind newly-correct behavior (not code-fixed-to-match). docs/boundary-guard.md documented only the gate-side half."
+  - type: applied-edit
+    pointer: "contracts/ci/ci-gate-contract.md#boundary-guard-enforcement-semantics"
+  - type: applied-edit
+    pointer: "contracts/ci/ci-gate-contract.md#archive-only-push-robustness-corrected-by-boundary-ci-adopter-parity-61"
+  - type: version-bump
+    pointer: "ci-gate-contract 0.10.0 -> 0.11.0; contracts/CHANGELOG.md [ci 0.11.0] added"
+  - type: deferred-finding
+    pointer: "contracts/env/env-contract.md CDD_BASE_SHA/GITHUB_BASE_SHA/GITHUB_BASE_REF undocumented — deferred to follow-up (env 0.5.0 bump drags in scheduled CDD_ACCEPTANCE_WRITE_STRICT removal touching hook+schema+template+2 tests)"
+  - type: breaking-change
+    pointer: "standalone boundary check default exit-code 1->0 in shadow mode; intended parity correction, --enforce is rollback path; must be called out in npm release notes/CHANGELOG"
+next-action: >-
+  test-strategist maps AC-1..AC-8 to tests (incl. the parity test that fails if
+  boundary.ts and gate.ts diverge again); ci-cd-gatekeeper writes ci-gates.md +
+  the workflow fixes; bug-fix-engineer implements src fixes with mutation-red
+  proof; contract-reviewer re-reviews code-vs-contract at QA time.
+notes: >-
+  Contract text is a claim with a mechanical backer ONLY after (1) the code fix
+  lands (shared enforcement-semantics source consumed by both boundary.ts and
+  gate.ts; effective-base reused for contractAtRevision; --enforce flag), (2)
+  test/contracts/ci-workflow.test.ts asserts parity, (3) each regression test is
+  shown mutation-red on pre-fix code (test-evidence.yml). Until then it is prose,
+  per the "guarantees that never happened" lesson.

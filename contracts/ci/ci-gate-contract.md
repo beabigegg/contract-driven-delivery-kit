@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.10.0
-last-changed: 2026-07-13
+schema-version: 0.11.0
+last-changed: 2026-07-14
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -50,6 +50,25 @@ with an inventory row, so no other claim needed correcting.
 `--strict` is applied on `push` to the default branch, not on `pull_request`: a PR
 is legitimately opened mid-change with tasks still pending, whereas a merged change
 with pending tasks is a defect.
+
+### Archive-only push robustness (corrected by boundary-ci-adopter-parity, #61)
+
+The "Determine changed spec directories" step in `github-workflows/contract-driven-gates.yml`
+(adopter template) and this repo's own `.github/workflows/contract-driven-gates.yml` filters
+candidate change ids down to directories that still exist at the checked-out head using a
+structured `if` form — never a chained `[ -n "$id" ] && [ -d ... ] && printf` list. Both
+workflows run under `shell: bash`, which the GitHub-hosted runner executes with `-o pipefail`
+and `-e`; a chained `&&` list whose middle test (`[ -d "specs/changes/$id" ]`) legitimately
+evaluates false — exactly what happens on an archive-only push, where `/cdd-close` has moved
+every touched change directory out of `specs/changes/` into `specs/archive/` — exits that
+list, and therefore the step, non-zero, and red-lines a push that changed nothing
+gate-relevant.
+
+**AC-6.** An archive-only push — every change id present in the `specs/changes/` diff
+resolves to a directory that no longer exists under `specs/changes/` at the checked-out head —
+exits the step 0 with an empty `ids` output, identical in shape to a push that touched no
+`specs/changes/` path at all. This must hold under `bash -eo pipefail`, not merely under a
+lenient local shell.
 
 ## Required Check Policy
 
@@ -379,6 +398,65 @@ can set all three. Prevention-grade closure would need a signature only the huma
 environment can produce — a hardware key, or the lock committed under the human's
 authenticated remote git identity. That is a new trust boundary. It is deferred, and
 it is not claimed anywhere in this contract.
+
+## Boundary Guard Enforcement Semantics (added by boundary-ci-adopter-parity)
+
+Boundary Guard (`cdd-kit boundary check`; `runBoundaryGuard`, `src/boundary/guard.ts`) does
+**not** get a row in the Gate Inventory table above: neither `yes` nor `ci-or-strict`
+describes it, because whether an `error`-level finding blocks is governed by project policy
+(`.cdd/policy.yml` `shadow_mode`) and, for the standalone command only, an explicit
+`--enforce` flag — not by "inside CI or --strict". Introducing a third `required`-column value
+for this one check would repeat the `strict-only` mistake this file already retired (see the
+vocabulary note under `## Gate Inventory`). This section is Boundary Guard's own
+enforcement-semantics reference instead.
+
+**One shared decision, two callers.** `cdd-kit gate <id>` and standalone `cdd-kit boundary
+check` both compute Boundary Guard findings via the same `runBoundaryGuard`. Whether an
+`error`-level finding is treated as advisory or blocking is a SEPARATE decision layered on top
+of that result, and both callers MUST derive it from one shared enforcement-semantics source —
+never two independently-maintained copies of the shadow-mode check.
+
+Pass/fail conditions:
+
+1. **AC-1** — `.cdd/policy.yml` `shadow_mode: true` (the shipped default; an absent
+   `shadow_mode` key also reads as `true`) — an `error`-level Boundary Guard finding is printed
+   as an advisory `Boundary Guard [shadow]: ...` message and does NOT fail the check. Both
+   `cdd-kit gate <id>` and standalone `cdd-kit boundary check` (without `--enforce`) behave
+   identically: the finding is visible, and the command exits 0 (gate: no gate error added;
+   standalone: exit code 0, never 1). A `warning`- or `info`-level finding is always advisory in
+   every mode; shadow mode only changes the treatment of `error`-level findings.
+2. **AC-2** — `cdd-kit boundary check --enforce` overrides `shadow_mode` for that standalone
+   invocation only: any `error`-level finding (`BoundaryGuardResult.status === 'failed'`) exits
+   1, whatever `.cdd/policy.yml` `shadow_mode` says. `--enforce` is a standalone-only escape
+   hatch; the integrated `cdd-kit gate <id>` has no equivalent per-invocation flag — a project
+   promotes gate-side enforcement only by setting `.cdd/policy.yml` `shadow_mode: false`
+   project-wide.
+3. **AC-1** — `.cdd/policy.yml` `shadow_mode: false` — an `error`-level finding fails BOTH
+   paths: `cdd-kit gate <id>` adds it to the gate's blocking errors, and standalone `cdd-kit
+   boundary check` exits 1 whether or not `--enforce` is also passed.
+4. **AC-4** — `src/boundary/guard.ts` resolves exactly ONE effective base revision per
+   invocation — the first of: an explicit `--base`, `CDD_BASE_SHA`, `GITHUB_BASE_SHA`, a derived
+   `origin/<GITHUB_BASE_REF>`, or (inside CI, with no other input) `HEAD^` — and reuses that same
+   resolved value for BOTH changed-file detection and the changed-contract-operation snapshot. A
+   Boundary Guard run given only `CDD_BASE_SHA` (no `--base`) against an API contract change
+   MUST select only the operations that actually changed between the resolved base and head,
+   never every contracted operation.
+5. **AC-5** — the shipped adopter workflow template (`github-workflows/contract-driven-gates.yml`)
+   passes the base revision the "Determine changed spec directories" step computed to the
+   Boundary Guard step as BOTH the `CDD_BASE_SHA` env var and an explicit `--base` CLI argument,
+   so the shipped workflow's own invocation exercises condition 4 above rather than relying on
+   environment-only resolution.
+
+**Shadow mode is a rollout stage, not a permanent exemption.** A project ships with
+`shadow_mode: true` so a fresh adopter's first API-affecting PR is never blocked by findings
+accumulated before its Boundary Guard manifest is populated. The `## Loosening policy —
+bone-audit` section below governs the *reverse* direction — disabling `boundary_guard.enabled`
+entirely — which is a distinct decision from leaving an enabled guard in its default shadow
+stage.
+
+See also `docs/boundary-guard.md`, which documents only the gate-side shadow-mode default and
+must be updated in the same change to state that standalone `cdd-kit boundary check` honors the
+identical default and describe `--enforce`.
 
 ## Provenance Reconciliation Policy (ADR 0012 §2)
 

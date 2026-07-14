@@ -1,0 +1,67 @@
+change-id: boundary-ci-adopter-parity
+timestamp: "2026-07-14T07:25:03Z"
+agent: ci-cd-gatekeeper
+status: complete
+files-read:
+  - specs/changes/boundary-ci-adopter-parity/context-manifest.md
+  - specs/changes/boundary-ci-adopter-parity/implementation-plan.md
+  - specs/changes/boundary-ci-adopter-parity/test-plan.md
+  - specs/changes/boundary-ci-adopter-parity/ci-gates.md
+  - specs/changes/boundary-ci-adopter-parity/acceptance.yml
+  - contracts/ci/ci-gate-contract.md
+  - github-workflows/contract-driven-gates.yml
+  - .github/workflows/contract-driven-gates.yml
+  - test/contracts/ci-workflow.test.ts
+  - test/helpers.ts
+  - docs/boundary-guard.md
+  - src/cli/index.ts
+artifacts:
+  - { type: workflow-files-changed, pointer: "github-workflows/contract-driven-gates.yml:79" }
+  - { type: workflow-files-changed, pointer: "github-workflows/contract-driven-gates.yml:94" }
+  - { type: workflow-files-changed, pointer: ".github/workflows/contract-driven-gates.yml:84" }
+  - { type: files-changed, pointer: "test/contracts/ci-workflow.test.ts" }
+  - { type: files-changed, pointer: "assets/github-workflows/contract-driven-gates.yml" }
+  - { type: tiers-modified, pointer: "n/a (no gate tier changed; both edits land inside the existing Tier 1 PR-required contract-and-fast-tests job)" }
+  - { type: gate-promotions, pointer: "none (Boundary Guard stays shadow_mode: true advisory per .cdd/policy.yml; this change only wires --base through, per ci-gates.md Promotion Policy)" }
+  - { type: required-status-checks, pointer: "contract-and-fast-tests (job name unchanged; no new required check added or removed)" }
+  - { type: root-cause, pointer: "test/contracts/ci-workflow.test.ts:142-166 (pre-fix) ran the shipped IDS= line via spawnSync('sh', ['-c', script]) with no set -eo pipefail, and its fixture placed a live id last so the final successful loop iteration masked the earlier archived-id failure of the buggy chained && form; its only structural assertion matched the bare [ -d \"specs/changes/$id\" ] substring, which both the buggy chained form and the fixed structured-if form contain" }
+  - { type: mutation-red, pointer: "test/contracts/ci-workflow.test.ts::CI workflows — an archived change dir is not gated (#61, AC-6) > adopter template (github-workflows/): the changed-dirs filter uses the structured if-form, not the chained && form" }
+  - { type: mutation-red, pointer: "test/contracts/ci-workflow.test.ts::CI workflows — an archived change dir is not gated (#61, AC-6) > adopter template (github-workflows/): archive-only push — the shipped IDS pipeline exits 0 with EMPTY ids under bash -eo pipefail" }
+  - { type: mutation-red, pointer: "test/contracts/ci-workflow.test.ts::CI workflows — Boundary Guard step passes --base \"$CDD_BASE_SHA\" (#62, AC-5) > adopter template (github-workflows/): the boundary check run line passes --base \"$CDD_BASE_SHA\" in addition to the env var" }
+  - { type: mutation-red, pointer: "test/contracts/ci-workflow.test.ts::CI workflows — generated asset has no drift from source (AC-7) > assets/github-workflows/contract-driven-gates.yml is byte-identical to github-workflows/contract-driven-gates.yml" }
+  - { type: regression-evidence, pointer: "node node_modules/vitest/vitest.mjs run test/contracts/ci-workflow.test.ts test/cli/boundary.test.ts test/cli/gate.test.ts: 176 passed, 1 skipped (177), exit 0" }
+  - { type: regression-evidence, pointer: "npm run typecheck: 0 errors" }
+next-action: none
+notes: >-
+  IP-6/IP-7: replaced the chained `[ -n "$id" ] && [ -d ... ] && printf` IDS=
+  line in github-workflows/contract-driven-gates.yml with the structured
+  `if ... ; then printf ...; fi` form already shipped in
+  .github/workflows/contract-driven-gates.yml (that file's loop was already
+  correct and left untouched); appended `--base "$CDD_BASE_SHA"` to the
+  Boundary Guard run: line in both workflow files (they previously set only
+  the CDD_BASE_SHA env var, never passing it to the CLI). IP-8: ran
+  `node build.js`; confirmed assets/github-workflows/contract-driven-gates.yml
+  is byte-identical to the edited source both before and after the mutation-red
+  revert/restore cycle below. IP-11: replaced the vacuous archive-only test
+  (spawnSync('sh', no pipefail, live-id-last fixture, bare-substring-only
+  assertion) with (a) a structured-if regex assertion distinct from the bare
+  `[ -d ]` substring, (b) an all-archived (zero-live-id) fixture run via
+  `bash -c 'set -eo pipefail; ...'` asserting exit 0 + empty ids, (c) a
+  restored positive control (live id still emitted), for both workflow
+  labels; added a new describe block asserting `--base "$CDD_BASE_SHA"` on
+  both workflows' Boundary Guard run: line (AC-5); added a byte-identity
+  describe block for assets/github-workflows/ vs github-workflows/ (AC-7).
+  Mutation-red proof performed by temporarily overwriting
+  github-workflows/contract-driven-gates.yml with its pre-fix HEAD content
+  (git show HEAD:...) while leaving the already-built assets/ copy at the
+  fixed content, then running test/contracts/ci-workflow.test.ts: the
+  structured-if-form test, the archive-only-push test, the AC-5 --base
+  regex test, and the AC-7 byte-identity test all failed red for the
+  adopter-template label (own-workflow label unaffected since only the
+  adopter file was reverted), confirming each assertion actually reproduces
+  its defect rather than passing on both the buggy and fixed forms. The
+  fixed content was then restored byte-for-byte from a scratch backup,
+  `node build.js` re-run, and the full three-file suite re-confirmed green
+  (176 passed, 1 skipped, exit 0) plus a clean `npm run typecheck`. Did not
+  touch src/**, test/cli/boundary.test.ts, test/cli/gate.test.ts, or docs/ —
+  those are bug-fix-engineer's completed IP-1..IP-5/IP-9/IP-10 slice.

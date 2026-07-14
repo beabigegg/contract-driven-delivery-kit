@@ -1,0 +1,122 @@
+change-id: boundary-ci-adopter-parity
+timestamp: 2026-07-14T15:10:00Z
+agent: bug-fix-engineer
+status: complete
+files-read:
+  - specs/changes/boundary-ci-adopter-parity/context-manifest.md
+  - specs/changes/boundary-ci-adopter-parity/implementation-plan.md
+  - specs/changes/boundary-ci-adopter-parity/test-plan.md
+  - specs/changes/boundary-ci-adopter-parity/change-classification.md
+  - specs/changes/boundary-ci-adopter-parity/acceptance.yml
+  - contracts/ci/ci-gate-contract.md
+  - src/commands/gate.ts
+  - src/commands/boundary.ts
+  - src/boundary/guard.ts
+  - src/cli/index.ts
+  - src/utils/git-paths.ts
+  - docs/boundary-guard.md
+  - test/cli/boundary.test.ts
+  - test/cli/gate.test.ts
+  - test/helpers.ts
+  - test/setup-git-env.ts
+artifacts:
+  - { type: root-cause, pointer: "src/commands/boundary.ts:108 (pre-fix) boundaryCheck ignored .cdd/policy.yml shadow_mode entirely and had no --enforce escape hatch, returning result.status==failed?1:0 unconditionally" }
+  - { type: root-cause, pointer: "src/commands/gate.ts:251-256 (pre-fix) held the only shadow/enforce decision inline, not shared with boundary.ts, so the two callers could silently diverge" }
+  - { type: root-cause, pointer: "src/boundary/guard.ts:284 (pre-fix) contractAtRevision(cwd, options.base, contractRel) was gated on options.base alone, ignoring the CDD_BASE_SHA/GITHUB_BASE_SHA-derived effective base changedFiles() already used, so a CDD_BASE_SHA-only run left previous=null and selected every contracted operation" }
+  - { type: files-changed, pointer: "src/boundary/guard.ts, src/commands/boundary.ts, src/commands/gate.ts, src/cli/index.ts, docs/boundary-guard.md, test/cli/boundary.test.ts" }
+  - { type: regression-evidence, pointer: "node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts test/cli/gate.test.ts test/contracts/ci-workflow.test.ts: 149 passed, 1 skipped (Windows-only generator test)" }
+  - { type: residual-risk, pointer: "ci-cd-gatekeeper IP-6/IP-7/IP-8/IP-11 (workflow YAML --base wiring, structured-if archive-only fix, asset regeneration, ci-workflow.test.ts AC-5/AC-6/AC-7) are separate ownership and not covered by this record; this record covers only the src-side AC-1..AC-4 fixes" }
+bug-fix:
+  schema-version: 0.1.0
+  symptom: >-
+    Standalone cdd-kit boundary check always blocked (exit 1) on any
+    error-level Boundary Guard finding regardless of .cdd/policy.yml
+    shadow_mode, with no override flag, diverging from cdd-kit gate
+    shadow-mode-aware treatment of the identical finding; and a
+    CDD_BASE_SHA-only Boundary Guard run against a changed API contract
+    selected every contracted operation instead of only the ones that
+    actually changed between the resolved base and HEAD.
+  expected_behavior: >-
+    Per contracts/ci/ci-gate-contract.md Boundary Guard Enforcement
+    Semantics section: standalone boundary check honors the shipped
+    shadow_mode true default identically to gate (error finding printed
+    as advisory "Boundary Guard [shadow]: ..." message, exit 0), with an
+    explicit --enforce override making it block (exit 1) regardless of
+    shadow mode; both callers derive this decision from one shared
+    enforcement-semantics source. runBoundaryGuard resolves the effective
+    base revision exactly once per invocation and reuses it for both
+    changed-file detection and the changed-contract-operation snapshot,
+    so a CDD_BASE_SHA-only run selects only the actually-changed
+    operations.
+  actual_behavior: >-
+    boundaryCheck in src/commands/boundary.ts never read shadow_mode and
+    had no --enforce flag, so it unconditionally exited 1 on any
+    error-level finding, blocking a fresh adopter first API-affecting PR
+    even under the shipped shadow-mode default (production issues #63 and
+    #65). gate.ts computed its own inline shadow/enforce decision with no
+    shared source, so the two callers could silently diverge. Separately,
+    runBoundaryGuard gated the changed-contract snapshot contractAtRevision
+    call on options.base alone; with only CDD_BASE_SHA set (no --base
+    flag, the shape the shipped CI workflow actually uses today) previous
+    stayed null and changedContractOperations returned every contracted
+    operation instead of the actually-changed subset (production issue
+    #62).
+  observed_surface: "cdd-kit boundary check CLI (standalone) and the Boundary Guard block inside cdd-kit gate <id>"
+  reproduction:
+    status: test-reproduced
+    command: "node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts"
+    failing_before_fix: true
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145223/summary.json
+  hypotheses:
+    - { id: H1, candidate: "src/commands/boundary.ts::boundaryCheck", reason: "AC-1/AC-2 point at boundaryCheck unconditional return result.status===failed?1:0, which never reads .cdd/policy.yml shadow_mode or an --enforce flag", result: confirmed }
+    - { id: H2, candidate: "src/commands/gate.ts inline shadow-mode block (around lines 251-256)", reason: "AC-3 anti-divergence: gate.ts own shadow/enforce decision was computed inline rather than through a shared function, so a future edit to one caller could diverge from the other undetected", result: confirmed }
+    - { id: H3, candidate: "src/boundary/guard.ts runBoundaryGuard contractAtRevision call (around line 284)", reason: "AC-4 points at the changed-contract snapshot gating contractAtRevision on options.base alone, ignoring the CDD_BASE_SHA/GITHUB_BASE_SHA-derived effective base changedFiles() already computed", result: confirmed }
+    - { id: H4, candidate: "src/boundary/guard.ts changedFiles env-base resolution logic itself", reason: "considered whether the env-base resolution logic itself, not just its non-reuse, was wrong; changedFiles own file-diff selection was already correct pre-fix, only the second call site (contractAtRevision) failed to reuse it", result: rejected }
+  root_cause:
+    pointer: "src/commands/boundary.ts:88-115"
+    summary: >-
+      boundaryCheck derived its exit code and printed message directly from
+      BoundaryGuardResult.status with no policy/enforce awareness at all,
+      and runBoundaryGuard (src/boundary/guard.ts:270-286) resolved the base
+      revision independently in two places, once correctly via env-var
+      fallback for changedFiles(), and once incompletely via options.base
+      only for the changed-contract snapshot, so the two computations could
+      disagree.
+  fix:
+    files_changed: [src/boundary/guard.ts, src/commands/boundary.ts, src/commands/gate.ts, src/cli/index.ts, docs/boundary-guard.md, test/cli/boundary.test.ts]
+    summary: >-
+      Added one shared classifyBoundaryFinding(finding, enforced) function
+      in src/boundary/guard.ts (blocking iff level is error and enforced;
+      the printed message carries the "Boundary Guard" prefix and drops the
+      "[shadow]" label only when enforced) and exported the existing
+      loadPolicy loader for reuse. gate.ts now computes
+      enforced = policy.shadow_mode === false and calls the shared function
+      instead of its inline construction, byte-for-byte-identical output,
+      regression-guarded by the full gate.test.ts suite. boundaryCheck now
+      re-loads the already-validated policy, computes
+      enforced = options.enforce === true or policy.shadow_mode === false,
+      and uses the same shared function for both the exit code and the
+      printed findings. Added an enforce boolean option to
+      BoundaryCheckOptions and a --enforce flag on the boundary check CLI
+      command in src/cli/index.ts, additive and default false. Extracted
+      resolveEffectiveBase(cwd, base) in guard.ts, identical precedence to
+      the prior inline ciBase chain, and call it once in runBoundaryGuard,
+      passing the resolved value to both changedFiles() and the
+      contractAtRevision() call. Updated docs/boundary-guard.md to document
+      the standalone and gate parity plus --enforce. Added --enforce to 5
+      pre-existing boundary.test.ts assertions that test fail-closed defect
+      detection under the shared shadow_mode true fixture policy; under the
+      corrected parity behavior they would otherwise silently start exiting
+      0 instead of proving the finding was detected.
+  regression:
+    status: passed
+    command: "node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts test/cli/gate.test.ts test/contracts/ci-workflow.test.ts"
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145620/summary.json
+  residual_risk: >-
+    None for the src-side fix itself (typecheck clean, full gate.test.ts
+    suite of 137 tests still green, all 12 boundary.test.ts tests green
+    including 4 new AC-1..AC-4 regressions). The adopter-facing workflow
+    YAML fixes (archive-only push, the --base CLI wiring in the shipped
+    template, asset regeneration) are ci-cd-gatekeeper separate IP-6/7/8/11
+    scope and are not yet implemented as of this record.
+next-action: "ci-cd-gatekeeper: land IP-6/7/8/11 (workflow YAML --base wiring, structured-if archive-only fix, asset regeneration, ci-workflow.test.ts AC-5/6/7); then qa-reviewer release-readiness review"

@@ -76,7 +76,7 @@ jobs:
           # /cdd-close (moved to specs/archive/) would otherwise be gated at a path
           # that no longer exists and fail `cdd-kit gate` with "change not found" —
           # turning every close into a red CI run. An archive-only push yields zero ids.
-          IDS="$(printf '%s\n' "$CHANGED" | sed -n 's|^specs/changes/\([^/][^/]*\)/.*|\1|p' | sort -u | while IFS= read -r id; do [ -n "$id" ] && [ -d "specs/changes/$id" ] && printf '%s\n' "$id"; done)"
+          IDS="$(printf '%s\n' "$CHANGED" | sed -n 's|^specs/changes/\([^/][^/]*\)/.*|\1|p' | sort -u | while IFS= read -r id; do if [ -n "$id" ] && [ -d "specs/changes/$id" ]; then printf '%s\n' "$id"; fi; done)"
           echo "::group::Changed spec directories"
           echo "$IDS"
           echo "::endgroup::"
@@ -91,7 +91,7 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         env:
           CDD_BASE_SHA: ${{ steps.changed.outputs.base_sha }}
-        run: cdd-kit boundary check --verify-generated --verify-captures --json
+        run: cdd-kit boundary check --verify-generated --verify-captures --json --base "$CDD_BASE_SHA"
 
       - name: cdd-kit gate (changed specs)
         # Zero changed spec dirs is a no-op success, not a failure (this step

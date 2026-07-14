@@ -8,6 +8,27 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [ci 0.11.0] — 2026-07-14
+### Added
+- **Boundary Guard Enforcement Semantics** section (added by `boundary-ci-adopter-parity`,
+  production issues #62 / #63 / #65). Binds the invariant that `cdd-kit gate <id>` and
+  standalone `cdd-kit boundary check` derive the shadow/blocking decision from ONE shared
+  source: with `.cdd/policy.yml` `shadow_mode: true` (shipped default) an `error` finding is
+  advisory in both paths (exit 0); `cdd-kit boundary check --enforce` overrides shadow mode
+  (exit 1); `shadow_mode: false` blocks both paths. Also binds single effective-base resolution
+  reused for both changed-file detection and the changed-contract-operation snapshot (only the
+  actually-changed operations selected when given `CDD_BASE_SHA` alone), and requires the
+  shipped adopter workflow to pass `--base "$CDD_BASE_SHA"`.
+- **Archive-only push robustness** subsection under Gate Inventory (added by
+  `boundary-ci-adopter-parity`, production issue #61). Binds AC-6: the "Determine changed spec
+  directories" step exits 0 with empty `ids` on an archive-only push under `bash -eo pipefail`,
+  using a structured `if` form rather than a chained `&&` list.
+### Note
+- The underlying standalone `cdd-kit boundary check` exit-code default changes (1 → 0 in shadow
+  mode); this is an intended parity correction with `cdd-kit gate`, with `--enforce` as the
+  rollback path. Adopters see the behavior change on `npm` upgrade, not on a workflow edit — the
+  package release notes must call this out.
+
 ## [ci 0.10.0] — 2026-07-13
 ### Added
 - **Loosening policy — bone-audit** subsection under Informational Gate Promotion

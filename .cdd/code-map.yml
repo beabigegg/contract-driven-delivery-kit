@@ -1,6 +1,6 @@
-# generated: 2026-07-09T11:47:07Z by cdd-kit 3.9.0
-# files: 231, src-lines: 45792, map-lines: 3468, compression: 13.2x
-# sources-digest: 569c473844af7bf40749ed9c6e2ca1a9890e7105f79b7c76b47937a5d1145b33
+# generated: 2026-07-14T05:38:50Z by cdd-kit 3.13.1
+# files: 274, src-lines: 54281, map-lines: 4184, compression: 13.0x
+# sources-digest: d7c1ceb7570252333f95bd744d9abdceb2ecfa9c1289f028cf7eb2ee75f0f36c
 bin/cdd.js:  # 2 lines
   imports:
     - { module: '../dist/cli/index.js', items: [], line: 2 }
@@ -12,19 +12,99 @@ bin/postinstall.js:  # 20 lines
     - { module: 'node:path', items: [join, dirname], line: 4 }
     - { module: 'node:url', items: [fileURLToPath], line: 5 }
 
-build.js:  # 133 lines
+build.js:  # 154 lines
   imports:
     - { module: esbuild, items: [build], line: 1 }
     - { module: fs, items: [cpSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join, dirname], line: 10 }
     - { module: url, items: [fileURLToPath], line: 11 }
   constants:
-    - { name: APPLICABILITY_MARKED_TEMPLATES, line: 92 }
+    - { name: APPLICABILITY_MARKED_TEMPLATES, line: 94 }
+    - { name: SHIPPED_CDD_FILES, line: 135 }
   functions:
     - { name: shouldCopyAsset, lines: 53-62 }
     - { name: copy, lines: 64-74 }
 
-src/cli/index.ts:  # 1022 lines
+src/boundary/adapters.ts:  # 146 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 1 }
+    - { module: child_process, items: [spawnSync], line: 2 }
+    - { module: path, items: [isAbsolute, relative, resolve, sep], line: 3 }
+    - { module: '../runtime/types.js', items: [BoundaryOperation, BoundaryVariant], line: 4 }
+  constants:
+    - { name: BOUNDARY_ADAPTER_VERSION, line: 6 }
+    - { name: PYTHON_CAPTURE, line: 32 }
+    - { name: EXPRESS_CAPTURE, line: 58 }
+  functions:
+    - { name: sha, lines: 17-17 }
+    - { name: stable, lines: 18-22 }
+    - { name: captureTargetDigest, lines: 24-30 }
+    - { name: run, lines: 80-84 }
+    - { name: git, lines: 86-88 }
+    - { name: trustedBase, lines: 90-95 }
+    - { name: validateTargetFile, lines: 97-117 }
+    - { name: executeRegisteredCapture, lines: 119-146 }
+  interfaces:
+    - { name: AdapterCaptureResult, lines: 8-15 }
+
+src/boundary/generators.ts:  # 33 lines
+  imports:
+    - { module: fs, items: [mkdtempSync, readFileSync, rmSync], line: 1 }
+    - { module: os, items: [tmpdir], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: '../runtime/types.js', items: [BoundaryOperation], line: 5 }
+  functions:
+    - { name: replayGeneratedArtifact, lines: 9-33 }
+  types:
+    - { name: GeneratedArtifact, lines: 7-7 }  # local
+
+src/boundary/guard.ts:  # 495 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync], line: 2 }
+    - { module: path, items: [basename, dirname, join, relative, resolve], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: ajv, items: ['default:Ajv'], line: 6 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 7 }
+    - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, normalizeApiPath, parseContractSchemas, parseEndpoints, parseSchemaCellRef, stripFrontmatter, EndpointRow], line: 8 }
+    - { module: '../schemas/cdd-policy.schema.js', items: [cddPolicySchema], line: 17 }
+    - { module: '../schemas/boundary-manifest.schema.js', items: [boundaryManifestSchema], line: 18 }
+    - { module: '../runtime/types.js', items: [BoundaryOperation, WorkflowProfile], line: 19 }
+    - { module: './adapters.js', items: [captureTargetDigest, executeRegisteredCapture], line: 20 }
+    - { module: './generators.js', items: [replayGeneratedArtifact], line: 21 }
+  functions:
+    - { name: sha256, lines: 88-90 }
+    - { name: stableJson, lines: 92-96 }
+    - { name: operationKey, lines: 98-100 }
+    - { name: parseYaml, lines: 102-104 }
+    - { name: schemaErrors, lines: 106-108 }
+    - { name: loadPolicy, lines: 110-115 }
+    - { name: loadManifest, lines: 117-122 }
+    - { name: git, lines: 124-127 }
+    - { name: changedFiles, lines: 129-142 }
+    - { name: expectedParameters, lines: 144-155 }
+    - { name: aggregateFileDigest, lines: 157-165 }
+    - { name: aggregateFileDigestAtRevision, lines: 167-175 }
+    - { name: routeLooksDeclared, lines: 177-185 }
+    - { name: consumerLooksCompatible, lines: 187-194 }
+    - { name: consumerImportsArtifact, lines: 196-207 }
+    - { name: genericSchemaReason, lines: 209-218 }
+    - { name: contractAtRevision, lines: 220-222 }
+    - { name: changedContractOperations, lines: 224-234 }
+    - { name: activeException, lines: 236-239 }
+    - { name: isApiLookingPath, lines: 241-246 }
+    - { name: runBoundaryGuard, lines: 248-495 }
+  interfaces:
+    - { name: BoundaryGuardOptions, lines: 23-34 }
+    - { name: BoundaryFinding, lines: 36-42 }
+    - { name: BoundaryGuardResult, lines: 44-55 }
+    - { name: BoundaryException, lines: 57-59 }  # local
+    - { name: Policy, lines: 61-75 }  # local
+    - { name: BoundaryManifest, lines: 77-81 }  # local
+
+src/cli/index.ts:  # 1230 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: os, items: ['default:os'], line: 2 }
@@ -43,11 +123,12 @@ src/cli/index.ts:  # 1022 lines
     - { module: '../utils/stack-detect.js', items: [detectStack], line: 15 }
     - { module: '../utils/logger.js', items: [log], line: 16 }
     - { module: '../utils/provider.js', items: [ProviderOption], line: 17 }
+    - { module: '../runtime/types.js', items: [WorkflowProfile], line: 18 }
   functions:
-    - { name: collectRepeatable, lines: 197-200 }
-    - { name: resolveWorkers, lines: 213-220 }
+    - { name: collectRepeatable, lines: 366-369 }
+    - { name: resolveWorkers, lines: 382-389 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 202-210 }  # local
+    - { name: CodeMapCliOpts, lines: 371-379 }  # local
 
 src/code-graph/builder.ts:  # 399 lines
   imports:
@@ -413,17 +494,43 @@ src/commands/abandon.ts:  # 86 lines
   types:
     - { name: AbandonResult, lines: 17-19 }
 
-src/commands/accept.ts:  # 75 lines
+src/commands/accept.ts:  # 144 lines
   imports:
-    - { module: fs, items: [existsSync], line: 10 }
-    - { module: path, items: [join], line: 11 }
-    - { module: '../utils/logger.js', items: [log], line: 12 }
-    - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 13 }
-    - { module: './gate-shared.js', items: [ajv, loadYamlFile], line: 14 }
-    - { module: '../schemas/acceptance.schema.js', items: [acceptanceSchema], line: 15 }
-    - { module: '../utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, writeAcceptanceLock, AcceptanceFile], line: 16 }
+    - { module: fs, items: [existsSync], line: 15 }
+    - { module: path, items: [join], line: 16 }
+    - { module: readline, items: [createInterface], line: 17 }
+    - { module: '../utils/logger.js', items: [log], line: 18 }
+    - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 19 }
+    - { module: './gate-shared.js', items: [ajv, loadYamlFile], line: 20 }
+    - { module: '../schemas/acceptance.schema.js', items: [acceptanceSchema], line: 21 }
+    - { module: '../utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, writeAcceptanceLock, AcceptanceFile], line: 22 }
   functions:
-    - { name: async acceptRelock, lines: 25-75 }
+    - { name: loadValidatedOracle, lines: 31-64 }
+    - { name: async acceptRelock, lines: 66-86 }
+    - { name: printCriteria, lines: 88-100 }
+    - { name: promptLine, lines: 102-107 }
+    - { name: async acceptConfirm, lines: 109-144 }
+
+src/commands/agent-native-migrate.ts:  # 111 lines
+  imports:
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../contracts/parser.js', items: [parseEndpoints, stripFrontmatter], line: 3 }
+    - { module: '../utils/provider.js', items: [inferProvider, ProviderOption], line: 4 }
+    - { module: '../utils/user-asset-manifest.js', items: [USER_ASSET_MANIFEST], line: 5 }
+    - { module: './upgrade.js', items: [upgrade], line: 6 }
+    - { module: './update.js', items: [update], line: 7 }
+    - { module: './boundary.js', items: [boundaryInit], line: 8 }
+    - { module: '../utils/logger.js', items: [log], line: 9 }
+    - { module: './guidance.js', items: [writeGuidanceMigration], line: 10 }
+    - { module: '../runtime/engine.js', items: [planRuntime], line: 11 }
+    - { module: '../boundary/guard.js', items: [runBoundaryGuard], line: 12 }
+  functions:
+    - { name: agentNativeReadiness, lines: 23-54 }
+    - { name: importActiveChanges, lines: 56-71 }
+    - { name: async agentNativeMigrate, lines: 73-111 }
+  interfaces:
+    - { name: MigrationReadiness, lines: 14-21 }  # local
 
 src/commands/archive.ts:  # 94 lines
   imports:
@@ -434,7 +541,30 @@ src/commands/archive.ts:  # 94 lines
   functions:
     - { name: async archive, lines: 6-94 }
 
-src/commands/bug-suspects.ts:  # 438 lines
+src/commands/boundary.ts:  # 164 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 1 }
+    - { module: child_process, items: [spawnSync], line: 2 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 3 }
+    - { module: path, items: [dirname, join], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, normalizeApiPath, parseEndpoints, parseSchemaCellRef, stripFrontmatter], line: 6 }
+    - { module: '../boundary/guard.js', items: [runBoundaryGuard, BoundaryGuardOptions], line: 7 }
+    - { module: '../utils/logger.js', items: [log], line: 8 }
+    - { module: '../boundary/adapters.js', items: [executeRegisteredCapture], line: 9 }
+    - { module: '../runtime/types.js', items: [BoundaryOperation], line: 10 }
+  functions:
+    - { name: sha, lines: 24-24 }
+    - { name: stable, lines: 25-29 }
+    - { name: boundaryCapture, lines: 31-86 }
+    - { name: boundaryCheck, lines: 88-115 }
+    - { name: boundaryInit, lines: 117-164 }
+  interfaces:
+    - { name: BoundaryCheckOptions, lines: 12-14 }
+    - { name: BoundaryInitOptions, lines: 16-20 }
+    - { name: BoundaryCaptureOptions, lines: 22-22 }
+
+src/commands/bug-suspects.ts:  # 436 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -443,27 +573,28 @@ src/commands/bug-suspects.ts:  # 438 lines
     - { module: '../code-graph/queries.js', items: [searchGraph, 'graphImpact:nativeGraphImpact'], line: 5 }
     - { module: './index-query.js', items: [queryEntries], line: 6 }
     - { module: '../utils/git-paths.js', items: [getStagedPaths], line: 7 }
-    - { module: '../utils/logger.js', items: [log], line: 8 }
+    - { module: '../utils/markdown-section.js', items: [sectionBody], line: 8 }
+    - { module: '../utils/logger.js', items: [log], line: 9 }
   functions:
-    - { name: emitError, lines: 39-42 }
-    - { name: normalizePath, lines: 44-46 }
-    - { name: parseListSection, lines: 48-57 }
-    - { name: readChangeDir, lines: 59-61 }
-    - { name: parseAllowedPaths, lines: 63-71 }
-    - { name: parseTestPlanFiles, lines: 73-86 }
-    - { name: rangeFromLines, lines: 88-92 }
-    - { name: async bugSuspects, lines: 96-219 }
-    - { name: buildQueryTerms, lines: 227-238 }
-    - { name: async buildFromGraph, lines: 242-321 }
-    - { name: buildFromCodeMap, lines: 325-372 }
-    - { name: buildReason, lines: 376-384 }
-    - { name: isWithinAllowedPaths, lines: 386-393 }
-    - { name: normalizePaths, lines: 395-397 }
-    - { name: printHuman, lines: 399-438 }
+    - { name: emitError, lines: 40-43 }
+    - { name: normalizePath, lines: 45-47 }
+    - { name: parseListSection, lines: 49-55 }
+    - { name: readChangeDir, lines: 57-59 }
+    - { name: parseAllowedPaths, lines: 61-69 }
+    - { name: parseTestPlanFiles, lines: 71-84 }
+    - { name: rangeFromLines, lines: 86-90 }
+    - { name: async bugSuspects, lines: 94-217 }
+    - { name: buildQueryTerms, lines: 225-236 }
+    - { name: async buildFromGraph, lines: 240-319 }
+    - { name: buildFromCodeMap, lines: 323-370 }
+    - { name: buildReason, lines: 374-382 }
+    - { name: isWithinAllowedPaths, lines: 384-391 }
+    - { name: normalizePaths, lines: 393-395 }
+    - { name: printHuman, lines: 397-436 }
   interfaces:
-    - { name: BugSuspectsOptions, lines: 10-17 }
-    - { name: SuspectCandidate, lines: 19-28 }
-    - { name: BugSuspectsPayload, lines: 30-35 }
+    - { name: BugSuspectsOptions, lines: 11-18 }
+    - { name: SuspectCandidate, lines: 20-29 }
+    - { name: BugSuspectsPayload, lines: 31-36 }
 
 src/commands/changelog-build.ts:  # 98 lines
   imports:
@@ -742,7 +873,7 @@ src/commands/contract-set.ts:  # 518 lines
     - { name: EndpointTableBlock, lines: 110-116 }  # local
     - { name: FieldSpec, lines: 316-322 }  # local
 
-src/commands/design.ts:  # 62 lines
+src/commands/design.ts:  # 71 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 11 }
     - { module: path, items: [join], line: 12 }
@@ -751,7 +882,7 @@ src/commands/design.ts:  # 62 lines
     - { module: './gate-artifacts.js', items: [meaningfulChars], line: 15 }
     - { module: '../utils/design-hash.js', items: [computeDesignHash, extractConfirmedRegion, readDesignLock, writeDesignLock], line: 16 }
   functions:
-    - { name: async designConfirm, lines: 23-62 }
+    - { name: async designConfirm, lines: 23-71 }
 
 src/commands/doctor.ts:  # 888 lines
   imports:
@@ -802,17 +933,18 @@ src/commands/doctor.ts:  # 888 lines
     - { name: Finding, lines: 29-32 }  # local
     - { name: DoctorReport, lines: 34-41 }  # local
 
-src/commands/gate-acceptance.ts:  # 208 lines
+src/commands/gate-acceptance.ts:  # 203 lines
   imports:
-    - { module: fs, items: [existsSync], line: 26 }
-    - { module: path, items: [join], line: 27 }
-    - { module: './gate-shared.js', items: [ajv, ajvErrorsToMessages, loadYamlFile], line: 28 }
-    - { module: '../schemas/acceptance.schema.js', items: [acceptanceSchema], line: 29 }
-    - { module: '../utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, AcceptanceFile], line: 30 }
-    - { module: '../utils/mock-of-sut-scan.js', items: [findUnboundRules, scanAcceptanceDrivers], line: 35 }
+    - { module: fs, items: [existsSync], line: 7 }
+    - { module: path, items: [join], line: 8 }
+    - { module: './gate-shared.js', items: [ajv, ajvErrorsToMessages, loadYamlFile], line: 9 }
+    - { module: '../schemas/acceptance.schema.js', items: [acceptanceSchema], line: 10 }
+    - { module: '../utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, AcceptanceFile], line: 11 }
+    - { module: '../utils/acceptance-confirmation.js', items: [verifyChatAcceptance], line: 16 }
+    - { module: '../utils/mock-of-sut-scan.js', items: [findUnboundRules, scanAcceptanceDrivers], line: 17 }
   functions:
-    - { name: isMeaningfulValue, lines: 50-62 }
-    - { name: enforceAcceptanceOracle, lines: 74-208 }
+    - { name: isMeaningfulValue, lines: 21-33 }
+    - { name: enforceAcceptanceOracle, lines: 35-203 }
 
 src/commands/gate-agents.ts:  # 129 lines
   imports:
@@ -872,7 +1004,7 @@ src/commands/gate-dependencies.ts:  # 82 lines
     - { name: detectDependencyCycle, lines: 13-40 }
     - { name: validateDependencies, lines: 42-82 }
 
-src/commands/gate-design.ts:  # 362 lines
+src/commands/gate-design.ts:  # 407 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 31 }
     - { module: path, items: [join], line: 32 }
@@ -894,7 +1026,7 @@ src/commands/gate-design.ts:  # 362 lines
     - { name: parsePresentedInformation, lines: 178-184 }
     - { name: parseStates, lines: 187-194 }
     - { name: checkReferentialIntegrity, lines: 201-238 }
-    - { name: async enforceInteractionDesign, lines: 258-362 }
+    - { name: async enforceInteractionDesign, lines: 258-407 }
   interfaces:
     - { name: ApplicabilityResult, lines: 49-53 }  # local
     - { name: OpenDecision, lines: 106-109 }  # local
@@ -933,18 +1065,35 @@ src/commands/gate-evidence.ts:  # 823 lines
     - { name: EvidenceRun, lines: 86-92 }  # local
     - { name: TestEvidenceFile, lines: 94-101 }  # local
 
-src/commands/gate-shared.ts:  # 67 lines
+src/commands/gate-shared.ts:  # 383 lines
   imports:
-    - { module: fs, items: [readFileSync], line: 1 }
-    - { module: js-yaml, items: ['default:yaml'], line: 2 }
-    - { module: ajv, items: ['default:Ajv', ErrorObject], line: 3 }
-    - { module: ajv-formats, items: ['default:addFormats'], line: 4 }
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: child_process, items: [spawnSync], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: ajv, items: ['default:Ajv', ErrorObject], line: 5 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 6 }
+  constants:
+    - { name: WRITE_BLOCK_HOOKS, line: 71 }
   functions:
-    - { name: loadYamlFile, lines: 31-38 }
-    - { name: ajvErrorsToMessages, lines: 40-67 }
+    - { name: loadYamlFile, lines: 33-40 }
+    - { name: projectProvider, lines: 94-105 }
+    - { name: isCiEnvironment, lines: 112-118 }
+    - { name: entryCommands, lines: 131-145 }
+    - { name: entryDormantCommands, lines: 149-164 }
+    - { name: matcherCoversWriteTools, lines: 172-182 }
+    - { name: extractScriptPath, lines: 186-191 }
+    - { name: gitTrackedState, lines: 208-220 }
+    - { name: checkConfirmationHookInstallation, lines: 230-334 }
+    - { name: enforceConfirmationHookInstallation, lines: 343-354 }
+    - { name: ajvErrorsToMessages, lines: 356-383 }
   interfaces:
-    - { name: TaskItem, lines: 12-17 }
-    - { name: TasksFile, lines: 19-29 }
+    - { name: TaskItem, lines: 14-19 }
+    - { name: TasksFile, lines: 21-31 }
+    - { name: WriteBlockHookSpec, lines: 60-69 }  # local
+    - { name: HookInstallFinding, lines: 76-87 }
+  types:
+    - { name: TrackedState, lines: 206-206 }  # local
 
 src/commands/gate-tier.ts:  # 311 lines
   imports:
@@ -968,14 +1117,14 @@ src/commands/gate-tier.ts:  # 311 lines
     - { name: TierResolution, lines: 18-23 }
     - { name: TierFloorOverrideAudit, lines: 243-252 }  # local
 
-src/commands/gate.ts:  # 225 lines
+src/commands/gate.ts:  # 302 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
     - { module: '../utils/logger.js', items: [log], line: 3 }
     - { module: './validate.js', items: [validate], line: 4 }
     - { module: '../utils/gate-explain.js', items: [explainGateError], line: 5 }
-    - { module: './gate-shared.js', items: [TasksFile], line: 6 }
+    - { module: './gate-shared.js', items: [TasksFile, enforceConfirmationHookInstallation], line: 6 }
     - { module: './gate-artifacts.js', items: [REQUIRED_FILES, MIN_CHARS, meaningfulChars, findPlaceholders, countPendingContextRequests, isContextGovernedChange, lintTasksFile, getArchiveTaskIds], line: 7 }
     - { module: './gate-tier.js', items: [resolveTier, enforceTierConsistency, enforceTierFloor], line: 17 }
     - { module: './gate-dependencies.js', items: [validateDependencies], line: 18 }
@@ -985,11 +1134,16 @@ src/commands/gate.ts:  # 225 lines
     - { module: './gate-acceptance.js', items: [enforceAcceptanceOracle], line: 22 }
     - { module: './gate-design.js', items: [enforceInteractionDesign], line: 23 }
     - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 24 }
+    - { module: js-yaml, items: ['default:yaml'], line: 25 }
+    - { module: '../boundary/guard.js', items: [runBoundaryGuard], line: 26 }
+    - { module: '../policy/profile.js', items: [acceptanceOracleRequired, resolveGateProfile], line: 27 }
+    - { module: '../runtime/types.js', items: [WorkflowProfile], line: 28 }
+    - { module: '../runtime/engine.js', items: [verifyRuntime], line: 29 }
   functions:
-    - { name: reportGateFailure, lines: 39-61 }
-    - { name: async gate, lines: 63-225 }
+    - { name: reportGateFailure, lines: 47-69 }
+    - { name: async gate, lines: 71-302 }
   interfaces:
-    - { name: GateOptions, lines: 26-30 }
+    - { name: GateOptions, lines: 31-38 }
 
 src/commands/graph.ts:  # 568 lines
   imports:
@@ -1034,6 +1188,28 @@ src/commands/graph.ts:  # 568 lines
     - { name: SelectedEngine, lines: 61-64 }  # local
   types:
     - { name: GraphEngine, lines: 13-13 }  # local
+
+src/commands/guidance.ts:  # 138 lines
+  imports:
+    - { module: fs, items: [cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: '../utils/paths.js', items: [ASSET, ASSETS_DIR], line: 3 }
+    - { module: '../utils/logger.js', items: [log], line: 4 }
+  constants:
+    - { name: MANAGED_START, line: 54 }
+    - { name: MANAGED_END, line: 55 }
+  functions:
+    - { name: metric, lines: 22-27 }
+    - { name: markdownFiles, lines: 29-32 }
+    - { name: auditGuidance, lines: 34-52 }
+    - { name: managedBlock, lines: 57-61 }
+    - { name: mergeManaged, lines: 63-69 }
+    - { name: writeGuidanceMigration, lines: 71-113 }
+    - { name: guidanceAuditCommand, lines: 115-124 }
+    - { name: guidanceMigrateCommand, lines: 126-138 }
+  interfaces:
+    - { name: GuidanceMetric, lines: 6-11 }  # local
+    - { name: GuidanceAudit, lines: 13-20 }
 
 src/commands/index-impact.ts:  # 262 lines
   imports:
@@ -1090,25 +1266,26 @@ src/commands/index-query.ts:  # 365 lines
     - { name: QueryResult, lines: 51-60 }
     - { name: QueryPayload, lines: 62-73 }
 
-src/commands/init.ts:  # 430 lines
+src/commands/init.ts:  # 473 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [rmSync, readFileSync, writeFileSync, existsSync, readdirSync], line: 2 }
-    - { module: '../utils/paths.js', items: [ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME, readKitVersion], line: 3 }
+    - { module: '../utils/paths.js', items: [ASSET, ASSETS_DIR, AGENTS_HOME, SKILLS_HOME, CODEX_SKILLS_HOME, readKitVersion], line: 3 }
     - { module: '../utils/copy.js', items: [copyDirTracked, copyFileTracked], line: 4 }
     - { module: '../utils/logger.js', items: [log], line: 5 }
     - { module: '../utils/stack-detect.js', items: [detectStack, StackKind], line: 6 }
     - { module: './suggest-codegen.js', items: [suggestCodegenScript], line: 7 }
     - { module: '../utils/mcp-hint.js', items: [logRecommendedMcpSetup], line: 8 }
+    - { module: '../utils/user-asset-manifest.js', items: [mappedDestinationFiles, stampUserAssets], line: 9 }
   functions:
-    - { name: readCondaEnvName, lines: 37-47 }
-    - { name: loadCiTemplate, lines: 53-62 }
-    - { name: patchFastGateYml, lines: 76-119 }
-    - { name: async init, lines: 121-430 }
+    - { name: readCondaEnvName, lines: 38-48 }
+    - { name: loadCiTemplate, lines: 54-63 }
+    - { name: patchFastGateYml, lines: 77-120 }
+    - { name: async init, lines: 122-473 }
   interfaces:
-    - { name: InitOptions, lines: 10-31 }
+    - { name: InitOptions, lines: 11-32 }
 
-src/commands/install-agent-hooks.ts:  # 308 lines
+src/commands/install-agent-hooks.ts:  # 329 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, copyFileSync, chmodSync, mkdirSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -1122,21 +1299,21 @@ src/commands/install-agent-hooks.ts:  # 308 lines
     - { name: TEST_RUNNER_MARKER, line: 40 }
     - { name: ACCEPTANCE_WRITE_MARKER, line: 41 }
     - { name: DESIGN_WRITE_MARKER, line: 42 }
-    - { name: GRAPH_FIRST, line: 60 }
-    - { name: CONTRACT_WRITE, line: 71 }
-    - { name: TEST_RUNNER, line: 83 }
-    - { name: ACCEPTANCE_WRITE, line: 95 }
-    - { name: DESIGN_WRITE, line: 107 }
+    - { name: GRAPH_FIRST, line: 69 }
+    - { name: CONTRACT_WRITE, line: 80 }
+    - { name: TEST_RUNNER, line: 92 }
+    - { name: ACCEPTANCE_WRITE, line: 104 }
+    - { name: DESIGN_WRITE, line: 116 }
   functions:
-    - { name: hookRelPath, lines: 145-147 }
-    - { name: withoutHandler, lines: 157-177 }
-    - { name: async installAgentHooks, lines: 203-308 }
+    - { name: hookRelPath, lines: 154-156 }
+    - { name: withoutHandler, lines: 166-186 }
+    - { name: async installAgentHooks, lines: 212-329 }
   interfaces:
     - { name: InstallAgentHooksOptions, lines: 11-28 }
-    - { name: HookDef, lines: 45-58 }  # local
-    - { name: HookHandler, lines: 120-124 }  # local
-    - { name: HookEntry, lines: 126-136 }  # local
-    - { name: SettingsShape, lines: 138-141 }  # local
+    - { name: HookDef, lines: 45-67 }  # local
+    - { name: HookHandler, lines: 129-133 }  # local
+    - { name: HookEntry, lines: 135-145 }  # local
+    - { name: SettingsShape, lines: 147-150 }  # local
   types:
     - { name: HookMode, lines: 7-7 }
     - { name: GraphFirstMode, lines: 9-9 }
@@ -1398,6 +1575,22 @@ src/commands/parallel-shared.ts:  # 202 lines
   types:
     - { name: BumpKind, lines: 16-16 }
 
+src/commands/policy.ts:  # 90 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: js-yaml, items: ['default:yaml'], line: 2 }
+    - { module: ajv, items: ['default:Ajv'], line: 3 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 4 }
+    - { module: '../schemas/cdd-policy.schema.js', items: [cddPolicySchema], line: 5 }
+    - { module: '../utils/logger.js', items: [log], line: 6 }
+  constants:
+    - { name: BONES, line: 19 }
+  functions:
+    - { name: auditLoosening, lines: 30-55 }
+    - { name: policyCheck, lines: 57-90 }
+  interfaces:
+    - { name: LooseningAck, lines: 12-12 }  # local
+
 src/commands/refresh.ts:  # 409 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync], line: 29 }
@@ -1430,6 +1623,30 @@ src/commands/refresh.ts:  # 409 lines
     - { name: PlannedCopy, lines: 53-58 }  # local
     - { name: AgentFrontmatter, lines: 127-130 }  # local
 
+src/commands/report.ts:  # 201 lines
+  imports:
+    - { module: child_process, items: [spawnSync], line: 15 }
+    - { module: fs, items: [readFileSync], line: 16 }
+    - { module: path, items: [join], line: 17 }
+    - { module: '../utils/paths.js', items: [PACKAGE_ROOT, readKitVersion], line: 18 }
+  constants:
+    - { name: DEFAULT_REPORT_REPO, line: 20 }
+    - { name: REPORT_CATEGORIES, line: 21 }
+    - { name: MAX_BODY, line: 22 }
+  functions:
+    - { name: isPlaceholder, lines: 44-47 }
+    - { name: parseRepoSlug, lines: 49-58 }
+    - { name: packageRepoUrls, lines: 60-72 }
+    - { name: resolveRepo, lines: 74-82 }
+    - { name: gitFact, lines: 84-87 }
+    - { name: composeBody, lines: 89-108 }
+    - { name: postIssue, lines: 112-144 }
+    - { name: async report, lines: 146-199 }
+  interfaces:
+    - { name: ReportOptions, lines: 24-34 }
+    - { name: ReportDraft, lines: 36-42 }  # local
+    - { name: PostResult, lines: 110-110 }  # local
+
 src/commands/reserve.ts:  # 98 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 10 }
@@ -1446,7 +1663,31 @@ src/commands/reserve.ts:  # 98 lines
   interfaces:
     - { name: ReserveOptions, lines: 26-33 }
 
-src/commands/setup.ts:  # 268 lines
+src/commands/runtime.ts:  # 157 lines
+  imports:
+    - { module: path, items: [relative], line: 1 }
+    - { module: '../runtime/engine.js', items: [planRuntime, resumeRuntime, runtimeDirectory, runtimeStatus, verifyRuntime], line: 2 }
+    - { module: '../runtime/types.js', items: [WorkflowProfile], line: 3 }
+    - { module: '../utils/provider.js', items: [Provider], line: 4 }
+    - { module: '../utils/logger.js', items: [log], line: 5 }
+    - { module: '../runtime/checks.js', items: [runAllRuntimeChecks, runRuntimeCheck, runtimeCheckPlan], line: 6 }
+    - { module: '../runtime/decisions.js', items: [importRuntimeApproval, recordRuntimeReview], line: 7 }
+    - { module: '../runtime/agent.js', items: [buildRuntimeAgentPrompt, recordRuntimeAgentResult, RuntimeAgentRole], line: 8 }
+    - { module: '../runtime/parity.js', items: [compareRuntimeWithStrict], line: 9 }
+  functions:
+    - { name: runtimePlan, lines: 11-36 }
+    - { name: runtimeShow, lines: 38-50 }
+    - { name: runtimeResume, lines: 52-60 }
+    - { name: runtimeVerify, lines: 62-72 }
+    - { name: runtimeChecksPlan, lines: 74-82 }
+    - { name: runtimeChecksRun, lines: 84-97 }
+    - { name: runtimeReview, lines: 99-109 }
+    - { name: runtimeApprovalImport, lines: 111-121 }
+    - { name: runtimeAgentPrompt, lines: 123-130 }
+    - { name: runtimeAgentComplete, lines: 132-141 }
+    - { name: runtimeParity, lines: 143-157 }
+
+src/commands/setup.ts:  # 280 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 23 }
     - { module: path, items: [join], line: 24 }
@@ -1455,16 +1696,17 @@ src/commands/setup.ts:  # 268 lines
     - { module: '../utils/stack-detect.js', items: [detectStack], line: 27 }
     - { module: '../utils/mcp-hint.js', items: [logRecommendedMcpSetup], line: 28 }
     - { module: '../utils/provider.js', items: [inferProvider, Provider], line: 29 }
+    - { module: '../providers/registry.js', items: [providerAdapters], line: 30 }
   functions:
-    - { name: registerMcp, lines: 55-81 }
-    - { name: conformanceOffButRelevant, lines: 88-102 }
-    - { name: printSummaryRow, lines: 105-111 }
-    - { name: async setup, lines: 113-268 }
+    - { name: registerMcp, lines: 56-90 }
+    - { name: conformanceOffButRelevant, lines: 97-111 }
+    - { name: printSummaryRow, lines: 114-120 }
+    - { name: async setup, lines: 122-280 }
   interfaces:
-    - { name: SetupOptions, lines: 31-40 }
-    - { name: StepResult, lines: 43-47 }  # local
+    - { name: SetupOptions, lines: 32-41 }
+    - { name: StepResult, lines: 44-48 }  # local
   types:
-    - { name: StepStatus, lines: 42-42 }  # local
+    - { name: StepStatus, lines: 43-43 }  # local
 
 src/commands/suggest-codegen.ts:  # 139 lines
   imports:
@@ -1628,26 +1870,27 @@ src/commands/test-select.ts:  # 619 lines
     - { name: Phase, lines: 34-34 }
     - { name: Selection, lines: 488-491 }  # local
 
-src/commands/update.ts:  # 181 lines
+src/commands/update.ts:  # 226 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync], line: 2 }
     - { module: crypto, items: [createHash], line: 3 }
-    - { module: '../utils/paths.js', items: [ASSET, AGENTS_HOME, SKILLS_HOME], line: 4 }
+    - { module: '../utils/paths.js', items: [ASSET, AGENTS_HOME, SKILLS_HOME, CODEX_SKILLS_HOME, readKitVersion], line: 4 }
     - { module: '../utils/logger.js', items: [log], line: 5 }
     - { module: os, items: [homedir], line: 6 }
     - { module: '../utils/provider.js', items: [inferProvider, validateProviderOption, Provider, ProviderOption], line: 7 }
+    - { module: '../utils/user-asset-manifest.js', items: [isOwnedAndUnmodified, loadUserAssetManifest, stampUserAssets, UserAssetProvider], line: 8 }
   functions:
-    - { name: fileHash, lines: 15-18 }
-    - { name: diffDir, lines: 26-51 }
-    - { name: applyDir, lines: 53-62 }
-    - { name: backupDir, lines: 64-77 }
-    - { name: async update, lines: 79-181 }
+    - { name: fileHash, lines: 18-21 }
+    - { name: diffDir, lines: 30-55 }
+    - { name: applyDir, lines: 57-66 }
+    - { name: backupDir, lines: 68-81 }
+    - { name: async update, lines: 83-226 }
   interfaces:
-    - { name: UpdateOptions, lines: 9-13 }
-    - { name: DiffEntry, lines: 20-24 }  # local
+    - { name: UpdateOptions, lines: 10-16 }
+    - { name: DiffEntry, lines: 23-28 }  # local
 
-src/commands/upgrade.ts:  # 145 lines
+src/commands/upgrade.ts:  # 150 lines
   imports:
     - { module: fs, items: [existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync], line: 1 }
     - { module: path, items: [dirname, join, relative], line: 2 }
@@ -1658,30 +1901,31 @@ src/commands/upgrade.ts:  # 145 lines
     - { module: './migrate.js', items: [migrate], line: 7 }
   functions:
     - { name: planMissingFiles, lines: 22-35 }
-    - { name: planProviderGuidance, lines: 37-49 }
-    - { name: applyCopy, lines: 51-56 }
-    - { name: async upgrade, lines: 58-145 }
+    - { name: planProviderGuidance, lines: 37-54 }
+    - { name: applyCopy, lines: 56-61 }
+    - { name: async upgrade, lines: 63-150 }
   interfaces:
     - { name: UpgradeOptions, lines: 9-14 }
     - { name: PlannedCopy, lines: 16-20 }  # local
 
-src/commands/validate.ts:  # 120 lines
+src/commands/validate.ts:  # 166 lines
   imports:
     - { module: path, items: [join], line: 1 }
     - { module: fs, items: [existsSync], line: 2 }
     - { module: child_process, items: [spawnSync], line: 3 }
     - { module: '../utils/paths.js', items: [ASSET], line: 4 }
     - { module: '../utils/logger.js', items: [log], line: 5 }
+    - { module: './gate-shared.js', items: [checkConfirmationHookInstallation, isCiEnvironment], line: 6 }
   constants:
-    - { name: VALIDATORS, line: 24 }
+    - { name: VALIDATORS, line: 34 }
   functions:
-    - { name: resolvePython, lines: 42-48 }
-    - { name: async validate, lines: 50-120 }
+    - { name: resolvePython, lines: 52-58 }
+    - { name: async validate, lines: 60-166 }
   interfaces:
-    - { name: ValidateOptions, lines: 7-13 }
-    - { name: ValidatorEntry, lines: 15-22 }  # local
+    - { name: ValidateOptions, lines: 8-23 }
+    - { name: ValidatorEntry, lines: 25-32 }  # local
 
-src/contracts/parser.ts:  # 578 lines
+src/contracts/parser.ts:  # 583 lines
   constants:
     - { name: VALID_METHODS, line: 22 }
     - { name: SCHEMA_NAME_RE, line: 23 }
@@ -1709,8 +1953,8 @@ src/contracts/parser.ts:  # 578 lines
     - { name: findForeignFenceTag, lines: 431-434 }
     - { name: parseFieldTable, lines: 436-469 }
     - { name: compileType, lines: 471-498 }
-    - { name: compileFieldTable, lines: 500-517 }
-    - { name: parseContractSchemas, lines: 519-578 }
+    - { name: compileFieldTable, lines: 500-522 }
+    - { name: parseContractSchemas, lines: 524-583 }
   interfaces:
     - { name: EndpointRow, lines: 35-49 }
     - { name: SchemaSection, lines: 51-54 }
@@ -1722,7 +1966,7 @@ src/contracts/parser.ts:  # 578 lines
   types:
     - { name: JsonSchema, lines: 20-20 }
 
-src/mcp/server.ts:  # 455 lines
+src/mcp/server.ts:  # 596 lines
   imports:
     - { module: child_process, items: [spawnSync], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -1731,18 +1975,19 @@ src/mcp/server.ts:  # 455 lines
   constants:
     - { name: DEFAULT_MAP, line: 35 }
   functions:
-    - { name: async runMcpServer, lines: 205-230 }
-    - { name: async handleRequest, lines: 232-268 }
-    - { name: callTool, lines: 270-390 }
-    - { name: runCddJson, lines: 392-415 }
-    - { name: refreshArgs, lines: 417-419 }
-    - { name: sourceArgs, lines: 421-424 }
-    - { name: asObject, lines: 426-430 }
-    - { name: requireString, lines: 432-438 }
-    - { name: optionalString, lines: 440-442 }
-    - { name: optionalInt, lines: 444-447 }
-    - { name: writeResult, lines: 449-451 }
-    - { name: writeError, lines: 453-455 }
+    - { name: async runMcpServer, lines: 282-307 }
+    - { name: async handleRequest, lines: 309-345 }
+    - { name: callTool, lines: 347-527 }
+    - { name: runCddJson, lines: 529-552 }
+    - { name: refreshArgs, lines: 554-556 }
+    - { name: sourceArgs, lines: 558-561 }
+    - { name: asObject, lines: 563-567 }
+    - { name: requireString, lines: 569-575 }
+    - { name: optionalString, lines: 577-579 }
+    - { name: optionalInt, lines: 581-584 }
+    - { name: optionalStringArray, lines: 586-588 }
+    - { name: writeResult, lines: 590-592 }
+    - { name: writeError, lines: 594-596 }
   interfaces:
     - { name: JsonRpcRequest, lines: 8-13 }  # local
     - { name: ToolDef, lines: 15-24 }  # local
@@ -1751,11 +1996,222 @@ src/mcp/server.ts:  # 455 lines
   types:
     - { name: JsonRpcId, lines: 6-6 }  # local
 
-src/schemas/acceptance.schema.ts:  # 61 lines
+src/policy/profile.ts:  # 110 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: js-yaml, items: ['default:yaml'], line: 3 }
+    - { module: crypto, items: [createHash], line: 4 }
+    - { module: '../runtime/types.js', items: [ExecutionCapsule, WorkflowProfile], line: 5 }
+  constants:
+    - { name: WORKFLOW_PROFILES, line: 24 }
+    - { name: PROFILE_ORDER, line: 25 }
+  functions:
+    - { name: policyDigest, lines: 27-31 }
+    - { name: readCurrentCapsule, lines: 33-49 }
+    - { name: readPolicy, lines: 51-56 }
+    - { name: resolveGateProfile, lines: 58-87 }
+    - { name: acceptanceOracleMode, lines: 89-94 }
+    - { name: acceptanceOracleRequired, lines: 96-110 }
+  interfaces:
+    - { name: ProfilePolicy, lines: 9-11 }  # local
+    - { name: ProjectPolicy, lines: 13-15 }  # local
+    - { name: GateProfileResolution, lines: 17-22 }
+  types:
+    - { name: AcceptanceOracleMode, lines: 7-7 }
+
+src/providers/registry.ts:  # 29 lines
+  imports:
+    - { module: '../utils/provider.js', items: [Provider, ProviderOption], line: 1 }
+    - { module: './types.js', items: [ProviderAdapter], line: 2 }
+  functions:
+    - { name: providerAdapters, lines: 4-25 }
+    - { name: isProviderOption, lines: 27-29 }
+
+src/providers/types.ts:  # 11 lines
+  imports:
+    - { module: '../utils/provider.js', items: [Provider], line: 1 }
+  interfaces:
+    - { name: ProviderAdapter, lines: 3-11 }
+
+src/runtime/agent.ts:  # 105 lines
+  imports:
+    - { module: fs, items: [existsSync, readFileSync, statSync], line: 1 }
+    - { module: path, items: [join, relative], line: 2 }
+    - { module: './decisions.js', items: [decisionPolicyDigest, decisionWorkingTreeDigest], line: 3 }
+    - { module: './store.js', items: [readRuntimeState, withRuntimeLock, writeRuntimeArtifact, writeRuntimeState, StoredRuntimeState], line: 4 }
+    - { module: './types.js', items: [ExecutionCapsule], line: 5 }
+    - { module: '../utils/paths.js', items: [ASSETS_DIR], line: 6 }
+    - { module: crypto, items: [createHash], line: 7 }
+  functions:
+    - { name: readDoctrine, lines: 22-28 }
+    - { name: buildRuntimeAgentPrompt, lines: 30-58 }
+    - { name: recordRuntimeAgentResult, lines: 60-105 }
+  interfaces:
+    - { name: RuntimeAgentPrompt, lines: 11-20 }
+  types:
+    - { name: RuntimeAgentRole, lines: 9-9 }
+
+src/runtime/checks.ts:  # 105 lines
+  imports:
+    - { module: child_process, items: [spawnSync], line: 1 }
+    - { module: path, items: [relative], line: 2 }
+    - { module: './types.js', items: [ExecutionCapsule], line: 3 }
+    - { module: './store.js', items: [readRuntimeState, withRuntimeLock, writeRuntimeArtifact, writeRuntimeState, writeRuntimeTextArtifact, StoredRuntimeState], line: 4 }
+    - { module: './decisions.js', items: [decisionPolicyDigest, decisionWorkingTreeDigest], line: 12 }
+  functions:
+    - { name: runtimeCheckPlan, lines: 30-33 }
+    - { name: runRuntimeCheck, lines: 35-89 }
+    - { name: runAllRuntimeChecks, lines: 91-105 }
+  interfaces:
+    - { name: RuntimeCheckResult, lines: 14-28 }
+
+src/runtime/decisions.ts:  # 294 lines
+  imports:
+    - { module: crypto, items: [createHash, createPublicKey, 'verify:verifySignature'], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync, statSync], line: 2 }
+    - { module: path, items: [join, relative, isAbsolute], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: './store.js', items: [readRuntimeState, runDir, withRuntimeLock, writeRuntimeArtifact, writeRuntimeState, StoredRuntimeState], line: 6 }
+    - { module: './types.js', items: [ExecutionCapsule], line: 14 }
+  functions:
+    - { name: digest, lines: 16-16 }
+    - { name: git, lines: 17-20 }
+    - { name: approvalTrustRevision, lines: 21-28 }
+    - { name: trustedFileMatches, lines: 30-34 }
+    - { name: decisionWorkingTreeDigest, lines: 35-46 }
+    - { name: decisionPolicyDigest, lines: 48-51 }
+    - { name: canonical, lines: 85-92 }
+    - { name: signedApprovalPayload, lines: 94-94 }
+    - { name: requireText, lines: 96-100 }
+    - { name: latestAgentActor, lines: 102-108 }
+    - { name: verifySignedApprovalEnvelope, lines: 116-163 }
+    - { name: verifyRuntimeApprovalEvidence, lines: 165-211 }
+    - { name: recordRuntimeReview, lines: 213-241 }
+    - { name: importRuntimeApproval, lines: 243-294 }
+  interfaces:
+    - { name: DecisionRecord, lines: 53-66 }
+    - { name: SignedApprovalEnvelope, lines: 68-83 }
+    - { name: VerifiedApproval, lines: 110-114 }  # local
+
+src/runtime/engine.ts:  # 335 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync, statSync], line: 2 }
+    - { module: path, items: [join, relative], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: '../boundary/guard.js', items: [runBoundaryGuard], line: 6 }
+    - { module: '../utils/provider.js', items: [inferProvider, Provider], line: 7 }
+    - { module: './types.js', items: [ExecutionCapsule, RuntimeEvidence, WorkflowProfile], line: 8 }
+    - { module: './router.js', items: [detectRiskSignals, requiredApprovals, selectCapabilitiesAndDoctrine, selectProfile], line: 9 }
+    - { module: './store.js', items: [readRuntimeState, runDir, withRuntimeLock, writeRuntimeArtifact, writeRuntimeState, StoredRuntimeState], line: 10 }
+    - { module: '../policy/profile.js', items: [acceptanceOracleMode], line: 11 }
+    - { module: '../commands/gate-acceptance.js', items: [enforceAcceptanceOracle], line: 12 }
+    - { module: './decisions.js', items: [decisionPolicyDigest, decisionWorkingTreeDigest, verifyRuntimeApprovalEvidence], line: 13 }
+    - { module: '../contracts/parser.js', items: [normalizeApiPath, parseEndpoints, stripFrontmatter], line: 14 }
+  constants:
+    - { name: OBJECTIVE_STOP_WORDS, line: 80 }
+  functions:
+    - { name: digest, lines: 16-16 }
+    - { name: fileDigest, lines: 17-17 }
+    - { name: git, lines: 18-23 }
+    - { name: dirtyDigest, lines: 24-35 }
+    - { name: now, lines: 36-36 }
+    - { name: runId, lines: 37-37 }
+    - { name: packageManager, lines: 39-44 }
+    - { name: packageScriptCommand, lines: 46-49 }
+    - { name: deriveCheckPlan, lines: 51-71 }
+    - { name: loadPolicy, lines: 74-78 }
+    - { name: inferObjectiveImpact, lines: 82-98 }
+    - { name: planRuntime, lines: 104-158 }
+    - { name: resumeRuntime, lines: 160-177 }
+    - { name: verifyRuntime, lines: 179-332 }
+    - { name: runtimeStatus, lines: 334-334 }
+    - { name: runtimeDirectory, lines: 335-335 }
+  interfaces:
+    - { name: RuntimePolicy, lines: 73-73 }  # local
+    - { name: PlanRuntimeOptions, lines: 100-102 }
+
+src/runtime/parity.ts:  # 100 lines
+  imports:
+    - { module: child_process, items: [spawnSync], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync], line: 2 }
+    - { module: path, items: [isAbsolute, relative, resolve], line: 3 }
+    - { module: '../commands/guidance.js', items: [auditGuidance], line: 4 }
+    - { module: './agent.js', items: [buildRuntimeAgentPrompt], line: 5 }
+    - { module: './engine.js', items: [verifyRuntime], line: 6 }
+    - { module: './store.js', items: [readRuntimeState, writeRuntimeArtifact], line: 7 }
+    - { module: './types.js', items: [ExecutionCapsule], line: 8 }
+  functions:
+    - { name: classifyParityVerdict, lines: 20-23 }
+    - { name: strictCategories, lines: 25-38 }
+    - { name: compareRuntimeWithStrict, lines: 40-100 }
+  interfaces:
+    - { name: MutationMatrix, lines: 11-11 }  # local
+  types:
+    - { name: MutationVerdict, lines: 10-10 }  # local
+    - { name: ParityVerdict, lines: 13-13 }
+
+src/runtime/router.ts:  # 77 lines
+  imports:
+    - { module: './types.js', items: [WorkflowProfile], line: 1 }
+  constants:
+    - { name: ORDER, line: 12 }
+  functions:
+    - { name: maxProfile, lines: 14-16 }
+    - { name: detectRiskSignals, lines: 18-49 }
+    - { name: selectProfile, lines: 51-58 }
+    - { name: requiredApprovals, lines: 60-62 }
+    - { name: selectCapabilitiesAndDoctrine, lines: 64-77 }
+  interfaces:
+    - { name: RiskSignal, lines: 3-10 }
+
+src/runtime/store.ts:  # 94 lines
+  imports:
+    - { module: fs, items: [existsSync, mkdirSync, openSync, closeSync, readFileSync, renameSync, rmSync, writeFileSync], line: 1 }
+    - { module: path, items: [dirname, join], line: 2 }
+    - { module: ajv, items: ['default:Ajv'], line: 3 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 4 }
+    - { module: '../schemas/runtime-state.schema.js', items: [runtimeStateSchema], line: 5 }
+  constants:
+    - { name: SAFE_RUNTIME_ID, line: 25 }
+    - { name: SAFE_ARTIFACT_NAME, line: 26 }
+  functions:
+    - { name: runtimeRoot, lines: 24-24 }
+    - { name: requireSafeRuntimeId, lines: 28-30 }
+    - { name: runDir, lines: 32-35 }
+    - { name: withRuntimeLock, lines: 37-46 }
+    - { name: atomicJson, lines: 48-53 }
+    - { name: atomicText, lines: 55-60 }
+    - { name: writeRuntimeState, lines: 62-66 }
+    - { name: readRuntimeState, lines: 68-80 }
+    - { name: writeRuntimeArtifact, lines: 82-87 }
+    - { name: writeRuntimeTextArtifact, lines: 89-94 }
+  interfaces:
+    - { name: StoredRuntimeState, lines: 11-22 }
+
+src/runtime/types.ts:  # 100 lines
+  interfaces:
+    - { name: BoundaryVariant, lines: 4-21 }
+    - { name: BoundaryParameter, lines: 23-28 }
+    - { name: BoundaryOperation, lines: 30-46 }
+    - { name: ExecutionCapsule, lines: 48-75 }
+    - { name: RuntimeEvidence, lines: 77-100 }
+  types:
+    - { name: WorkflowProfile, lines: 1-1 }
+    - { name: BoundaryStatus, lines: 2-2 }
+
+src/schemas/acceptance.schema.ts:  # 134 lines
 
 src/schemas/agent-log.schema.ts:  # 39 lines
   imports:
     - { module: './bug-fix-evidence.schema.js', items: [bugFixEvidenceBlock], line: 1 }
+
+src/schemas/boundary-manifest.schema.ts:  # 113 lines
+  constants:
+    - { name: HTTP_METHODS, line: 1 }
 
 src/schemas/bug-fix-evidence.schema.ts:  # 208 lines
   constants:
@@ -1763,9 +2219,17 @@ src/schemas/bug-fix-evidence.schema.ts:  # 208 lines
     - { name: BEHAVIOR_FIX_REPRODUCTION_STATUSES, line: 35 }
     - { name: HYPOTHESIS_RESULTS, line: 42 }
 
+src/schemas/cdd-policy.schema.ts:  # 114 lines
+  constants:
+    - { name: PROFILE, line: 1 }
+
 src/schemas/change-metadata.schema.ts:  # 58 lines
 
-src/schemas/design-lock.schema.ts:  # 34 lines
+src/schemas/design-lock.schema.ts:  # 43 lines
+
+src/schemas/execution-capsule.schema.ts:  # 52 lines
+  imports:
+    - { module: './cdd-policy.schema.js', items: [WORKFLOW_PROFILES], line: 1 }
 
 src/schemas/reservations.schema.ts:  # 87 lines
   constants:
@@ -1773,6 +2237,14 @@ src/schemas/reservations.schema.ts:  # 87 lines
     - { name: CONTRACT_PATHS, line: 80 }
   types:
     - { name: ContractKey, lines: 77-77 }
+
+src/schemas/runtime-evidence.schema.ts:  # 50 lines
+  imports:
+    - { module: './cdd-policy.schema.js', items: [WORKFLOW_PROFILES], line: 1 }
+
+src/schemas/runtime-state.schema.ts:  # 44 lines
+  imports:
+    - { module: './execution-capsule.schema.js', items: [executionCapsuleSchema], line: 1 }
 
 src/schemas/tasks.schema.ts:  # 47 lines
 
@@ -1784,27 +2256,50 @@ src/schemas/test-evidence.schema.ts:  # 87 lines
 
 src/schemas/trace.schema.ts:  # 67 lines
 
-src/utils/acceptance-hash.ts:  # 133 lines
+src/utils/acceptance-confirmation.ts:  # 215 lines
   imports:
-    - { module: crypto, items: [createHash], line: 18 }
+    - { module: fs, items: [existsSync, readFileSync], line: 1 }
+    - { module: path, items: [join], line: 2 }
+    - { module: child_process, items: [spawnSync], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+  constants:
+    - { name: DEFAULT_ACCEPTANCE_AUTHORIZATION, line: 30 }
+  functions:
+    - { name: acceptanceAuthorization, lines: 32-50 }
+    - { name: acceptanceChatBindsHead, lines: 58-69 }
+    - { name: git, lines: 82-85 }
+    - { name: githubContext, lines: 87-111 }
+    - { name: fetchComments, lines: 113-138 }
+    - { name: commentConfirmsAcceptance, lines: 140-172 }
+    - { name: verifyChatAcceptance, lines: 174-215 }
+  interfaces:
+    - { name: GitHubComment, lines: 6-11 }  # local
+    - { name: AcceptanceAuthorization, lines: 13-16 }
+    - { name: ChatAcceptanceVerification, lines: 71-80 }
+
+src/utils/acceptance-hash.ts:  # 146 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 17 }
+    - { module: child_process, items: [spawnSync], line: 18 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 19 }
     - { module: path, items: [dirname, join], line: 20 }
     - { module: './digest.js', items: [normalizeContentForHash], line: 21 }
   functions:
-    - { name: sortKeysDeep, lines: 45-56 }
-    - { name: byId, lines: 59-61 }
-    - { name: projectLockedRegion, lines: 69-79 }
-    - { name: computeAcceptanceHash, lines: 82-87 }
-    - { name: lockPath, lines: 96-98 }
-    - { name: readAcceptanceLock, lines: 105-116 }
-    - { name: writeAcceptanceLock, lines: 127-133 }
+    - { name: sortKeysDeep, lines: 45-54 }
+    - { name: byId, lines: 56-58 }
+    - { name: projectLockedRegion, lines: 60-70 }
+    - { name: computeAcceptanceHash, lines: 72-77 }
+    - { name: lockPath, lines: 95-97 }
+    - { name: gitAuthorIdentity, lines: 99-109 }
+    - { name: readAcceptanceLock, lines: 111-122 }
+    - { name: writeAcceptanceLock, lines: 124-146 }
   interfaces:
     - { name: AcceptanceCase, lines: 23-28 }
     - { name: AcceptanceRule, lines: 30-34 }
-    - { name: AcceptanceFile, lines: 36-42 }
-    - { name: AcceptanceLockEntry, lines: 89-92 }
+    - { name: AcceptanceFile, lines: 36-43 }
+    - { name: AcceptanceLockEntry, lines: 79-91 }
   types:
-    - { name: AcceptanceLockFile, lines: 94-94 }
+    - { name: AcceptanceLockFile, lines: 93-93 }
 
 src/utils/asset-manifest.ts:  # 59 lines
   imports:
@@ -1846,68 +2341,79 @@ src/utils/copy.ts:  # 156 lines
     - { name: copyFile, lines: 110-130 }
     - { name: copyFileTracked, lines: 135-156 }
 
-src/utils/design-hash.ts:  # 101 lines
+src/utils/design-hash.ts:  # 143 lines
   imports:
     - { module: crypto, items: [createHash], line: 24 }
-    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 25 }
-    - { module: path, items: [dirname, join], line: 26 }
-    - { module: './digest.js', items: [normalizeContentForHash], line: 27 }
-    - { module: './markdown-section.js', items: [sectionBody], line: 28 }
+    - { module: child_process, items: [spawnSync], line: 25 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 26 }
+    - { module: path, items: [dirname, join], line: 27 }
+    - { module: './digest.js', items: [normalizeContentForHash], line: 28 }
+    - { module: './markdown-section.js', items: [sectionBody], line: 29 }
   functions:
-    - { name: extractConfirmedRegion, lines: 31-33 }
-    - { name: projectConfirmedRegion, lines: 41-47 }
-    - { name: computeDesignHash, lines: 50-54 }
-    - { name: lockPath, lines: 63-65 }
-    - { name: readDesignLock, lines: 72-83 }
-    - { name: writeDesignLock, lines: 95-101 }
+    - { name: extractConfirmedRegion, lines: 32-34 }
+    - { name: projectConfirmedRegion, lines: 42-48 }
+    - { name: computeDesignHash, lines: 51-55 }
+    - { name: lockPath, lines: 74-76 }
+    - { name: gitAuthorIdentity, lines: 86-96 }
+    - { name: readDesignLock, lines: 103-114 }
+    - { name: writeDesignLock, lines: 126-143 }
   interfaces:
-    - { name: DesignLockEntry, lines: 56-59 }
+    - { name: DesignLockEntry, lines: 57-70 }
   types:
-    - { name: DesignLockFile, lines: 61-61 }
+    - { name: DesignLockFile, lines: 72-72 }
 
-src/utils/design-provenance.ts:  # 520 lines
+src/utils/design-provenance.ts:  # 661 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 29 }
     - { module: path, items: [join], line: 30 }
     - { module: '../commands/openapi-export.js', items: [openapiExport], line: 31 }
     - { module: '../contracts/parser.js', items: [stripFrontmatter, parseEndpoints, normalizeApiPath, projectApplicability, DEFAULT_CONTRACT_PATH, parseRow, isSeparator, EndpointRow, JsonSchema, ApplicabilityProjection], line: 32 }
-    - { module: './markdown-section.js', items: [sectionBody], line: 44 }
+    - { module: './markdown-section.js', items: [sectionBody, stripHtmlComments], line: 44 }
   constants:
     - { name: DATA_SHAPE_CONTRACT_PATH, line: 46 }
-    - { name: OPENAPI_PATH, line: 47 }
-    - { name: CITATION_RE, line: 288 }
-    - { name: DATA_SHAPE_RE, line: 289 }
-    - { name: IMPLICIT_STATUS_RE, line: 290 }
-    - { name: BARE_STATUS_RE, line: 291 }
-    - { name: ENUM_PIN_RE, line: 292 }
-    - { name: FIELD_ONLY_RE, line: 293 }
+    - { name: CI_GATE_CONTRACT_PATH, line: 47 }
+    - { name: OPENAPI_PATH, line: 48 }
+    - { name: HEADING_META, line: 51 }
+    - { name: CITATION_RE, line: 315 }
+    - { name: DATA_SHAPE_RE, line: 316 }
+    - { name: CI_GATE_RE, line: 317 }
+    - { name: IMPLICIT_STATUS_RE, line: 318 }
+    - { name: BARE_STATUS_RE, line: 319 }
+    - { name: ENUM_PIN_RE, line: 320 }
+    - { name: FIELD_ONLY_RE, line: 321 }
   functions:
-    - { name: checkStateDiscriminatorUniqueness, lines: 68-94 }
-    - { name: parseTable, lines: 111-123 }
-    - { name: tableCell, lines: 126-129 }
-    - { name: parseInvalidDataConditions, lines: 132-140 }
-    - { name: loadApiContract, lines: 164-179 }
-    - { name: loadDataShapeContract, lines: 181-196 }
-    - { name: async loadOpenapi, lines: 205-226 }
-    - { name: findEndpoint, lines: 228-231 }
-    - { name: findOpenapiOperation, lines: 233-237 }
-    - { name: getResponseSchema, lines: 239-243 }
-    - { name: deref, lines: 246-262 }
-    - { name: resolveDottedField, lines: 269-286 }
-    - { name: async resolveDataShapeCitation, lines: 295-322 }
-    - { name: async resolveEndpointCitation, lines: 324-443 }
-    - { name: async resolveCitation, lines: 452-474 }
-    - { name: async reconcileProvenance, lines: 488-520 }
+    - { name: checkStateDiscriminatorUniqueness, lines: 72-98 }
+    - { name: parseTable, lines: 115-127 }
+    - { name: tableCell, lines: 130-133 }
+    - { name: parseInvalidDataConditions, lines: 136-144 }
+    - { name: loadApiContract, lines: 175-190 }
+    - { name: loadDataShapeContract, lines: 192-207 }
+    - { name: loadCiGateContract, lines: 209-223 }
+    - { name: async loadOpenapi, lines: 232-253 }
+    - { name: findEndpoint, lines: 255-258 }
+    - { name: findOpenapiOperation, lines: 260-264 }
+    - { name: getResponseSchema, lines: 266-270 }
+    - { name: deref, lines: 273-289 }
+    - { name: resolveDottedField, lines: 296-313 }
+    - { name: async resolveDataShapeCitation, lines: 323-350 }
+    - { name: normalizeCiGateText, lines: 359-361 }
+    - { name: countOccurrences, lines: 364-374 }
+    - { name: resolveHeadingLines, lines: 386-392 }
+    - { name: async resolveCiGateCitation, lines: 394-446 }
+    - { name: async resolveEndpointCitation, lines: 448-567 }
+    - { name: async resolveCitation, lines: 576-615 }
+    - { name: async reconcileProvenance, lines: 629-661 }
   interfaces:
-    - { name: CitationResult, lines: 49-52 }
-    - { name: StateDiscriminatorInput, lines: 54-58 }
-    - { name: ParsedTable, lines: 100-103 }
-    - { name: ApiContractEnv, lines: 144-148 }  # local
-    - { name: DataShapeEnv, lines: 150-154 }  # local
-    - { name: ProvenanceCache, lines: 158-162 }
-    - { name: InfoItemInput, lines: 476-479 }
+    - { name: CitationResult, lines: 53-56 }
+    - { name: StateDiscriminatorInput, lines: 58-62 }
+    - { name: ParsedTable, lines: 104-107 }
+    - { name: ApiContractEnv, lines: 148-152 }  # local
+    - { name: DataShapeEnv, lines: 154-158 }  # local
+    - { name: CiGateEnv, lines: 162-166 }  # local
+    - { name: ProvenanceCache, lines: 168-173 }
+    - { name: InfoItemInput, lines: 617-620 }
   types:
-    - { name: OpenapiEnv, lines: 156-156 }  # local
+    - { name: OpenapiEnv, lines: 160-160 }  # local
 
 src/utils/digest.ts:  # 65 lines
   imports:
@@ -1950,12 +2456,12 @@ src/utils/logger.ts:  # 27 lines
     - { name: RED, line: 5 }
     - { name: DIM, line: 6 }
 
-src/utils/markdown-section.ts:  # 28 lines
+src/utils/markdown-section.ts:  # 64 lines
   constants:
-    - { name: RE_META, line: 10 }
+    - { name: RE_META, line: 19 }
   functions:
-    - { name: stripHtmlComments, lines: 13-15 }
-    - { name: sectionBody, lines: 22-28 }
+    - { name: stripHtmlComments, lines: 22-24 }
+    - { name: sectionBody, lines: 49-64 }
 
 src/utils/markdown-table.ts:  # 58 lines
   imports:
@@ -1967,13 +2473,13 @@ src/utils/markdown-table.ts:  # 58 lines
   types:
     - { name: PipeTableRow, lines: 15-15 }
 
-src/utils/mcp-hint.ts:  # 10 lines
+src/utils/mcp-hint.ts:  # 13 lines
   imports:
     - { module: './logger.js', items: [log], line: 1 }
   functions:
-    - { name: logRecommendedMcpSetup, lines: 3-10 }
+    - { name: logRecommendedMcpSetup, lines: 3-13 }
 
-src/utils/mock-of-sut-scan.ts:  # 378 lines
+src/utils/mock-of-sut-scan.ts:  # 392 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync, readdirSync], line: 3 }
     - { module: path, items: [basename, join, relative], line: 4 }
@@ -1987,34 +2493,34 @@ src/utils/mock-of-sut-scan.ts:  # 378 lines
     - { name: VITEST_SPYON_RE, line: 66 }
     - { name: JS_IMPORT_RE, line: 67 }
     - { name: GENERIC_LEAF_STOPWORDS, line: 112 }
-    - { name: WORD_CHAR_RE, line: 161 }
-    - { name: DRIVER_DIRS, line: 209 }
-    - { name: DRIVER_EXT_RE, line: 210 }
-    - { name: SKIP_DIR_NAMES, line: 211 }
-    - { name: LOADER_CALL_RE, line: 253 }
-    - { name: STRING_BINDING_RE, line: 255 }
+    - { name: WORD_CHAR_RE, line: 175 }
+    - { name: DRIVER_DIRS, line: 223 }
+    - { name: DRIVER_EXT_RE, line: 224 }
+    - { name: SKIP_DIR_NAMES, line: 225 }
+    - { name: LOADER_CALL_RE, line: 267 }
+    - { name: STRING_BINDING_RE, line: 269 }
   functions:
     - { name: resolveChangeSutFiles, lines: 9-34 }
     - { name: sutMatchTokens, lines: 36-46 }
     - { name: targetMatchesSut, lines: 48-56 }
     - { name: scanDriverForMockOfSut, lines: 69-100 }
-    - { name: collectLeafLiterals, lines: 118-136 }
-    - { name: findAllOccurrences, lines: 139-148 }
-    - { name: isFullyContainedInAny, lines: 150-152 }
-    - { name: isWordBoundaryOccurrence, lines: 163-169 }
-    - { name: scanDriverForHardcodedExpect, lines: 186-207 }
-    - { name: walkDriverFiles, lines: 213-229 }
-    - { name: findAcceptanceDriverFiles, lines: 231-238 }
-    - { name: extractLoaderChangeIds, lines: 258-277 }
-    - { name: driverBelongsToChange, lines: 291-295 }
-    - { name: findUnboundRules, lines: 320-335 }
-    - { name: scanAcceptanceDrivers, lines: 337-378 }
+    - { name: collectLeafLiterals, lines: 118-150 }
+    - { name: findAllOccurrences, lines: 153-162 }
+    - { name: isFullyContainedInAny, lines: 164-166 }
+    - { name: isWordBoundaryOccurrence, lines: 177-183 }
+    - { name: scanDriverForHardcodedExpect, lines: 200-221 }
+    - { name: walkDriverFiles, lines: 227-243 }
+    - { name: findAcceptanceDriverFiles, lines: 245-252 }
+    - { name: extractLoaderChangeIds, lines: 272-291 }
+    - { name: driverBelongsToChange, lines: 305-309 }
+    - { name: findUnboundRules, lines: 334-349 }
+    - { name: scanAcceptanceDrivers, lines: 351-392 }
   interfaces:
     - { name: MockOfSutViolation, lines: 58-61 }
     - { name: HardcodedExpectViolation, lines: 102-105 }
-    - { name: DriverScanFinding, lines: 240-244 }
+    - { name: DriverScanFinding, lines: 254-258 }
 
-src/utils/paths.ts:  # 48 lines
+src/utils/paths.ts:  # 50 lines
   imports:
     - { module: path, items: [join, dirname], line: 1 }
     - { module: url, items: [fileURLToPath], line: 2 }
@@ -2026,17 +2532,18 @@ src/utils/paths.ts:  # 48 lines
     - { name: CLAUDE_HOME, line: 28 }
     - { name: AGENTS_HOME, line: 29 }
     - { name: SKILLS_HOME, line: 30 }
-    - { name: ASSET, line: 32 }
+    - { name: CODEX_SKILLS_HOME, line: 31 }
+    - { name: ASSET, line: 33 }
   functions:
     - { name: readKitVersion, lines: 19-26 }
 
-src/utils/provider.ts:  # 31 lines
+src/utils/provider.ts:  # 32 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
   functions:
     - { name: validateProviderOption, lines: 7-9 }
-    - { name: inferProvider, lines: 11-31 }
+    - { name: inferProvider, lines: 11-32 }
   types:
     - { name: Provider, lines: 4-4 }
     - { name: ProviderOption, lines: 5-5 }
@@ -2074,6 +2581,28 @@ src/utils/tier-floor.ts:  # 244 lines
     - { name: TierFloorMatch, lines: 34-41 }
     - { name: RawPolicy, lines: 82-85 }  # local
 
+src/utils/user-asset-manifest.ts:  # 90 lines
+  imports:
+    - { module: crypto, items: [createHash], line: 1 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync], line: 2 }
+    - { module: path, items: [dirname, join, relative, sep], line: 3 }
+    - { module: os, items: [homedir], line: 4 }
+  constants:
+    - { name: USER_ASSET_MANIFEST, line: 20 }
+  functions:
+    - { name: emptyManifest, lines: 22-24 }
+    - { name: hashFile, lines: 26-28 }
+    - { name: manifestKey, lines: 30-34 }
+    - { name: loadUserAssetManifest, lines: 36-52 }
+    - { name: isOwnedAndUnmodified, lines: 54-59 }
+    - { name: mappedDestinationFiles, lines: 61-74 }
+    - { name: stampUserAssets, lines: 76-90 }
+  interfaces:
+    - { name: UserAssetRecord, lines: 8-11 }  # local
+    - { name: UserAssetManifest, lines: 13-18 }  # local
+  types:
+    - { name: UserAssetProvider, lines: 6-6 }
+
 test/acceptance/acceptance-oracle.driver.test.ts:  # 142 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 14 }
@@ -2093,7 +2622,34 @@ test/acceptance/acceptance-oracle.driver.test.ts:  # 142 lines
   interfaces:
     - { name: CaseAnswer, lines: 26-29 }  # local
 
-test/acceptance/interaction-design-loop.driver.test.ts:  # 267 lines
+test/acceptance/enforce-human-confirmation.driver.test.ts:  # 514 lines
+  imports:
+    - { module: vitest, items: [describe, it, 'expect:expectFn', beforeEach, afterEach], line: 20 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync, rmSync], line: 21 }
+    - { module: child_process, items: [spawnSync], line: 22 }
+    - { module: path, items: [join, dirname, resolve], line: 23 }
+    - { module: url, items: [fileURLToPath], line: 24 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir, CLI_PATH], line: 25 }
+    - { module: '../../specs/templates/acceptance-driver/acceptance.loader.js', items: [loadCase], line: 26 }
+  constants:
+    - { name: CHANGE_ID, line: 28 }
+    - { name: REPO_ROOT, line: 29 }
+    - { name: REFUSAL_EXIT, line: 44 }
+    - { name: PERMIT_EXIT, line: 45 }
+  functions:
+    - { name: runHook, lines: 34-42 }
+    - { name: gitInit, lines: 50-55 }
+    - { name: gitAdd, lines: 57-59 }
+    - { name: settingsPath, lines: 61-63 }
+    - { name: readSettings, lines: 65-67 }
+    - { name: writeSettings, lines: 69-71 }
+    - { name: unregisterWriteBlockHooks, lines: 74-80 }
+    - { name: makeRegistrationDormant, lines: 83-89 }
+    - { name: scaffoldChange, lines: 92-140 }
+  interfaces:
+    - { name: HookRun, lines: 31-31 }  # local
+
+test/acceptance/interaction-design-loop.driver.test.ts:  # 325 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 28 }
     - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 29 }
@@ -2104,13 +2660,15 @@ test/acceptance/interaction-design-loop.driver.test.ts:  # 267 lines
   constants:
     - { name: CHANGE_ID, line: 35 }
   functions:
-    - { name: scaffold, lines: 55-66 }
-    - { name: buildDesign, lines: 72-114 }
-    - { name: writeDesign, lines: 116-118 }
+    - { name: writeApiContract, lines: 67-102 }
+    - { name: scaffold, lines: 104-115 }
+    - { name: buildDesign, lines: 121-165 }
+    - { name: writeDesign, lines: 167-169 }
   interfaces:
     - { name: OpenDecisionInput, lines: 37-41 }  # local
     - { name: StateInput, lines: 43-47 }  # local
-    - { name: DesignOpts, lines: 49-53 }  # local
+    - { name: InfoInput, lines: 49-53 }  # local
+    - { name: DesignOpts, lines: 55-60 }  # local
 
 test/acceptance/not-applicable-contracts.driver.test.ts:  # 237 lines
   imports:
@@ -2154,18 +2712,34 @@ test/cli/abandon.test.ts:  # 180 lines
   functions:
     - { name: scaffoldChange, lines: 8-16 }
 
-test/cli/accept-relock.test.ts:  # 133 lines
+test/cli/accept-autonomous.test.ts:  # 76 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [mkdirSync, readFileSync, writeFileSync, existsSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 5 }
+    - { module: '../../src/commands/gate-acceptance.js', items: [enforceAcceptanceOracle], line: 6 }
+    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, readAcceptanceLock, writeAcceptanceLock], line: 7 }
+  constants:
+    - { name: CHANGE, line: 9 }
+    - { name: ORACLE, line: 10 }
+  functions:
+    - { name: scaffold, lines: 19-24 }
+
+test/cli/accept-relock.test.ts:  # 177 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
-    - { module: js-yaml, items: ['default:yaml'], line: 4 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
-    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, AcceptanceFile], line: 6 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 6 }
+    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, AcceptanceFile], line: 7 }
   functions:
-    - { name: realOracle, lines: 8-23 }
+    - { name: realOracle, lines: 9-24 }
 
-test/cli/acceptance-oracle.test.ts:  # 455 lines
+test/cli/acceptance-oracle.test.ts:  # 558 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, rmSync, writeFileSync], line: 2 }
@@ -2184,21 +2758,29 @@ test/cli/acceptance-oracle.test.ts:  # 455 lines
     - { name: placeholderOracle, lines: 175-190 }
     - { name: writeAcceptanceYaml, lines: 192-194 }
 
-test/cli/acceptance-write-hook.test.ts:  # 116 lines
+test/cli/acceptance-write-hook.test.ts:  # 118 lines
   imports:
-    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
-    - { module: child_process, items: [spawnSync], line: 10 }
-    - { module: fs, items: [mkdirSync, writeFileSync], line: 11 }
-    - { module: path, items: [join, resolve, dirname], line: 12 }
-    - { module: url, items: [fileURLToPath], line: 13 }
-    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 14 }
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 15 }
+    - { module: child_process, items: [spawnSync], line: 16 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 17 }
+    - { module: path, items: [join, resolve, dirname], line: 18 }
+    - { module: url, items: [fileURLToPath], line: 19 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 20 }
   constants:
-    - { name: HOOK, line: 18 }
-    - { name: ORACLE_REL, line: 19 }
-    - { name: LOCK_REL, line: 20 }
+    - { name: HOOK, line: 24 }
+    - { name: ORACLE_REL, line: 25 }
+    - { name: LOCK_REL, line: 26 }
+    - { name: RETIRED_TOGGLE_STATES, line: 30 }
   functions:
-    - { name: writeOracle, lines: 24-27 }
-    - { name: runHook, lines: 30-40 }
+    - { name: writeOracle, lines: 34-37 }
+    - { name: runHook, lines: 40-50 }
+
+test/cli/agent-native-migrate.test.ts:  # 65 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
 test/cli/agent-prompts-shape.test.ts:  # 147 lines
   imports:
@@ -2224,12 +2806,38 @@ test/cli/archive.test.ts:  # 105 lines
   functions:
     - { name: scaffoldChange, lines: 11-20 }
 
+test/cli/boundary.test.ts:  # 327 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: crypto, items: [createHash], line: 2 }
+    - { module: fs, items: [chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync], line: 3 }
+    - { module: path, items: [join], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: child_process, items: [spawnSync], line: 6 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 7 }
+    - { module: '../../src/boundary/adapters.js', items: [captureTargetDigest], line: 8 }
+  functions:
+    - { name: hash, lines: 13-13 }
+    - { name: stable, lines: 14-18 }
+    - { name: registeredCapture, lines: 19-29 }
+
 test/cli/bug-suspects.test.ts:  # 211 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [existsSync, mkdirSync, writeFileSync], line: 5 }
     - { module: path, items: [join], line: 6 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 7 }
+
+test/cli/chat-acceptance.test.ts:  # 136 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: ajv, items: ['default:Ajv'], line: 4 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 5 }
+    - { module: '../../src/schemas/acceptance.schema.js', items: [acceptanceSchema], line: 6 }
+    - { module: '../../src/utils/acceptance-confirmation.js', items: [acceptanceChatBindsHead, commentConfirmsAcceptance], line: 7 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir], line: 8 }
 
 test/cli/code-map-alias-and-retention.test.ts:  # 116 lines
   imports:
@@ -2355,31 +2963,33 @@ test/cli/contract-write-hook.test.ts:  # 105 lines
     - { name: writeContract, lines: 23-26 }
     - { name: runHook, lines: 29-39 }
 
-test/cli/design-confirm.test.ts:  # 122 lines
+test/cli/design-confirm.test.ts:  # 173 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
-    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
-    - { module: '../../src/utils/design-hash.js', items: [computeDesignHash], line: 5 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 5 }
+    - { module: '../../src/utils/design-hash.js', items: [computeDesignHash], line: 6 }
   functions:
-    - { name: designDoc, lines: 10-20 }
+    - { name: designDoc, lines: 11-21 }
 
-test/cli/design-write-hook.test.ts:  # 113 lines
+test/cli/design-write-hook.test.ts:  # 209 lines
   imports:
-    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 10 }
-    - { module: child_process, items: [spawnSync], line: 11 }
-    - { module: fs, items: [mkdirSync, writeFileSync], line: 12 }
-    - { module: path, items: [join, resolve, dirname], line: 13 }
-    - { module: url, items: [fileURLToPath], line: 14 }
-    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 15 }
+    - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 16 }
+    - { module: child_process, items: [spawnSync], line: 17 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync], line: 18 }
+    - { module: path, items: [join, resolve, dirname], line: 19 }
+    - { module: url, items: [fileURLToPath], line: 20 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 21 }
   constants:
-    - { name: HOOK, line: 18 }
-    - { name: DESIGN_REL, line: 19 }
-    - { name: LOCK_REL, line: 20 }
+    - { name: HOOK, line: 24 }
+    - { name: DESIGN_REL, line: 25 }
+    - { name: LOCK_REL, line: 26 }
+    - { name: RETIRED_TOGGLE_STATES, line: 30 }
   functions:
-    - { name: writeDesign, lines: 24-27 }
-    - { name: runHook, lines: 29-39 }
+    - { name: writeDesign, lines: 34-37 }
+    - { name: runHook, lines: 39-52 }
 
 test/cli/doctor-chokepoints.test.ts:  # 156 lines
   imports:
@@ -2436,7 +3046,7 @@ test/cli/doctor-simple.test.ts:  # 56 lines
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 8 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 9 }
 
-test/cli/doctor.test.ts:  # 380 lines
+test/cli/doctor.test.ts:  # 388 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
@@ -2471,7 +3081,7 @@ test/cli/gate-acceptance-rules.test.ts:  # 270 lines
     - { name: oracleWithRules, lines: 80-96 }
     - { name: writeDriver, lines: 101-111 }
 
-test/cli/gate-design.test.ts:  # 427 lines
+test/cli/gate-design.test.ts:  # 571 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
@@ -2487,7 +3097,7 @@ test/cli/gate-design.test.ts:  # 427 lines
     - { name: DesignRow, lines: 23-28 }  # local
     - { name: DesignOpts, lines: 30-40 }  # local
 
-test/cli/gate.test.ts:  # 2975 lines
+test/cli/gate.test.ts:  # 3239 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync, rmSync], line: 2 }
@@ -2508,8 +3118,12 @@ test/cli/gate.test.ts:  # 2975 lines
     - { name: writeContextGovernanceFiles, lines: 309-333 }
     - { name: writeValidAcceptanceOracle, lines: 341-358 }
     - { name: writeValidInteractionDesign, lines: 368-377 }
-    - { name: buildEvidenceYaml, lines: 1637-1665 }
-    - { name: materializeEvidenceArtifacts, lines: 1674-1692 }
+    - { name: gitInitRepo, lines: 386-391 }
+    - { name: gitAdd, lines: 393-395 }
+    - { name: armWriteBlockHooks, lines: 400-406 }
+    - { name: disarmWriteBlockHooks, lines: 416-428 }
+    - { name: buildEvidenceYaml, lines: 1901-1929 }
+    - { name: materializeEvidenceArtifacts, lines: 1938-1956 }
   interfaces:
     - { name: TasksFileOptions, lines: 193-202 }  # local
     - { name: AgentLogOptions, lines: 226-235 }  # local
@@ -2545,6 +3159,13 @@ test/cli/graph.test.ts:  # 190 lines
     - { name: FIXTURE_ROOT, line: 10 }
   functions:
     - { name: copyFixture, lines: 15-17 }
+
+test/cli/guidance.test.ts:  # 47 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 4 }
 
 test/cli/hooks-graph-first.test.ts:  # 104 lines
   imports:
@@ -2610,7 +3231,7 @@ test/cli/init-hooks.test.ts:  # 112 lines
   functions:
     - { name: preToolUseCommands, lines: 79-87 }
 
-test/cli/init.test.ts:  # 170 lines
+test/cli/init.test.ts:  # 215 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
     - { module: fs, items: [existsSync, readdirSync, writeFileSync, readFileSync], line: 2 }
@@ -2620,7 +3241,7 @@ test/cli/init.test.ts:  # 170 lines
   constants:
     - { name: PKG_VERSION, line: 7 }
 
-test/cli/install-agent-hooks.test.ts:  # 570 lines
+test/cli/install-agent-hooks.test.ts:  # 612 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 9 }
     - { module: fs, items: [existsSync, readFileSync, writeFileSync, mkdirSync, statSync], line: 10 }
@@ -2684,7 +3305,7 @@ test/cli/manifest.test.ts:  # 125 lines
     - { name: git, lines: 19-25 }
     - { name: scaffoldMicroChange, lines: 28-46 }
 
-test/cli/mcp.test.ts:  # 232 lines
+test/cli/mcp.test.ts:  # 239 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 4 }
     - { module: fs, items: [copyFileSync, mkdirSync, writeFileSync], line: 5 }
@@ -2770,6 +3391,14 @@ test/cli/openapi-export.test.ts:  # 501 lines
   functions:
     - { name: writeContract, lines: 18-32 }
 
+test/cli/policy.test.ts:  # 98 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [mkdirSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: js-yaml, items: ['default:yaml'], line: 4 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 5 }
+
 test/cli/refresh.test.ts:  # 307 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
@@ -2777,7 +3406,27 @@ test/cli/refresh.test.ts:  # 307 lines
     - { module: path, items: [join], line: 14 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 15 }
 
-test/cli/setup.test.ts:  # 166 lines
+test/cli/report.test.ts:  # 57 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 2 }
+
+test/cli/runtime.test.ts:  # 327 lines
+  imports:
+    - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [existsSync, mkdirSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir, runCli], line: 5 }
+    - { module: js-yaml, items: ['default:yaml'], line: 6 }
+    - { module: '../../src/utils/acceptance-hash.js', items: [computeAcceptanceHash, writeAcceptanceLock, AcceptanceFile], line: 7 }
+    - { module: crypto, items: [generateKeyPairSync, 'sign:cryptoSign', KeyObject], line: 8 }
+    - { module: '../../src/runtime/decisions.js', items: [decisionPolicyDigest, decisionWorkingTreeDigest, signedApprovalPayload, SignedApprovalEnvelope], line: 9 }
+  functions:
+    - { name: git, lines: 44-47 }
+    - { name: recordAgent, lines: 49-55 }
+
+test/cli/setup.test.ts:  # 168 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 12 }
     - { module: child_process, items: [spawnSync], line: 13 }
@@ -2787,7 +3436,7 @@ test/cli/setup.test.ts:  # 166 lines
   functions:
     - { name: gitInit, lines: 21-24 }
 
-test/cli/skill-prompts.test.ts:  # 194 lines
+test/cli/skill-prompts.test.ts:  # 197 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
@@ -2869,10 +3518,10 @@ test/cli/tier-floor.test.ts:  # 278 lines
     - { module: '../../src/utils/tier-floor.js', items: [computeTierFloor, loadTierPolicy, DEFAULT_TIER_POLICY], line: 5 }
     - { module: '../../src/commands/code-map-watch.js', items: [createDebouncedRunner], line: 10 }
 
-test/cli/update.test.ts:  # 213 lines
+test/cli/update.test.ts:  # 215 lines
   imports:
     - { module: vitest, items: [describe, it, beforeEach, afterEach, expect], line: 1 }
-    - { module: fs, items: [existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync], line: 2 }
+    - { module: fs, items: [existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [runCli, makeTempDir, cleanupDir], line: 4 }
     - { module: os, items: [tmpdir], line: 5 }
@@ -3145,18 +3794,32 @@ test/contracts/applicability-reader.test.ts:  # 128 lines
   interfaces:
     - { name: Classification, lines: 30-34 }  # local
 
-test/contracts/ci-workflow.test.ts:  # 84 lines
+test/contracts/ci-workflow.test.ts:  # 168 lines
   imports:
-    - { module: vitest, items: [describe, it, expect], line: 11 }
-    - { module: fs, items: [readFileSync], line: 12 }
-    - { module: path, items: [join, dirname], line: 13 }
-    - { module: url, items: [fileURLToPath], line: 14 }
+    - { module: vitest, items: [describe, it, expect], line: 16 }
+    - { module: fs, items: [readFileSync, mkdirSync], line: 17 }
+    - { module: child_process, items: [spawnSync], line: 18 }
+    - { module: path, items: [join, dirname], line: 19 }
+    - { module: url, items: [fileURLToPath], line: 20 }
+    - { module: js-yaml, items: ['default:yaml'], line: 21 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 22 }
   constants:
-    - { name: REPO_ROOT, line: 16 }
-    - { name: ADOPTER_TEMPLATE_PATH, line: 17 }
-    - { name: OWN_WORKFLOW_PATH, line: 18 }
+    - { name: REPO_ROOT, line: 24 }
+    - { name: ADOPTER_TEMPLATE_PATH, line: 25 }
+    - { name: OWN_WORKFLOW_PATH, line: 26 }
   functions:
-    - { name: read, lines: 20-22 }
+    - { name: read, lines: 28-30 }
+    - { name: runCommands, lines: 47-52 }
+  interfaces:
+    - { name: WorkflowStep, lines: 32-36 }  # local
+
+test/contracts/doctrine-ledger.test.ts:  # 24 lines
+  imports:
+    - { module: vitest, items: [describe, expect, it], line: 1 }
+    - { module: fs, items: [existsSync, readFileSync], line: 2 }
+    - { module: path, items: [dirname, join], line: 3 }
+    - { module: url, items: [fileURLToPath], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
 
 test/contracts/interaction-design-template.test.ts:  # 156 lines
   imports:
@@ -3174,7 +3837,7 @@ test/contracts/interaction-design-template.test.ts:  # 156 lines
   functions:
     - { name: loadTemplate, lines: 27-31 }
 
-test/contracts/parser.test.ts:  # 352 lines
+test/contracts/parser.test.ts:  # 353 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: '../../src/contracts/parser.js', items: [parseEndpoints, parseEndpointTableRows, parseContractSchemas, parseSchemaCellRef, detectSchemaCellNearMiss, stripFrontmatter, extractSection, parseRow, isSeparator, projectApplicability], line: 2 }
@@ -3294,7 +3957,7 @@ test/fixtures/code-map/types-only.ts:  # 21 lines
       lines: 16-21
       members: [Low, Medium, High, Critical]
 
-test/helpers.ts:  # 67 lines
+test/helpers.ts:  # 78 lines
   imports:
     - { module: child_process, items: [spawnSync, SpawnSyncReturns], line: 1 }
     - { module: fs, items: [mkdtempSync, rmSync], line: 2 }
@@ -3304,14 +3967,37 @@ test/helpers.ts:  # 67 lines
   constants:
     - { name: CLI_PATH, line: 10 }
   functions:
-    - { name: runCli, lines: 23-48 }
-    - { name: makeTempDir, lines: 51-53 }
-    - { name: cleanupDir, lines: 56-58 }
-    - { name: hasPython, lines: 61-67 }
+    - { name: runCli, lines: 33-59 }
+    - { name: makeTempDir, lines: 62-64 }
+    - { name: cleanupDir, lines: 67-69 }
+    - { name: hasPython, lines: 72-78 }
   interfaces:
     - { name: RunResult, lines: 12-16 }
 
-test/schemas/acceptance.schema.test.ts:  # 121 lines
+test/policy/profile.test.ts:  # 87 lines
+  imports:
+    - { module: vitest, items: [afterEach, describe, expect, it], line: 1 }
+    - { module: fs, items: [mkdirSync, readFileSync, writeFileSync], line: 2 }
+    - { module: path, items: [join], line: 3 }
+    - { module: crypto, items: [createHash], line: 4 }
+    - { module: js-yaml, items: ['default:yaml'], line: 5 }
+    - { module: '../../src/policy/profile.js', items: [acceptanceOracleMode, acceptanceOracleRequired, resolveGateProfile], line: 6 }
+    - { module: '../helpers.js', items: [cleanupDir, makeTempDir], line: 7 }
+  functions:
+    - { name: project, lines: 12-25 }
+    - { name: currentPolicyDigest, lines: 27-29 }
+
+test/runtime/parity.test.ts:  # 20 lines
+  imports:
+    - { module: vitest, items: [describe, expect, it], line: 1 }
+    - { module: '../../src/runtime/parity.js', items: [classifyParityVerdict], line: 2 }
+
+test/runtime/router.test.ts:  # 24 lines
+  imports:
+    - { module: vitest, items: [describe, expect, it], line: 1 }
+    - { module: '../../src/runtime/router.js', items: [detectRiskSignals, requiredApprovals, selectCapabilitiesAndDoctrine, selectProfile], line: 2 }
+
+test/schemas/acceptance.schema.test.ts:  # 176 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [readFileSync], line: 2 }
@@ -3319,7 +4005,7 @@ test/schemas/acceptance.schema.test.ts:  # 121 lines
     - { module: js-yaml, items: ['default:yaml'], line: 4 }
     - { module: ajv, items: ['default:Ajv'], line: 5 }
     - { module: ajv-formats, items: ['default:addFormats'], line: 6 }
-    - { module: '../../src/schemas/acceptance.schema.js', items: [acceptanceSchema], line: 7 }
+    - { module: '../../src/schemas/acceptance.schema.js', items: [acceptanceSchema, acceptanceLockSchema], line: 7 }
   constants:
     - { name: TEMPLATE_PATH, line: 10 }
   functions:
@@ -3337,7 +4023,7 @@ test/schemas/bug-fix-evidence.schema.test.ts:  # 332 lines
     - { name: diagnosticBlock, lines: 68-88 }
     - { name: validAgentLog, lines: 92-101 }
 
-test/schemas/design-lock.schema.test.ts:  # 61 lines
+test/schemas/design-lock.schema.test.ts:  # 86 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: ajv, items: ['default:Ajv'], line: 2 }
@@ -3345,6 +4031,19 @@ test/schemas/design-lock.schema.test.ts:  # 61 lines
     - { module: '../../src/schemas/design-lock.schema.js', items: [designLockSchema], line: 4 }
   constants:
     - { name: HASH, line: 13 }
+
+test/schemas/runtime-contracts.schema.test.ts:  # 102 lines
+  imports:
+    - { module: vitest, items: [describe, expect, it], line: 1 }
+    - { module: ajv, items: ['default:Ajv'], line: 2 }
+    - { module: ajv-formats, items: ['default:addFormats'], line: 3 }
+    - { module: '../../src/schemas/cdd-policy.schema.js', items: [cddPolicySchema], line: 4 }
+    - { module: '../../src/schemas/boundary-manifest.schema.js', items: [boundaryManifestSchema], line: 5 }
+    - { module: '../../src/schemas/execution-capsule.schema.js', items: [executionCapsuleSchema], line: 6 }
+    - { module: '../../src/schemas/runtime-state.schema.js', items: [runtimeStateSchema], line: 7 }
+    - { module: '../../src/schemas/runtime-evidence.schema.js', items: [runtimeEvidenceSchema], line: 8 }
+  functions:
+    - { name: validator, lines: 10-14 }
 
 test/schemas/test-evidence.schema.test.ts:  # 136 lines
   imports:
@@ -3361,7 +4060,7 @@ test/schemas/test-evidence.schema.test.ts:  # 136 lines
   functions:
     - { name: validEvidence, lines: 32-55 }
 
-test/setup-git-env.ts:  # 45 lines
+test/setup-git-env.ts:  # 53 lines
   imports:
     - { module: fs, items: [mkdtempSync, writeFileSync], line: 1 }
     - { module: os, items: [tmpdir], line: 2 }
@@ -3395,20 +4094,21 @@ test/utils/asset-manifest.test.ts:  # 82 lines
     - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
     - { module: '../../src/utils/asset-manifest.js', items: [readAssetManifest, stampAssetManifest], line: 5 }
 
-test/utils/design-hash.test.ts:  # 130 lines
+test/utils/design-hash.test.ts:  # 229 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync], line: 2 }
     - { module: path, items: [join], line: 3 }
-    - { module: '../../src/utils/design-hash.js', items: [computeDesignHash, projectConfirmedRegion, readDesignLock, writeDesignLock], line: 4 }
-    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 10 }
+    - { module: child_process, items: [spawnSync], line: 4 }
+    - { module: '../../src/utils/design-hash.js', items: [computeDesignHash, gitAuthorIdentity, projectConfirmedRegion, readDesignLock, writeDesignLock], line: 5 }
+    - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 12 }
   functions:
-    - { name: doc, lines: 16-26 }
+    - { name: doc, lines: 18-28 }
 
-test/utils/design-provenance.test.ts:  # 377 lines
+test/utils/design-provenance.test.ts:  # 542 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
-    - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
+    - { module: fs, items: [mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
     - { module: '../../src/commands/openapi-export.js', items: [openapiExport], line: 5 }
@@ -3419,11 +4119,13 @@ test/utils/design-provenance.test.ts:  # 377 lines
     - { name: OPENAPI_PATH, line: 13 }
     - { name: SCHEMAS_FIELD_TABLE, line: 35 }
     - { name: SCHEMAS_JSON_BLOCK, line: 57 }
+    - { name: CI_PATH, line: 380 }
   functions:
     - { name: apiContract, lines: 15-25 }
     - { name: dataShapeContract, lines: 27-33 }
     - { name: write, lines: 68-72 }
     - { name: async regenerateOpenapi, lines: 74-80 }
+    - { name: ciGateContract, lines: 382-384 }
 
 test/utils/digest.test.ts:  # 77 lines
   imports:
@@ -3439,13 +4141,27 @@ test/utils/gate-explain.test.ts:  # 57 lines
     - { module: vitest, items: [describe, it, expect], line: 9 }
     - { module: '../../src/utils/gate-explain.js', items: [explainGateError], line: 10 }
 
-test/utils/mock-of-sut-scan.test.ts:  # 497 lines
+test/utils/markdown-section.test.ts:  # 206 lines
+  imports:
+    - { module: vitest, items: [describe, it, expect], line: 1 }
+    - { module: '../../src/utils/markdown-section.js', items: [sectionBody, stripHtmlComments], line: 2 }
+
+test/utils/mock-of-sut-scan.test.ts:  # 532 lines
   imports:
     - { module: vitest, items: [describe, it, expect, beforeEach, afterEach], line: 1 }
     - { module: fs, items: [mkdirSync, writeFileSync], line: 2 }
     - { module: path, items: [join], line: 3 }
     - { module: '../helpers.js', items: [makeTempDir, cleanupDir], line: 4 }
     - { module: '../../src/utils/mock-of-sut-scan.js', items: [resolveChangeSutFiles, sutMatchTokens, scanDriverForMockOfSut, scanDriverForHardcodedExpect, findAcceptanceDriverFiles, scanAcceptanceDrivers, driverBelongsToChange, findUnboundRules], line: 5 }
+
+tools/check-lockfile-sync.mjs:  # 62 lines
+  imports:
+    - { module: 'node:fs', items: [readFileSync], line: 29 }
+    - { module: 'node:url', items: [fileURLToPath], line: 30 }
+  constants:
+    - { name: ROOT, line: 32 }
+  functions:
+    - { name: readJson, lines: 33-33 }
 
 tools/check-mojibake.mjs:  # 141 lines
   imports:

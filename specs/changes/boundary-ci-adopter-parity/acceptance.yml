@@ -1,0 +1,60 @@
+# Acceptance oracle for boundary-ci-adopter-parity (ADR 0010).
+#
+# DRAFTED BY THE AGENT for a remote user who cannot hand-author files, and
+# PENDING EXPLICIT HUMAN CONFIRMATION. Every `expect` below is the CORRECT
+# (intended) behavior the maintainer asked for in production issues #61/#62/
+# #63/#65 and now bound in contracts/ci/ci-gate-contract.md
+# `## Boundary Guard Enforcement Semantics` / `### Archive-only push robustness`
+# — NOT the current (buggy) behavior of the shipped code. The answer keys trace
+# to the human-confirmed contract + the user's stated intent, never to observed
+# implementation output.
+#
+# The human maintainer MUST review the `expect` values and confirm them before
+# this oracle is locked. It is not confirmed until either the user runs
+# `cdd-kit accept confirm boundary-ci-adopter-parity` (human hash-lock, required
+# for --strict) or the delegated agent records an autonomous receipt
+# (`cdd-kit accept confirm boundary-ci-adopter-parity --autonomous --reason ...`),
+# which passes only the non-strict gate and is always surfaced as unreviewed.
+
+oracle-version: 0.1.0
+authored-by: human
+
+cases:
+  - id: shadow-default-advisory
+    given: "a project on the shipped default .cdd/policy.yml shadow_mode: true, with one Boundary Guard error-level finding"
+    when: "cdd-kit boundary check runs WITHOUT --enforce (as the shipped workflow invokes it)"
+    then: "the finding is still shown as an advisory [shadow] message and the command does NOT block — it exits 0, identical to how cdd-kit gate treats the same finding"
+    input: { policy_shadow_mode: true, enforce_flag: false, boundary_error_findings: 1 }
+    expect: { exit_code: 0, findings_blocked: false }
+
+  - id: enforce-overrides-shadow
+    given: "the same shadow_mode: true project and one Boundary Guard error-level finding"
+    when: "cdd-kit boundary check --enforce runs"
+    then: "the explicit override makes the error finding blocking regardless of shadow mode — the command exits 1"
+    input: { policy_shadow_mode: true, enforce_flag: true, boundary_error_findings: 1 }
+    expect: { exit_code: 1, findings_blocked: true }
+
+  - id: shadow-off-blocks-both-paths
+    given: "a project that has promoted Boundary Guard by setting .cdd/policy.yml shadow_mode: false, with one error-level finding"
+    when: "cdd-kit boundary check runs (no --enforce needed)"
+    then: "the error finding blocks — the command exits 1, matching what cdd-kit gate does for the same finding"
+    input: { policy_shadow_mode: false, enforce_flag: false, boundary_error_findings: 1 }
+    expect: { exit_code: 1, findings_blocked: true }
+
+  - id: base-resolved-once-for-contract-snapshot
+    given: "a Boundary Guard run given only the CDD_BASE_SHA environment variable (no --base flag), where the API contract file changed between that base and HEAD, and only one of the three contracted operations actually changed"
+    when: "Boundary Guard resolves which operations to check"
+    then: "only the operation that actually changed between the resolved base and HEAD is selected — NOT every contracted operation (the effective base is resolved once and reused for the changed-contract snapshot)"
+    input: { cdd_base_sha_only: true, api_contract_changed: true, total_contracted_operations: 3, actually_changed_operations: 1 }
+    expect: { selected_operation_count: 1 }
+
+  - id: archive-only-push-stays-green
+    given: "an archive-only push where every change directory named in the specs/changes/ diff was moved to specs/archive/ by /cdd-close and no longer exists at the checked-out head"
+    when: "the workflow's 'Determine changed spec directories' step runs under bash -eo pipefail"
+    then: "the step exits 0 with an empty id list, identical in shape to a push that touched no specs/changes/ path at all — an archive-only push is never red-lined"
+    input: { push_kind: "archive-only", changed_spec_dirs_all_archived: true, shell: "bash -eo pipefail" }
+    expect: { step_exit_code: 0, gated_change_ids: [] }
+
+rules:
+  - id: gate-standalone-enforcement-parity
+    statement: "For the same project policy (shadow_mode) and the same Boundary Guard findings, cdd-kit gate and standalone cdd-kit boundary check reach the identical advisory-vs-blocking decision, because both derive it from one shared enforcement-semantics source. --enforce is the only standalone-specific override."

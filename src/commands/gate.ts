@@ -23,7 +23,7 @@ import { enforceAcceptanceOracle } from './gate-acceptance.js';
 import { enforceInteractionDesign } from './gate-design.js';
 import { isSafeChangeId } from '../utils/change-id.js';
 import yaml from 'js-yaml';
-import { runBoundaryGuard } from '../boundary/guard.js';
+import { runBoundaryGuard, classifyBoundaryFinding } from '../boundary/guard.js';
 import { acceptanceOracleRequired, resolveGateProfile } from '../policy/profile.js';
 import type { WorkflowProfile } from '../runtime/types.js';
 import { verifyRuntime } from '../runtime/engine.js';
@@ -248,10 +248,11 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     try {
       const policy = yaml.load(readFileSync(runtimePolicyPath, 'utf8'), { schema: yaml.JSON_SCHEMA }) as { shadow_mode?: boolean };
       const boundary = runBoundaryGuard({ cwd });
+      const enforced = policy.shadow_mode === false;
       for (const finding of boundary.findings) {
         if (finding.level === 'info') continue;
-        const message = `Boundary Guard${policy.shadow_mode !== false ? ' [shadow]' : ''}: ${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`;
-        if (finding.level === 'error' && policy.shadow_mode === false) errors.push(message);
+        const { blocking, message } = classifyBoundaryFinding(finding, enforced);
+        if (blocking) errors.push(message);
         else warnings.push(message);
       }
     } catch (error) {

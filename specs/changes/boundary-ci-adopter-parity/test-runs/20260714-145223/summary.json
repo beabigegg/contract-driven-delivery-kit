@@ -1,0 +1,18 @@
+{
+  "change_id": "boundary-ci-adopter-parity",
+  "phase": "full",
+  "status": "failed",
+  "exit_code": 1,
+  "command": "node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts",
+  "duration_ms": 24779,
+  "first_failure": {
+    "kind": "assertion-failure",
+    "message": "\u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/27]⎯\u001b[22m\u001b[39m"
+  },
+  "artifacts": {
+    "summary": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145223/summary.json",
+    "stdout": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145223/stdout.log",
+    "stderr": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145223/stderr.log"
+  },
+  "next_action": "fix the first failure before running broader phases; do not waive it"
+}

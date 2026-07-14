@@ -67,6 +67,23 @@ The legacy gate consumes Boundary Guard in shadow mode by default. Set
 `shadow_mode: false` only after the repository's mutation/parity evidence has
 passed. The strict legacy workflow remains available independently.
 
+Standalone `cdd-kit boundary check` honors the identical `shadow_mode` default
+as `cdd-kit gate`: an `error`-level finding is printed as advisory
+`Boundary Guard [shadow]: ...` and exits 0 while `.cdd/policy.yml` has
+`shadow_mode: true` (the shipped default) or no `shadow_mode` key at all. Both
+callers derive this decision from one shared enforcement-semantics source, so
+they cannot diverge. Pass `--enforce` to override shadow mode for a single
+standalone invocation — any error-level finding then exits 1, and the message
+drops the `[shadow]` label since the finding is no longer advisory:
+
+```bash
+cdd-kit boundary check --enforce
+```
+
+`--enforce` is standalone-only; `cdd-kit gate` has no equivalent per-invocation
+flag — promote gate-side enforcement by setting `.cdd/policy.yml`
+`shadow_mode: false` project-wide instead.
+
 ## Runtime workflow
 
 ```bash
