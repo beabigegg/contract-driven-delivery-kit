@@ -1,0 +1,45 @@
+# Acceptance oracle for this change (ADR 0010).
+#
+# HUMAN-AUTHORED. An implementation agent must not write this file (see the
+# pre-tool-use-acceptance-write.sh hook, armed via
+# `cdd-kit install-agent-hooks --acceptance-write`) -- an agent may only READ
+# it to build a driver that feeds `input` into the real system and compares
+# the result to `expect`; it must never invent or edit the answer key.
+#
+# HOW TO FILL THIS IN:
+#   1. Replace the placeholder case below with at least one REAL case. Write
+#      `given/when/then` in plain business language; put the exact payload the
+#      implementation receives in `input` and the exact result it must
+#      produce in `expect`.
+#   2. `input`/`expect` can be any JSON-shaped value (a scalar, a string, or a
+#      nested object/array) -- whatever the case actually exercises.
+#   3. Add one entry per behavior you need proven. `cdd-kit gate` rejects this
+#      file until at least one case has a non-placeholder `input` and `expect`
+#      (AC-1) -- an all-placeholder file (like this scaffold) fails on
+#      purpose, so the oracle is never silently skipped.
+#   4. Once you are happy with the cases, ask a human maintainer to lock the
+#      baseline (relock) so the gate can detect later tampering (AC-2).
+#   5. `rules` are optional cross-cutting invariants that must ALWAYS hold,
+#      independent of any single case (e.g. "a refund can never exceed the
+#      original payment"). Leave the list empty if none apply yet.
+#
+# Example (for reference; delete or replace with your own case):
+#   - id: over-limit-order-rejected
+#     given: "a customer whose credit limit is 1000"
+#     when:  "they submit an order for 1500"
+#     then:  "the order is rejected with reason 'credit-limit-exceeded'"
+#     input:  { customer_limit: 1000, order_amount: 1500 }
+#     expect: { status: "rejected", reason: "credit-limit-exceeded" }
+
+oracle-version: 0.1.0
+authored-by: human
+
+cases:
+  - id: <case-id>
+    given: <the situation before the action, in plain words>
+    when: <the action taken, in plain words>
+    then: <the expected outcome, in plain words>
+    input: <the-exact-input-payload>
+    expect: <the-exact-expected-output>
+
+rules: []

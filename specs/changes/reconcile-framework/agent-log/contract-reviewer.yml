@@ -1,0 +1,33 @@
+change-id: reconcile-framework
+timestamp: 2026-07-14T00:00:00Z
+agent: contract-reviewer
+status: changes-required
+files-read:
+  - specs/changes/reconcile-framework/design.md
+  - specs/changes/reconcile-framework/change-classification.md
+  - contracts/ci/ci-gate-contract.md
+  - contracts/CHANGELOG.md
+  - contracts/env/env-contract.md
+  - contracts/data/data-shape-contract.md
+  - contracts/business/business-rules.md
+artifacts:
+  - type: applied-edit
+    pointer: contracts/upgrade/upgrade-reconciliation-contract.md
+  - type: version-bumps
+    pointer: "upgrade: (new) 0.1.0 written; ci 0.11.0->0.12.0 + CHANGELOG entries HELD for the implementation phase (they claim enforceReconciliationInvariants exists — must land WITH the validator code, never before)"
+  - type: direction
+    pointer: "NEW contract defining invariants the code must enforce; until src/reconcile/guard.ts refuses a bucket-1 write with a red-turns-green test AND enforceReconciliationInvariants is wired into validate/gate, the contract's Mechanical Enforcement section is prose (its own wording says so)"
+  - type: required-tests
+    pointer: "guard-refusal (red when guard removed); fail-open-to-keep (red when classifier default flipped to replace); bucket-1 matcher coverage vs contract enumeration; static single-writer scan; ci-workflow-pattern test the row is actually invoked"
+next-action: >-
+  ci-cd-gatekeeper wires enforceReconciliationInvariants into ci-gates.md and
+  applies the ci-gate-contract.md 0.12.0 row+subsection + CHANGELOG entries WHEN
+  the validator lands; backend-engineer builds src/reconcile/{registry,classifier,guard}.ts
+  + reconcile command + schema with the four red-turns-green tests; qa verifies
+  no hollow guarantee.
+notes: >-
+  Contract is NEW (contracts/upgrade family did not exist). Bucket-1
+  never-overwrite is the binding invariant; .cdd/policy.yml classified per-KEY
+  not per-file; fail-open-to-keep. The ci-gate row + CHANGELOG bump are drafted
+  (in the contract-reviewer transcript) but deliberately NOT applied yet to avoid
+  a guarantee-that-never-happened — they ship with the validator.

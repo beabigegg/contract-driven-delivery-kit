@@ -1,6 +1,6 @@
-# generated: 2026-07-14T05:38:50Z by cdd-kit 3.13.1
-# files: 274, src-lines: 54281, map-lines: 4184, compression: 13.0x
-# sources-digest: d7c1ceb7570252333f95bd744d9abdceb2ecfa9c1289f028cf7eb2ee75f0f36c
+# generated: 2026-07-14T09:18:37Z by cdd-kit 3.13.1
+# files: 274, src-lines: 54536, map-lines: 4189, compression: 13.0x
+# sources-digest: 35546bb809f451b28f56b99397e30b6a670b9ac57b1ebf1693465af75abf802a
 bin/cdd.js:  # 2 lines
   imports:
     - { module: '../dist/cli/index.js', items: [], line: 2 }
@@ -59,7 +59,7 @@ src/boundary/generators.ts:  # 33 lines
   types:
     - { name: GeneratedArtifact, lines: 7-7 }  # local
 
-src/boundary/guard.ts:  # 495 lines
+src/boundary/guard.ts:  # 538 lines
   imports:
     - { module: crypto, items: [createHash], line: 1 }
     - { module: fs, items: [existsSync, readFileSync], line: 2 }
@@ -75,36 +75,39 @@ src/boundary/guard.ts:  # 495 lines
     - { module: './adapters.js', items: [captureTargetDigest, executeRegisteredCapture], line: 20 }
     - { module: './generators.js', items: [replayGeneratedArtifact], line: 21 }
   functions:
-    - { name: sha256, lines: 88-90 }
-    - { name: stableJson, lines: 92-96 }
-    - { name: operationKey, lines: 98-100 }
-    - { name: parseYaml, lines: 102-104 }
-    - { name: schemaErrors, lines: 106-108 }
-    - { name: loadPolicy, lines: 110-115 }
-    - { name: loadManifest, lines: 117-122 }
-    - { name: git, lines: 124-127 }
-    - { name: changedFiles, lines: 129-142 }
-    - { name: expectedParameters, lines: 144-155 }
-    - { name: aggregateFileDigest, lines: 157-165 }
-    - { name: aggregateFileDigestAtRevision, lines: 167-175 }
-    - { name: routeLooksDeclared, lines: 177-185 }
-    - { name: consumerLooksCompatible, lines: 187-194 }
-    - { name: consumerImportsArtifact, lines: 196-207 }
-    - { name: genericSchemaReason, lines: 209-218 }
-    - { name: contractAtRevision, lines: 220-222 }
-    - { name: changedContractOperations, lines: 224-234 }
-    - { name: activeException, lines: 236-239 }
-    - { name: isApiLookingPath, lines: 241-246 }
-    - { name: runBoundaryGuard, lines: 248-495 }
+    - { name: classifyBoundaryFinding, lines: 78-83 }
+    - { name: sha256, lines: 116-118 }
+    - { name: stableJson, lines: 120-124 }
+    - { name: operationKey, lines: 126-128 }
+    - { name: parseYaml, lines: 130-132 }
+    - { name: schemaErrors, lines: 134-136 }
+    - { name: loadPolicy, lines: 138-143 }
+    - { name: loadManifest, lines: 145-150 }
+    - { name: git, lines: 152-155 }
+    - { name: resolveEffectiveBase, lines: 168-173 }
+    - { name: changedFiles, lines: 175-184 }
+    - { name: expectedParameters, lines: 186-197 }
+    - { name: aggregateFileDigest, lines: 199-207 }
+    - { name: aggregateFileDigestAtRevision, lines: 209-217 }
+    - { name: routeLooksDeclared, lines: 219-227 }
+    - { name: consumerLooksCompatible, lines: 229-236 }
+    - { name: consumerImportsArtifact, lines: 238-249 }
+    - { name: genericSchemaReason, lines: 251-260 }
+    - { name: contractAtRevision, lines: 262-264 }
+    - { name: changedContractOperations, lines: 266-276 }
+    - { name: activeException, lines: 278-281 }
+    - { name: isApiLookingPath, lines: 283-288 }
+    - { name: runBoundaryGuard, lines: 290-538 }
   interfaces:
     - { name: BoundaryGuardOptions, lines: 23-34 }
     - { name: BoundaryFinding, lines: 36-42 }
     - { name: BoundaryGuardResult, lines: 44-55 }
-    - { name: BoundaryException, lines: 57-59 }  # local
-    - { name: Policy, lines: 61-75 }  # local
-    - { name: BoundaryManifest, lines: 77-81 }  # local
+    - { name: BoundaryEnforcementDecision, lines: 57-62 }
+    - { name: BoundaryException, lines: 85-87 }  # local
+    - { name: Policy, lines: 89-103 }
+    - { name: BoundaryManifest, lines: 105-109 }  # local
 
-src/cli/index.ts:  # 1230 lines
+src/cli/index.ts:  # 1231 lines
   imports:
     - { module: fs, items: [readFileSync], line: 1 }
     - { module: os, items: ['default:os'], line: 2 }
@@ -125,10 +128,10 @@ src/cli/index.ts:  # 1230 lines
     - { module: '../utils/provider.js', items: [ProviderOption], line: 17 }
     - { module: '../runtime/types.js', items: [WorkflowProfile], line: 18 }
   functions:
-    - { name: collectRepeatable, lines: 366-369 }
-    - { name: resolveWorkers, lines: 382-389 }
+    - { name: collectRepeatable, lines: 367-370 }
+    - { name: resolveWorkers, lines: 383-390 }
   interfaces:
-    - { name: CodeMapCliOpts, lines: 371-379 }  # local
+    - { name: CodeMapCliOpts, lines: 372-380 }  # local
 
 src/code-graph/builder.ts:  # 399 lines
   imports:
@@ -541,7 +544,7 @@ src/commands/archive.ts:  # 94 lines
   functions:
     - { name: async archive, lines: 6-94 }
 
-src/commands/boundary.ts:  # 164 lines
+src/commands/boundary.ts:  # 182 lines
   imports:
     - { module: crypto, items: [createHash], line: 1 }
     - { module: child_process, items: [spawnSync], line: 2 }
@@ -549,20 +552,20 @@ src/commands/boundary.ts:  # 164 lines
     - { module: path, items: [dirname, join], line: 4 }
     - { module: js-yaml, items: ['default:yaml'], line: 5 }
     - { module: '../contracts/parser.js', items: [DEFAULT_CONTRACT_PATH, normalizeApiPath, parseEndpoints, parseSchemaCellRef, stripFrontmatter], line: 6 }
-    - { module: '../boundary/guard.js', items: [runBoundaryGuard, BoundaryGuardOptions], line: 7 }
+    - { module: '../boundary/guard.js', items: [runBoundaryGuard, classifyBoundaryFinding, loadPolicy, BoundaryGuardOptions], line: 7 }
     - { module: '../utils/logger.js', items: [log], line: 8 }
     - { module: '../boundary/adapters.js', items: [executeRegisteredCapture], line: 9 }
     - { module: '../runtime/types.js', items: [BoundaryOperation], line: 10 }
   functions:
-    - { name: sha, lines: 24-24 }
-    - { name: stable, lines: 25-29 }
-    - { name: boundaryCapture, lines: 31-86 }
-    - { name: boundaryCheck, lines: 88-115 }
-    - { name: boundaryInit, lines: 117-164 }
+    - { name: sha, lines: 26-26 }
+    - { name: stable, lines: 27-31 }
+    - { name: boundaryCapture, lines: 33-88 }
+    - { name: boundaryCheck, lines: 90-133 }
+    - { name: boundaryInit, lines: 135-182 }
   interfaces:
-    - { name: BoundaryCheckOptions, lines: 12-14 }
-    - { name: BoundaryInitOptions, lines: 16-20 }
-    - { name: BoundaryCaptureOptions, lines: 22-22 }
+    - { name: BoundaryCheckOptions, lines: 12-16 }
+    - { name: BoundaryInitOptions, lines: 18-22 }
+    - { name: BoundaryCaptureOptions, lines: 24-24 }
 
 src/commands/bug-suspects.ts:  # 436 lines
   imports:
@@ -1117,7 +1120,7 @@ src/commands/gate-tier.ts:  # 311 lines
     - { name: TierResolution, lines: 18-23 }
     - { name: TierFloorOverrideAudit, lines: 243-252 }  # local
 
-src/commands/gate.ts:  # 302 lines
+src/commands/gate.ts:  # 303 lines
   imports:
     - { module: fs, items: [existsSync, readFileSync], line: 1 }
     - { module: path, items: [join], line: 2 }
@@ -1135,13 +1138,13 @@ src/commands/gate.ts:  # 302 lines
     - { module: './gate-design.js', items: [enforceInteractionDesign], line: 23 }
     - { module: '../utils/change-id.js', items: [isSafeChangeId], line: 24 }
     - { module: js-yaml, items: ['default:yaml'], line: 25 }
-    - { module: '../boundary/guard.js', items: [runBoundaryGuard], line: 26 }
+    - { module: '../boundary/guard.js', items: [runBoundaryGuard, classifyBoundaryFinding], line: 26 }
     - { module: '../policy/profile.js', items: [acceptanceOracleRequired, resolveGateProfile], line: 27 }
     - { module: '../runtime/types.js', items: [WorkflowProfile], line: 28 }
     - { module: '../runtime/engine.js', items: [verifyRuntime], line: 29 }
   functions:
     - { name: reportGateFailure, lines: 47-69 }
-    - { name: async gate, lines: 71-302 }
+    - { name: async gate, lines: 71-303 }
   interfaces:
     - { name: GateOptions, lines: 31-38 }
 
@@ -2806,7 +2809,7 @@ test/cli/archive.test.ts:  # 105 lines
   functions:
     - { name: scaffoldChange, lines: 11-20 }
 
-test/cli/boundary.test.ts:  # 327 lines
+test/cli/boundary.test.ts:  # 427 lines
   imports:
     - { module: vitest, items: [afterEach, beforeEach, describe, expect, it], line: 1 }
     - { module: crypto, items: [createHash], line: 2 }
@@ -3794,7 +3797,7 @@ test/contracts/applicability-reader.test.ts:  # 128 lines
   interfaces:
     - { name: Classification, lines: 30-34 }  # local
 
-test/contracts/ci-workflow.test.ts:  # 168 lines
+test/contracts/ci-workflow.test.ts:  # 260 lines
   imports:
     - { module: vitest, items: [describe, it, expect], line: 16 }
     - { module: fs, items: [readFileSync, mkdirSync], line: 17 }
@@ -3809,9 +3812,11 @@ test/contracts/ci-workflow.test.ts:  # 168 lines
     - { name: OWN_WORKFLOW_PATH, line: 26 }
   functions:
     - { name: read, lines: 28-30 }
-    - { name: runCommands, lines: 47-52 }
+    - { name: extractIdsLine, lines: 36-43 }
+    - { name: runIdsPipeline, lines: 55-62 }
+    - { name: runCommands, lines: 79-84 }
   interfaces:
-    - { name: WorkflowStep, lines: 32-36 }  # local
+    - { name: WorkflowStep, lines: 64-68 }  # local
 
 test/contracts/doctrine-ledger.test.ts:  # 24 lines
   imports:

@@ -3,8 +3,8 @@ artifact: project-map
 generated-by: cdd-kit context-scan
 schema-version: 1
 root: contract-driven-delivery-kit
-visible-dirs: 71
-visible-files: 380
+visible-dirs: 75
+visible-files: 390
 omitted-dirs: 0
 truncated-dirs: 2
 inputs-digest: 62598949ece3c44e11cc87b1d5fb79466bcb39ac84b8b8b34c84bfd456da8fe7
@@ -40,6 +40,9 @@ contract-driven-delivery-kit/
 |           \-- SKILL.md
 |-- .cdd/
 |   |-- approval-policy.yml
+|   |-- asset-manifest.json
+|   |-- code-graph.index.json
+|   |-- code-map.index.json
 |   |-- code-map.yml
 |   |-- conformance.json
 |   |-- context-policy.json
@@ -50,6 +53,8 @@ contract-driven-delivery-kit/
 |   \-- workflows/
 |       |-- contract-driven-gates.yml
 |       \-- test.yml
+|-- .tmp.drivedownload/
+|-- .tmp.driveupload/
 |-- bin/
 |   |-- cdd.js
 |   \-- postinstall.js
@@ -452,6 +457,11 @@ contract-driven-delivery-kit/
 |   |-- helpers.ts
 |   \-- setup-git-env.ts
 |-- tests/
+|   |-- contract/
+|   |   |-- samples/
+|   |   |   \-- .gitkeep
+|   |   |-- README.md
+|   |   \-- response-samples.example.json
 |   \-- templates/
 |       |-- data-boundary/
 |       |   \-- malformed-data.spec.md
@@ -473,8 +483,10 @@ contract-driven-delivery-kit/
 |-- tools/
 |   |-- check-lockfile-sync.mjs
 |   \-- check-mojibake.mjs
+|-- .cdd-retest.log
 |-- .gitattributes
 |-- .gitignore
+|-- AGENTS.md
 |-- AGENTS.template.md
 |-- build.js
 |-- CHANGELOG.md
@@ -484,7 +496,9 @@ contract-driven-delivery-kit/
 |-- install.md
 |-- package-lock.json
 |-- package.json
+|-- project-profile.generated.md
 |-- README.md
+|-- skill.zip
 |-- tsconfig.json
 \-- vitest.config.ts
 ```
