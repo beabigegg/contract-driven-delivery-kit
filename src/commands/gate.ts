@@ -5,15 +5,19 @@ import { validate } from './validate.js';
 import { explainGateError } from '../utils/gate-explain.js';
 import { type TasksFile, enforceConfirmationHookInstallation } from './gate-shared.js';
 import {
-  REQUIRED_FILES,
   MIN_CHARS,
+  V2_PLAN_SECTIONS,
   meaningfulChars,
   findPlaceholders,
   countPendingContextRequests,
   isContextGovernedChange,
+  governanceVersion,
+  requiredFilesFor,
   lintTasksFile,
+  enforceClassificationSubstance,
   getArchiveTaskIds,
 } from './gate-artifacts.js';
+import { sectionBody } from '../utils/markdown-section.js';
 import { resolveTier, enforceTierConsistency, enforceTierFloor } from './gate-tier.js';
 import { validateDependencies } from './gate-dependencies.js';
 import { enforceContractSubstance } from './gate-contracts.js';
@@ -146,7 +150,9 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     }
   }
 
-  for (const f of REQUIRED_FILES) {
+  const requiredFiles = requiredFilesFor(changeDir);
+
+  for (const f of requiredFiles) {
     if (f === 'context-manifest.md') {
       if (!hasManifest) {
         if (isNewChange || strict) {
@@ -162,8 +168,24 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     }
   }
 
+  // v2 folds test-plan.md and ci-gates.md into implementation-plan.md. The
+  // requirement moved into the plan; it did not soften -- an absent section is
+  // the same failure a missing file was.
+  if (errors.length === 0 && governanceVersion(changeDir) === 'v2') {
+    const plan = readFileSync(join(changeDir, 'implementation-plan.md'), 'utf8');
+    for (const section of V2_PLAN_SECTIONS) {
+      if (sectionBody(plan, section).trim() === '') {
+        errors.push(
+          `implementation-plan.md: missing or empty \`## ${section}\` section — v2 folds ` +
+          `${section === 'Test Plan' ? 'test-plan.md' : 'ci-gates.md'} into the plan rather than a separate file, ` +
+          'so the section is required here.',
+        );
+      }
+    }
+  }
+
   if (errors.length === 0) {
-    for (const f of REQUIRED_FILES) {
+    for (const f of requiredFiles) {
       if (f === 'context-manifest.md' && !hasManifest) continue;
       if (f === 'tasks.yml') continue;
       const content = readFileSync(join(changeDir, f), 'utf8');
@@ -199,6 +221,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   if (existsSync(tasksPath)) {
     tasksData = lintTasksFile(tasksPath, errors, warnings);
   }
+  enforceClassificationSubstance(changeDir, tasksData, errors);
   if (tasksData) {
     const archiveIds = new Set(getArchiveTaskIds(tasksData));
     const nonArchivePending = (tasksData.tasks ?? [])

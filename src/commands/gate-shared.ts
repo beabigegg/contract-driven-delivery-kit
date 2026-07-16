@@ -22,7 +22,15 @@ export interface TasksFile {
   'change-id': string;
   status: string;
   tier?: number | null;
-  'context-governance'?: 'v1';
+  'context-governance'?: 'v1' | 'v2';
+  /** v2 only — the fields `change-classification.md` carried under v1. */
+  classification?: {
+    types?: string[];
+    risk?: 'low' | 'medium' | 'high' | 'critical';
+    impact?: 'isolated' | 'module-level' | 'cross-module' | 'system-wide';
+    'architecture-review'?: boolean;
+    'architecture-review-reason'?: string;
+  };
   'archive-tasks'?: string[];
   'depends-on'?: string[];
   'tier-floor-override'?: string;

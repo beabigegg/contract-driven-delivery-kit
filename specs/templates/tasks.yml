@@ -1,7 +1,18 @@
 change-id: <change-id>
 status: in-progress
 tier: null
-context-governance: v1
+context-governance: v2
+
+# Was change-classification.md under v1 — 99 lines of template around these few
+# fields. The gate requires types/risk/impact and, if architecture-review is
+# true, a real reason (a bare yes is not a decision).
+classification:
+  types: []                    # e.g. [feature, refactor, bugfix, migration, infra]
+  risk:                        # low | medium | high | critical
+  impact:                      # isolated | module-level | cross-module | system-wide
+  architecture-review: false
+  # architecture-review-reason: <required, and non-trivial, when the flag is true>
+
 archive-tasks:
   - "7.1"
   - "7.2"

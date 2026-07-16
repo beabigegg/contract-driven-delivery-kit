@@ -12,7 +12,26 @@ const TASKS_STATUS_ENUM = new Set([
   'gate-blocked', 'abandoned', 'needs-review',
 ]);
 
-export const REQUIRED_FILES = [
+/**
+ * `context-governance: v1` (the legacy shape) required seven artifacts. Two of
+ * them carried no information the others did not already have:
+ *
+ * - `change-classification.md` was 99 lines of template around seven scalar
+ *   fields, and its `## Tier` DUPLICATED `tasks.yml`'s `tier:` -- so faithfully
+ *   that `gate-tier.ts` ships a validator whose only job is to catch the two
+ *   copies disagreeing. A fact stored twice needs a referee; a fact stored once
+ *   does not. v2 moves the seven fields into `tasks.yml` frontmatter, and the
+ *   referee has nothing left to arbitrate.
+ * - `test-plan.md` and `ci-gates.md` were sections of the plan that had been
+ *   given their own files. v2 requires them as `## Test Plan` / `## CI Gates`
+ *   sections of `implementation-plan.md` -- the same content, mechanically
+ *   checked the same way, minus two files of template.
+ *
+ * v2 is NOT a migration: `v1` change directories keep the old shape and the old
+ * checks forever (see `requiredFilesFor`). Nothing an adopter already wrote is
+ * touched, rewritten, or asked to move. Only the shape of NEW changes differs.
+ */
+export const REQUIRED_FILES_V1 = [
   'change-request.md',
   'change-classification.md',
   'implementation-plan.md',
@@ -21,6 +40,22 @@ export const REQUIRED_FILES = [
   'tasks.yml',
   'context-manifest.md',
 ];
+
+export const REQUIRED_FILES_V2 = [
+  'change-request.md',
+  'implementation-plan.md',
+  'tasks.yml',
+  'context-manifest.md',
+];
+
+/** Sections `implementation-plan.md` must carry under v2, absorbing the two
+ *  files v1 kept separate. Checked with the same `sectionBody` machinery the
+ *  gate already uses elsewhere -- the requirement moved, it did not soften. */
+export const V2_PLAN_SECTIONS = ['Test Plan', 'CI Gates'];
+
+/** Back-compat alias: callers that just want "the artifact set" without a change
+ *  directory in hand (e.g. `cdd-kit metadata`) get the current default shape. */
+export const REQUIRED_FILES = REQUIRED_FILES_V2;
 
 export const MIN_CHARS: Record<string, number> = {
   'change-classification.md': 200,
@@ -130,7 +165,62 @@ export function isContextGovernedChange(changeDir: string): boolean {
   const tasksPath = join(changeDir, 'tasks.yml');
   if (!existsSync(tasksPath)) return false;
   const { data } = loadYamlFile<TasksFile>(tasksPath);
-  return data?.['context-governance'] === 'v1';
+  const g = data?.['context-governance'];
+  return g === 'v1' || g === 'v2';
+}
+
+/** `v2` | `v1` | `null` (ungoverned legacy). Unreadable/absent tasks.yml yields
+ *  `null` -- the least-demanding shape, so a broken file never manufactures a
+ *  requirement the change was never authored against. */
+export function governanceVersion(changeDir: string): 'v1' | 'v2' | null {
+  const tasksPath = join(changeDir, 'tasks.yml');
+  if (!existsSync(tasksPath)) return null;
+  const { data } = loadYamlFile<TasksFile>(tasksPath);
+  const g = data?.['context-governance'];
+  return g === 'v2' ? 'v2' : g === 'v1' ? 'v1' : null;
+}
+
+/** The artifact set this specific change is held to. A v1 directory is
+ *  grandfathered on the v1 list for good -- see REQUIRED_FILES_V1's note. */
+export function requiredFilesFor(changeDir: string): string[] {
+  return governanceVersion(changeDir) === 'v2' ? REQUIRED_FILES_V2 : REQUIRED_FILES_V1;
+}
+
+/**
+ * v2's replacement for the `change-classification.md` substance check. Dropping
+ * the file must not drop the requirement: the same facts are still mandatory,
+ * they just live in `tasks.yml` frontmatter now. Without this, v2 would be a
+ * loosening wearing a refactor's clothes.
+ *
+ * `architecture-review: true` with no reason is refused for the same reason ADR
+ * 0011 refuses a bare `applicability: not-applicable` -- an unjustified marker
+ * is not a decision, it is a box someone ticked.
+ */
+export function enforceClassificationSubstance(
+  changeDir: string,
+  tasks: TasksFile | null,
+  errors: string[],
+): void {
+  if (governanceVersion(changeDir) !== 'v2') return;
+  const c = tasks?.classification;
+  // Only the two things the JSON schema structurally cannot do. The shape of
+  // `types`/`risk`/`impact` is already enforced by tasksSchema whenever the
+  // block is present -- restating it here would just print every failure twice.
+  if (!c) {
+    // The schema cannot put `classification` in `required`: a v1 change is valid
+    // without it, and the schema has no view of which version it is validating.
+    errors.push(
+      'tasks.yml: missing required `classification:` block (v2 folds change-classification.md into ' +
+      'tasks.yml frontmatter — it needs `types`, `risk`, and `impact`).',
+    );
+    return;
+  }
+  if (c['architecture-review'] === true && !(c['architecture-review-reason'] ?? '').trim()) {
+    errors.push(
+      'tasks.yml: `classification.architecture-review: true` requires a non-empty ' +
+      '`architecture-review-reason` — a bare yes with no reason is not a decision.',
+    );
+  }
 }
 
 export function lintTasksFile(tasksPath: string, errors: string[], warnings: string[]): TasksFile | null {
