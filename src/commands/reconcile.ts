@@ -24,6 +24,7 @@ import { join } from 'path';
 import { log } from '../utils/logger.js';
 import { KIT_SURFACES } from '../reconcile/classifier.js';
 import { defaultRegistry } from '../reconcile/registry.js';
+import { registerShippedReconcilers } from '../reconcile/reconcilers/index.js';
 import { makeGuardedWrite } from '../reconcile/guard.js';
 import { refresh } from './refresh.js';
 import type { Bucket } from '../schemas/reconciliation.schema.js';
@@ -51,10 +52,12 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
   const cwd = process.cwd();
   const apply = !!opts.yes;
 
+  registerShippedReconcilers();
   // Single plan/apply pass (AC-3): `list()` is called exactly ONCE per
   // invocation and the result reused below -- never four ad-hoc bucket-3 code
   // paths each re-querying the registry.
   const reconcilers = defaultRegistry.list();
+  const bySurface = new Map(reconcilers.map(r => [r.surface, r]));
 
   log.blank();
   log.info(apply ? 'cdd-kit reconcile -- applying changes' : 'cdd-kit reconcile -- plan (read-only; re-run with --yes to apply)');
@@ -68,7 +71,12 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
       log.dim(`  ${countExisting(cwd, countableRoots)}/${countableRoots.length} root(s) present`);
     }
     if (surface.bucket === 'reconcile') {
-      log.dim(`  reconciler: ${surface.reconciler ?? '(none)'} -- registry slot only, no reconciler ships in this change`);
+      const r = surface.reconciler ? bySurface.get(surface.reconciler) : undefined;
+      if (!r) {
+        log.dim(`  reconciler: ${surface.reconciler ?? '(none)'} -- registry slot only, none ships in this kit version`);
+      } else {
+        log.dim(`  reconciler: ${r.surface} -- ${r.planDescription({ cwd })}`);
+      }
     }
   }
   log.blank();
@@ -76,9 +84,12 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
   log.blank();
 
   if (!apply) {
-    log.info('Dry-run finished. Re-run with `--yes` to apply bucket-2 (kit-scaffold) changes.');
+    const pending = reconcilers.filter(r => r.detectNeedsReconcile({ cwd }));
+    log.info('Dry-run finished. Re-run with `--yes` to apply bucket-2 (kit-scaffold) and bucket-3 (reconcile) changes.');
     log.dim('  bucket-1 (ground truth) is never touched.');
-    log.dim('  bucket-3 has no reconciler registered yet in this framework version.');
+    log.dim(pending.length === 0
+      ? '  bucket-3: nothing to reconcile.'
+      : `  bucket-3: ${pending.length} reconciler(s) would run -- ${pending.map(r => r.surface).join(', ')}.`);
     log.blank();
     return;
   }

@@ -8,6 +8,37 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [upgrade 0.2.0] — 2026-07-16
+### Added
+- **`## Bucket-1 containers and their narrow channels`** — a binding, closed
+  list of the two bucket-1 surfaces that are CONTAINERS (`.cdd/policy.yml`,
+  `CLAUDE.md`) and the single narrow channel each permits, plus the four
+  conditions a channel must satisfy to be binding (implemented inside the
+  guarded writer; proves preservation byte-for-byte FROM DISK and restores on
+  failure; never re-serializes a container it only means to extend; refuses or
+  reports rather than guessing when the container is malformed or its region
+  ambiguous). Adding or widening a channel is a breaking change under the same
+  rule as reclassifying a bucket-1 surface.
+
+### Changed
+- **BREAKING (0.x minor) — `CLAUDE.md` bucket-1 row narrowed** to "everything
+  OUTSIDE its `cdd-kit:learnings` markers". The kit already promised this in the
+  CLAUDE.md template itself ("Anything you write outside the markers is yours and
+  is never edited or evicted"), but this contract's row claimed the whole file,
+  so the promise had no contract behind it and the region had no lawful writer.
+  Recorded as breaking because it removes a surface from absolute bucket-1
+  protection, which is the write-safety equivalent of disabling a bone.
+
+### Fixed
+- **`.cdd/policy.yml` per-key migration was unimplementable.** The contract's
+  bucket-1 row already scoped protection to "user-set key values only" and
+  `## .cdd/policy.yml is classified PER-KEY` already REQUIRED a genuinely-new key
+  to be added at a safe default — but the guard refused the whole file, so the
+  plan could print `needs-reconcile` and the apply could never honour it. The
+  guard was stricter than its own contract; no protection is removed by fixing
+  it. Found by building the first reconciler that had to use it: the framework
+  shipped with an empty registry, so nothing had ever hit the wall.
+
 ## [upgrade 0.1.0] — 2026-07-14
 ### Added
 - **Initial contract** (added by `reconcile-framework`, ADR 0014). Establishes

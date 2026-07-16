@@ -354,9 +354,17 @@ describe('cdd-kit reconcile -- CLI integration (isolated fixture repo)', () => {
     expect(wf).toContain('Repository-specific fast gate');
   });
 
-  it('registry: reports zero bucket-3 reconcilers registered (framework ships no reconciler in this change)', () => {
+  it('registry: reports the bucket-3 reconcilers this kit version ships', () => {
     const r = runCli(['reconcile', '--plan'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toContain('0 bucket-3 reconciler(s) registered');
+    expect(r.stdout).toContain('3 bucket-3 reconciler(s) registered');
+  });
+
+  it('registry: gate-rule-map still shows its slot with no reconciler behind it (the gap stays visible)', () => {
+    // A surface whose reconciler does not ship must still be printed. Dropping
+    // the slot would hide the gap instead of reporting it.
+    const r = runCli(['reconcile', '--plan'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.stdout).toContain('gate-rule-map');
+    expect(r.stdout).toMatch(/gate-rule-map[\s\S]*?registry slot only, none ships in this kit version/);
   });
 });

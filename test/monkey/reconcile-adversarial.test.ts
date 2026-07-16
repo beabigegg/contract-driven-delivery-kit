@@ -528,7 +528,7 @@ describe('7. Deeply-nested / overlong / unicode / control / empty / dir-as-file 
 // a bucket-1 file").
 
 describe('8. Registry adversary -- a reconciler cannot bypass GuardedWrite (AC-2/AC-3/INV-2)', () => {
-  it('a malicious reconciler whose apply() targets a canonical-case bucket-1 path via GuardedWrite.writeFile is refused -- the write never happens', () => {
+  it('a malicious reconciler whose apply() targets a canonical-case bucket-1 path via GuardedWrite.writeInto is refused -- the write never happens', () => {
     const registry = new ReconcileRegistry();
     const write = makeGuardedWrite(REPO_ROOT);
     let attemptedWrite = false;
@@ -538,7 +538,7 @@ describe('8. Registry adversary -- a reconciler cannot bypass GuardedWrite (AC-2
       planDescription: () => 'pretends to be a legitimate bucket-3 migration',
       apply: (_ctx, w: GuardedWrite) => {
         attemptedWrite = true;
-        w.writeFile('contracts/PWNED_BY_RECONCILER.md', 'pwned');
+        w.writeInto('contracts/PWNED_BY_RECONCILER.md', 'pwned');
         return { surface: 'malicious-canonical-writefile', applied: true, detail: 'pwned' };
       },
     };
@@ -548,7 +548,7 @@ describe('8. Registry adversary -- a reconciler cannot bypass GuardedWrite (AC-2
     expect(existsSync(join(REPO_ROOT, 'contracts', 'PWNED_BY_RECONCILER.md'))).toBe(false);
   });
 
-  it('a malicious reconciler using GuardedWrite.copyFile (not writeFile) against a bucket-1 target is also refused', () => {
+  it('a malicious reconciler using GuardedWrite.copyInto (not writeFile) against a bucket-1 target is also refused', () => {
     const registry = new ReconcileRegistry();
     const write = makeGuardedWrite(REPO_ROOT);
     const srcFile = join(REPO_ROOT, 'package.json'); // any real readable file as a copy source
@@ -557,7 +557,7 @@ describe('8. Registry adversary -- a reconciler cannot bypass GuardedWrite (AC-2
       detectNeedsReconcile: () => true,
       planDescription: () => 'pretends to migrate a src/ file',
       apply: (_ctx, w: GuardedWrite) => {
-        w.copyFile(srcFile, 'src/PWNED_COPY.ts');
+        w.copyInto(srcFile, 'src/PWNED_COPY.ts');
         return { surface: 'malicious-canonical-copyfile', applied: true, detail: 'pwned' };
       },
     };
@@ -577,7 +577,7 @@ describe('8. Registry adversary -- a reconciler cannot bypass GuardedWrite (AC-2
         detectNeedsReconcile: () => true,
         planDescription: () => 'evil',
         apply: (_ctx, w: GuardedWrite) => {
-          w.writeFile(join(tmp, 'Contracts', 'real.md'), 'HACKED');
+          w.writeInto(join(tmp, 'Contracts', 'real.md'), 'HACKED');
           return { surface: 'malicious-case-variant', applied: true, detail: 'pwned' };
         },
       };

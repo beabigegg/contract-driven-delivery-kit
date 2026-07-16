@@ -3,7 +3,7 @@ contract: upgrade
 summary: Three-bucket (keep/replace/reconcile) surface taxonomy and the two non-negotiable write-safety invariants governing every kit-shipped upgrade path (refresh, upgrade, update, reconcile).
 owner: platform-team
 surface: upgrade-reconciliation
-schema-version: 0.1.0
+schema-version: 0.2.0
 last-changed: 2026-07-14
 breaking-change-policy: deprecate-2-minors
 ---
@@ -43,7 +43,7 @@ a style nit.
 | surface | rationale |
 |---|---|
 | `contracts/**`, `src/**`, `tests/**` (excluding `tests/templates/**`), `specs/changes/**`, `specs/archive/**` | adopter/tool ground truth |
-| `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `package.json` | user-owned guidance and manifests |
+| `CLAUDE.md` (everything OUTSIDE its `cdd-kit:learnings` markers — see per-region rule below), `AGENTS.md`, `CODEX.md`, `package.json` | user-owned guidance and manifests |
 | `.cdd/policy.yml` (user-set key values only — see per-key rule below), `.cdd/context-policy.json`, `.cdd/code-map-config.yml` | adopter policy |
 | `acceptance.yml`, `interaction-design.md`, `.cdd/*-lock.json` (e.g. `.cdd/design-lock.json`, `.cdd/acceptance-lock.json`) | human-confirmed oracle/design and their tamper-evident locks |
 | the user's own agents/skills — any agent/skill file the ownership check reports as NOT kit-owned-and-unmodified | user-authored content |
@@ -74,6 +74,38 @@ whole-file bucket-3 rule would risk flipping an adopter's existing value on ever
 upgrade. A mechanical check that only asserts "the file exists and was not
 deleted" does NOT verify this rule — the validator must diff key-by-key against
 the adopter's prior value, never treat the file as one opaque blob.
+
+## Bucket-1 containers and their narrow channels (binding)
+
+Two bucket-1 surfaces are CONTAINERS: the file is ground truth, but a delimited
+part of it is kit-managed and MUST remain migratable. A whole-file refusal on
+either makes a clause elsewhere in this contract unimplementable, which is a
+contradiction, not extra safety.
+
+| container | protected (bucket 1) | narrow channel |
+|---|---|---|
+| `.cdd/policy.yml` | every key the adopter has set, and the file's existing bytes (comments and formatting included) | add a genuinely-new key only, at its safe default |
+| `CLAUDE.md` | every byte outside the `cdd-kit:learnings` markers | replace the marked region only |
+
+A narrow channel is binding ONLY where it satisfies all of:
+
+1. it is implemented inside the single guarded writer, not in a reconciler;
+2. it re-reads its own output FROM DISK and proves byte-for-byte that the
+   protected part survived, restoring the original and failing loudly otherwise —
+   the proof is structural, and a caller cannot opt out of it;
+3. it never re-serializes a container it only means to extend. Round-tripping
+   `.cdd/policy.yml` through a YAML parser silently drops the adopter's comments
+   and rewrites their formatting; that is a mutation of ground truth even when
+   every key and value survives;
+4. it refuses (policy keys) or reports and leaves the file untouched (marked
+   region) when the container is missing, unreadable, malformed, or its region is
+   absent/ambiguous — an unlocatable region is indistinguishable from a
+   hand-edited one.
+
+Adding a narrow channel, or widening what an existing one may write, is a
+BREAKING change under the same rule as reclassifying a bucket-1 surface: it is
+the write-safety equivalent of disabling a bone protection and requires a major
+version bump, an explicit reason, and a `contracts/CHANGELOG.md` entry.
 
 ## Invariants (binding)
 
@@ -132,7 +164,13 @@ Prose alone is not a guarantee. Both invariants above are checked by a
    INV-2 holds;
 4. requires a recorded, PASSED test proving fail-open-to-keep for malformed /
    unknown / unreadable classifier input and for a newly-added surface or
-   `.cdd/policy.yml` key (INV-1's safe-default requirement).
+   `.cdd/policy.yml` key (INV-1's safe-default requirement);
+5. requires, for the narrow channels above, a recorded PASSED test proving an
+   adopter-set value survives a channel write (`narrow-channel-refusal`) and one
+   proving a malformed / unreadable / ambiguous container is refused or left
+   untouched rather than guessed at (`container-fail-open`). A channel is a hole
+   in the never-overwrite guard; its byte-level proof is only real if removing
+   that proof turns a test red.
 
 A contract claim with no matching validator, and a validator with no test that
 turns red when the guard regresses, is prose — not a guarantee. See

@@ -233,6 +233,23 @@ export function checkReconciliationInvariants(cwd: string): ReconciliationFindin
     }
   }
 
+  // Check 5: the two narrow channels into a bucket-1 CONTAINER (contract
+  // `## Bucket-1 containers and their narrow channels`). A channel is a hole in
+  // the never-overwrite guard, so the contract only binds one that proves
+  // preservation from disk -- and that proof is only real if a test turns red
+  // when it is removed. Same shape as #3/#4: a named, recorded test.
+  const channelTests = readTestSources(cwd, ['test/cli/reconcile-bucket3.test.ts', 'test/reconcile']);
+  if (!hasNamedTestWithBodyMatch(channelTests, 'narrow-channel-refusal', ['skipped'])) {
+    findings.push({
+      message: 'enforceReconciliationInvariants: no recorded narrow-channel-refusal test found under test/cli/reconcile-bucket3.test.ts or test/reconcile/** proving a narrow channel into a bucket-1 container leaves an adopter-set value untouched (contract ## Bucket-1 containers and their narrow channels)',
+    });
+  }
+  if (!hasNamedTestWithBodyMatch(channelTests, 'container-fail-open', ['toThrow'])) {
+    findings.push({
+      message: 'enforceReconciliationInvariants: no recorded container-fail-open test found under test/cli/reconcile-bucket3.test.ts or test/reconcile/** proving a malformed/unreadable/ambiguous bucket-1 container is refused or left untouched rather than guessed at (contract ## Bucket-1 containers and their narrow channels)',
+    });
+  }
+
   // Checks 3/4: recorded linchpin tests (contract ## Mechanical Enforcement #3/#4).
   const combined = readTestSources(cwd, ['test/cli/reconcile-plan.test.ts', 'test/reconcile']);
   if (!hasNamedTestWithBodyMatch(combined, 'guard-refusal', ['toThrow'])) {

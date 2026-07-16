@@ -38,9 +38,52 @@ export interface ReconcileContext {
  * `enforceReconciliationInvariants` check 2 (no `fs.write*`/`copyFile*`/`rm*`
  * anywhere in `src/reconcile/**` outside `guard.ts`).
  */
+/**
+ * Method names here deliberately do NOT mirror the `fs` API (`copyInto`, not
+ * `copyFile`). `enforceReconciliationInvariants` check 2 finds a second write
+ * site by scanning `src/reconcile/**` for raw `fs` write calls by NAME, and a
+ * capability method called `writeFile` is textually indistinguishable from the
+ * `fs` primitive it exists to replace -- the scan flagged the guarded call as a
+ * violation, and the fix that keeps the scan trustworthy is to remove the
+ * collision, not to teach the scan to guess which `writeFile(` is which. A
+ * check that cannot be fooled beats a check that is clever.
+ */
 export interface GuardedWrite {
-  copyFile(src: string, dest: string): void;
-  writeFile(dest: string, content: string | Buffer): void;
+  copyInto(src: string, dest: string): void;
+  writeInto(dest: string, content: string | Buffer): void;
+  /**
+   * The ONLY way into `.cdd/policy.yml`, a bucket-1 CONTAINER whose contract
+   * row protects "user-set key values only". Adds solely the keys absent from
+   * the adopter's file and proves, from disk, that every key they had already
+   * set survived byte-for-byte. An adopter-set key comes back in `skipped`.
+   */
+  addPolicyKeys(
+    additions: Record<string, unknown>,
+    renderKey?: (key: string, value: unknown) => string,
+  ): AddPolicyKeysResult;
+  /**
+   * The ONLY way into a marker-delimited managed region of a bucket-1 file
+   * (today: `CLAUDE.md`'s `cdd-kit:learnings` region). Proves, from disk, that
+   * every byte outside the markers survived. Reports `replaced: false` rather
+   * than throwing when the region is missing or ambiguous -- an unlocatable
+   * region is treated as hand-edited and left alone.
+   */
+  replaceMarkedRegion(
+    relFile: string,
+    startMarker: string,
+    endMarker: string,
+    newBody: string,
+  ): ReplaceRegionResult;
+}
+
+export interface AddPolicyKeysResult {
+  added: string[];
+  skipped: string[];
+}
+
+export interface ReplaceRegionResult {
+  replaced: boolean;
+  reason: string;
 }
 
 export interface ReconcileResult {

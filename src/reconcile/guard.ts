@@ -17,11 +17,12 @@
  * contract text so the two cannot silently drift (dropping a row here is a
  * HARD gate failure, not a silent hole).
  */
-import { mkdirSync, copyFileSync, writeFileSync, existsSync, realpathSync } from 'fs';
+import { mkdirSync, copyFileSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'path';
+import yaml from 'js-yaml';
 import { isOwnedAndUnmodified } from '../utils/user-asset-manifest.js';
 import { AGENTS_HOME, SKILLS_HOME, CODEX_SKILLS_HOME } from '../utils/paths.js';
-import type { GuardedWrite } from '../schemas/reconciliation.schema.js';
+import type { GuardedWrite, AddPolicyKeysResult, ReplaceRegionResult } from '../schemas/reconciliation.schema.js';
 
 interface Bucket1MatchCtx {
   /** absolute, OS-native destination path. */
@@ -72,7 +73,7 @@ const BUCKET_1_RULES: readonly Bucket1Rule[] = [
       relPosixLower === 'specs/archive' || relPosixLower.startsWith('specs/archive/'),
   },
   {
-    contractRow: '`CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `package.json`',
+    contractRow: '`CLAUDE.md` (everything OUTSIDE its `cdd-kit:learnings` markers — see per-region rule below), `AGENTS.md`, `CODEX.md`, `package.json`',
     test: ({ relPosixLower }) => ['claude.md', 'agents.md', 'codex.md', 'package.json'].includes(relPosixLower),
   },
   {
@@ -236,10 +237,199 @@ export function guardedWriteFile(dest: string, content: string | Buffer, cwd: st
   writeFileSync(dest, content);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Narrow channels into a bucket-1 CONTAINER.
+//
+// `assertWritable` refuses a bucket-1 path outright, which is correct for a
+// whole-file overwrite and WRONG for the two surfaces the contract classifies
+// per-region rather than per-file:
+//
+//   - `.cdd/policy.yml` -- contract `## Bucket 1` row 3 protects "user-set key
+//     values only", and `## .cdd/policy.yml is classified PER-KEY` REQUIRES that
+//     a genuinely new key be added with a fail-open safe default (INV-1). A
+//     whole-file refusal makes that clause unimplementable.
+//   - `CLAUDE.md` -- contract `## Bucket 1` row 2, narrowed to everything
+//     OUTSIDE the `cdd-kit:learnings` markers (the region the CLAUDE.md template
+//     already declares kit-managed: "Anything you write outside the markers is
+//     yours and is never edited or evicted").
+//
+// These two functions are the ONLY sanctioned way in, and they are built so the
+// protected part CANNOT change rather than so a caller merely intends not to
+// change it: each one re-reads its own output and PROVES, byte-for-byte, that
+// the protected bytes survived -- throwing (after restoring the original) if
+// they did not. A caller cannot opt out of that proof. They live in `guard.ts`
+// because it is the only module allowed to call a raw `fs` write primitive
+// (`enforceReconciliationInvariants` check 2).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const POLICY_REL = '.cdd/policy.yml';
+
+function parsePolicyMapping(text: string): Record<string, unknown> | null {
+  try {
+    const doc = yaml.load(text, { schema: yaml.JSON_SCHEMA });
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return null;
+    return doc as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Add ONLY keys absent from the adopter's `.cdd/policy.yml`. An adopter-set key
+ * is bucket 1 and is never flipped, reordered, reformatted, or re-serialized.
+ *
+ * The file is extended by APPENDING text -- never by `yaml.dump`-ing a parsed
+ * document back out. Round-tripping would silently drop the adopter's comments
+ * and rewrite their formatting, which is itself a mutation of ground truth even
+ * when every key/value survives.
+ *
+ * Throws when the adopter's file is missing, unreadable, or not a YAML mapping:
+ * the prior content cannot be verified as preserved, so the safe action is to
+ * refuse rather than to guess (INV-2's "never guess", same rule the classifier
+ * follows by failing open to keep).
+ */
+export function guardedAddPolicyKeys(
+  cwd: string,
+  additions: Record<string, unknown>,
+  renderKey: (key: string, value: unknown) => string = defaultRenderPolicyKey,
+): AddPolicyKeysResult {
+  const abs = resolve(cwd, POLICY_REL);
+  if (!existsSync(abs)) {
+    throw new Error(
+      `guardedAddPolicyKeys refused: ${POLICY_REL} does not exist -- cannot prove existing adopter keys are preserved. ` +
+      'See contracts/upgrade/upgrade-reconciliation-contract.md ## .cdd/policy.yml is classified PER-KEY (INV-2).',
+    );
+  }
+  const original = readFileSync(abs, 'utf8');
+  const before = parsePolicyMapping(original);
+  if (before === null) {
+    throw new Error(
+      `guardedAddPolicyKeys refused: ${POLICY_REL} is unreadable or not a YAML mapping -- cannot prove existing adopter keys are preserved. ` +
+      'See contracts/upgrade/upgrade-reconciliation-contract.md ## .cdd/policy.yml is classified PER-KEY (INV-2).',
+    );
+  }
+
+  const added: string[] = [];
+  const skipped: string[] = [];
+  for (const key of Object.keys(additions)) {
+    (Object.prototype.hasOwnProperty.call(before, key) ? skipped : added).push(key);
+  }
+  if (added.length === 0) return { added, skipped };
+
+  const separator = original.length === 0 || original.endsWith('\n') ? '' : '\n';
+  const appended = added.map(k => renderKey(k, additions[k])).join('');
+  const next = original + separator + appended;
+
+  // Byte-level proof, not intent: everything the adopter already had is a
+  // literal PREFIX of what we are about to write.
+  if (!next.startsWith(original)) {
+    throw new Error(`guardedAddPolicyKeys refused: computed content would alter existing ${POLICY_REL} bytes (INV-2).`);
+  }
+
+  writeFileSync(abs, next);
+
+  // Re-read our own output and prove it. A bug in `renderKey` (an injected
+  // newline, a duplicated key) must fail loudly here, not corrupt the adopter's
+  // policy silently.
+  const verify = readFileSync(abs, 'utf8');
+  const after = parsePolicyMapping(verify);
+  const failure = verifyPolicyPreserved(original, verify, before, after, added);
+  if (failure) {
+    writeFileSync(abs, original); // restore before surfacing
+    throw new Error(`guardedAddPolicyKeys refused: ${failure} -- ${POLICY_REL} restored unchanged (INV-2).`);
+  }
+  return { added, skipped };
+}
+
+function verifyPolicyPreserved(
+  original: string,
+  verify: string,
+  before: Record<string, unknown>,
+  after: Record<string, unknown> | null,
+  added: string[],
+): string | null {
+  if (!verify.startsWith(original)) return 'existing bytes changed on disk';
+  if (after === null) return 'result is no longer a readable YAML mapping';
+  for (const key of Object.keys(before)) {
+    if (JSON.stringify(after[key]) !== JSON.stringify(before[key])) {
+      return `existing adopter key "${key}" changed value`;
+    }
+  }
+  for (const key of added) {
+    if (!Object.prototype.hasOwnProperty.call(after, key)) return `new key "${key}" did not materialize`;
+  }
+  return null;
+}
+
+/** Default YAML rendering for an added policy key. */
+function defaultRenderPolicyKey(key: string, value: unknown): string {
+  return yaml.dump({ [key]: value }, { schema: yaml.JSON_SCHEMA, lineWidth: -1 });
+}
+
+/**
+ * Replace ONLY the text between `startMarker` and `endMarker` in a bucket-1
+ * file, proving byte-for-byte that everything outside the markers survived.
+ *
+ * Returns `{ replaced: false }` -- it does NOT throw -- when the markers are
+ * absent, out of order, or duplicated. A file whose managed region cannot be
+ * located unambiguously is indistinguishable from a file the user hand-edited,
+ * so the safe disposition is to leave it entirely alone and report why (the
+ * same fail-open-to-keep shape `mergeManaged` in `guidance.ts` already uses).
+ * Throwing here would turn a hand-edited CLAUDE.md into a failed upgrade.
+ */
+export function guardedReplaceMarkedRegion(
+  cwd: string,
+  relFile: string,
+  startMarker: string,
+  endMarker: string,
+  newBody: string,
+): ReplaceRegionResult {
+  const abs = resolve(cwd, relFile);
+  if (!existsSync(abs)) return { replaced: false, reason: `${relFile} does not exist -- nothing to reconcile` };
+
+  let original: string;
+  try {
+    original = readFileSync(abs, 'utf8');
+  } catch {
+    return { replaced: false, reason: `${relFile} is unreadable -- fail-open to keep (INV-1)` };
+  }
+
+  const start = original.indexOf(startMarker);
+  const end = original.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end < 0) {
+    return { replaced: false, reason: `${relFile} has no complete ${startMarker}/${endMarker} region -- left untouched (INV-1)` };
+  }
+  if (original.indexOf(startMarker, start + startMarker.length) >= 0) {
+    return { replaced: false, reason: `${relFile} has more than one ${startMarker} -- region is ambiguous, left untouched (INV-1)` };
+  }
+
+  const head = original.slice(0, start + startMarker.length);
+  const tail = original.slice(end);
+  const next = head + newBody + tail;
+  if (next === original) return { replaced: false, reason: `${relFile} ${startMarker} region already up to date` };
+
+  writeFileSync(abs, next);
+
+  // Prove the untouched parts are untouched, from disk -- not from the string
+  // we happen to hold in memory.
+  const verify = readFileSync(abs, 'utf8');
+  if (!verify.startsWith(head) || !verify.endsWith(tail)) {
+    writeFileSync(abs, original);
+    throw new Error(
+      `guardedReplaceMarkedRegion refused: content outside the ${startMarker} region changed -- ${relFile} restored unchanged (INV-2). ` +
+      'See contracts/upgrade/upgrade-reconciliation-contract.md ## Bucket 1 — Never-Overwrite Ground Truth.',
+    );
+  }
+  return { replaced: true, reason: `${relFile} ${startMarker} region reconciled` };
+}
+
 /** `GuardedWrite` capability handed to a `Reconciler` (design.md `## Registry Interface`). */
 export function makeGuardedWrite(cwd: string = process.cwd()): GuardedWrite {
   return {
-    copyFile: (src, dest) => guardedCopyFile(src, dest, cwd),
-    writeFile: (dest, content) => guardedWriteFile(dest, content, cwd),
+    copyInto: (src, dest) => guardedCopyFile(src, dest, cwd),
+    writeInto: (dest, content) => guardedWriteFile(dest, content, cwd),
+    addPolicyKeys: (additions, renderKey) => guardedAddPolicyKeys(cwd, additions, renderKey),
+    replaceMarkedRegion: (relFile, startMarker, endMarker, newBody) =>
+      guardedReplaceMarkedRegion(cwd, relFile, startMarker, endMarker, newBody),
   };
 }

@@ -209,7 +209,7 @@ describe('IP-11 Journey A: full reconcile --plan over a fixture adopter repo (AC
       expect(r.stdout).toContain('[1 keep]');
       expect(r.stdout).toContain('[2 replace]');
       expect(r.stdout).toContain('[3 reconcile]');
-      expect(r.stdout).toContain('registry: 0 bucket-3 reconciler(s) registered');
+      expect(r.stdout).toContain('registry: 3 bucket-3 reconciler(s) registered');
     } finally {
       cleanupFixture(f);
     }
@@ -268,7 +268,7 @@ describe('IP-11 Journey A (continued): per-file disposition of the SAME fixture 
     }
   });
 
-  it('bucket-3 (documented boundary): a genuinely new .cdd/policy.yml key resolves to reconcile, never a silent replace -- but the shipped --plan/--yes has no reconciler registered to act on it (defaultRegistry ships empty by design)', () => {
+  it('bucket-3: a genuinely new .cdd/policy.yml key resolves to reconcile, and the policy-keys reconciler now acts on it', () => {
     const f = buildAdopterFixture('journeyA-perfile-reconcile');
     try {
       const keys = readAdopterPolicyKeys(f.repo);
@@ -277,12 +277,18 @@ describe('IP-11 Journey A (continued): per-file disposition of the SAME fixture 
       expect(d.bucket).toBe('reconcile');
       expect(d.action).toBe('needs-reconcile');
 
-      // The CLI's plan output reflects the EMPTY registry, not a per-key scan
-      // -- this is exactly the observability boundary this file's header
-      // documents, asserted here rather than silently assumed.
       const r = runCli(['reconcile', '--plan'], { cwd: f.repo, home: f.home });
       expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toContain('registry: 0 bucket-3 reconciler(s) registered');
+      // The disposition is no longer stranded: a reconciler is registered for
+      // this surface and the plan says what it would do. (Before the bucket-3
+      // work, --plan printed the disposition with an empty registry behind it,
+      // so `needs-reconcile` was a promise nothing could honour.)
+      expect(r.stdout).toContain('registry: 3 bucket-3 reconciler(s) registered');
+      expect(r.stdout).toMatch(/reconciler: policy-keys/);
+
+      // ...but only for keys this kit version actually knows. The catalog is
+      // derived from cdd-policy.schema.ts, so a hypothetical future key is
+      // correctly NOT invented into the adopter's file.
       expect(r.stdout).not.toContain('brand_new_flag_from_a_future_kit_version');
     } finally {
       cleanupFixture(f);
@@ -300,7 +306,14 @@ describe('IP-11 Journey B: failure injection during classify/plan fails open to 
 
       const r = runCli(['reconcile', '--plan'], { cwd: f.repo, home: f.home });
       expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toContain('registry: 0 bucket-3 reconciler(s) registered');
+      expect(r.stdout).toContain('registry: 3 bucket-3 reconciler(s) registered');
+
+      // The registered policy-keys reconciler must say it can determine nothing
+      // and offer to add nothing -- a broken file is not an empty file. Without
+      // this, a corrupt policy could be "migrated" by writing every key the kit
+      // knows into it.
+      expect(r.stdout).toMatch(/policy-keys[\s\S]*?fail-open to keep/);
+      expect(r.stdout).not.toMatch(/policy-keys -- add \d+ new key/);
 
       // Undeterminable adopter-key membership must fail open to keep -- never
       // be guessed as "new key => reconcile" just because the file is broken.
