@@ -8,6 +8,34 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [upgrade 0.1.0] — 2026-07-14
+### Added
+- **Initial contract** (added by `reconcile-framework`, ADR 0014). Establishes
+  the three-bucket (keep/replace/reconcile) surface taxonomy governing every
+  kit upgrade path (`refresh`, `upgrade`, `update`, `reconcile`), the binding
+  bucket-1 never-overwrite ground-truth enumeration, INV-1 (fail-open safe
+  defaults for new surfaces/keys) and INV-2 (never flip / never overwrite
+  existing ground truth via a single guarded writer), the per-key
+  classification rule for `.cdd/policy.yml` (adopter-set key stays keep;
+  genuinely-new key reconciles with a safe default), and `## Mechanical
+  Enforcement` naming the four checks a validator must implement. Mechanically
+  backed by the new `enforceReconciliationInvariants` gate check
+  (`[ci 0.12.0]` below).
+
+## [ci 0.12.0] — 2026-07-14
+### Added
+- **`enforceReconciliationInvariants`** Gate Inventory row and subsection
+  (added by `reconcile-framework`, ADR 0014), `ci-or-strict`, hosted by both
+  `cdd-kit gate` and `cdd-kit validate` (same "two host commands" shape as
+  `enforceConfirmationHookInstallation`). Enforces
+  `contracts/upgrade/upgrade-reconciliation-contract.md` `## Mechanical
+  Enforcement`'s four checks: bucket-1 matcher coverage, a single-writer static
+  scan, and a recorded PASSED test for each of the two linchpin invariants
+  (guard-refusal, fail-open). NOT gated on `isNewChange`; carries NO
+  shadow-mode knob — a deliberate, permanent divergence from the Boundary
+  Guard `shadow_mode` precedent, since INV-2 is contract-binding and
+  non-negotiable.
+
 ## [ci 0.11.0] — 2026-07-14
 ### Added
 - **Boundary Guard Enforcement Semantics** section (added by `boundary-ci-adopter-parity`,

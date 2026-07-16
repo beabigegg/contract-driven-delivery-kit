@@ -1,0 +1,152 @@
+change-id: reconcile-framework
+agent: monkey-test-engineer
+timestamp: "2026-07-15T09:20:00Z"
+status: blocked
+files-read:
+  - specs/changes/reconcile-framework/design.md
+  - specs/changes/reconcile-framework/test-plan.md
+  - specs/changes/reconcile-framework/change-classification.md
+  - specs/changes/reconcile-framework/context-manifest.md
+  - contracts/upgrade/upgrade-reconciliation-contract.md
+  - docs/adr/0014-reconciliation-framework-write-guard.md
+  - src/reconcile/guard.ts
+  - src/reconcile/classifier.ts
+  - src/reconcile/registry.ts
+  - src/schemas/reconciliation.schema.ts
+  - src/utils/paths.ts
+  - test/cli/reconcile-plan.test.ts
+  - test/e2e/reconcile-plan.e2e.test.ts
+  - test/helpers.ts
+  - test/setup-git-env.ts
+artifacts:
+  - { type: test-files, pointer: "test/monkey/reconcile-adversarial.test.ts" }
+  - { type: failure-modes-mapped, pointer: "1. path-normalization evasion (dot-segment/double-slash/redundant-segment/leading-./trailing-slash/backslash-separator) -> refused (PASS, 14 cases)" }
+  - { type: failure-modes-mapped, pointer: "2. case-variation evasion (Contracts/api.md, claude.md, .CDD/policy.yml, ACCEPTANCE.yml, etc.) -> SHOULD be refused, is NOT -- REAL HOLE, 12 tests RED (11 matcher-level + 1 physical-collision proof)" }
+  - { type: failure-modes-mapped, pointer: "3. absolute vs relative target -> refused identically either form (PASS, 4 cases)" }
+  - { type: failure-modes-mapped, pointer: "4. path-traversal escape (../../etc/x) -> out of guard scope by design; proven it never lands on a real in-cwd bucket-1 file (PASS, 2 tests)" }
+  - { type: failure-modes-mapped, pointer: "5. symlink/junction into bucket-1 -> directory JUNCTION (no elevation needed, confirmed creatable on this host) SHOULD be refused, is NOT -- REAL HOLE, 1 test RED; file-level symlink variant SKIPPED (EPERM, no admin/Developer Mode on this host)" }
+  - { type: failure-modes-mapped, pointer: "6. .cdd/policy.yml per-key adversary (SQL/script-like adopter values, 200x seeded-fuzz key names x 3 adopterHasKey states) -> adopter-set key never flips, new key never silently replace (PASS, 3 tests)" }
+  - { type: failure-modes-mapped, pointer: "7. deep/overlong/unicode/control/ZWJ/RTL/BOM/surrogate-pair/NUL/empty-string/directory-as-file -> refused if bucket-1 else fail-open keep, no crash (PASS, 9 tests)" }
+  - { type: failure-modes-mapped, pointer: "8. registry adversary: malicious reconciler apply() via GuardedWrite.writeFile/copyFile at a canonical-case bucket-1 path -> refused (PASS, 2 tests); same adversary at a case-variant bucket-1 path -> NOT refused -- REAL HOLE, 1 test RED (reachable through the registry, not just the raw guard)" }
+  - { type: failure-modes-mapped, pointer: "9. seeded fuzz corpus (classifyPath, 300 pseudo-random adversarial strings + curated SQL/script/injection/numeric-boundary corpus) -> always fails open to keep, never throws (PASS, 2 tests)" }
+  - { type: seeds-recorded, pointer: "mulberry32 PRNG, seed=424253, used in section 6 (policy-key fuzz, 200 iters x 3 states) and section 9 (classifyPath fuzz, 300 iters); seed is a literal constant in the test file for exact replay" }
+  - { type: test-output, pointer: "node node_modules/vitest/vitest.mjs run test/monkey/reconcile-adversarial.test.ts: 14 failed | 38 passed | 1 skipped (53 total). All 14 failures are the two named findings below (nothing spurious); the 1 skip is the file-level-symlink supplementary case (EPERM on this host, skip-with-reason, not faked as a pass)." }
+  - { type: test-output, pointer: "test/cli/reconcile-plan.test.ts (pre-existing suite, untouched): 56 passed, 0 failed -- confirms this finding is a genuine coverage GAP the existing suite never exercised, not a regression I introduced" }
+findings:
+  - id: FINDING-A-case-variation
+    severity: high
+    summary: >-
+      src/reconcile/guard.ts BUCKET_1_RULES' test() functions compare
+      relPosix with ===/.includes()/.startsWith()/.endsWith()/a
+      case-sensitive RegExp -- all case-sensitive. A destination whose
+      spelling differs from an enumerated bucket-1 pattern only in case
+      (e.g. "Contracts/api.md" vs "contracts/api.md", "claude.md" vs
+      "CLAUDE.md", ".CDD/policy.yml" vs ".cdd/policy.yml") is NOT refused by
+      isBucket1/assertWritable. On a case-insensitive filesystem (Windows
+      NTFS -- this repo's own dev/CI platform; also default macOS),
+      guardedWriteFile then PHYSICALLY overwrites the real bucket-1 file,
+      because the OS resolves both spellings to the SAME file.
+    reproduction: >-
+      test/monkey/reconcile-adversarial.test.ts describe block "2.
+      Case-variation evasion", test "PHYSICAL PROOF: guardedWriteFile with
+      a case-differing destination clobbers the REAL bucket-1 file on
+      disk": creates <tmp>/contracts/api.md = "ORIGINAL BUCKET-1 CONTENT",
+      calls guardedWriteFile(<tmp>/Contracts/api.md, "HACKED", tmp) --
+      does not throw, and <tmp>/contracts/api.md now reads "HACKED".
+      Reachable through the reconciler registry too (see "8. Registry
+      adversary" CROSS-REFERENCE test): a Reconciler.apply() using
+      GuardedWrite.writeFile at a case-variant path is not refused either,
+      falsifying ADR 0014's "A reconciler physically cannot write a
+      bucket-1 file" for this input class.
+    contradicts: >-
+      ADR 0014 "A reconciler physically cannot write a bucket-1 file";
+      contract INV-2 "An existing adopter-set value ... or a bucket-1
+      ground-truth file ... is NEVER flipped, mutated, or overwritten by
+      any upgrade path" and "NOT achieved by per-reconciler discipline".
+    recommended-fix: >-
+      Lower-case-normalize (or use a case-insensitive comparator for)
+      relPosix in guard.ts's BUCKET_1_RULES matching, at minimum on
+      platforms where the filesystem is case-insensitive (detectable at
+      runtime the same way this test file's CASE_INSENSITIVE_FS probe
+      does), OR always compare case-insensitively regardless of platform
+      as defense-in-depth (bucket-1 is the never-overwrite invariant --
+      over-refusing a case-variant path has no safety cost).
+    not-in-scope-for-monkey-test-engineer: >-
+      src/reconcile/guard.ts is explicitly out of my write scope (backend
+      implementation, marked done+green). This finding must go back to
+      backend-engineer / spec-architect to patch and to
+      contracts/upgrade/upgrade-reconciliation-contract.md's Mechanical
+      Enforcement item 3 owner to confirm the fix closes the gap.
+  - id: FINDING-B-directory-junction
+    severity: high
+    summary: >-
+      Neither isBucket1 nor guardedWriteFile/guardedCopyFile resolve dest
+      through fs.realpathSync (or any reparse-point-aware check) before
+      matching or writing. A directory JUNCTION at a genuinely-bucket-2
+      path (e.g. specs/templates/) that physically points into a bucket-1
+      directory (e.g. contracts/) is classified by its bucket-2 SPELLING,
+      and writeFileSync/copyFileSync follow the reparse point straight
+      through to the real bucket-1 content. Directory junctions need NO
+      Windows admin/Developer-Mode elevation (confirmed creatable on this
+      exact host) -- this is not a rare/best-effort case, unlike file-level
+      symlinks (which DO need elevation and were separately confirmed
+      EPERM-blocked on this host).
+    reproduction: >-
+      test/monkey/reconcile-adversarial.test.ts describe block "5. Symlink
+      / junction into bucket-1", test "PHYSICAL PROOF: a specs/templates/
+      (bucket-2) directory that is a JUNCTION into contracts/ (bucket-1)
+      lets guardedWriteFile clobber the real bucket-1 file": creates
+      <tmp>/contracts/real.md = "REAL BUCKET-1 CONTENT", junctions
+      <tmp>/specs/templates -> <tmp>/contracts, calls guardedWriteFile at
+      <tmp>/specs/templates/real.md -- does not throw, and
+      <tmp>/contracts/real.md now reads "HACKED VIA JUNCTION".
+    contradicts: same ADR 0014 / INV-2 text as FINDING-A.
+    recommended-fix: >-
+      Resolve dest through fs.realpathSync.native (following any
+      symlink/junction/reparse point) before matching against
+      BUCKET_1_RULES in isBucket1, and re-check writability after
+      resolution inside guardedWriteFile/guardedCopyFile immediately
+      before the actual fs write (a TOCTOU-safe re-check, since the
+      reparse point could itself be created between plan and apply).
+    not-in-scope-for-monkey-test-engineer: same as FINDING-A.
+mutation-red-proofs:
+  - id: sanity-guard-still-works-for-normalization-and-absolute-and-deep-and-unicode
+    note: >-
+      Not a deliberate mutation -- the corpus itself IS the red-signal
+      proof requested by design.md's Open Risk ("the adversarial corpus,
+      not prose, is the coverage evidence"). 39 of 53 scenarios pass
+      (guard correctly refuses dot-segment/double-slash/backslash/
+      absolute/deep/overlong/unicode/control-char/registry-canonical-case
+      evasions); 14 fail, all mapping to FINDING-A or FINDING-B above, none
+      spurious (cross-checked against the untouched pre-existing suite,
+      test/cli/reconcile-plan.test.ts, which still passes 56/56).
+next-action: >-
+  Route FINDING-A (case-variation) and FINDING-B (directory-junction) back
+  to backend-engineer to patch src/reconcile/guard.ts's BUCKET_1_RULES
+  matching (case-fold relPosix and/or compare case-insensitively; resolve
+  dest via fs.realpathSync.native before matching and re-check
+  immediately before the write), then re-run
+  test/monkey/reconcile-adversarial.test.ts -- expected to go fully green
+  once both fixes land (currently 14 failed, 38 passed, 1 skipped). Do not
+  mark IP-12 / this change's AC-2 "physically refused" claim satisfied
+  until that re-run is green. The 1 skipped file-symlink test should also
+  be re-run on a host with admin/Developer-Mode elevation (or CI with
+  symlink privilege) before final release sign-off, since it is currently
+  unproven (not merely proven-safe) on this host.
+notes: >-
+  Scope discipline: did not touch src/** (guard.ts/classifier.ts read-only
+  per the work packet) or test/e2e/**. Wrote test/monkey/ fresh (directory
+  did not exist). Wrote and ran every scenario via
+  node node_modules/vitest/vitest.mjs run test/monkey/reconcile-adversarial.test.ts
+  (never npx) with direct imports of src/reconcile/{guard,classifier,registry}.ts
+  (not the CLI) for the guard/classifier/registry-level adversaries, per
+  the work packet. Encountered and self-corrected one authoring hazard:
+  composing raw Unicode boundary characters (ZWJ/ZWSP/RTL-override/BOM/NUL)
+  directly in test data caused one of them to be mis-typed as a literal
+  U+0000 byte in the source file (git/tools then reported the file as
+  binary); fixed by rewriting all such characters as explicit \uXXXX
+  escape sequences via a verification script (grep for any code point
+  outside 0x09/0x0A/0x20-0x7E now returns zero matches) -- recorded here
+  since it is exactly the kind of silent corruption this corpus itself
+  exists to catch, and future authors of this file should keep using
+  \uXXXX escapes, never a raw pasted glyph, for the same reason.

@@ -1,0 +1,146 @@
+change-id: reconcile-framework
+timestamp: 2026-07-15T09:35:00Z
+agent: backend-engineer
+status: completed
+files-read:
+  - specs/changes/reconcile-framework/implementation-plan.md
+  - specs/changes/reconcile-framework/design.md
+  - specs/changes/reconcile-framework/test-plan.md
+  - specs/changes/reconcile-framework/ci-gates.md
+  - specs/changes/reconcile-framework/context-manifest.md
+  - contracts/upgrade/upgrade-reconciliation-contract.md
+  - contracts/ci/ci-gate-contract.md
+  - contracts/CHANGELOG.md
+  - src/commands/refresh.ts
+  - src/utils/asset-manifest.ts
+  - src/utils/user-asset-manifest.ts
+  - src/utils/digest.ts
+  - src/utils/paths.ts
+  - src/utils/logger.ts
+  - src/commands/gate.ts
+  - src/commands/gate-shared.ts
+  - src/commands/validate.ts
+  - src/cli/index.ts
+  - test/cli/refresh.test.ts
+  - test/helpers.ts
+  - test/contracts/ci-workflow.test.ts
+  - test/utils/digest.test.ts
+  - test/utils/asset-manifest.test.ts
+artifacts:
+  - { type: files-changed, pointer: "src/reconcile/guard.ts (new, LINCHPIN) -- single bucket-1 write guard: assertWritable/isBucket1/guardedCopyFile/guardedWriteFile/makeGuardedWrite" }
+  - { type: files-changed, pointer: "src/reconcile/classifier.ts (new) -- KIT_SURFACES catalog, classifyPath (fail-open to keep), classifyPolicyKey + readAdopterPolicyKeys (per-key .cdd/policy.yml rule)" }
+  - { type: files-changed, pointer: "src/reconcile/registry.ts (new) -- ReconcileRegistry (register/list), defaultRegistry singleton, empty in this change" }
+  - { type: files-changed, pointer: "src/reconcile/invariants.ts (new) -- checkReconciliationInvariants/enforceReconciliationInvariants: the 4 Mechanical Enforcement checks; no-op outside this kits own repo" }
+  - { type: files-changed, pointer: "src/schemas/reconciliation.schema.ts (new) -- Bucket/SurfaceDisposition/GuardedWrite/Reconciler/ReconcileResult types" }
+  - { type: files-changed, pointer: "src/commands/reconcile.ts (new) -- cdd-kit reconcile plan or yes; plan is default and read-only; yes delegates bucket-2 to refresh() (guarded), bucket-3 to the empty registry" }
+  - { type: files-changed, pointer: "src/cli/index.ts:96-108 -- registered the reconcile subcommand" }
+  - { type: files-changed, pointer: "src/commands/refresh.ts:107-131 (applyPlan) -- routed through guardedCopyFile instead of raw copyFileSync/mkdirSync; no other refresh behavior changed" }
+  - { type: files-changed, pointer: "src/commands/gate.ts -- imports and calls enforceReconciliationInvariants(cwd, strict, errors, warnings); nested validate() call passes reconciliationCheck: false to avoid double-run" }
+  - { type: files-changed, pointer: "src/commands/validate.ts -- new reconciliationCheck option; second host of enforceReconciliationInvariants (ci-or-strict)" }
+  - { type: files-changed, pointer: "src/reconcile/guard.ts FIX-BACK -- case-insensitive BUCKET_1_RULES matching (relPosixLower) + realpathOfLongestExistingAncestor + realpath-checked isBucket1 + TOCTOU re-check in guardedCopyFile/guardedWriteFile (fixes monkey-test-engineer Findings A and B)" }
+  - { type: files-changed, pointer: "src/reconcile/classifier.ts FIX-BACK -- classifyPath's bucket-1 branch now handles an isBucket1 block with no matched rule (realpath-safety-check case), using bucket1Result.reason as a fallback" }
+  - { type: contracts-touched, pointer: "contracts/ci/ci-gate-contract.md: schema-version 0.11.0 to 0.12.0; Gate Inventory row + enforceReconciliationInvariants subsection immediately before Boundary Guard Enforcement Semantics" }
+  - { type: contracts-touched, pointer: "contracts/CHANGELOG.md: upgrade 0.1.0 and ci 0.12.0 entries added atomically with the validator" }
+  - { type: tests-added, pointer: "test/cli/reconcile-plan.test.ts (56 tests): KIT_SURFACES catalog AC-1, guard.assertWritable bucket-1 refusal incl 18 guard-refusal tests, isWithinDir, classifyPath fail-open incl 4 fail-open tests, fixture-repo classify AC-7 delegation, per-key policy.yml AC-2/AC-6, readAdopterPolicyKeys, ReconcileRegistry AC-3, single-writer static scan, bucket-1 coverage live diff, enforceReconciliationInvariants closure, CLI integration" }
+  - { type: tests-added, pointer: "test/contracts/reconciliation-invariants.test.ts (12 tests): ci-gate-contract.md row/subsection/schema-version, CHANGELOG entries, gate.ts/validate.ts source wiring, no-double-run, workflow invokes gate/validate" }
+  - { type: tests-added, pointer: "test/cli/refresh.test.ts test 3b (new, extends test 3 without altering it): backup-write-precedes-overwrite ordering (structural check, not mtime) plus byte-match regression guard for the guarded-writer routing" }
+  - { type: test-output, pointer: "full vitest suite (pre-FIX-BACK, before monkey/e2e existed): 123 passed, 3 skipped of 126 files; 1638 passed, 49 skipped of 1687 tests; 0 failed; 232.99s" }
+  - { type: test-output, pointer: "full vitest suite (post-FIX-BACK, guard.ts fixed, includes monkey+e2e): 125 passed, 3 skipped of 128 files; 1706 passed, 50 skipped of 1756 tests; 0 failed; 237.86s; ran via node node_modules/vitest/vitest.mjs run with no path filter" }
+  - { type: test-output, pointer: "monkey corpus before FIX-BACK: 14 failed, 38 passed, 1 skipped (53 total); after FIX-BACK: 0 failed, 52 passed, 1 skipped (53 total)" }
+mutation-red-proofs:
+  - id: guard-refusal
+    mutation: "src/reconcile/guard.ts isBucket1(): commented out the BUCKET_1_RULES loop so it unconditionally returns blocked false"
+    red-signal: "19 of 56 tests failed in test/cli/reconcile-plan.test.ts -- every guard-refusal toThrow assertion failed with expected a Function to throw an error (received undefined); the isBucket1 rule-return test also failed (expected true, got false)"
+    restored: true
+    green-after-restore: "56 of 56 passed in test/cli/reconcile-plan.test.ts, reconfirmed together with test/contracts/reconciliation-invariants.test.ts (12 of 12) and test/cli/refresh.test.ts (15 of 15), combined 83 of 83"
+  - id: fail-open
+    mutation: "src/reconcile/classifier.ts failOpenKeep(): changed bucket keep and action keep to bucket replace and action overwrite-with-backup -- the single shared fail-open default used by classifyPath and classifyPolicyKey"
+    red-signal: "8 of 56 tests failed -- every fail-open assertion failed with expected replace to be keep, including malformed and empty and unknown-path, undeterminable-policy-key, and the AC-7 modified-after-install demotion test"
+    restored: true
+    green-after-restore: "56 of 56 passed, reconfirmed in the same combined 83 of 83 run above"
+test-evidence-status:
+  required-phases: [collect, targeted, changed-area, contract, quality]
+  phases-recorded: [collect, targeted, changed-area, contract, quality, full]
+  final-status: passed
+  evidence-file: specs/changes/reconcile-framework/test-evidence.yml
+  note: >-
+    Re-recorded after the FIX-BACK guard.ts fix (see fix-back block below);
+    every phase command now runs against the fixed guard.ts and includes
+    test/monkey/reconcile-adversarial.test.ts (changed-area and full also
+    include test/e2e/reconcile-plan.e2e.test.ts).
+next-action: >-
+  FIX-BACK closed: both monkey-test-engineer findings (case-variation,
+  directory-junction) are fixed in src/reconcile/guard.ts and the corpus is
+  fully green (0 failed, 52 passed, 1 legitimate skip). AC-2 "a bucket-1
+  write is physically refused" is now satisfied by the corpus, not merely
+  the unit suite. Remaining open item carried from monkey-test-engineer's own
+  next-action (not this agent's to close): the 1 skipped file-level-symlink
+  supplementary test should be re-run on a host with admin/Developer-Mode
+  elevation (or CI with symlink privilege) before final release sign-off --
+  it is unproven, not proven-safe, on this host.
+notes: >-
+  Scope discipline: registry.ts ships EMPTY, no bucket-3 reconcilers, per
+  Non-Goals; the four concrete reconcilers are separate sub-changes.
+  guard.ts bucket-1 matcher covers all 5 contract-enumerated rows including
+  the dynamic row 5 (users own agents and skills), delegating ownership to
+  the existing isOwnedAndUnmodified, readAssetManifest, and
+  sha256OfFileNormalized utilities, nothing reinvented (AC-7). refresh.ts
+  default behavior is unchanged, regression-guarded by the full existing
+  refresh.test.ts suite plus one new backup-ordering assertion; applyPlan()
+  now has zero raw fs-write calls, routing every copy through guard.ts
+  guardedCopyFile. enforceReconciliationInvariants is a no-op outside this
+  kits own repository, mirroring validate.ts existing opt-in policy
+  bone-audit pattern. One platform finding recorded for reviewers: fs
+  copyFileSync on Windows preserves the SOURCE files mtime on the
+  destination, so the original mtime-based backup-ordering test design was
+  flaky for that reason and was replaced with a structural source-order
+  assertion instead (see refresh.test.ts test 3b comment).
+fix-back:
+  - id: FIX-BACK-monkey-corpus-findings
+    timestamp: 2026-07-15T09:35:00Z
+    trigger: "coordinator FIX-BACK citing specs/changes/reconcile-framework/agent-log/monkey-test-engineer.yml FINDING-A (case-variation evasion) and FINDING-B (directory-junction evasion)"
+    verification: "reproduced before fixing: node node_modules/vitest/vitest.mjs run test/monkey/reconcile-adversarial.test.ts -- 14 failed, 38 passed, 1 skipped (53 total), matching the monkey-test-engineer report exactly; did not edit test/monkey/reconcile-adversarial.test.ts"
+    fix-a-case-variation:
+      file: src/reconcile/guard.ts
+      change: >-
+        Bucket1MatchCtx gained a relPosixLower field (case-folded relPosix);
+        every BUCKET_1_RULES test function now compares relPosixLower
+        against lowercase literals instead of relPosix against mixed-case
+        literals, UNCONDITIONALLY (not gated on a runtime case-insensitive
+        filesystem probe) -- over-refusing a case-variant path on
+        case-sensitive Linux has no safety cost, the required fail-safe
+        direction.
+    fix-b-directory-junction:
+      file: src/reconcile/guard.ts
+      change: >-
+        Added realpathOfLongestExistingAncestor(target): walks up to the
+        longest EXISTING ancestor directory, fs.realpathSync.native() that
+        ancestor (following any symlink/junction/reparse point in its own
+        ancestry), then re-appends the remaining not-yet-existing segments.
+        Returns null on realpath failure (unreadable/permission-denied/
+        broken reparse point); callers fail OPEN TO REFUSE on null. isBucket1
+        now checks BOTH the literal dest (matchRule, case-folded per fix A)
+        AND the realpath-resolved form, refusing if EITHER matches a
+        bucket-1 rule. guardedCopyFile/guardedWriteFile now call
+        assertWritable a SECOND time immediately before copyFileSync/
+        writeFileSync (TOCTOU re-check), after mkdirSync has materialized
+        the parent directory, so a reparse point swapped in between the
+        first check and the actual write is still caught.
+    classifier-fix:
+      file: src/reconcile/classifier.ts
+      change: >-
+        classifyPath's bucket-1 branch no longer assumes isBucket1 always
+        returns a matched rule object -- isBucket1 can now block via the
+        realpath safety check with no rule attached; updated to fall back to
+        bucket1Result.reason so the disposition reason text stays accurate
+        instead of relying on the outer try/catch net.
+    before-after-monkey-corpus:
+      before: "14 failed, 38 passed, 1 skipped (53 total)"
+      after: "0 failed, 52 passed, 1 skipped (53 total) -- the 1 skip is the pre-existing, legitimate file-symlink EPERM-without-elevation case, unrelated to either finding"
+    regression-check:
+      - "node node_modules/vitest/vitest.mjs run test/cli/reconcile-plan.test.ts test/e2e/reconcile-plan.e2e.test.ts test/cli/refresh.test.ts test/contracts/reconciliation-invariants.test.ts test/monkey/reconcile-adversarial.test.ts -- 151 passed, 1 skipped (152 total), 0 failed"
+      - "full vitest suite (node node_modules/vitest/vitest.mjs run, no path filter): 125 passed, 3 skipped of 128 files; 1706 passed, 50 skipped of 1756 tests; 0 failed"
+      - "node dist/cli/index.js validate --ci: clean, no enforceReconciliationInvariants findings (bucket1ContractRows text is unchanged, only the internal rule test implementations changed, so the coverage diff and single-writer static scan both still pass)"
+    test-evidence-re-recorded:
+      phases: [collect, targeted, changed-area, contract, quality, full]
+      note: "every phase command now includes test/monkey/reconcile-adversarial.test.ts (changed-area and full also include test/e2e/reconcile-plan.e2e.test.ts); all passed against the fixed guard.ts"

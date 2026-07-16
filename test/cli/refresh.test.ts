@@ -11,8 +11,11 @@
  */
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 let tmpRepo: string;
 let tmpHome: string;
@@ -110,6 +113,41 @@ describe('cdd-kit refresh --yes — applies changes with backup', () => {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     expect(manifest['specs/templates/change-classification.md']).toBeDefined();
     expect(manifest['specs/templates/change-classification.md'].digest).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  // reconcile-framework AC-4: bucket-2 apply is now routed through
+  // src/reconcile/guard.ts's guardedCopyFile (IP-7) instead of a raw
+  // copyFileSync -- this asserts the backup-before-overwrite ORDERING (not
+  // just presence, which test 3 above already covers) survived that change.
+  // mtime is not a portable ordering signal here: `fs.copyFileSync` on
+  // Windows (`CopyFileW`) preserves the SOURCE file's timestamp on the
+  // destination, so the final overwritten template inherits the packaged
+  // asset's build-time mtime rather than "now" -- a real, measured platform
+  // quirk, not a hypothetical. The ordering claim is instead verified
+  // structurally: applyPlan()'s backup copy call must precede its final
+  // overwrite copy call in source.
+  it('3b: backup write precedes the final overwrite write in applyPlan() source (AC-4 ordering); backup content byte-matches pre-overwrite (guarded-writer regression guard)', () => {
+    const tplPath = join(tmpRepo, 'specs', 'templates', 'change-classification.md');
+    const tamperedContent = '# tampered again\n<!-- ordering check -->\n';
+    writeFileSync(tplPath, tamperedContent, 'utf8');
+
+    const r = runCli(['refresh', '--yes', '--no-code-map', '--no-update', '--no-upgrade'], {
+      cwd: tmpRepo, home: tmpHome,
+    });
+    expect(r.status, r.stderr).toBe(0);
+
+    const backupRoot = join(tmpRepo, '.cdd', '.refresh-backup');
+    const stamps = readdirSync(backupRoot);
+    expect(stamps.length).toBeGreaterThanOrEqual(1);
+    const backupPath = join(backupRoot, stamps[stamps.length - 1], 'specs', 'templates', 'change-classification.md');
+    expect(readFileSync(backupPath, 'utf8')).toBe(tamperedContent);
+
+    const refreshSrc = readFileSync(join(REPO_ROOT, 'src', 'commands', 'refresh.ts'), 'utf8');
+    const backupCallIdx = refreshSrc.indexOf('guardedCopyFile(item.dest, backupPath)');
+    const finalCallIdx = refreshSrc.indexOf('guardedCopyFile(item.src, item.dest)');
+    expect(backupCallIdx, 'backup copy call site not found').toBeGreaterThan(-1);
+    expect(finalCallIdx, 'final overwrite copy call site not found').toBeGreaterThan(-1);
+    expect(backupCallIdx).toBeLessThan(finalCallIdx);
   });
 
   it('4: --no-templates skips template force-refresh', () => {

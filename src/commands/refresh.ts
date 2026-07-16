@@ -26,13 +26,14 @@
  *     CLAUDE.md, AGENTS.md, CODEX.md, package.json, .git/, node_modules/,
  *     dist/, build/
  */
-import { existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { createHash } from 'crypto';
 import { ASSET, AGENTS_HOME, readKitVersion } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { ensureGitignoreEntry } from '../utils/gitignore.js';
 import { stampAssetManifest } from '../utils/asset-manifest.js';
+import { guardedCopyFile } from '../reconcile/guard.js';
 import { update } from './update.js';
 import { upgrade } from './upgrade.js';
 import { codeMap } from './code-map.js';
@@ -104,6 +105,14 @@ function planSingleFile(src: string, dest: string, rel: string): PlannedCopy | n
   return { src, dest, rel, action: 'skip' };
 }
 
+// Bucket-2 apply path (contracts/upgrade/upgrade-reconciliation-contract.md).
+// Every write here routes through `guardedCopyFile` -- the single bucket-1
+// write guard -- rather than calling `copyFileSync` directly. This is a
+// reuse-first safety net: none of these destinations (specs/templates/,
+// tests/templates/, ci-templates/, .github/workflows/) are bucket-1, so the
+// guard never throws for refresh's existing behavior; it is what
+// `enforceReconciliationInvariants` (INV-2) verifies this function has no
+// second, ungoverned write site.
 function applyPlan(plan: PlannedCopy[], backupRoot: string): { added: number; overwritten: number } {
   let added = 0;
   let overwritten = 0;
@@ -112,14 +121,12 @@ function applyPlan(plan: PlannedCopy[], backupRoot: string): { added: number; ov
     if (item.action === 'overwrite') {
       // Backup existing dest before overwrite.
       const backupPath = join(backupRoot, item.rel);
-      mkdirSync(dirname(backupPath), { recursive: true });
-      copyFileSync(item.dest, backupPath);
+      guardedCopyFile(item.dest, backupPath);
       overwritten += 1;
     } else {
       added += 1;
     }
-    mkdirSync(dirname(item.dest), { recursive: true });
-    copyFileSync(item.src, item.dest);
+    guardedCopyFile(item.src, item.dest);
   }
   return { added, overwritten };
 }

@@ -1,0 +1,1 @@
+node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/reconcile-plan.test.ts test/cli/refresh.test.ts test/contracts/reconciliation-invariants.test.ts test/contracts/ci-workflow.test.ts test/cli/gate.test.ts test/cli/validate.test.ts test/e2e/reconcile-plan.e2e.test.ts test/monkey/reconcile-adversarial.test.ts

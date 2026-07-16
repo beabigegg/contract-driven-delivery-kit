@@ -3,7 +3,7 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.11.0
+schema-version: 0.12.0
 last-changed: 2026-07-14
 breaking-change-policy: deprecate-2-minors
 ---
@@ -34,6 +34,7 @@ future check tempted to use it wants `ci-or-strict`.
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
 | enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
 | enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `.claude/settings.json` (git-tracked) |
+| enforceReconciliationInvariants | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `contracts/upgrade/upgrade-reconciliation-contract.md`, `src/reconcile/guard.ts`, `test-evidence.yml` (guard-refusal + fail-open test runs) |
 
 ### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
 
@@ -398,6 +399,73 @@ can set all three. Prevention-grade closure would need a signature only the huma
 environment can produce — a hardware key, or the lock committed under the human's
 authenticated remote git identity. That is a new trust boundary. It is deferred, and
 it is not claimed anywhere in this contract.
+
+### enforceReconciliationInvariants (added by reconcile-framework, ADR 0014)
+
+Enforces the two write-safety invariants of
+`contracts/upgrade/upgrade-reconciliation-contract.md` — INV-1 (fail-open safe
+defaults for new surfaces/keys) and INV-2 (never flip / never overwrite existing
+ground truth) — for every kit upgrade path (`refresh`, `upgrade`, `update`,
+`reconcile`). Hosted by BOTH `cdd-kit gate` and `cdd-kit validate`, same "two
+host commands" shape as `enforceConfirmationHookInstallation` above: `gate`
+runs it directly and passes `reconciliationCheck: false` into its nested
+`validate` call so it does not run twice within one `gate`; the standalone
+`cdd-kit validate` (which runs unconditionally in CI on every event) is the
+second host.
+
+This check is about THIS KIT'S OWN implementation source and test suite, not an
+adopter project's application code — an adopter has no `src/reconcile/`
+directory of its own. It is a no-op (zero findings) whenever
+`src/reconcile/guard.ts` or `contracts/upgrade/upgrade-reconciliation-contract.md`
+is absent from the project being gated, mirroring `validate`'s opt-in policy
+bone-audit (`### Loosening policy — bone-audit`), which only runs when
+`.cdd/policy.yml` exists.
+
+**Four checks**, per `contracts/upgrade/upgrade-reconciliation-contract.md`
+`## Mechanical Enforcement`:
+
+1. the guard's bucket-1 matcher (`src/reconcile/guard.ts` `BUCKET_1_RULES`)
+   COVERS every surface enumerated in the contract's
+   `## Bucket 1 — Never-Overwrite Ground Truth` table — an enumerated surface
+   with no matching guard rule is a HARD failure, not a warning, and names the
+   uncovered surface;
+2. no reconciler or bucket-2 apply path writes to the filesystem through any
+   capability other than the single guarded writer — a static scan over
+   `src/reconcile/**` (excluding `guard.ts` itself) and `refresh.ts`'s bucket-2
+   `applyPlan()` function body for a raw `fs.write*`/`copyFile*`/`rm*` call
+   site;
+3. a recorded, PASSED test proves a bucket-1 write attempt is physically
+   REFUSED by the guard (raises/throws) — a static presence check for a named
+   `guard-refusal` test under `test/cli/reconcile-plan.test.ts` or
+   `test/reconcile/**` whose body asserts a `toThrow`;
+4. a recorded, PASSED test proves fail-open-to-keep for malformed/unknown/
+   unreadable classifier input and for a newly-added surface or
+   `.cdd/policy.yml` key — a static presence check for a named `fail-open` test
+   under the same paths whose body asserts the resulting bucket is `keep`.
+
+**Pass/fail shape** (`ci-or-strict`, same vocabulary as
+`enforceConfirmationHookInstallation`): a HARD failure on stderr (`log.error`)
+whenever the gate runs inside CI (any event) or under `--strict`; a WARNING on
+stdout (`log.warn`) in a default local run. "Inside CI" is the same
+`contracts/env/env-contract.md` `CI` variable test already defined above.
+
+**NOT gated on `isNewChange`, and carries NO shadow-mode knob.** Hook
+installation and reconciliation write-safety are both properties of the
+codebase's write path, not of one change directory's vintage — a legacy change
+and a brand-new one see the identical shape, exactly as `[ci 0.9.0]`
+established for `enforceConfirmationHookInstallation`. Unlike Boundary Guard's
+`shadow_mode` rollout stage (`## Boundary Guard Enforcement Semantics` below),
+this check has no `.cdd/policy.yml` toggle: INV-2 (never-overwrite) is
+contract-binding and non-negotiable, so introducing a shadow/advisory phase for
+it would silently reopen the exact hole this change exists to close. This is a
+deliberate, permanent divergence from the Boundary Guard precedent, not an
+oversight.
+
+**Honest limit.** This check is static-analysis evidence that the two linchpin
+tests EXIST and name the right assertions, and that the guard/contract text
+agree — it does not itself re-run those tests. The `full vitest suite` row
+above is what proves they currently PASS; a suite failure there blocks the gate
+independently of this check.
 
 ## Boundary Guard Enforcement Semantics (added by boundary-ci-adopter-parity)
 

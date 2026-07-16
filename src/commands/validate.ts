@@ -4,6 +4,7 @@ import { spawnSync } from 'child_process';
 import { ASSET } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { checkConfirmationHookInstallation, isCiEnvironment } from './gate-shared.js';
+import { enforceReconciliationInvariants } from '../reconcile/invariants.js';
 
 export interface ValidateOptions {
   contracts: boolean;
@@ -20,6 +21,14 @@ export interface ValidateOptions {
    * `validate` — this keeps it from running twice within one `gate`.
    */
   hookCheck?: boolean;
+  /**
+   * Run `enforceReconciliationInvariants` here as well. Same "two host
+   * commands" shape as `hookCheck` above: `gate` passes `false` because it
+   * already runs the check directly before calling `validate`, which keeps it
+   * from running twice within one `gate`. Defaults to on for the standalone
+   * `cdd-kit validate`.
+   */
+  reconciliationCheck?: boolean;
 }
 
 interface ValidatorEntry {
@@ -141,6 +150,23 @@ export async function validate(opts: ValidateOptions): Promise<void> {
       }
     }
     if (findings.length > 0) log.blank();
+  }
+
+  // enforceReconciliationInvariants, second host (ci-gate-contract.md
+  // `### enforceReconciliationInvariants`). `validate` has no `--strict`, so
+  // `ci-or-strict` reduces to CI here: hard error (stderr) inside CI, warning
+  // (stdout) locally. A no-op outside this kit's own repo.
+  if (opts.reconciliationCheck !== false) {
+    const errs: string[] = [];
+    const warns: string[] = [];
+    // `strict` is always `false` here: `validate` has no `--strict` of its
+    // own, so `enforceReconciliationInvariants`'s internal `ci-or-strict`
+    // check reduces to "inside CI" alone -- everything it routes to `errs` is
+    // therefore already CI-hard; `warns` is everything else.
+    enforceReconciliationInvariants(process.cwd(), false, errs, warns);
+    for (const m of errs) { log.error(m); failed = true; }
+    for (const m of warns) log.warn(m);
+    if (errs.length > 0 || warns.length > 0) log.blank();
   }
 
   // Agent-native policy bone-audit (docs/loosening-the-harness.md). Opt-in: only

@@ -21,6 +21,7 @@ import { enforceTestEvidence, enforceBugFixEvidence } from './gate-evidence.js';
 import { enforceRequiredAgentEvidence } from './gate-agents.js';
 import { enforceAcceptanceOracle } from './gate-acceptance.js';
 import { enforceInteractionDesign } from './gate-design.js';
+import { enforceReconciliationInvariants } from '../reconcile/invariants.js';
 import { isSafeChangeId } from '../utils/change-id.js';
 import yaml from 'js-yaml';
 import { runBoundaryGuard, classifyBoundaryFinding } from '../boundary/guard.js';
@@ -240,6 +241,13 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   // check does not run twice within one `gate`.
   enforceConfirmationHookInstallation(cwd, strict, errors, warnings);
 
+  // enforceReconciliationInvariants (contracts/upgrade/upgrade-reconciliation-
+  // contract.md `## Mechanical Enforcement`; ci-gate-contract.md
+  // `### enforceReconciliationInvariants`). `ci-or-strict`, NOT gated on
+  // isNewChange, no shadow-mode knob -- a no-op outside this kit's own repo
+  // (see src/reconcile/invariants.ts module header).
+  enforceReconciliationInvariants(cwd, strict, errors, warnings);
+
   // Agent-native Boundary Guard starts in shadow mode. Shadow findings remain
   // visible but cannot break the legacy strict compatibility gate. Projects
   // promote it explicitly by setting shadow_mode: false after parity evidence.
@@ -287,7 +295,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   log.info(`gate: running contract validators for ${changeId}`);
   try {
-    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true, hookCheck: false });
+    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true, hookCheck: false, reconciliationCheck: false });
   } catch (err) {
     reportGateFailure(
       changeId,

@@ -31,15 +31,54 @@
 #     input:  { customer_limit: 1000, order_amount: 1500 }
 #     expect: { status: "rejected", reason: "credit-limit-exceeded" }
 
+# DRAFTED BY THE AGENT under the user's blanket autonomous authorization
+# (2026-07-14). Every `expect` is the INTENDED behavior bound by
+# contracts/upgrade/upgrade-reconciliation-contract.md (INV-1/INV-2), which the
+# user authorized — not observed implementation output. Acceptance is recorded
+# via `cdd-kit accept confirm reconcile-framework --autonomous` (an
+# agent-delegated receipt the gate surfaces as un-reviewed, NOT a human sign-off);
+# a --strict / merge gate still requires the maintainer's human hash-lock
+# (`cdd-kit accept confirm reconcile-framework`).
+
 oracle-version: 0.1.0
 authored-by: human
 
 cases:
-  - id: <case-id>
-    given: <the situation before the action, in plain words>
-    when: <the action taken, in plain words>
-    then: <the expected outcome, in plain words>
-    input: <the-exact-input-payload>
-    expect: <the-exact-expected-output>
+  - id: guard-refuses-bucket1-write
+    given: "a reconcile/refresh apply step attempts to write a bucket-1 never-overwrite ground-truth path (e.g. a file under contracts/)"
+    when: "the write is routed through the single guarded writer (INV-2)"
+    then: "the guard refuses the write (throws) and the target file is NOT overwritten"
+    input: { write_target: "contracts/api/api-contract.md", bucket: 1 }
+    expect: { refused: true, file_overwritten: false }
 
-rules: []
+  - id: new-policy-key-fails-open-safe
+    given: "an upgrade introduces a brand-new .cdd/policy.yml key the adopter has never set"
+    when: "reconcile classifies that key"
+    then: "the key is reconciled with a FAIL-OPEN safe default (advisory/shadow), so the adopter is not newly blocked (INV-1)"
+    input: { new_policy_key: "some_new_gate", adopter_has_key: false }
+    expect: { classification: "reconcile", default_is_safe: true }
+
+  - id: user-set-policy-value-preserved
+    given: "the adopter has explicitly set a .cdd/policy.yml key value"
+    when: "reconcile runs on that per-key surface"
+    then: "the adopter's value is classified keep and is never flipped or overwritten (INV-2, per-key)"
+    input: { policy_key: "some_new_gate", adopter_set_value: false }
+    expect: { classification: "keep", value_changed: false }
+
+  - id: malformed-input-fails-open-to-keep
+    given: "a surface that is malformed, unreadable, or of unknown type at classification time"
+    when: "the classifier resolves its bucket"
+    then: "it fails open to bucket-1 keep (never replace) and the plan pass does not crash (INV-1/AC-6)"
+    input: { surface_state: "malformed-or-unreadable" }
+    expect: { bucket: "keep", crashed: false }
+
+  - id: plan-mode-mutates-nothing
+    given: "an adopter repo with surfaces across all three buckets"
+    when: "cdd-kit reconcile --plan runs and prints per-surface dispositions"
+    then: "no file is written or modified — plan is strictly read-only (AC-1)"
+    input: { mode: "plan" }
+    expect: { files_mutated: 0 }
+
+rules:
+  - id: single-guarded-writer-chokepoint
+    statement: "Every write in the reconcile/refresh apply path passes through the one bucket-1 guard; no reconciler or apply path writes to the filesystem through any other capability. INV-2 is enforced by that single chokepoint, not by per-reconciler discipline."

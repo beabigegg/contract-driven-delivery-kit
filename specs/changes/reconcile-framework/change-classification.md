@@ -14,7 +14,14 @@
 - system-wide (every adopter's ground truth flows through the refresh/upgrade/asset-manifest path; a wrong surface disposition can overwrite bucket-1 files across all adopter repos)
 
 ## Tier
-- 1
+- 0
+<!-- Raised 1 -> 0 after qa-reviewer: the tier-floor policy floors an upgrade/migration
+     critical surface (matched: `migrate`) at tier 0, and qa judged tier-1 an
+     under-classification for a system-wide adopter-ground-truth blast radius. Heavy
+     testing already satisfied (e2e-resilience + adversarial monkey corpus); stress/soak
+     remain not-applicable (a plan/dry-run classifier is not load-shaped). Two-reviewer
+     sign-off recorded: spec-architect (design.md/ADR 0014) + qa-reviewer (qa-report.md). -->
+
 
 ## Architecture Review Required
 - yes

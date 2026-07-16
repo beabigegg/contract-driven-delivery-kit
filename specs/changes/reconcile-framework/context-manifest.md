@@ -51,7 +51,14 @@ and is automatically applied by `cdd-kit gate` — do not duplicate it here.
 - test/utils/digest.test.ts
 - test/cli/refresh.test.ts
 - test/cli/reconcile-plan.test.ts
+- test/reconcile/
+- test/e2e/
+- test/monkey/
 - test/contracts/ci-workflow.test.ts
+- test/contracts/reconciliation-invariants.test.ts
+- src/commands/validate.ts
+- src/commands/gate.ts
+- contracts/business/business-rules.md
 - .github/workflows/contract-driven-gates.yml
 
 ## Required Contracts

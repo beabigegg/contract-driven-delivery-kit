@@ -1,0 +1,40 @@
+change-id: reconcile-framework
+timestamp: 2026-07-15T00:00:00Z
+agent: qa-reviewer
+status: blocked-then-resolved
+files-read:
+  - specs/changes/reconcile-framework/change-classification.md
+  - specs/changes/reconcile-framework/test-evidence.yml
+  - contracts/upgrade/upgrade-reconciliation-contract.md
+  - contracts/ci/ci-gate-contract.md
+  - src/reconcile/guard.ts
+  - src/reconcile/classifier.ts
+  - src/commands/gate.ts
+  - src/commands/validate.ts
+  - test/monkey/reconcile-adversarial.test.ts
+artifacts:
+  - type: decision
+    pointer: "blocked at review (3 findings); approved-with-risk after main Claude resolution"
+  - type: mutation-spot-check
+    pointer: "guard.ts relPosixLower toLowerCase()->relPosix : monkey corpus 52->47pass/5fail (Finding A case-variation); restored via saved copy (sha256 350c3968 byte-identical, NOT git); rebuilt green"
+  - type: repo-integrity
+    pointer: "src/reconcile/guard.ts restored via saved copy after mutation; sha256 verified == original; no git checkout/restore/stash used"
+  - type: enforcement-wiring
+    pointer: "enforceReconciliationInvariants called in src/commands/gate.ts + src/commands/validate.ts; 4 checks behaviorally exercised, not stubbed"
+  - type: finding-b1
+    pointer: "tier-floor: migrate critical surface floors tier 0, classified tier 1 — RESOLVED: raised to tier 0"
+  - type: finding-b2
+    pointer: "acceptance.yml claimed autonomous receipt with no .cdd/acceptance-lock.json entry (fabricated action) — RESOLVED: real autonomous receipt recorded + comment corrected"
+  - type: finding-b3
+    pointer: "no acceptance-phase run in test-evidence.yml — RESOLVED via lean path (autonomous receipt + passed full run)"
+next-action: >-
+  main Claude re-runs cdd-kit gate reconcile-framework to confirm green after the
+  three resolutions; maintainer runs `cdd-kit accept confirm reconcile-framework`
+  (human hash-lock) before any --strict/merge gate. spec-drift-auditor recommended
+  before merge (the acceptance.yml receipt-claim drift is now resolved).
+notes: >-
+  The monkey adversarial corpus found + physically reproduced two real guard holes
+  (case-variation, directory-junction) that unit + mutation-red + e2e all missed;
+  routed back and fixed in guard.ts (case-fold + realpath + TOCTOU). The guard
+  code is release-grade and mutation-proven non-vacuous. The block was entirely on
+  process/acceptance/classification gates, not the code — all resolved.

@@ -122,6 +122,21 @@ program
     });
   });
 
+// ── cdd reconcile ────────────────────────────────────────────────────────────
+// Three-bucket (keep/replace/reconcile) upgrade framework: `--plan` (default)
+// is read-only; `--yes` applies bucket-2 (via the guarded refresh path) and any
+// registered bucket-3 reconcilers. See src/reconcile/ and
+// contracts/upgrade/upgrade-reconciliation-contract.md.
+program
+  .command('reconcile')
+  .description('Classify every kit-shipped surface into keep/replace/reconcile and (with --yes) apply it through the single bucket-1 write guard')
+  .option('--plan', 'Read-only: print the disposition of every surface without writing anything (default)', false)
+  .option('--yes', 'Apply changes: bucket-2 via the guarded refresh path, any registered bucket-3 reconcilers', false)
+  .action(async (opts: { plan?: boolean; yes?: boolean }) => {
+    const { reconcile } = await import('../commands/reconcile.js');
+    await reconcile({ yes: opts.yes === true });
+  });
+
 program
   .command('doctor')
   .description('Inspect cdd-kit repo health, provider guidance, and context index freshness')

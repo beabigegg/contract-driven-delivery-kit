@@ -1,0 +1,15 @@
+{
+  "change_id": "reconcile-framework",
+  "phase": "quality",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "npm run typecheck",
+  "duration_ms": 3309,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/reconcile-framework/test-runs/20260715-093323/summary.json",
+    "stdout": "specs/changes/reconcile-framework/test-runs/20260715-093323/stdout.log",
+    "stderr": "specs/changes/reconcile-framework/test-runs/20260715-093323/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

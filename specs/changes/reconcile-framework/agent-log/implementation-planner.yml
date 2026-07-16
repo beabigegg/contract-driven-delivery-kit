@@ -1,0 +1,22 @@
+change-id: reconcile-framework
+timestamp: 2026-07-15T00:00:00Z
+agent: implementation-planner
+status: complete
+files-read:
+  - specs/changes/reconcile-framework/design.md
+  - specs/changes/reconcile-framework/change-classification.md
+  - specs/changes/reconcile-framework/test-plan.md
+  - specs/changes/reconcile-framework/ci-gates.md
+  - specs/changes/reconcile-framework/context-manifest.md
+  - contracts/upgrade/upgrade-reconciliation-contract.md
+  - src/commands/refresh.ts
+  - .cdd/code-map.yml (refresh/upgrade/update/validate/gate + asset-manifest/digest/paths entries)
+  - specs/changes/reconcile-framework/agent-log/contract-reviewer.yml
+artifacts:
+  - { type: plan-written, pointer: "specs/changes/reconcile-framework/implementation-plan.md" }
+  - { type: owner-map, pointer: "backend-engineer (IP-1..IP-10) -> e2e-resilience-engineer (IP-11) -> monkey-test-engineer (IP-12)" }
+  - { type: scope-summary, pointer: "12 required changes in scope; bucket-3 reconcilers + refresh/upgrade/update default behavior out of scope" }
+notes: >-
+  design.md filled + unambiguous (Architecture Review yes satisfied). No UI surface
+  (interaction-design not-applicable). Guard is the single fs-write chokepoint;
+  validator + ci-gate row + guard-refusal/fail-open tests must land atomically.

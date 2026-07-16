@@ -1,0 +1,21 @@
+agent: test-strategist
+change-id: reconcile-framework
+summary: >
+  Wrote test-plan.md mapping all 7 ACs to concrete test rows in
+  test/cli/reconcile-plan.test.ts (unit: guard/classifier/registry via direct
+  import; integration: plan/apply over a fixture repo), plus extensions to
+  test/cli/refresh.test.ts (AC-4 backup ordering) and
+  test/contracts/ci-workflow.test.ts (AC-5 gate-row + workflow-invocation
+  checks). Named the 5 contract-mandated red-turns-green tests
+  (guard-refusal, fail-open, bucket-1 coverage, single-writer static scan,
+  ci-workflow-pattern) with their exact mutation and expected red signal, so
+  none can ship as a vacuous green suite. E2E/resilience and monkey rows are
+  referenced by family only, with placeholder file paths pending those two
+  agents' own context-manifest expansion.
+artifacts:
+  - { type: test-plan-path, pointer: "specs/changes/reconcile-framework/test-plan.md" }
+  - { type: tdd-pairs, pointer: "test/cli/reconcile-plan.test.ts (new) -> src/reconcile/{registry,classifier,guard}.ts, src/commands/reconcile.ts" }
+  - { type: tdd-pairs, pointer: "test/cli/refresh.test.ts -> src/commands/refresh.ts (bucket-2 apply path)" }
+  - { type: tdd-pairs, pointer: "test/contracts/ci-workflow.test.ts -> contracts/ci/ci-gate-contract.md enforceReconciliationInvariants row + .github/workflows/contract-driven-gates.yml" }
+  - { type: coverage-tiers, pointer: "unit, integration, contract, e2e (referenced), resilience (referenced), monkey (referenced)" }
+  - { type: mapping-completeness, pointer: "all 7 ACs (AC-1..AC-7) mapped; 5/5 contract-mandated red-turns-green tests named with mutation + expected red" }
