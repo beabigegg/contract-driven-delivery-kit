@@ -17,3 +17,11 @@ __pycache__/
 
 # cdd-kit local cache (do not commit)
 .cdd/code-graph.index.json
+
+# Artifacts cdd-kit writes into an ADOPTER repo. This repo is the kit itself:
+# .claude/ is the source and assets/ is generated from it, so a manifest or an
+# AGENTS.md produced here describes nothing and goes stale against package.json.
+# They appear only when a kit command is run against this working copy.
+.cdd/asset-manifest.json
+AGENTS.md
+tests/contract/
