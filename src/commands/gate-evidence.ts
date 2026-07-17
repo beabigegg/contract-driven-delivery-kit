@@ -365,13 +365,24 @@ export function enforceTestEvidence(
 // ── bug-fix lane evidence enforcement (ADR 0006 §7) ──────────────────────────
 
 /**
- * The lane the classifier recorded in change-classification.md (ADR 0006 §1):
- * structured `## Lane\n- bug-fix`, mirroring how resolveTier reads `## Tier`.
- * Returns null when absent — a change with no explicit lane (legacy or feature
- * work) is NOT subject to bug-fix evidence enforcement, so existing changes are
- * unaffected.
+ * The lane the classifier recorded (ADR 0006 §1). `tasks.yml`'s
+ * `classification.lane` first, then v1's `## Lane\n- bug-fix` in
+ * change-classification.md — the same precedence `resolveTier` uses for the
+ * tier, and for the same reason: v2 folded the classification into tasks.yml,
+ * and a reader that only knows the old location silently returns null for every
+ * v2 change, disarming enforceBugFixEvidence without a word.
+ *
+ * Returns null when neither source names a lane — a change with no explicit
+ * lane (legacy or feature work) is NOT subject to bug-fix evidence enforcement.
  */
 export function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
+  const tasksPath = join(changeDir, 'tasks.yml');
+  if (existsSync(tasksPath)) {
+    const { data } = loadYamlFile<TasksFile>(tasksPath);
+    const lane = data?.classification?.lane;
+    if (lane === 'feature' || lane === 'bug-fix') return lane;
+  }
+
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return null;
   // The value must be exactly `feature` or `bug-fix` (anchored at end of line): a
@@ -385,8 +396,20 @@ export function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
   return m ? (m[1].toLowerCase() as 'feature' | 'bug-fix') : null;
 }
 
-/** True when change-classification.md has a `## Lane` heading (regardless of value). */
+/**
+ * True when a lane was DECLARED but did not resolve to a valid value — the
+ * signal that drives an invalid-lane error rather than a silent skip.
+ *
+ * Under v2 a bad lane cannot reach here: `classification.lane` is a schema enum,
+ * so `- bugfix` fails schema validation first. This stays for v1, where `## Lane`
+ * is free text and the stub ships as `- feature | bug-fix`.
+ */
 function laneSectionPresent(changeDir: string): boolean {
+  const tasksPath = join(changeDir, 'tasks.yml');
+  if (existsSync(tasksPath)) {
+    const { data } = loadYamlFile<TasksFile>(tasksPath);
+    if (data?.classification && 'lane' in data.classification) return true;
+  }
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return false;
   return /^##\s+Lane\s*$/im.test(readFileSync(classifPath, 'utf8'));
@@ -406,6 +429,18 @@ function collectWaiverFields(value: unknown, found: Set<string>): void {
 
 /** The classifier's `## Diagnostic Only` decision (ADR 0006 §10), or null if absent. */
 function readClassifierDiagnosticOnly(changeDir: string): boolean | null {
+  const tasksPath = join(changeDir, 'tasks.yml');
+  if (existsSync(tasksPath)) {
+    const { data } = loadYamlFile<TasksFile>(tasksPath);
+    const flag = data?.classification?.['diagnostic-only'];
+    if (typeof flag === 'boolean') return flag;
+    // A v2 classification that simply omits the flag has recorded no decision --
+    // which is `null`, not `false`. Falling through to the v1 file here would be
+    // harmless (it will not exist), but returning early on a present-and-absent
+    // key keeps "no decision" distinguishable from "decided no".
+    if (data?.classification) return null;
+  }
+
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return null;
   // Anchor the value to end-of-line (like readLane): a yes-like-but-invalid value

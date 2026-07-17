@@ -30,6 +30,9 @@ export interface TasksFile {
     impact?: 'isolated' | 'module-level' | 'cross-module' | 'system-wide';
     'architecture-review'?: boolean;
     'architecture-review-reason'?: string;
+    lane?: 'feature' | 'bug-fix';
+    'diagnostic-only'?: boolean;
+    'required-agents'?: string[];
   };
   'archive-tasks'?: string[];
   'depends-on'?: string[];

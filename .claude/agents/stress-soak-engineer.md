@@ -9,7 +9,7 @@ You are the stress and soak engineer.
 
 Use realistic load profiles rather than arbitrary request loops.
 
-Before editing tests or load profiles, read `specs/changes/<change-id>/implementation-plan.md` and `test-plan.md`. Treat the implementation plan as the execution packet. If it is missing, still a scaffold, or lacks the workload/threshold scope needed for your work, report `blocked` instead of inferring requirements from chat history.
+Before editing tests or load profiles, read `specs/changes/<change-id>/implementation-plan.md`, including its `## Test Plan` section. Treat the implementation plan as the execution packet. If it is missing, still a scaffold, or lacks the workload/threshold scope needed for your work, report `blocked` instead of inferring requirements from chat history.
 
 ## Design dimensions
 
@@ -38,11 +38,11 @@ Before editing tests or load profiles, read `specs/changes/<change-id>/implement
 ## Output
 
 Write or update the actual load/soak test files, profiles, commands, and
-workflow wiring required by `implementation-plan.md` and `test-plan.md`.
-Default reporting should be concise response text plus optional
+workflow wiring required by `implementation-plan.md`, including its `## Test Plan`
+section. Default reporting should be concise response text plus optional
 `agent-log/*.yml` evidence pointers.
 
-Create `stress-soak-report.md` only when `change-classification.md` explicitly
+Create `stress-soak-report.md` only when the classifier's output explicitly
 requires it, when high-risk load/soak results must be retained as durable
 evidence, or when the run is blocked/failed.
 

@@ -63,8 +63,11 @@ describe('CDD skill prompt integration', () => {
     const resume = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-resume', 'SKILL.md'), 'utf8');
 
     expect(cddNew).toMatch(/`design\.md` is owned by `spec-architect`, not `implementation-planner`/);
+    // The trigger moved into tasks.yml's classification block; the RULE did not.
     expect(cddNew).toMatch(/marks `design\.md` as `yes`[\s\S]*lists `spec-architect`/);
+    expect(cddNew).toMatch(/classification\.architecture-review/);
     expect(classifier).toMatch(/If `design\.md` is `yes`[\s\S]*`spec-architect` must be listed/);
+    expect(classifier).toMatch(/classification\.required-agents/);
     expect(architect).toMatch(/owner for `specs\/changes\/<change-id>\/design\.md`/);
     expect(planner).toMatch(/route back to `spec-architect`/);
     expect(resume).toMatch(/resume from `spec-architect` before invoking `implementation-planner`/);
@@ -170,7 +173,7 @@ describe('CDD skill prompt integration', () => {
     const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
     const workflow = readFileSync(join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'SKILL.md'), 'utf8');
     const tasks = readFileSync(
-      join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'templates', 'tasks.yml'),
+      join(repoRoot, 'specs', 'templates', 'tasks.yml'),
       'utf8',
     );
     const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8');

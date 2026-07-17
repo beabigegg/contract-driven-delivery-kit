@@ -69,7 +69,7 @@ Default output is a concise QA verdict in your response plus an optional
 `Agent Log` YAML block. Do not ask main Claude to create `qa-report.md` for a
 routine approved change.
 
-Emit a full `# QA Report` body only when `change-classification.md` explicitly
+Emit a full `# QA Report` body only when the classifier's output explicitly
 requires `qa-report.md`, or when the decision is `blocked` /
 `approved-with-risk`.
 

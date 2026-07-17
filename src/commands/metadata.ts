@@ -193,9 +193,20 @@ export function buildChangeMetadata(changeDir: string, cwd: string): BuildResult
 
   const tier = resolveTier(changeDir).tier;
 
+  // v2 keeps the classification in tasks.yml; v1 in change-classification.md.
+  // Read the v2 location first, exactly as resolveTier/readLane do — reading only
+  // the v1 file reports every v2 change as having no types and no required
+  // agents, which looks identical to a change that declared none.
   const classifText = readIfExists(join(changeDir, 'change-classification.md'));
-  const types = parseChangeTypes(classifText);
-  const requiredAgents = parseRequiredAgents(classifText);
+  const v2Types = (tasks?.classification?.types ?? []).map(t => String(t).trim()).filter(Boolean);
+  // v2's flat `types:` list maps onto the v1 primary/secondary split by position:
+  // the first entry is the primary type, the rest are secondary.
+  const types = v2Types.length > 0
+    ? { primary: v2Types[0], secondary: v2Types.slice(1) }
+    : parseChangeTypes(classifText);
+  const requiredAgents = tasks?.classification
+    ? (tasks.classification['required-agents'] ?? []).map(a => String(a).trim()).filter(Boolean)
+    : parseRequiredAgents(classifText);
   const classificationLane = readLane(changeDir);
 
   const optionalPresent = OPTIONAL_ARTIFACTS.filter(f => existsSync(join(changeDir, f)));

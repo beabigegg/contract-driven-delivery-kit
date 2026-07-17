@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { sectionBody } from '../utils/markdown-section.js';
 import { meaningfulChars } from './gate-artifacts.js';
-import { loadYamlFile } from './gate-shared.js';
+import { loadYamlFile, type TasksFile } from './gate-shared.js';
 
 /**
  * Required-agent evidence (ADR 0008) — ADVISORY (warning-only).
@@ -45,6 +45,39 @@ const LOG_ALIASES: Record<string, string[]> = {
  * list line naming one agent, optionally backtick-wrapped (`- \`backend-engineer\``
  * or `- backend-engineer`). De-duplicated, lowercased, order-preserving.
  */
+/**
+ * The agents this change declared it needs (ADR 0008). `tasks.yml`'s
+ * `classification.required-agents` first, then v1's `## Required Agents` list in
+ * change-classification.md.
+ *
+ * The old code took the absence of change-classification.md as "a missing
+ * classification is already a gate error elsewhere" and returned early. That was
+ * true while the file was in REQUIRED_FILES; once v2 folded the classification
+ * into tasks.yml, the file is legitimately absent and that early return silently
+ * turned this whole check off for every new change.
+ */
+export function readRequiredAgents(changeDir: string): string[] {
+  const tasksPath = join(changeDir, 'tasks.yml');
+  if (existsSync(tasksPath)) {
+    const { data } = loadYamlFile<TasksFile>(tasksPath);
+    const declared = data?.classification?.['required-agents'];
+    if (Array.isArray(declared)) {
+      const seen = new Set<string>();
+      for (const raw of declared) {
+        if (typeof raw === 'string' && /^[a-z][a-z0-9-]*$/i.test(raw.trim())) seen.add(raw.trim().toLowerCase());
+      }
+      if (seen.size > 0) return [...seen];
+    }
+    // A v2 change that declares no agents means exactly that. Only fall through
+    // to the v1 file when tasks.yml carries no classification at all.
+    if (data?.classification) return [];
+  }
+
+  const classifPath = join(changeDir, 'change-classification.md');
+  if (!existsSync(classifPath)) return [];
+  return parseRequiredAgents(readFileSync(classifPath, 'utf8'));
+}
+
 export function parseRequiredAgents(classificationContent: string): string[] {
   const body = sectionBody(classificationContent, 'Required Agents');
   if (!body.trim()) return [];
@@ -82,10 +115,7 @@ function authorMatches(agent: string, author: string): boolean {
  * into a post-hoc-paperwork blocker (ADR 0008).
  */
 export function enforceRequiredAgentEvidence(changeDir: string, warnings: string[]): void {
-  const classifPath = join(changeDir, 'change-classification.md');
-  if (!existsSync(classifPath)) return; // a missing classification is already a gate error elsewhere
-
-  const required = parseRequiredAgents(readFileSync(classifPath, 'utf8'));
+  const required = readRequiredAgents(changeDir);
   if (required.length === 0) return; // nothing declared → nothing to surface
 
   const agentLogDir = join(changeDir, 'agent-log');

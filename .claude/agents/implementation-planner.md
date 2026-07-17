@@ -28,10 +28,9 @@ See `references/code-map-protocol.md` for the full protocol.
 Read these change artifacts first:
 
 - `specs/changes/<change-id>/change-request.md`
-- `specs/changes/<change-id>/change-classification.md`
+- `specs/changes/<change-id>/tasks.yml` (`classification:` block and top-level `tier:`)
 - `specs/changes/<change-id>/context-manifest.md`
-- `specs/changes/<change-id>/test-plan.md`
-- `specs/changes/<change-id>/ci-gates.md`
+- `specs/changes/<change-id>/implementation-plan.md` (its own `## Test Plan` and `## CI Gates` sections, already filled by `test-strategist` and `ci-cd-gatekeeper` before you run)
 - `specs/changes/<change-id>/design.md` if present
 - `specs/changes/<change-id>/current-behavior.md` if present
 - `specs/changes/<change-id>/proposal.md` if present
@@ -39,10 +38,9 @@ Read these change artifacts first:
 
 Use the context manifest as the read boundary. If required context is missing, add a Context Expansion Request and report `blocked` instead of guessing.
 
-If `change-classification.md` says `Architecture Review Required: yes`, marks
-Optional Artifacts `design.md` as `yes`, or lists `spec-architect` in
-`## Required Agents`, then `specs/changes/<change-id>/design.md` must already
-exist and be filled before you plan. If it is missing or still a scaffold,
+If `tasks.yml`'s `classification.architecture-review` is `true`, or `spec-architect`
+is listed in `## Required Agents`, then `specs/changes/<change-id>/design.md` must
+already exist and be filled before you plan. If it is missing or still a scaffold,
 report `blocked` and route back to `spec-architect`. Do not create or repair
 `design.md` yourself.
 
@@ -61,24 +59,27 @@ this check. Never author or repair `interaction-design.md` yourself.
 - Write an execution plan, not a rationale document.
 - Include only the background needed to execute safely.
 - Name concrete files, directories, contracts, and tests whenever known.
-- Reference `test-plan.md`, `ci-gates.md`, `design.md`, `interaction-design.md`,
-  and contract files by path, section, criterion id, decision id, or gate name.
-  Do not copy their full prose into this plan.
+- Reference this file's own `## Test Plan` / `## CI Gates` sections, `design.md`,
+  `interaction-design.md`, and contract files by path, section, criterion id,
+  decision id, or gate name. Do not copy their full prose into this plan.
 - State non-goals clearly so implementation agents do not opportunistically refactor.
 - Map every required change to an owner agent.
 - Map acceptance criteria to tests or verification commands.
 - Reference the required test phases for this change (always `collect`,
   `targeted`, `changed-area`; add `contract`/`quality`/`full` when their trigger
-  applies). Do not restate full test strategy -- that lives in `test-plan.md`.
-  Implementation agents generate the evidence with `cdd-kit test run`; the gate
-  validates `test-evidence.yml`. See `references/sdd-tdd-policy.md`.
+  applies). Do not restate full test strategy -- that lives in this file's own
+  `## Test Plan` section. Implementation agents generate the evidence with
+  `cdd-kit test run`; the gate validates `test-evidence.yml`. See
+  `references/sdd-tdd-policy.md`.
 - If the chosen approach is not clear from the artifacts, stop and report `blocked`.
 - If a bug fix lacks reproduction, root cause, or regression coverage and the classification says those are required, stop and report `blocked`.
 - Never write `design.md`; design decisions are owned by `spec-architect`.
 
 ## Output
 
-Write `specs/changes/<change-id>/implementation-plan.md` with this structure:
+Edit `specs/changes/<change-id>/implementation-plan.md` with this structure.
+`test-strategist` and `ci-cd-gatekeeper` already filled the `## Test Plan` and
+`## CI Gates` sections before you run -- reference them, do not overwrite them:
 
 ```md
 # Implementation Plan: <change-id>
@@ -102,8 +103,8 @@ Write `specs/changes/<change-id>/implementation-plan.md` with this structure:
 ## Source Artifact Pointers
 | source | relevant pointer | used for |
 |---|---|---|
-| test-plan.md | AC-1 | tests to run/write |
-| ci-gates.md | required gates table | verification commands |
+| this file's `## Test Plan` | AC-1 | tests to run/write |
+| this file's `## CI Gates` | required gates table | verification commands |
 | design.md | Decision: ... | implementation constraint |
 
 ## File-Level Plan
@@ -121,7 +122,7 @@ Write `specs/changes/<change-id>/implementation-plan.md` with this structure:
 ## Test Execution Plan
 | acceptance criterion | test file / command | expected signal |
 |---|---|---|
-(`cdd-kit test select` falls back to this table when `test-plan.md` has no mapping; it reads the `test file / command` column and accepts only a bare target -- a node id, test file, or directory that exists -- or a pytest command, the same forms `test-plan.md` uses. Do not put a `cdd-kit test run ...` line there; the selector ignores it. Required floor: collect, targeted, changed-area; full ladder in test-plan.md / references/sdd-tdd-policy.md.)
+(`cdd-kit test select` falls back to this table when this file's `## Test Plan` section has no mapping; it reads the `test file / command` column and accepts only a bare target -- a node id, test file, or directory that exists -- or a pytest command, the same forms the `## Test Plan` section uses. Do not put a `cdd-kit test run ...` line there; the selector ignores it. Required floor: collect, targeted, changed-area; full ladder in the `## Test Plan` section / references/sdd-tdd-policy.md.)
 
 ## Handoff Constraints
 - Implementation agents must not infer missing requirements from chat history.
@@ -131,6 +132,12 @@ Write `specs/changes/<change-id>/implementation-plan.md` with this structure:
 
 ## Known Risks
 - ...
+
+## Test Plan
+(already filled by test-strategist -- do not overwrite)
+
+## CI Gates
+(already filled by ci-cd-gatekeeper -- do not overwrite)
 ```
 
 ## Read scope

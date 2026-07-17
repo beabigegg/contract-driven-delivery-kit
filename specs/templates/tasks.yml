@@ -12,6 +12,9 @@ classification:
   impact:                      # isolated | module-level | cross-module | system-wide
   architecture-review: false
   # architecture-review-reason: <required, and non-trivial, when the flag is true>
+  # lane: bug-fix              # ADR 0006 — set for a defect; arms bug-fix evidence enforcement
+  # diagnostic-only: true      # ADR 0006 §7 — only when the first correct step is instrumentation, not a behaviour fix
+  # required-agents: []        # ADR 0008 — agents this change needs; the gate warns if one leaves no agent-log
 
 archive-tasks:
   - "7.1"
@@ -49,4 +52,4 @@ tasks:
   - { id: "6.3", section: Verification, title: "Informational gates", status: pending }
   - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: pending }
   - { id: "7.1", section: Archive, title: "Archive change", status: pending }
-  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: pending }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or project guidance", status: pending }

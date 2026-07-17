@@ -79,8 +79,8 @@ Read it first (your prompt header has `CURRENT_CHANGE_ID`). Read only paths it l
 
 This agent's natural reads include `contracts/api/api-contract.md`,
 `contracts/data/data-shape-contract.md`, and this change's `change-request.md` /
-`change-classification.md`. Make sure the manifest's Allowed Paths includes
-them, or file a `## Context Expansion Requests` entry.
+`tasks.yml` (for its `classification:` block). Make sure the manifest's Allowed
+Paths includes them, or file a `## Context Expansion Requests` entry.
 
 Need a path not listed? File a `## Context Expansion Requests` entry (see `specs/templates/context-manifest.md`) with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
 
