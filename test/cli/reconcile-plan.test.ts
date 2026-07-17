@@ -5,7 +5,7 @@
  * src/reconcile/*.ts), not through the CLI, per test-plan.md's note that this
  * is the one new file the context manifest grants for this module.
  *
- * The two linchpin tests -- named 'guard-refusal' and 'fail-open' below -- are
+ * The two tests the validator scans for -- named 'guard-refusal' and 'fail-open' below -- are
  * mutation-red-proven per contracts/upgrade/upgrade-reconciliation-contract.md
  * `## Mechanical Enforcement` and are also what
  * `enforceReconciliationInvariants` (src/reconcile/invariants.ts) statically
@@ -43,7 +43,7 @@ describe('KIT_SURFACES catalog (AC-1: every kit-shipped surface maps to exactly 
   });
 });
 
-describe('guard.assertWritable -- bucket-1 refusal (AC-2, INV-2 linchpin)', () => {
+describe('guard.assertWritable -- bucket-1 refusal (AC-2, INV-2)', () => {
   const BUCKET_1_SAMPLES = [
     'contracts/foo.md',
     'src/index.ts',
@@ -107,7 +107,7 @@ describe('isWithinDir (pure path-containment helper)', () => {
   });
 });
 
-describe('classifyPath fail-open (AC-6, INV-1 linchpin)', () => {
+describe('classifyPath fail-open (AC-6, INV-1)', () => {
   it('fail-open: malformed (non-string) input classifies as keep', () => {
     const d = classifyPath(undefined, REPO_ROOT);
     expect(d.bucket).toBe('keep');
@@ -270,7 +270,7 @@ describe('bucket-1 matcher coverage (AC-5, contract Mechanical Enforcement #1)',
 });
 
 describe('enforceReconciliationInvariants -- full check against this repo (AC-5)', () => {
-  it('reports zero findings once the linchpin tests exist in this file (self-referential closure)', () => {
+  it('reports zero findings once the required tests exist in this file (self-referential closure)', () => {
     const findings = checkReconciliationInvariants(REPO_ROOT);
     expect(findings.map(f => f.message)).toEqual([]);
   });

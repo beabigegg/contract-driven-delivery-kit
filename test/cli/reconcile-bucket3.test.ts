@@ -10,7 +10,7 @@
  * output from disk -- not because the caller politely declined.
  *
  * The tests named 'narrow-channel-refusal' and 'container-fail-open' are the
- * linchpins for `contracts/upgrade/upgrade-reconciliation-contract.md`
+ * the recorded tests for `contracts/upgrade/upgrade-reconciliation-contract.md`
  * `## Bucket-1 containers and their narrow channels`.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

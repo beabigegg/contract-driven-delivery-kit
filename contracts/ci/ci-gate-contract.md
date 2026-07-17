@@ -461,7 +461,7 @@ it would silently reopen the exact hole this change exists to close. This is a
 deliberate, permanent divergence from the Boundary Guard precedent, not an
 oversight.
 
-**Honest limit.** This check is static-analysis evidence that the two linchpin
+**Honest limit.** This check is static-analysis evidence that the two
 tests EXIST and name the right assertions, and that the guard/contract text
 agree — it does not itself re-run those tests. The `full vitest suite` row
 above is what proves they currently PASS; a suite failure there blocks the gate

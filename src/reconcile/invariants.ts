@@ -250,7 +250,7 @@ export function checkReconciliationInvariants(cwd: string): ReconciliationFindin
     });
   }
 
-  // Checks 3/4: recorded linchpin tests (contract ## Mechanical Enforcement #3/#4).
+  // Checks 3/4: recorded tests (contract ## Mechanical Enforcement #3/#4).
   const combined = readTestSources(cwd, ['test/cli/reconcile-plan.test.ts', 'test/reconcile']);
   if (!hasNamedTestWithBodyMatch(combined, 'guard-refusal', ['toThrow'])) {
     findings.push({

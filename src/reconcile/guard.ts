@@ -200,8 +200,8 @@ export function isBucket1(dest: string, cwd: string = process.cwd()): Bucket1Res
 }
 
 /**
- * THROWS when `dest` is a bucket-1 never-overwrite path. This is the LINCHPIN
- * of INV-2: every reconcile/refresh apply write calls this (via
+ * THROWS when `dest` is a bucket-1 never-overwrite path. This is where INV-2 is enforced;
+ * every reconcile/refresh apply write calls this (via
  * `guardedCopyFile`/`guardedWriteFile`) before touching disk, and AGAIN
  * immediately before the actual write (TOCTOU re-check).
  */
