@@ -5,12 +5,13 @@ import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
 // The v2 scaffold set. change-classification.md folded into tasks.yml
-// frontmatter; test-plan.md and ci-gates.md into implementation-plan.md.
+// frontmatter; test-plan.md and ci-gates.md into implementation-plan.md;
+// context-manifest.md demoted to optional (nothing enforced the read boundary
+// it declared).
 const REQUIRED_TEMPLATES = [
   'change-request.md',
   'implementation-plan.md',
   'tasks.yml',
-  'context-manifest.md',
   'acceptance.yml',
   'interaction-design.md',
 ];
@@ -52,7 +53,7 @@ describe('cdd-kit new', () => {
 
     // v2 folded three files away. Scaffolding them again would recreate exactly
     // what it removed, so their absence is the assertion, not an omission.
-    for (const gone of ['change-classification.md', 'test-plan.md', 'ci-gates.md']) {
+    for (const gone of ['change-classification.md', 'test-plan.md', 'ci-gates.md', 'context-manifest.md']) {
       expect(existsSync(join(changeDir, gone)), `${gone} should not be scaffolded under v2`).toBe(false);
     }
     // ...and the facts they carried are still demanded, in their new home.

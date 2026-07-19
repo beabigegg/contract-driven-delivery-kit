@@ -27,6 +27,17 @@ const TASKS_STATUS_ENUM = new Set([
  *   sections of `implementation-plan.md` -- the same content, mechanically
  *   checked the same way, minus two files of template.
  *
+ * `context-manifest.md` is OPTIONAL under v2, for a different reason: not that
+ * it duplicates something, but that requiring it never bought anything. The
+ * only thing the gate ever checked was that the file existed and cleared 50
+ * characters -- the `Allowed Paths` it declares are read by `cdd-kit context
+ * check`, which no gate, no CI job, and no hook invokes. It is a read boundary
+ * that nothing enforces, and its real value is the opposite of a boundary
+ * anyway: pointing an agent AT the files it needs, faster. That job now belongs
+ * to the code-map/graph layer, which is mechanical and actually runs. A manifest
+ * is still honoured wherever one exists; it is simply no longer a file you must
+ * produce to pass.
+ *
  * v2 is NOT a migration: `v1` change directories keep the old shape and the old
  * checks forever (see `requiredFilesFor`). Nothing an adopter already wrote is
  * touched, rewritten, or asked to move. Only the shape of NEW changes differs.
@@ -45,7 +56,6 @@ export const REQUIRED_FILES_V2 = [
   'change-request.md',
   'implementation-plan.md',
   'tasks.yml',
-  'context-manifest.md',
 ];
 
 /** Sections `implementation-plan.md` must carry under v2, absorbing the two

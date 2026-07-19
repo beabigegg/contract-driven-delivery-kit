@@ -81,7 +81,9 @@ const REQUIRED_TEMPLATES = [
   'change-request.md',
   'implementation-plan.md',
   'tasks.yml',
-  'context-manifest.md',
+  // context-manifest.md is NOT scaffolded: it is optional under v2 and nothing
+  // enforces the read boundary it declares. It stays available via `--all` for
+  // a change that genuinely wants to record one. See REQUIRED_FILES_V2's note.
   // ADR 0010 (acceptance-oracle): every new change gets a placeholder-plus-
   // instructions acceptance.yml, mirroring how tasks.yml/context-manifest.md
   // are scaffolded. Unlike test-evidence.yml (NEVER_SCAFFOLD below, since that

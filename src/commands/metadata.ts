@@ -6,7 +6,7 @@ import { sha256OfFileNormalized } from '../utils/digest.js';
 import { sectionBody } from '../utils/markdown-section.js';
 import { parsePipeTable } from '../utils/markdown-table.js';
 import { ajv, loadYamlFile, type TasksFile } from './gate-shared.js';
-import { REQUIRED_FILES } from './gate-artifacts.js';
+import { requiredFilesFor } from './gate-artifacts.js';
 import { resolveTier } from './gate-tier.js';
 import { readLane } from './gate-evidence.js';
 import { changeMetadataSchema } from '../schemas/change-metadata.schema.js';
@@ -225,7 +225,10 @@ export function buildChangeMetadata(changeDir: string, cwd: string): BuildResult
     ...(classificationLane ? { 'classification-lane': classificationLane } : {}),
     types,
     'required-agents': requiredAgents,
-    artifacts: { required: [...REQUIRED_FILES], optional: optionalPresent },
+    // Per-change, not the static default: a v1 directory is held to the v1 set,
+    // and reporting the v2 set for it would describe requirements that change is
+    // not actually under.
+    artifacts: { required: [...requiredFilesFor(changeDir)], optional: optionalPresent },
     context: { manifest: manifestRel, 'allowed-paths-count': allowedPathsCount },
     dependencies,
     'generated-from': generatedFrom(changeDir, ['tasks.yml', 'change-classification.md', 'context-manifest.md']),

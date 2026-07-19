@@ -194,7 +194,7 @@ interface TasksFileOptions {
   changeId: string;
   status?: string;
   tier?: number | null;
-  contextGovernance?: 'v1';
+  contextGovernance?: 'v1' | 'v2';
   archiveTasks?: string[];
   dependsOn?: string[];
   tasks?: Array<{ id: string; title: string; status: 'pending' | 'done' | 'skipped'; section?: string }>;
@@ -919,8 +919,13 @@ describe('cdd-kit gate', () => {
   it('17: legacy change warns when context-manifest.md is missing, but strict mode fails', () => {
     runCli(['new', 'feat-legacy-cg'], { cwd: tmpRepo, home: tmpHome });
     const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-legacy-cg');
+    // writeValidChangeArtifacts rewrites tasks.yml with no context-governance
+    // marker, which is what makes this fixture legacy (v1 shape) rather than the
+    // v2 shape `cdd-kit new` scaffolds.
     writeValidChangeArtifacts(changeDir);
-    rmSync(join(changeDir, 'context-manifest.md'));
+    // `force` because v2 no longer scaffolds a manifest, so there may be nothing
+    // to remove. The point of the test is the legacy REQUIREMENT, not the file.
+    rmSync(join(changeDir, 'context-manifest.md'), { force: true });
 
     const normal = runCli(['gate', 'feat-legacy-cg'], { cwd: tmpRepo, home: tmpHome });
     expect(normal.stdout + normal.stderr).toMatch(/missing context-manifest\.md \(legacy change/i);
@@ -929,6 +934,29 @@ describe('cdd-kit gate', () => {
     const strict = runCli(['gate', 'feat-legacy-cg', '--strict'], { cwd: tmpRepo, home: tmpHome });
     expect(strict.status).not.toBe(0);
     expect(strict.stdout + strict.stderr).toMatch(/missing required artifact: context-manifest\.md/i);
+  });
+
+  it('17b: a v2 change is silent about an absent context-manifest.md, even under --strict', () => {
+    // The counterpart to 17. v2 made the manifest optional because the only
+    // thing the gate ever checked was that the file existed -- the Allowed Paths
+    // it declares are read by `cdd-kit context check`, which no gate, CI job, or
+    // hook invokes. A requirement that enforces nothing is paperwork, and this
+    // asserts it is gone rather than merely downgraded to a warning.
+    runCli(['new', 'feat-v2-nomanifest'], { cwd: tmpRepo, home: tmpHome });
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'feat-v2-nomanifest');
+    writeValidChangeArtifacts(changeDir);
+    writeFileSync(
+      join(changeDir, 'tasks.yml'),
+      buildTasksYaml({ changeId: 'feat-v2-nomanifest', contextGovernance: 'v2', tier: 3 }),
+      'utf8',
+    );
+    rmSync(join(changeDir, 'context-manifest.md'), { force: true });
+
+    for (const args of [['gate', 'feat-v2-nomanifest'], ['gate', 'feat-v2-nomanifest', '--strict']]) {
+      const r = runCli(args, { cwd: tmpRepo, home: tmpHome });
+      expect(r.stdout + r.stderr, `${args.join(' ')} still mentions the manifest`)
+        .not.toMatch(/context-manifest\.md/i);
+    }
   });
 
   // ???????????????????????????????????????????????????????????????????????????

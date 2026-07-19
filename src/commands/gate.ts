@@ -194,11 +194,16 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
         errors.push(`${f}: appears to be a stub (< ${minChars} meaningful chars)`);
         continue;
       }
-      // context-manifest.md is exempt: its template ships illustrative agent
-      // sub-sections (`### <implementation-agent>`, `<change-id>` path stubs)
-      // that are explicitly "documentation only — gate enforces Allowed Paths,
-      // not individual packets". Its real enforcement lives elsewhere, so a
-      // placeholder there is not an unfilled-substance signal.
+      // context-manifest.md is exempt from the placeholder check: its template
+      // ships illustrative agent sub-sections (`### <implementation-agent>`,
+      // `<change-id>` path stubs) that are documentation, not fields to fill,
+      // so a placeholder there is not an unfilled-substance signal.
+      //
+      // The exemption used to be justified with "gate enforces Allowed Paths,
+      // not individual packets". That was false: no gate code reads Allowed
+      // Paths. `cdd-kit context check` does, and nothing invokes it -- not CI,
+      // not validate, not a hook. Under v2 the manifest is optional and this
+      // branch only runs for a v1 change that still ships one.
       if (f !== 'context-manifest.md') {
         const placeholders = findPlaceholders(content);
         if (placeholders.length > 0) {
