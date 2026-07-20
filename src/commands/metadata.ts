@@ -7,6 +7,7 @@ import { sectionBody } from '../utils/markdown-section.js';
 import { parsePipeTable } from '../utils/markdown-table.js';
 import { ajv, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { requiredFilesFor, readPlanSourceText } from './gate-artifacts.js';
+import { findMappingTable, findGateTable } from './test-select.js';
 import { resolveTier } from './gate-tier.js';
 import { readLane } from './gate-evidence.js';
 import { changeMetadataSchema } from '../schemas/change-metadata.schema.js';
@@ -123,13 +124,32 @@ function parseAcceptanceCriteria(classifText: string): { id: string; text: strin
  * sits at its top level — with or without the `###` subheading the
  * test-strategist prompt documents. Try the sub-section, then the text itself.
  */
+/** parsePipeTable-shaped rows for exactly ONE table, chosen by column signature
+ *  (findMappingTable / findGateTable) so a sibling table in the same section is
+ *  never folded in. Returns [] when no matching table is present. */
+function rowsOf(table: { headers: string[]; rows: string[][] } | null): Record<string, string>[] {
+  if (!table) return [];
+  return table.rows.map(r => {
+    const o: Record<string, string> = {};
+    table.headers.forEach((h, i) => { o[h.trim().toLowerCase()] = (r[i] ?? "").trim(); });
+    return o;
+  });
+}
+
+function pipeRowsOfMappingTable(text: string): Record<string, string>[] { return rowsOf(findMappingTable(text)); }
+function pipeRowsOfGateTable(text: string): Record<string, string>[] { return rowsOf(findGateTable(text)); }
+
 function scopedOrWhole(text: string, heading: string): string {
   const scoped = sectionBody(text, heading);
   return scoped.trim() ? scoped : text;
 }
 
 function parseTestMapping(testPlanText: string): { criterion: string; family: string; path: string }[] {
-  const rows = parsePipeTable(scopedOrWhole(testPlanText, 'Acceptance Criteria → Test Mapping'));
+  // Only the AC-mapping table, located by its column signature. Passing the whole
+  // section to parsePipeTable swept in the documented `### Test Families Required`
+  // table that follows it, whose `| family | tier | notes |` header parsed as a
+  // data row and produced a bogus `FAMILY` criterion pointing at `notes`.
+  const rows = pipeRowsOfMappingTable(scopedOrWhole(testPlanText, 'Acceptance Criteria → Test Mapping'));
   const out: { criterion: string; family: string; path: string }[] = [];
   for (const r of rows) {
     const criterion = (r['criterion id'] ?? '').toUpperCase();
@@ -142,7 +162,7 @@ function parseTestMapping(testPlanText: string): { criterion: string; family: st
 }
 
 function parseRequiredGates(ciGatesText: string): string[] {
-  const rows = parsePipeTable(scopedOrWhole(ciGatesText, 'Required Gates'));
+  const rows = pipeRowsOfGateTable(scopedOrWhole(ciGatesText, 'Required Gates'));
   const gates: string[] = [];
   for (const r of rows) {
     const name = (r['gate'] ?? '').trim();

@@ -164,7 +164,11 @@ describe('v2PlanSectionFinding — the folded Test Plan / CI Gates must be AUTHO
     for (const section of ['Test Plan', 'CI Gates']) {
       const finding = v2PlanSectionFinding(SCAFFOLD, section);
       expect(finding, `${section} must be rejected while it is still scaffold`).toBeTruthy();
-      expect(finding).toMatch(/still holds only the scaffold/);
+      // Test Plan gets the sharper message (it needs a criterion→test row, not
+      // merely "some authored content"); CI Gates gets the generic one.
+      expect(finding).toMatch(
+        section === 'Test Plan' ? /no acceptance-criterion/ : /still holds only the scaffold/,
+      );
     }
   });
 
@@ -185,9 +189,20 @@ describe('v2PlanSectionFinding — the folded Test Plan / CI Gates must be AUTHO
     }
   });
 
-  it('accepts a section authored with bullets instead of a table', () => {
+  it('a Test Plan authored as prose bullets is REJECTED — test select cannot consume it', () => {
+    // This used to pass, and that permissiveness recreated the deadlock the
+    // folded-section work exists to remove: `test select` locates targets from
+    // the mapping TABLE, so a bullet-only plan yields `needs-test-plan-update`,
+    // no bounded evidence can be recorded, and the gate then demands that
+    // evidence. Failing here, with a message naming the mapping table, is the
+    // early and actionable version of the same outcome.
     const plan = '## Test Plan\n\n- AC-1 covered by tests/unit/foo.test.ts\n\n## Next\n';
-    expect(v2PlanSectionFinding(plan, 'Test Plan')).toBeNull();
+    expect(v2PlanSectionFinding(plan, 'Test Plan')).toMatch(/no acceptance-criterion/);
+  });
+
+  it('CI Gates still accepts bullets — it has no downstream table consumer of its own', () => {
+    const plan = '## CI Gates\n\n- lint runs on every PR and must be green before merge\n\n## Next\n';
+    expect(v2PlanSectionFinding(plan, 'CI Gates')).toBeNull();
   });
 
   it('a missing section reports missing, not unfilled', () => {
@@ -221,5 +236,42 @@ describe('v2 requires a tier (codex review, PR #69)', () => {
     const errors: string[] = [];
     enforceClassificationSubstance(changeDir, tasks, errors);
     expect(errors.join('\n')).not.toMatch(/tier/);
+  });
+});
+
+describe('v2 Test Plan needs a real criterion→test row (codex round 4)', () => {
+  const SCAFFOLD2 = readFileSync(join(ASSET.specsTemplates, 'implementation-plan.md'), 'utf8');
+
+  it('the documented second table alone does NOT satisfy it', () => {
+    // The test-strategist shape puts `### Test Families Required` after the AC
+    // mapping. Filling only that table left `test select` with no criterion
+    // target while the gate passed.
+    const body = [
+      '## Test Plan', '',
+      '| criterion id | test family | test file path | tier |',
+      '|---|---|---|---|',
+      '|  |  |  |  |', '',
+      '### Test Families Required',
+      '| family | tier | notes |',
+      '|---|---|---|',
+      '| unit | 2 | covered |', '',
+      '## Next', '',
+    ].join('\n');
+    expect(v2PlanSectionFinding(body, 'Test Plan')).toMatch(/no acceptance-criterion/);
+  });
+
+  it('a real mapping row satisfies it', () => {
+    const filled = SCAFFOLD2.replace('|  |  |  |  |', '| AC-1 | unit | test/unit/foo.test.ts | 2 |');
+    expect(v2PlanSectionFinding(filled, 'Test Plan')).toBeNull();
+  });
+
+  it('a row naming a criterion but no target does not count', () => {
+    const body = '## Test Plan\n\n| criterion id | test file path |\n|---|---|\n| AC-1 |  |\n';
+    expect(v2PlanSectionFinding(body, 'Test Plan')).toMatch(/no acceptance-criterion/);
+  });
+
+  it('CI Gates is unaffected — it has no mapping table to demand', () => {
+    const body = '## CI Gates\n\n| gate | trigger | required | command |\n|---|---|---|---|\n| lint | PR | yes | npm run lint |\n';
+    expect(v2PlanSectionFinding(body, 'CI Gates')).toBeNull();
   });
 });

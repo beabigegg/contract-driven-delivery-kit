@@ -51,12 +51,34 @@ def _ci_gates_section(plan_path):
     return rest[:nxt.start()] if nxt else rest
 
 
+def _governance(d):
+    """'v2' | '' from tasks.yml, mirroring gate-artifacts.ts governanceVersion."""
+    p = d / 'tasks.yml'
+    if not p.exists():
+        return ''
+    try:
+        for line in p.read_text(encoding='utf-8', errors='ignore').splitlines():
+            if line.startswith('context-governance:'):
+                return line.split(':', 1)[1].strip().strip('\'"')
+    except OSError:
+        return ''
+    return ''
+
+
 def check_change_dir(d):
-    """v1 file if present, else the v2 folded section. Returns error strings."""
+    """Source chosen by GOVERNANCE, not file presence.
+
+    `cdd-kit new --force` over a legacy directory does not delete its files, so a
+    v2 change can still carry a stale ci-gates.md. Picking it by presence would
+    either reject a valid folded plan because the leftover is incomplete, or pass
+    an invalid folded section because the leftover happens to satisfy v1's terms.
+    """
     v1 = d / 'ci-gates.md'
-    if v1.exists():
+    if v1.exists() and _governance(d) != 'v2':
         return check_file(v1)
     section = _ci_gates_section(d / 'implementation-plan.md')
+    if section is None and v1.exists():
+        return check_file(v1)
     if section is None:
         return []  # neither shape present -- the gate's required-artifact check owns that
     return _check_text(f'{d.name}/implementation-plan.md ## CI Gates', section, REQUIRED_TERMS_V2)

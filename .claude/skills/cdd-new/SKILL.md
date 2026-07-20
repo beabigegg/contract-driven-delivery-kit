@@ -635,7 +635,7 @@ matches one of them.
 | Error pattern | Route to | Re-invocation prompt seed |
 |---|---|---|
 | `change-classification.md: …` (a v1 change; can also fire on a v2 change if `tasks.yml`'s `tier:` was never set) | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit only the failing section." |
-| `tasks.yml: missing required "classification:" block …` / `tasks.yml: "classification.architecture-review: true" requires …` | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit only the failing `## Risk Level` / `## Impact Radius` / `## Architecture Review Required` output so YOU can update `tasks.yml`'s `classification:` block." |
+| `tasks.yml: missing required "classification:" block …` / `tasks.yml: "classification.architecture-review: true" requires …` / `tasks.yml: "tier:" is required …` | `change-classifier` | "PREVIOUS CLASSIFICATION FAILED GATE: <error>. Re-emit the paste-ready `tier:` + `classification:` YAML block with the failing field corrected." |
 | `implementation-plan.md: missing or empty "## Test Plan" section` | `test-strategist` | "PREVIOUS TEST PLAN FAILED GATE: <error>. Re-fill the `## Test Plan` section of `implementation-plan.md`." |
 | `implementation-plan.md: missing or empty "## CI Gates" section` | `ci-cd-gatekeeper` | "PREVIOUS CI GATE PLAN FAILED GATE: <error>. Re-fill the `## CI Gates` section of `implementation-plan.md`." |
 | `context-manifest.md: …` | `change-classifier` | "PREVIOUS MANIFEST FAILED GATE: <error>. Re-emit `## Context Manifest Draft`." |

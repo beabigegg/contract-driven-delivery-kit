@@ -165,9 +165,40 @@ export function bucket1ContractRows(): string[] {
   return BUCKET_1_RULES.map(r => r.contractRow);
 }
 
+/**
+ * Locations that are kit-managed BY CONSTRUCTION, checked before any bucket-1
+ * shape rule runs.
+ *
+ * The bucket-1 rules match on path SHAPE, and a shape rule cannot tell a
+ * change's `acceptance.yml` from a TEMPLATE of one, or from a BACKUP of one.
+ * `endsWith('/acceptance.yml')` matched `specs/templates/acceptance.yml` (the
+ * scaffold the kit ships) and `.cdd/.refresh-backup/**\/acceptance.yml` (the
+ * copy refresh writes precisely so an overwrite is recoverable), so
+ * `cdd-kit refresh --yes` threw on a repo whose template was merely out of date.
+ *
+ * This is the third time a bucket-1 shape rule blocked a kit-owned write
+ * (`tests/contract`, then these two). Patching one rule at a time was the wrong
+ * move; the class is "kit scaffold-source and kit backup areas are bucket 2 by
+ * construction", so it is stated ONCE here rather than as an exception clause
+ * inside each rule that happens to over-match today.
+ *
+ * Safety: none of these is adopter ground truth. `specs/templates/**` and
+ * `tests/templates/**` are the scaffold sources `init`/`refresh` install and
+ * force-refresh WITH A BACKUP (bucket 2 by definition), and
+ * `.cdd/.refresh-backup/**` is that backup itself — refusing to write a backup
+ * makes the overwrite LESS recoverable, not more.
+ */
+function isKitManagedLocation(relPosixLower: string): boolean {
+  return relPosixLower.startsWith('specs/templates/')
+    || relPosixLower.startsWith('tests/templates/')
+    || relPosixLower.startsWith('.cdd/.refresh-backup/');
+}
+
 function matchRule(absDest: string, cwd: string): Bucket1Rule | undefined {
   const relPosix = relPosixFromCwd(absDest, cwd);
-  const ctx: Bucket1MatchCtx = { absDest, relPosix, relPosixLower: relPosix.toLowerCase() };
+  const relPosixLower = relPosix.toLowerCase();
+  if (isKitManagedLocation(relPosixLower)) return undefined;
+  const ctx: Bucket1MatchCtx = { absDest, relPosix, relPosixLower };
   for (const rule of BUCKET_1_RULES) {
     if (rule.test(ctx)) return rule;
   }

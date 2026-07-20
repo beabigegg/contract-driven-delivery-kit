@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { ajv, ajvErrorsToMessages, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { sectionBody, stripHtmlComments } from '../utils/markdown-section.js';
+import { findMappingTable } from './test-select.js';
 
 const validateTasks = ajv.compile(tasksSchema);
 
@@ -83,6 +84,16 @@ export function v2PlanSectionFinding(planContent: string, section: string): stri
     return `implementation-plan.md: missing or empty \`## ${section}\` section — v2 folds ${source} ` +
       'into the plan rather than a separate file, so the section is required here.';
   }
+  // Test Plan needs an ACCEPTANCE-CRITERION row specifically. Generic authored
+  // content is not enough there: the documented agent shape puts a second
+  // `### Test Families Required` table after the mapping table, and filling only
+  // its scaffolded family row would otherwise satisfy the gate while `test
+  // select` still has no criterion target to run.
+  if (section === 'Test Plan' && !hasMappingRow(body)) {
+    return 'implementation-plan.md: `## Test Plan` has no acceptance-criterion → test row. ' +
+      'v2 folds test-plan.md into the plan, so the criterion→test mapping table must name at least ' +
+      'one criterion and the test file that covers it (filling only the test-families table is not a mapping).';
+  }
   if (!hasAuthoredContent(body)) {
     return `implementation-plan.md: \`## ${section}\` still holds only the scaffold — every table row is ` +
       `blank and no bullet is filled in. v2 folds ${source} into the plan, so this section carries that ` +
@@ -138,6 +149,17 @@ export function readPlanSourceText(changeDir: string, section: 'Test Plan' | 'CI
 function isEmptyTableRow(line: string): boolean {
   const inner = line.trim().replace(/^\|/, '').replace(/\|$/, '');
   return inner.split('|').every(c => c.trim() === '' || /^:?-{2,}:?$/.test(c.trim()));
+}
+
+/** At least one data row in the AC-mapping table (found by column signature) that
+ *  names both a criterion and a target. */
+function hasMappingRow(body: string): boolean {
+  const table = findMappingTable(body);
+  if (!table) return false;
+  const ci = table.headers.findIndex(h => /criterion|acceptance|ac|^id$/i.test(h.trim()));
+  const ti = table.headers.findIndex(h => /test file|test path|node ?id|target|path|command/i.test(h.trim()));
+  if (ci < 0 || ti < 0) return false;
+  return table.rows.some(r => (r[ci] ?? "").trim() !== "" && (r[ti] ?? "").trim() !== "");
 }
 
 function hasAuthoredContent(body: string): boolean {
