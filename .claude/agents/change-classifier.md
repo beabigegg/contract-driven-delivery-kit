@@ -101,12 +101,28 @@ true, output Tier 5 and skip the heavy artifact list:
 - No env var, secret, or runtime configuration change.
 - No public API behavior change.
 
-Tier 5 fast-path output minima:
-- `## Tier` → `- 5`
-- `## Required Agents` → `contract-reviewer` (read-only confirmation that no
-  contracts are touched) and `qa-reviewer` (release readiness, ~1 paragraph).
-- `## Optional Artifacts` → all `no`.
-- `## Required Tests` → all blank.
+The fast path emits the SAME paste-ready YAML block as `## Output` below — it is
+a shorter classification, not a different format. `/cdd-new` lints for a `tier:`
+line and a non-placeholder `classification:` block before transcribing into
+`tasks.yml`, so markdown headings here would be rejected and the workflow would
+loop even though the classifier followed its own prompt.
+
+Tier 5 fast-path minima, in that block:
+
+```yaml
+tier: 5
+
+classification:
+  types: [docs]
+  risk: low
+  impact: isolated
+  architecture-review: false
+  # contract-reviewer confirms no contract is touched; qa-reviewer gives a
+  # ~1-paragraph release-readiness read. No other agent is needed.
+  required-agents: [contract-reviewer, qa-reviewer]
+```
+
+Optional artifacts: none. Required tests: none.
 
 This exists because previously every doc-only change paid 8–12 agent
 invocations of token cost. The fast-path bounds it to 2 read-only reviews. If

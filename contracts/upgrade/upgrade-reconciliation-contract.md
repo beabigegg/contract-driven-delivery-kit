@@ -12,10 +12,26 @@ breaking-change-policy: deprecate-2-minors
 
 ## Scope
 
-This contract governs every code path that writes into an adopter project during
-an upgrade/refresh/reconcile operation of `cdd-kit` — `cdd-kit refresh`, `cdd-kit
-upgrade`, `cdd-kit update`, and `cdd-kit reconcile [--plan|--yes]`. It states WHAT
-must hold across all four; it does not prescribe HOW. The architecture — the
+This contract governs the code paths that write into an adopter project during
+an upgrade/refresh/reconcile operation of `cdd-kit`. It states WHAT must hold;
+it does not prescribe HOW.
+
+**Where the single-writer invariant is mechanically enforced today**, and where
+it is not — stated precisely, because a scope claim wider than the validator is
+a guarantee that does not exist:
+
+| path | INV-2 enforcement |
+|---|---|
+| `cdd-kit reconcile [--plan\|--yes]` | **guarded** — every write goes through `src/reconcile/guard.ts`, statically verified by `enforceReconciliationInvariants` |
+| `cdd-kit refresh --yes` (bucket-2 apply) | **guarded** — same writer, same static check |
+| `cdd-kit upgrade` | **not guard-routed.** It plans only files that do not exist (`if (!existsSync(dest))`), which bucket 1 already permits ("may create it if entirely absent"), so it cannot overwrite ground truth — but that is a property of its planner, not a chokepoint the validator enforces. |
+| `cdd-kit update` | **not guard-routed.** It writes user-level agents/skills and makes its own kit-owned-and-unmodified decision, i.e. a SECOND implementation of bucket-1 rule 5's semantics. Not known to be wrong; not mechanically prevented from becoming wrong. |
+
+Routing the last two through the guard is the obvious next step and is
+deliberately not claimed here until it is done and verified — the same guard has
+three times refused a kit-owned write it should have allowed (`tests/contract`,
+`specs/templates/acceptance.yml`, the refresh backup area), so extending its
+reach is a change that must be earned with evidence, not asserted. The architecture — the
 classifier, the typed reconciler registry, and the single `GuardedWrite`
 chokepoint — is `docs/adr/0014-reconciliation-framework-write-guard.md` and
 `specs/changes/reconcile-framework/design.md`. This contract is the binding

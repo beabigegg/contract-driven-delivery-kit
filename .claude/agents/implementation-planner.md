@@ -133,19 +133,25 @@ Edit `specs/changes/<change-id>/implementation-plan.md` with this structure.
 ## Known Risks
 - ...
 
-## Test Plan
-(already filled by test-strategist -- do not overwrite)
-
-## CI Gates
-(already filled by ci-cd-gatekeeper -- do not overwrite)
 ```
+
+**`## Test Plan` and `## CI Gates` are deliberately absent from that skeleton.**
+They are already in `implementation-plan.md`, written by `test-strategist` and
+`ci-cd-gatekeeper`, and under `context-governance: v2` they are the ONLY copies —
+the gate, `cdd-kit test select`, and `cdd-kit metadata` all read them from there.
+Emitting the skeleton as a whole-file rewrite would erase the test and CI plan
+you were told to reference.
+
+So: EDIT the sections above in place and leave those two untouched. Never write
+the file from the skeleton wholesale.
 
 ## Read scope
 
-Source of truth: `specs/changes/<change-id>/context-manifest.md` -> `## Allowed Paths`.
-Read it first. Read only paths it lists or paths under `## Approved Expansions`.
-
-Need a path not listed? File a `## Context Expansion Requests` entry with `status: pending` and stop until the user approves via `cdd-kit context approve <change-id> <CER-id>`.
+`specs/changes/<change-id>/context-manifest.md` is OPTIONAL and is not scaffolded.
+When one exists, honour its `## Allowed Paths` and `## Approved Expansions`, and
+file a `## Context Expansion Requests` entry (`status: pending`) rather than
+reading outside it. When there is none — the normal case — use the graph/index
+layer to find files and do not stop looking for a manifest that was never written.
 
 Forbidden by default: `specs/archive/`, sibling `specs/changes/*`, `assets/`, `node_modules/`, `dist/`, `build/`, `.git/`, `.claude/worktrees/`.
 

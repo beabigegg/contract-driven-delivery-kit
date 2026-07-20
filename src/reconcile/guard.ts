@@ -17,7 +17,7 @@
  * contract text so the two cannot silently drift (dropping a row here is a
  * HARD gate failure, not a silent hole).
  */
-import { mkdirSync, copyFileSync, writeFileSync, readFileSync, readdirSync, existsSync, realpathSync } from 'fs';
+import { mkdirSync, copyFileSync, writeFileSync, readFileSync, readdirSync, existsSync, lstatSync, realpathSync } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import yaml from 'js-yaml';
 import { isOwnedAndUnmodified } from '../utils/user-asset-manifest.js';
@@ -224,6 +224,16 @@ function realpathOfLongestExistingAncestor(target: string): string | null {
   let current = target;
   const remaining: string[] = [];
   while (!existsSync(current)) {
+    // `existsSync` FOLLOWS symlinks, so a BROKEN one answers false and the walk
+    // would sail past it as an ordinary not-yet-created leaf -- while
+    // `copyFileSync`/`writeFileSync` follow that same link and create its
+    // target. `specs/templates/foo.md -> ../contracts/foo.md` (dangling) was
+    // therefore a live write into bucket-1 ground truth despite the alias guard.
+    //
+    // `lstatSync` does NOT follow, so it sees the link itself. A dangling link's
+    // target cannot be resolved, which is exactly the "cannot verify safety"
+    // condition, so this fails CLOSED (codex review, PR #69).
+    if (isSymbolicLink(current)) return null;
     const parent = dirname(current);
     if (parent === current) {
       // Reached the filesystem root without finding an existing ancestor --
@@ -238,6 +248,15 @@ function realpathOfLongestExistingAncestor(target: string): string | null {
     return remaining.length > 0 ? join(realBase, ...remaining) : realBase;
   } catch {
     return null;
+  }
+}
+
+/** True when `p` is itself a symlink/reparse point, following nothing. */
+function isSymbolicLink(p: string): boolean {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false; // genuinely absent -- not a link
   }
 }
 
@@ -272,7 +291,14 @@ export function isBucket1(dest: string, cwd: string = process.cwd()): Bucket1Res
     };
   }
   if (real !== absDest) {
-    const realRule = matchRule(real, cwd);
+    // Relativize against the RESOLVED cwd. Entering the repo through a
+    // symlinked path (a worktree, a temp dir) means `real` is under the physical
+    // root while `cwd` is the symlink spelling, so relativizing against `cwd`
+    // yields `../realrepo/contracts/...`, which no `contracts/**` rule matches —
+    // the alias check would silently pass. The two narrow channels already
+    // resolve both sides for exactly this reason (codex review, PR #69).
+    const realCwd = realpathOfLongestExistingAncestor(resolve(cwd)) ?? cwd;
+    const realRule = matchRule(real, realCwd);
     if (realRule) {
       return {
         blocked: true,

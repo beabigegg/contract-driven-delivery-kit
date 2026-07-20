@@ -63,6 +63,22 @@ function readSeen(cwd: string): string | null {
   try { return readFileSync(p, 'utf8'); } catch { return null; }
 }
 
+/**
+ * Ascending semver order. Non-numeric or short forms sort by their numeric
+ * prefix and then lexicographically, so a malformed stamp degrades to a stable
+ * ordering rather than throwing — this only picks which version to REPORT.
+ */
+export function compareSemver(a: string, b: string): number {
+  const parts = (v: string) => v.split('.').map(n => Number.parseInt(n, 10));
+  const pa = parts(a), pb = parts(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const x = pa[i], y = pb[i];
+    if (Number.isNaN(x) || Number.isNaN(y) || x === undefined || y === undefined) break;
+    if (x !== y) return x - y;
+  }
+  return a.localeCompare(b);
+}
+
 /** The kit version that last installed into this repo, per `.cdd/asset-manifest.json`. */
 export function lastInstalledKitVersion(cwd: string): string | null {
   try {
@@ -73,7 +89,12 @@ export function lastInstalledKitVersion(cwd: string): string | null {
     if (versions.length === 0) return null;
     // The oldest stamp is the honest answer: any asset still stamped at an old
     // version means that is the last version to have written it.
-    return versions.sort()[0];
+    //
+    // Compared SEMANTICALLY, not lexicographically. `['3.6.0','3.13.1'].sort()[0]`
+    // is `3.13.1`, because string order puts `13` before `6` — so a partial
+    // upgrade, which is exactly when the manifest holds mixed stamps and the
+    // report matters most, would name the NEWER version as the previous one.
+    return [...versions].sort(compareSemver)[0];
   } catch {
     return null;
   }

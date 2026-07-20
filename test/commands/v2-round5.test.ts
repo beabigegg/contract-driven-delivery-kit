@@ -23,7 +23,8 @@ import { v2PlanSectionFinding } from '../../src/commands/gate-artifacts.js';
 // `gate-artifacts.ts` both read these, and having one import them from the other
 // is what created a circular dependency between the selector and the gate.
 import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from '../../src/utils/plan-tables.js';
-import { behaviorReportReconciler, REPORT_REL } from '../../src/reconcile/reconcilers/behavior-report.js';
+import { behaviorReportReconciler, REPORT_REL, compareSemver, lastInstalledKitVersion } from '../../src/reconcile/reconcilers/behavior-report.js';
+import { parseTestMapping } from '../../src/commands/metadata.js';
 import { makeGuardedWrite } from '../../src/reconcile/guard.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -98,5 +99,42 @@ describe('no circular dependency between the gate and the selector', () => {
     for (const f of ['src/commands/gate-artifacts.ts', 'src/commands/metadata.ts']) {
       expect(read(f), `${f} must not import from test-select`).not.toMatch(/from '\.\/test-select\.js'/);
     }
+  });
+});
+
+// ── codex round 6 ────────────────────────────────────────────────────────────
+
+describe('previous-version lookup compares SEMANTICALLY (codex round 6)', () => {
+  // My own round-5 verification could not have caught this: I set EVERY manifest
+  // entry to 3.6.0, so a lexicographic sort returned the right answer by luck.
+  // A partial upgrade — mixed stamps — is exactly when the report matters and
+  // exactly when string order is wrong: ['3.6.0','3.13.1'].sort()[0] is '3.13.1'.
+  it('picks the older version from a mixed manifest', () => {
+    expect(['3.6.0', '3.13.1'].sort(compareSemver)[0]).toBe('3.6.0');
+    expect(['3.13.1', '3.6.0', '3.9.2'].sort(compareSemver)[0]).toBe('3.6.0');
+    expect(['2.2.1', '10.0.0'].sort(compareSemver)[0]).toBe('2.2.1');
+  });
+
+  it('lexicographic order would have been wrong — the discriminator, stated', () => {
+    expect(['3.6.0', '3.13.1'].sort()[0]).toBe('3.13.1');
+  });
+
+  it('a malformed stamp degrades to a stable order rather than throwing', () => {
+    expect(() => ['3.6.0', 'not-a-version', ''].sort(compareSemver)).not.toThrow();
+  });
+
+  it('lastInstalledKitVersion reports the older stamp from a real mixed manifest', () => {
+    writeFileSync(join(tmp, '.cdd', 'asset-manifest.json'), JSON.stringify({
+      'a.md': { version: '3.13.1', digest: 'x' },
+      'b.md': { version: '3.6.0', digest: 'y' },
+    }), 'utf8');
+    expect(lastInstalledKitVersion(tmp)).toBe('3.6.0');
+  });
+});
+
+describe('metadata reads the same shorthand headers the gate accepts (codex round 6)', () => {
+  it('a shorthand mapping table produces linked criteria, not an empty trace', () => {
+    const rows = parseTestMapping('| AC | target |\n|---|---|\n| AC-1 | tests/x.py |\n');
+    expect(rows).toEqual([{ criterion: 'AC-1', family: '', path: 'tests/x.py' }]);
   });
 });

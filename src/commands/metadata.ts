@@ -7,7 +7,7 @@ import { sectionBody } from '../utils/markdown-section.js';
 import { parsePipeTable } from '../utils/markdown-table.js';
 import { ajv, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { requiredFilesFor, readPlanSourceText } from './gate-artifacts.js';
-import { findMappingTable, findGateTable } from '../utils/plan-tables.js';
+import { findMappingTable, findGateTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN, GATE_COLUMN } from '../utils/plan-tables.js';
 import { resolveTier } from './gate-tier.js';
 import { readLane } from './gate-evidence.js';
 import { changeMetadataSchema } from '../schemas/change-metadata.schema.js';
@@ -144,29 +144,42 @@ function scopedOrWhole(text: string, heading: string): string {
   return scoped.trim() ? scoped : text;
 }
 
-function parseTestMapping(testPlanText: string): { criterion: string; family: string; path: string }[] {
+export function parseTestMapping(testPlanText: string): { criterion: string; family: string; path: string }[] {
   // Only the AC-mapping table, located by its column signature. Passing the whole
   // section to parsePipeTable swept in the documented `### Test Families Required`
   // table that follows it, whose `| family | tier | notes |` header parsed as a
   // data row and produced a bogus `FAMILY` criterion pointing at `notes`.
-  const rows = pipeRowsOfMappingTable(scopedOrWhole(testPlanText, 'Acceptance Criteria → Test Mapping'));
+  // Columns resolved with the SHARED matchers, not exact header strings. The
+  // gate and the selector both accept shorthand headers (`AC`, `target`,
+  // `path`); reading exact `criterion id` / `test file path` keys here meant a
+  // plan those two happily ran produced an empty, unlinked trace.yml.
+  const table = findMappingTable(scopedOrWhole(testPlanText, 'Acceptance Criteria → Test Mapping'));
+  if (!table) return [];
+  const ci = columnIndex(table.headers, CRITERION_COLUMN);
+  const ti = columnIndex(table.headers, TARGET_COLUMN);
+  const fi = columnIndex(table.headers, [/family/, /\btype\b/]);
+  if (ci < 0 || ti < 0) return [];
+
   const out: { criterion: string; family: string; path: string }[] = [];
-  for (const r of rows) {
-    const criterion = (r['criterion id'] ?? '').toUpperCase();
-    const family = (r['test family'] ?? '').toLowerCase();
-    const path = r['test file path'] ?? '';
+  for (const r of table.rows) {
+    const criterion = (r[ci] ?? '').trim().toUpperCase();
+    const path = (r[ti] ?? '').trim();
     if (!criterion || !path) continue;
-    out.push({ criterion, family, path });
+    out.push({ criterion, family: fi >= 0 ? (r[fi] ?? '').trim().toLowerCase() : '', path });
   }
   return out;
 }
 
 function parseRequiredGates(ciGatesText: string): string[] {
-  const rows = pipeRowsOfGateTable(scopedOrWhole(ciGatesText, 'Required Gates'));
+  const table = findGateTable(scopedOrWhole(ciGatesText, 'Required Gates'));
+  if (!table) return [];
+  const gi = columnIndex(table.headers, GATE_COLUMN);
+  const ri = columnIndex(table.headers, [/required/]);
+  if (gi < 0) return [];
   const gates: string[] = [];
-  for (const r of rows) {
-    const name = (r['gate'] ?? '').trim();
-    const required = (r['required'] ?? '').trim().toLowerCase();
+  for (const r of table.rows) {
+    const name = (r[gi] ?? '').trim();
+    const required = ri >= 0 ? (r[ri] ?? '').trim().toLowerCase() : '';
     if (name && required === 'yes') gates.push(name);
   }
   return gates;
