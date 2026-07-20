@@ -6,7 +6,7 @@ import { sha256OfFileNormalized } from '../utils/digest.js';
 import { sectionBody } from '../utils/markdown-section.js';
 import { parsePipeTable } from '../utils/markdown-table.js';
 import { ajv, loadYamlFile, type TasksFile } from './gate-shared.js';
-import { requiredFilesFor } from './gate-artifacts.js';
+import { requiredFilesFor, readPlanSourceText } from './gate-artifacts.js';
 import { resolveTier } from './gate-tier.js';
 import { readLane } from './gate-evidence.js';
 import { changeMetadataSchema } from '../schemas/change-metadata.schema.js';
@@ -117,8 +117,19 @@ function parseAcceptanceCriteria(classifText: string): { id: string; text: strin
   return out;
 }
 
+/**
+ * v1's test-plan.md scopes its table under `## Acceptance Criteria → Test
+ * Mapping`. v2's folded `## Test Plan` section is already scoped, so the table
+ * sits at its top level — with or without the `###` subheading the
+ * test-strategist prompt documents. Try the sub-section, then the text itself.
+ */
+function scopedOrWhole(text: string, heading: string): string {
+  const scoped = sectionBody(text, heading);
+  return scoped.trim() ? scoped : text;
+}
+
 function parseTestMapping(testPlanText: string): { criterion: string; family: string; path: string }[] {
-  const rows = parsePipeTable(sectionBody(testPlanText, 'Acceptance Criteria → Test Mapping'));
+  const rows = parsePipeTable(scopedOrWhole(testPlanText, 'Acceptance Criteria → Test Mapping'));
   const out: { criterion: string; family: string; path: string }[] = [];
   for (const r of rows) {
     const criterion = (r['criterion id'] ?? '').toUpperCase();
@@ -131,7 +142,7 @@ function parseTestMapping(testPlanText: string): { criterion: string; family: st
 }
 
 function parseRequiredGates(ciGatesText: string): string[] {
-  const rows = parsePipeTable(sectionBody(ciGatesText, 'Required Gates'));
+  const rows = parsePipeTable(scopedOrWhole(ciGatesText, 'Required Gates'));
   const gates: string[] = [];
   for (const r of rows) {
     const name = (r['gate'] ?? '').trim();
@@ -245,8 +256,8 @@ export function buildTraceMetadata(changeDir: string, cwd: string): BuildResult<
   const changeId = basename(changeDir);
 
   const classifText = readIfExists(join(changeDir, 'change-classification.md'));
-  const testPlanText = readIfExists(join(changeDir, 'test-plan.md'));
-  const ciGatesText = readIfExists(join(changeDir, 'ci-gates.md'));
+  const testPlanText = readPlanSourceText(changeDir, 'Test Plan');
+  const ciGatesText = readPlanSourceText(changeDir, 'CI Gates');
 
   const acList = parseAcceptanceCriteria(classifText);
   const testRows = parseTestMapping(testPlanText);
@@ -267,7 +278,7 @@ export function buildTraceMetadata(changeDir: string, cwd: string): BuildResult<
     criteria,
     'required-gates': requiredGates,
     evidence,
-    'generated-from': generatedFrom(changeDir, ['change-classification.md', 'test-plan.md', 'ci-gates.md', ...agentLogRefs]),
+    'generated-from': generatedFrom(changeDir, ['change-classification.md', 'test-plan.md', 'ci-gates.md', 'tasks.yml', 'implementation-plan.md', ...agentLogRefs]),
   };
 
   if (!validateTrace(data)) {

@@ -14,7 +14,12 @@ describe('CDD skill prompt integration', () => {
     expect(skill).toMatch(/specs\/context\/contracts-index\.md/);
     expect(skill).toMatch(/Do not authorize the classifier to read `contracts\/`, `src\/`, `tests\/`/);
     expect(skill).toMatch(/Context Manifest Draft/);
-    expect(skill).toMatch(/YOU update.*context-manifest\.md/s);
+    // The manifest is OPTIONAL under v2 — `cdd-kit new` does not scaffold it and
+    // the gate does not require it, so the prompt must not send an agent looking
+    // for a file that is normally absent. Pinning the optionality, not a
+    // "YOU update it" instruction that would now be wrong.
+    expect(skill).toMatch(/context-manifest\.md[^\n]*OPTIONAL/i);
+    expect(skill).toMatch(/Optional: create `specs\/changes\/<change-id>\/context-manifest\.md`/);
     expect(skill).toMatch(/implementation-plan\.md/);
     expect(skill).toMatch(/implementation-planner/);
     expect(skill).toMatch(/Never start implementation[\s\S]*implementation-plan\.md/);

@@ -381,6 +381,12 @@ export function readLane(changeDir: string): 'feature' | 'bug-fix' | null {
     const { data } = loadYamlFile<TasksFile>(tasksPath);
     const lane = data?.classification?.lane;
     if (lane === 'feature' || lane === 'bug-fix') return lane;
+    // A v2 classification that omits `lane` has recorded no defect lane. Falling
+    // through would let a stale change-classification.md -- which `cdd-kit new
+    // --force` over an old v1 directory does NOT delete -- arm bug-fix evidence
+    // for a change whose canonical classification says otherwise. Same early
+    // return readClassifierDiagnosticOnly already does.
+    if (data?.classification) return null;
   }
 
   const classifPath = join(changeDir, 'change-classification.md');

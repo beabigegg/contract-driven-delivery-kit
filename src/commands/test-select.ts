@@ -6,6 +6,7 @@ import { isPytestCommand } from './test-run.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
 import { SAFE_CHANGE_ID } from '../utils/change-id.js';
 import { findAcceptanceDriverFiles } from '../utils/mock-of-sut-scan.js';
+import { readPlanSourceText } from './gate-artifacts.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select` reads
 // test-plan.md (then implementation-plan.md as fallback), the change's touched
@@ -285,6 +286,32 @@ export function parseMarkdownTable(text: string, headingRe: RegExp): MarkdownTab
   return { headers, rows };
 }
 
+/**
+ * Find the acceptance->test mapping table inside a block of text by its COLUMN
+ * SIGNATURE, not by proximity to a heading.
+ *
+ * parseMarkdownTable bails the moment it meets another heading before a table,
+ * which is correct when it is scoped by a heading but wrong here: the folded
+ * `## Test Plan` section legitimately contains subheadings (the test-strategist
+ * prompt documents a `### Acceptance Criteria → Test Mapping` one), and an
+ * author may add prose or extra tables. Matching on the header row means the
+ * right table is found wherever it sits.
+ */
+export function findMappingTable(text: string): MarkdownTable | null {
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (!lines[i].trim().startsWith("|") || !isSeparatorRow(lines[i + 1])) continue;
+    const headers = splitTableRow(lines[i]);
+    if (columnIndex(headers, TARGET_COLUMN) < 0) continue;
+    const rows: string[][] = [];
+    for (let j = i + 2; j < lines.length; j++) {
+      if (!lines[j].trim().startsWith("|")) break;
+      rows.push(splitTableRow(lines[j]));
+    }
+    return { headers, rows };
+  }
+  return null;
+}
 function columnIndex(headers: string[], matchers: RegExp[]): number {
   for (let k = 0; k < headers.length; k++) {
     const h = headers[k].toLowerCase();
@@ -502,20 +529,12 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const touched = getTouchedPaths(cwd).map((p) => p.replace(/\\/g, '/'));
   const runnerPlan = detectRunnerPlan(cwd);
 
-  // Explicit mapping, in the order a change is most likely to carry it:
-  //   1. v1's separate test-plan.md
-  //   2. v2's `## Test Plan` section of implementation-plan.md (where v1's
-  //      test-plan.md was folded). Without this, a v2 change scaffolded by
-  //      `cdd-kit new` has no test-plan.md at all, so selection returned
-  //      `needs-test-plan-update` and no bounded evidence could be recorded --
-  //      while the gate went on requiring that evidence. A deadlock.
-  //   3. implementation-plan.md's older `## Test Execution Plan`.
-  let rows = extractMappedRows(parseMarkdownTable(testPlanText, /acceptance criteria.*test mapping/i), 'test-plan.md', cwd);
-  if (rows.length === 0) {
-    // Anchored on the heading form: `parseMarkdownTable` tests whole lines, and
-    // an unanchored /test plan/i would also hit prose that merely mentions one.
-    rows = extractMappedRows(parseMarkdownTable(implPlanText, /^#{1,6}\s+test plan\s*$/i), 'implementation-plan.md', cwd);
-  }
+  // One resolver for both governance shapes (readPlanSourceText): v1's
+  // test-plan.md, or v2's folded  section. The table is located by
+  // its COLUMN SIGNATURE within that text rather than by heading adjacency, so an
+  // author (or the test-strategist prompt) may add a  subheading without the parser losing the table.
+  const planSource = readPlanSourceText(changeDir, 'Test Plan');
+  let rows = extractMappedRows(findMappingTable(planSource), testPlanExists ? 'test-plan.md' : 'implementation-plan.md ', cwd);
   if (rows.length === 0) {
     rows = extractMappedRows(parseMarkdownTable(implPlanText, /test execution plan/i), 'implementation-plan.md', cwd);
   }
@@ -570,7 +589,8 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const contract = detectContractAffected(touched, implPlanText);
   if (contract) phases.contract = [{ reason: contract.reason, command: contract.command }];
 
-  const quality = extractQualityGates(readIf('ci-gates.md'));
+  // v1 file or v2's folded `## CI Gates` section -- see readPlanSourceText.
+  const quality = extractQualityGates(readPlanSourceText(changeDir, 'CI Gates'));
   if (quality.length) phases.quality = quality;
 
   const acceptance = detectAcceptancePhase(cwd, runnerPlan);

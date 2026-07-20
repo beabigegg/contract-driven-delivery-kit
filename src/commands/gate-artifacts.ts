@@ -1,4 +1,4 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import { tasksSchema } from '../schemas/tasks.schema.js';
@@ -89,6 +89,32 @@ export function v2PlanSectionFinding(planContent: string, section: string): stri
       'content and must actually be authored (a present-but-unfilled section is not a plan).';
   }
   return null;
+}
+
+/**
+ * The text a consumer should read for a folded plan surface, whichever shape
+ * this change uses: v1's standalone file, or v2's section of
+ * implementation-plan.md.
+ *
+ * This exists because folding the two files produced the SAME bug six times over
+ * — every consumer had its own hardcoded `join(changeDir, 'test-plan.md')` and
+ * each silently degraded to "nothing declared" for a v2 change: spec
+ * traceability rejected them, `test select` could not find a test plan, the
+ * quality phase lost its gate commands, trace metadata came out empty, and
+ * bug-suspect ranking lost a signal. One resolver, so the next consumer cannot
+ * repeat it.
+ *
+ * Returns '' when neither source exists.
+ */
+export function readPlanSourceText(changeDir: string, section: 'Test Plan' | 'CI Gates'): string {
+  const v1File = section === 'Test Plan' ? 'test-plan.md' : 'ci-gates.md';
+  const v1Path = join(changeDir, v1File);
+  if (existsSync(v1Path)) {
+    try { return readFileSync(v1Path, 'utf8'); } catch { return ''; }
+  }
+  const planPath = join(changeDir, 'implementation-plan.md');
+  if (!existsSync(planPath)) return '';
+  try { return sectionBody(readFileSync(planPath, 'utf8'), section); } catch { return ''; }
 }
 
 /** A markdown table row whose cells are all blank, or a separator row. */

@@ -64,7 +64,6 @@ Edit the `## Test Plan` section of `specs/changes/<change-id>/implementation-pla
 ```markdown
 ## Test Plan
 
-### Acceptance Criteria → Test Mapping
 | criterion id | test family | test file path | tier |
 |---|---|---|---|
 

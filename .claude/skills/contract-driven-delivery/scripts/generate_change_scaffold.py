@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a specs/changes/<change-id> scaffold from bundled templates."""
 from pathlib import Path
-import argparse
+import argparse, sys
 import shutil
 
 def main():
@@ -12,7 +12,14 @@ def main():
     ap.add_argument('--all', action='store_true', help='also copy optional report/spec templates')
     args=ap.parse_args()
     root=Path(args.root).resolve()
-    templates=Path(args.templates).resolve() if args.templates else Path(__file__).resolve().parents[1]/'templates'
+    # The skill no longer ships its own templates/ copy -- it had drifted from
+    # specs/templates/, which is what `cdd-kit new` actually scaffolds from.
+    # Default to the repo copy and fail loudly rather than "creating" an empty
+    # directory, which is what the stale default did.
+    templates=Path(args.templates).resolve() if args.templates else Path.cwd()/'specs'/'templates'
+    if not templates.is_dir():
+        print(f'templates directory not found: {templates} -- run `cdd-kit new <id>` instead, or pass --templates')
+        sys.exit(1)
     dest=root/'specs'/'changes'/args.change_id
     dest.mkdir(parents=True, exist_ok=False)
     required={

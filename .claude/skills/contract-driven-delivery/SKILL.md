@@ -177,7 +177,7 @@ CI policy, design rationale, or contract prose across artifacts.
 - `scripts/generate_change_scaffold.py`: create a change folder from templates.
 - `scripts/validate_contracts.py`: check for required contract files.
 - `scripts/validate_env_contract.py`: check env contract basics.
-- `scripts/validate_ci_gates.py`: check CI-gate structure (`ci-gates.md` under `context-governance: v1`; the `## CI Gates` section of `implementation-plan.md` under v2).
+- `scripts/validate_ci_gates.py`: check CI-gate structure — `ci-gates.md` when a change has one (v1), otherwise the `## CI Gates` section of `implementation-plan.md` (v2). Each shape is checked against the terms it actually declares; whether the section is authored at all is the gate's job (`v2PlanSectionFinding`).
 - `scripts/validate_spec_traceability.py`: check coarse traceability between spec, tasks, tests, and CI gates.
 
 Run scripts with Python 3 from the repository root.

@@ -421,6 +421,21 @@ export function guardedReplaceMarkedRegion(
   const abs = resolve(cwd, relFile);
   if (!existsSync(abs)) return { replaced: false, reason: `${relFile} does not exist -- nothing to reconcile` };
 
+  // Same alias hole the policy channel had: if the file (or a directory above
+  // it) is a symlink/junction, this rewrites whatever it points at, and the
+  // byte-prefix/suffix proof does NOT catch it -- the head and tail were read
+  // through the same alias. A CLAUDE.md pointing at shared guidance, or at a
+  // contracts/** file that happens to carry the markers, would be mutated.
+  const realFile = realpathOfLongestExistingAncestor(abs);
+  const realCwd = realpathOfLongestExistingAncestor(resolve(cwd));
+  if (realFile === null || realCwd === null
+      || relPosixFromCwd(realFile, realCwd).toLowerCase() !== relFile.split(String.fromCharCode(92)).join("/").toLowerCase()) {
+    return {
+      replaced: false,
+      reason: `${relFile} resolves to "${realFile ?? "(unresolvable)"}" through a symlink/junction -- this channel may only rewrite the marked region of the repo's own file, left untouched (INV-2)`,
+    };
+  }
+
   let original: string;
   try {
     original = readFileSync(abs, 'utf8');

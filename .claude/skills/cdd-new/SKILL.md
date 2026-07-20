@@ -297,18 +297,19 @@ NOT proceed with the rest of `/cdd-new`. Instead:
 
 Before writing any files, verify the classifier response contains:
 
-- `## Tier` followed by `- N` where N is a single digit 0-5 (NOT `0 / 1 / 2 / 3 / 4 / 5` — that is the unfilled placeholder).
-- `## Required Agents` with at least one agent name.
+- a `tier:` line with a single digit 0-5 (NOT `0 | 1 | 2 | 3 | 4 | 5` — that is the unfilled placeholder).
+- a `classification:` block with a non-empty `types`, and a `risk` and `impact` that are real values rather than the `low | medium | high | critical` style placeholder.
+- `required-agents` with at least one agent name.
 - `## Inferred Acceptance Criteria` with at least one filled `AC-1: …` line.
 
 If any of these are missing or still hold the literal placeholder text, STOP. Re-prompt the classifier with the missing pieces named explicitly. Do NOT write `tasks.yml`'s `classification:` block — gate will reject it as a stub anyway and you will have wasted the round-trip.
 
 ### When the classifier output passes lint
 
-1. **YOU write** `specs/changes/<change-id>/tasks.yml`'s `classification:` block — `types` (from `## Change Types`), `risk` (from `## Risk Level`), `impact` (from `## Impact Radius`), `architecture-review` (from `## Architecture Review Required`), and, when `architecture-review` is `true`, a non-trivial `architecture-review-reason`.
+1. **YOU write** `specs/changes/<change-id>/tasks.yml`'s `classification:` block and top-level `tier:` by transcribing the classifier's YAML block VERBATIM. The classifier emits paste-ready YAML (see `.claude/agents/change-classifier.md` `## Output`), so this is a copy, not a translation — every hand-conversion step is a chance to drop a field the gate reads.
 2. Optional: write `specs/changes/<change-id>/agent-log/change-classifier.yml` only if the classifier returned useful handoff evidence.
 3. Optional: create `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft` only if this change wants a recorded read boundary. It is not scaffolded and not required.
-4. **YOU update** `tasks.yml` frontmatter: set `tier: <N>` to the classifier's `## Tier` digit. This is the sole authoritative source for quality-gate tier checks.
+4. Confirm `tasks.yml`'s top-level `tier: <N>` came across from the classifier's YAML. It is the sole authoritative source for quality-gate tier checks, and the gate REQUIRES it under v2.
 5. **YOU tick** `tasks.yml` item `1.1`.
 
 Wait until these five writes are done before continuing.
