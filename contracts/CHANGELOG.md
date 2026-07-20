@@ -70,6 +70,27 @@ a corresponding entry below.
   backed by the new `enforceReconciliationInvariants` gate check
   (`[ci 0.12.0]` below).
 
+## [ci 0.13.0] — 2026-07-20
+### Added
+- **`enforceReconciliationInvariants` check #4 is now TWO scans.** The upgrade
+  contract's Mechanical Enforcement #4 has two halves — fail-open-to-keep for
+  malformed classifier input, AND a non-enforcing default for a newly-added
+  surface/`.cdd/policy.yml` key (INV-1) — but only the first was scanned. The
+  safe-default evidence could be deleted while a malformed-input test kept the
+  check green. A named `safe-default` test whose body inspects `safeDefault` is
+  now required, additionally searched under `test/cli/reconcile-bucket3.test.ts`.
+  Bucket routing alone is explicitly NOT the evidence: a key correctly routed to
+  `reconcile` and then added at an enforcing default still newly blocks the
+  adopter.
+
+### Changed (non-breaking)
+- The subsection said **"Four checks"** and omitted the two narrow-channel
+  checks that shipped in the same change (`narrow-channel-refusal`,
+  `container-fail-open`). Now "Five checks (six scans)", with #5 enumerated. A
+  binding contract that describes LESS than the code enforces is the same drift
+  as one describing more — and only one of those two directions is caught by a
+  red build, which is why this one survived.
+
 ## [ci 0.12.0] — 2026-07-14
 ### Added
 - **`enforceReconciliationInvariants`** Gate Inventory row and subsection

@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.12.0
-last-changed: 2026-07-14
+schema-version: 0.13.0
+last-changed: 2026-07-20
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -34,7 +34,7 @@ future check tempted to use it wants `ci-or-strict`.
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
 | enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
 | enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `.claude/settings.json` (git-tracked) |
-| enforceReconciliationInvariants | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `contracts/upgrade/upgrade-reconciliation-contract.md`, `src/reconcile/guard.ts`, `test-evidence.yml` (guard-refusal + fail-open test runs) |
+| enforceReconciliationInvariants | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `contracts/upgrade/upgrade-reconciliation-contract.md`, `src/reconcile/guard.ts`, `test-evidence.yml` (guard-refusal + fail-open + safe-default + narrow-channel test runs) |
 
 ### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
 
@@ -421,8 +421,12 @@ is absent from the project being gated, mirroring `validate`'s opt-in policy
 bone-audit (`### Loosening policy — bone-audit`), which only runs when
 `.cdd/policy.yml` exists.
 
-**Four checks**, per `contracts/upgrade/upgrade-reconciliation-contract.md`
-`## Mechanical Enforcement`:
+**Five checks** (six scans — clause #4 is two), per
+`contracts/upgrade/upgrade-reconciliation-contract.md` `## Mechanical
+Enforcement`. This list previously said "four" and omitted the narrow-channel
+checks entirely, which shipped in the same change: a binding contract
+describing less than the code enforces is the same drift as one describing
+more, and only one of the two directions is caught by a red build.
 
 1. the guard's bucket-1 matcher (`src/reconcile/guard.ts` `BUCKET_1_RULES`)
    COVERS every surface enumerated in the contract's
@@ -438,10 +442,23 @@ bone-audit (`### Loosening policy — bone-audit`), which only runs when
    REFUSED by the guard (raises/throws) — a static presence check for a named
    `guard-refusal` test under `test/cli/reconcile-plan.test.ts` or
    `test/reconcile/**` whose body asserts a `toThrow`;
-4. a recorded, PASSED test proves fail-open-to-keep for malformed/unknown/
-   unreadable classifier input and for a newly-added surface or
-   `.cdd/policy.yml` key — a static presence check for a named `fail-open` test
-   under the same paths whose body asserts the resulting bucket is `keep`.
+4. clause #4 of the upgrade contract has TWO halves, and so is TWO scans — a
+   single scan would let either half be deleted while the other kept the check
+   green:
+   - a named `fail-open` test under the same paths whose body asserts the
+     resulting bucket is `keep` (malformed/unknown/unreadable classifier input);
+   - a named `safe-default` test, additionally searched under
+     `test/cli/reconcile-bucket3.test.ts`, whose body inspects `safeDefault` —
+     proving a newly-added surface or `.cdd/policy.yml` key arrives at a
+     NON-enforcing value, which is what INV-1 actually requires. Bucket routing
+     alone does not prove it: a key correctly routed to `reconcile` and then
+     added at an enforcing default still newly blocks the adopter;
+5. each of the two narrow channels into a bucket-1 container has a recorded
+   test — a named `narrow-channel-refusal` (an adopter-set value survives a
+   channel write) and a named `container-fail-open` whose body asserts a
+   `toThrow` (a malformed/unreadable/ambiguous container is refused rather than
+   guessed at), under `test/cli/reconcile-bucket3.test.ts` or
+   `test/reconcile/**`.
 
 **Pass/fail shape** (`ci-or-strict`, same vocabulary as
 `enforceConfirmationHookInstallation`): a HARD failure on stderr (`log.error`)

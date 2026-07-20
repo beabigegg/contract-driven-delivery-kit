@@ -21,6 +21,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import { compareSemver } from '../../src/reconcile/reconcilers/behavior-report.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CONTRACT_PATH = join(REPO_ROOT, 'contracts', 'ci', 'ci-gate-contract.md');
@@ -46,8 +47,14 @@ function frontmatter(path: string): Frontmatter {
 }
 
 describe('ci-gate-contract.md -- enforceReconciliationInvariants row + subsection (AC-5)', () => {
-  it('schema-version is bumped to 0.12.0', () => {
-    expect(frontmatter(CONTRACT_PATH)['schema-version']).toBe('0.12.0');
+  it('schema-version is at least 0.12.0, the version that introduced this row', () => {
+    // Pinned to an exact `0.12.0` originally, which made the NEXT legitimate
+    // bump of this contract a test failure — the assertion tracked a snapshot
+    // rather than the requirement. What matters is that the row shipped and the
+    // version never regresses below it; later bumps are the normal case.
+    const v = frontmatter(CONTRACT_PATH)['schema-version'] as string;
+    expect(v).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(compareSemver(v, '0.12.0')).toBeGreaterThanOrEqual(0);
   });
 
   it('the Gate Inventory table has an enforceReconciliationInvariants row, ci-or-strict, hosted by both gate and validate', () => {

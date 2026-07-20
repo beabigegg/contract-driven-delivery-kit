@@ -53,8 +53,59 @@ def parse_frontmatter(text: str) -> dict:
     return fm
 
 
-def _unquote(value: str) -> str:
+def strip_inline_comment(value: str) -> str:
+    """Drop a YAML inline comment from an already-extracted scalar.
+
+    These hand-rolled readers match `key: value` with a regex and keep
+    everything after the colon verbatim, so `context-governance: v2 # folded`
+    yielded the literal `v2 # folded` and compared equal to nothing. The
+    TypeScript side reads the same files through a real YAML loader, which
+    drops the comment -- so the two readers of ONE fact disagreed, and a
+    perfectly legal comment made `validate` and `gate` reach opposite verdicts
+    about the same change.
+
+    YAML's actual rule, reproduced here: `#` opens a comment only at the start
+    of the scalar or after whitespace, and never inside a quoted scalar (so an
+    abandoned-reason of `'superseded by #12'` keeps its hash). An unterminated
+    quote is left untouched -- fail closed and let the caller's own validation
+    reject it, rather than truncate a value we cannot parse.
+
+    Shared by every scalar reader in this directory (`_unquote` below,
+    validate_spec_traceability`._tasks_field`, validate_contract_versions'
+    frontmatter loop) so the rule exists once. Re-typing it per reader is how
+    the disagreement it fixes arose in the first place.
+    """
     v = value.strip()
+    if not v:
+        return v
+
+    if v[0] in ('"', "'"):
+        quote = v[0]
+        i = 1
+        while i < len(v):
+            ch = v[i]
+            if quote == '"' and ch == '\\':
+                i += 2
+                continue
+            if ch == quote:
+                # YAML escapes a single quote by doubling it: 'it''s'.
+                if quote == "'" and i + 1 < len(v) and v[i + 1] == quote:
+                    i += 2
+                    continue
+                return v[:i + 1]
+            i += 1
+        return v
+
+    if v.startswith('#'):
+        return ''
+    for i in range(1, len(v)):
+        if v[i] == '#' and v[i - 1] in ' \t':
+            return v[:i].rstrip()
+    return v
+
+
+def _unquote(value: str) -> str:
+    v = strip_inline_comment(value)
     if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
         return v[1:-1].strip()
     return v

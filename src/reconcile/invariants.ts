@@ -11,12 +11,17 @@
  * its own, so the check is a no-op there (mirrors validate.ts's opt-in policy
  * bone-audit, which only runs when `.cdd/policy.yml` exists).
  *
- * Four checks, per the contract's `## Mechanical Enforcement`:
+ * Five checks, per the contract's `## Mechanical Enforcement`:
  *   1. guard.ts's bucket-1 matcher COVERS every contract-enumerated surface;
  *   2. no raw fs write call in src/reconcile/** or refresh.ts's applyPlan()
  *      (bucket-2 apply path) outside guard.ts's guarded writer;
  *   3. a recorded guard-refusal test exists (asserts assertWritable throws);
- *   4. a recorded fail-open test exists (asserts the classifier defaults to keep).
+ *   4. clause #4 has TWO halves and so is TWO scans: a recorded fail-open test
+ *      (classifier defaults malformed/unknown input to keep) AND a recorded
+ *      safe-default test (a newly-added key arrives at a non-enforcing value);
+ *   5. the two narrow channels each have a recorded test -- narrow-channel-refusal
+ *      (an adopter-set value survives) and container-fail-open (a malformed
+ *      container is refused, not guessed at).
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
@@ -260,6 +265,20 @@ export function checkReconciliationInvariants(cwd: string): ReconciliationFindin
   if (!hasNamedTestWithBodyMatch(combined, 'fail-open', ['keep'])) {
     findings.push({
       message: 'enforceReconciliationInvariants: no recorded fail-open test found under test/cli/reconcile-plan.test.ts or test/reconcile/** proving the classifier defaults malformed/unknown input to bucket keep (contract ## Mechanical Enforcement #4)',
+    });
+  }
+  // Check 4b: contract clause #4 has TWO halves -- fail-open-to-keep for
+  // malformed input, AND a safe default for a newly-added surface/policy key.
+  // Scanning only for `fail-open` let the second half be deleted while a
+  // malformed-input test kept the check green: a validator narrower than the
+  // clause it claims to enforce, which is the same defect this PR already
+  // corrected once in the upgrade contract's own Scope.
+  const safeDefaultTests = readTestSources(cwd, [
+    'test/cli/reconcile-plan.test.ts', 'test/cli/reconcile-bucket3.test.ts', 'test/reconcile',
+  ]);
+  if (!hasNamedTestWithBodyMatch(safeDefaultTests, 'safe-default', ['safeDefault'])) {
+    findings.push({
+      message: 'enforceReconciliationInvariants: no recorded safe-default test found under test/cli/reconcile-plan.test.ts, test/cli/reconcile-bucket3.test.ts or test/reconcile/** proving a newly-added surface or .cdd/policy.yml key arrives at a NON-enforcing default value (INV-1; contract ## Mechanical Enforcement #4) -- a fail-open-to-keep test alone does not cover this half of the clause',
     });
   }
 

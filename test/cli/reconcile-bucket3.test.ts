@@ -244,7 +244,11 @@ describe('policy-keys reconciler', () => {
     expect(doc.loosening).toEqual([]);          // new key arrives at its safe default
   });
 
-  it('INV-1: no key it would auto-add carries an enforcing default', () => {
+  // Named `safe-default` because enforceReconciliationInvariants scans for that
+  // token: this is the recorded evidence for the SECOND half of the upgrade
+  // contract's Mechanical Enforcement #4 (a new key arrives non-enforcing).
+  // Renaming it without updating that scan turns the gate red, by design.
+  it('safe-default: INV-1 -- no key it would auto-add carries an enforcing default', () => {
     // A boolean gate must default to the advisory value. shadow_mode:true IS
     // advisory; a false default here would newly block an adopter on upgrade.
     const shadow = policyKeyCatalog().find(c => c.key === 'shadow_mode');

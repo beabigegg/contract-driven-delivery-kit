@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from applicability import strip_inline_comment
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 CONTRACT_FILES = [
@@ -57,7 +59,7 @@ def parse_frontmatter(text: str):
     for line in fm_block.splitlines():
         if ':' in line:
             key, _, value = line.partition(':')
-            fields[key.strip()] = value.strip()
+            fields[key.strip()] = strip_inline_comment(value)
 
     return fields, body
 

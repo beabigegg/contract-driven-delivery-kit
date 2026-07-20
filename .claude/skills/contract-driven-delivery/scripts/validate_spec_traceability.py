@@ -2,7 +2,7 @@
 """Coarse traceability check for a change folder."""
 from pathlib import Path
 import argparse, sys
-from applicability import parse_frontmatter, _unquote
+from applicability import parse_frontmatter, _unquote, strip_inline_comment
 # The required artifact set depends on the change's `context-governance` marker,
 # exactly as src/commands/gate-artifacts.ts REQUIRED_FILES_V1/V2 does. Keeping
 # only the v1 list here made this validator reject every v2 change -- and because
@@ -21,10 +21,13 @@ def _tasks_field(fm, key):
     frontmatter. This is a minimal local supplement to the reused reader, not
     a competing third parser."""
     raw = fm.get(key, '')
-    v = raw.strip()
+    # Comment-strip FIRST: the single-quoted branch below returns early and
+    # would otherwise never reach _unquote's stripping, so `status: 'abandoned'
+    # # note` kept the trailing comment inside the value.
+    v = strip_inline_comment(raw)
     if len(v) >= 2 and v[0] == v[-1] == "'":
         return v[1:-1].replace("''", "'")
-    return _unquote(raw)
+    return _unquote(v)
 
 def _read_abandoned_marker(d):
     """Read tasks.yml's top-level `status` + `abandoned-reason` fields, if any.
