@@ -58,7 +58,20 @@ export function isWithinDir(child: string, parent: string): boolean {
 }
 
 function relPosixFromCwd(absDest: string, cwd: string): string {
-  return relative(resolve(cwd), absDest).split(sep).join('/');
+  // Normalize BOTH separators, not just the host's. On Windows `path.resolve`
+  // already folds `\` into the separator, so `contracts\api.md` reaches the
+  // rules as `contracts/api.md`; on POSIX `\` is a legal filename character, so
+  // the same string stays one flat filename and every bucket-1 rule misses it.
+  //
+  // A path string does not always originate on the machine that consumes it --
+  // a Windows-authored manifest, config, or tool payload read on Linux CI still
+  // means `contracts/api.md`. This is the same fail-safe reasoning as the
+  // case-folding above (over-refusing costs nothing; refusing a write never
+  // corrupts ground truth) and the same precedent the acceptance/design
+  // write-block hooks already set by normalizing Windows separators explicitly.
+  // The cost is refusing a POSIX file whose name genuinely contains a
+  // backslash; the alternative is a real cross-platform hole.
+  return relative(resolve(cwd), absDest).split(sep).join('/').split('\\').join('/');
 }
 
 const BUCKET_1_RULES: readonly Bucket1Rule[] = [
