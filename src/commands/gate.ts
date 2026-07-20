@@ -7,6 +7,7 @@ import { type TasksFile, enforceConfirmationHookInstallation } from './gate-shar
 import {
   MIN_CHARS,
   V2_PLAN_SECTIONS,
+  v2PlanSectionFinding,
   meaningfulChars,
   findPlaceholders,
   countPendingContextRequests,
@@ -174,13 +175,8 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   if (errors.length === 0 && governanceVersion(changeDir) === 'v2') {
     const plan = readFileSync(join(changeDir, 'implementation-plan.md'), 'utf8');
     for (const section of V2_PLAN_SECTIONS) {
-      if (sectionBody(plan, section).trim() === '') {
-        errors.push(
-          `implementation-plan.md: missing or empty \`## ${section}\` section — v2 folds ` +
-          `${section === 'Test Plan' ? 'test-plan.md' : 'ci-gates.md'} into the plan rather than a separate file, ` +
-          'so the section is required here.',
-        );
-      }
+      const finding = v2PlanSectionFinding(plan, section);
+      if (finding) errors.push(finding);
     }
   }
 

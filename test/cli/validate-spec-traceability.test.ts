@@ -109,4 +109,40 @@ describe.skipIf(!hasPython())('validate --spec — tasks.yml abandoned marker (S
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/e2e-stale marked tasks\.yml status: abandoned/);
   });
+
+  // The required set is per-change, exactly as gate-artifacts.ts decides it.
+  // Keeping only the v1 list here rejected EVERY v2 change — and because CI runs
+  // `cdd-kit validate` before the gate, a normal `cdd-kit new` change could not
+  // pass CI at all (codex review, PR #69).
+  it('v2: a change with only the v2 artifact set passes --spec', () => {
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'v2-shape');
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(changeDir, 'tasks.yml'), 'change-id: v2-shape\nstatus: in-progress\ncontext-governance: v2\ntier: 2\ntasks: []\n', 'utf8');
+    writeFileSync(join(changeDir, 'change-request.md'), '# Change Request\n\nA real request with contract, test, ci and gate words.\n', 'utf8');
+    writeFileSync(join(changeDir, 'implementation-plan.md'), '# Plan\n\n## Test Plan\n\n## CI Gates\n', 'utf8');
+
+    const r = runCli(['validate', '--spec'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout + r.stderr).not.toMatch(/v2-shape: missing required artifacts/);
+  });
+
+  it('v2: the v1-only artifacts are NOT demanded of a v2 change', () => {
+    const changeDir = join(tmpRepo, 'specs', 'changes', 'v2-no-v1-files');
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(changeDir, 'tasks.yml'), 'change-id: v2-no-v1-files\nstatus: in-progress\ncontext-governance: v2\ntier: 3\ntasks: []\n', 'utf8');
+    writeFileSync(join(changeDir, 'change-request.md'), '# Change Request\n\ncontract test ci gate\n', 'utf8');
+    writeFileSync(join(changeDir, 'implementation-plan.md'), '# Plan\n', 'utf8');
+
+    const out = runCli(['validate', '--spec'], { cwd: tmpRepo, home: tmpHome });
+    for (const v1Only of ['change-classification.md', 'test-plan.md', 'ci-gates.md']) {
+      expect(out.stdout + out.stderr, `${v1Only} should not be demanded of a v2 change`).not.toContain(v1Only);
+    }
+  });
+
+  it('v1/legacy: the v1 set is still demanded (grandfathering intact)', () => {
+    scaffoldIncompleteChange(tmpRepo, 'legacy-shape', { 'change-id': 'legacy-shape', status: 'in-progress', tasks: [] });
+    const r = runCli(['validate', '--spec'], { cwd: tmpRepo, home: tmpHome });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/legacy-shape: missing required artifacts.*change-classification\.md/);
+  });
 });

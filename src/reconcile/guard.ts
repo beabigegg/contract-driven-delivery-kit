@@ -313,6 +313,27 @@ export function guardedAddPolicyKeys(
       'See contracts/upgrade/upgrade-reconciliation-contract.md ## .cdd/policy.yml is classified PER-KEY (INV-2).',
     );
   }
+
+  // The narrow channel must still resolve through the real filesystem. If
+  // `.cdd/policy.yml` -- or `.cdd/` itself -- is a symlink or junction, this
+  // append lands on whatever it points at, and the byte-level proof below does
+  // NOT catch it: the "original" was read through the same alias, so a prefix
+  // check on the aliased target passes while a bucket-1 file elsewhere is being
+  // extended. The generic guarded writers get this from `isBucket1`; this
+  // channel bypassed them and needed its own (codex review, PR #69).
+  // Both sides are resolved so a cwd that is itself under a symlinked path (a
+  // macOS temp dir, say) is not mistaken for an aliased policy file: only a
+  // genuine alias OF THE POLICY FILE changes the relative result.
+  const realPolicy = realpathOfLongestExistingAncestor(abs);
+  const realCwd = realpathOfLongestExistingAncestor(resolve(cwd));
+  if (realPolicy === null || realCwd === null
+      || relPosixFromCwd(realPolicy, realCwd).toLowerCase() !== POLICY_REL) {
+    throw new Error(
+      `guardedAddPolicyKeys refused: ${POLICY_REL} resolves to "${realPolicy ?? '(unresolvable)'}" -- ` +
+      'this channel may only extend the adopter\'s own policy file, never whatever a symlink/junction ' +
+      'aliases it to. See contracts/upgrade/upgrade-reconciliation-contract.md INV-2.',
+    );
+  }
   const original = readFileSync(abs, 'utf8');
   const before = parsePolicyMapping(original);
   if (before === null) {
@@ -414,6 +435,14 @@ export function guardedReplaceMarkedRegion(
   }
   if (original.indexOf(startMarker, start + startMarker.length) >= 0) {
     return { replaced: false, reason: `${relFile} has more than one ${startMarker} -- region is ambiguous, left untouched (INV-1)` };
+  }
+  // A second END marker is just as ambiguous as a second START: the region would
+  // silently be taken as ending at the first one, and everything between the two
+  // would be rewritten as if it were inside. Checking only the start marker made
+  // the "duplicated markers fail open" promise in this function's contract half
+  // true (codex review, PR #69).
+  if (original.indexOf(endMarker, end + endMarker.length) >= 0) {
+    return { replaced: false, reason: `${relFile} has more than one ${endMarker} -- region is ambiguous, left untouched (INV-1)` };
   }
 
   const head = original.slice(0, start + startMarker.length);

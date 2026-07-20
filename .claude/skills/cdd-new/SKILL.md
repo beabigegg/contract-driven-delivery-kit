@@ -24,7 +24,7 @@ Core artifacts:
 | artifact | authority |
 |---|---|
 | `tasks.yml` | task ledger, plus the `classification:` frontmatter block (types, risk, impact, architecture-review + reason) and top-level `tier:` |
-| `context-manifest.md` | read boundary and approved context |
+| `context-manifest.md` | OPTIONAL. A read boundary an author may choose to record. `cdd-kit new` does not scaffold it, the gate does not require it, and nothing enforces the paths it lists — use the graph/index layer to find files, and write one only when recording the boundary genuinely helps |
 | `implementation-plan.md` | concise execution packet that references the artifacts above, and carries `## Test Plan` (acceptance criterion → test family/file mapping) and `## CI Gates` (required/informational/manual gates and promotion policy) as sections |
 | `acceptance.yml` | the human-authored behaviour oracle (ADR 0010) |
 | `design.md` | architecture/design decisions, only when required |
@@ -183,7 +183,7 @@ If the classifier marks an artifact as `no` or leaves it blank, **do not create
 the file** just because an agent could contribute to it. Use an optional
 `agent-log/*.yml` pointer instead.
 
-The 4 always-required artifacts are: `change-request.md`, `implementation-plan.md`, `tasks.yml`, and `context-manifest.md`. (`tasks.yml` carries the `classification:` block and `implementation-plan.md` carries the `## Test Plan` and `## CI Gates` sections — see "Artifact ownership and deduplication" above.)
+The 3 always-required artifacts are: `change-request.md`, `implementation-plan.md`, and `tasks.yml`. (`tasks.yml` carries the `classification:` block and top-level `tier:`; `implementation-plan.md` carries the `## Test Plan` and `## CI Gates` sections — see "Artifact ownership and deduplication" above. `context-manifest.md` is optional and is not scaffolded.)
 
 ## Step 1: Generate change-id, scaffold, and scan context
 
@@ -244,7 +244,7 @@ the kit and is bundled into every install.
 | `implementation-plan.md` | `specs/templates/implementation-plan.md` | `test-strategist` fills its `## Test Plan` section and `ci-cd-gatekeeper` fills its `## CI Gates` section; `implementation-planner` writes the remaining sections directly once contracts, required design, and those two sections are known |
 | `interaction-design.md` | `specs/templates/interaction-design.md` | `interaction-designer` proposes the derivation chain; YOU write it, run the human dialogue over `## Open Decisions`, transcribe answers into `## Confirmed`, then run `cdd-kit design confirm <change-id>` to lock it (ADR 0012) |
 | `tasks.yml` | `specs/templates/tasks.yml` | Tick checkboxes as agents complete; backfill `tier:` frontmatter and the `classification:` block from classifier output (Step 2.4) |
-| `context-manifest.md` | `specs/templates/context-manifest.md` | Replace from classifier `## Context Manifest Draft` (Step 2) |
+| `context-manifest.md` | `specs/templates/context-manifest.md` | OPTIONAL, not scaffolded. Create it from the classifier `## Context Manifest Draft` only if recording a read boundary genuinely helps this change |
 
 If `cdd-kit new` reports a missing template, run `cdd-kit upgrade --yes`.
 
@@ -255,7 +255,7 @@ If `cdd-kit new` reports a missing template, run `cdd-kit upgrade --yes`.
 Invoke `change-classifier` agent with:
 - The user's change description
 - `specs/changes/<change-id>/change-request.md`
-- `specs/changes/<change-id>/context-manifest.md`
+- `specs/changes/<change-id>/context-manifest.md` (if present — optional)
 - `specs/context/project-map.md`
 - `specs/context/contracts-index.md`
 
@@ -307,7 +307,7 @@ If any of these are missing or still hold the literal placeholder text, STOP. Re
 
 1. **YOU write** `specs/changes/<change-id>/tasks.yml`'s `classification:` block — `types` (from `## Change Types`), `risk` (from `## Risk Level`), `impact` (from `## Impact Radius`), `architecture-review` (from `## Architecture Review Required`), and, when `architecture-review` is `true`, a non-trivial `architecture-review-reason`.
 2. Optional: write `specs/changes/<change-id>/agent-log/change-classifier.yml` only if the classifier returned useful handoff evidence.
-3. **YOU update** `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft`.
+3. Optional: create `specs/changes/<change-id>/context-manifest.md` from the classifier's `## Context Manifest Draft` only if this change wants a recorded read boundary. It is not scaffolded and not required.
 4. **YOU update** `tasks.yml` frontmatter: set `tier: <N>` to the classifier's `## Tier` digit. This is the sole authoritative source for quality-gate tier checks.
 5. **YOU tick** `tasks.yml` item `1.1`.
 

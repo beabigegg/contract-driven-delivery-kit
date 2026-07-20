@@ -48,6 +48,11 @@ export interface RefreshOptions {
   noCodeMap?: boolean;
   noUpdate?: boolean;
   noUpgrade?: boolean;
+  /** Skip the `.cdd/model-policy.json` roles resync. `reconcile --yes` sets this:
+   *  that command advertises a bucket-2 templates-only apply plus the bucket-3
+   *  reconcilers it PRINTED, and model-policy is neither -- resyncing it there
+   *  would mutate a policy surface outside the plan the user approved. */
+  noModelPolicy?: boolean;
   provider?: ProviderOption;
 }
 
@@ -355,7 +360,9 @@ export async function refresh(opts: RefreshOptions): Promise<void> {
   log.blank();
 
   // ── Step 5: resync model-policy roles ────────────────────────────────
-  log.info('[5/6] resync .cdd/model-policy.json roles from agent frontmatter');
+  const skipModelPolicy = opts.noModelPolicy === true;
+  log.info(skipModelPolicy ? "[5/6] model-policy roles resync — skipped" : "[5/6] resync .cdd/model-policy.json roles from agent frontmatter");
+  if (!skipModelPolicy) {
   if (apply) {
     const r = resyncModelPolicy(cwd);
     if (r.diff.length === 0) {
@@ -371,6 +378,7 @@ export async function refresh(opts: RefreshOptions): Promise<void> {
     const fakeApply = (): void => { /* no-op */ };
     fakeApply();
     log.dim('  (dry-run — drift will be reported only when applied)');
+  }
   }
   log.blank();
 

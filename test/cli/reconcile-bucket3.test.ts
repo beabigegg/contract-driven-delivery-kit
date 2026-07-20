@@ -14,7 +14,7 @@
  * `## Bucket-1 containers and their narrow channels`.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, symlinkSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import { makeTempDir, cleanupDir } from '../helpers.js';
@@ -413,5 +413,53 @@ describe('shipped reconciler registry', () => {
     for (const r of SHIPPED_RECONCILERS) r.planDescription({ cwd: tmp });
     expect(readPolicy()).toBe(before);
     expect(existsSync(join(tmp, REPORT_REL))).toBe(false);
+  });
+});
+
+// ── codex review, PR #69 ─────────────────────────────────────────────────────
+
+describe('narrow-channel hardening from external review', () => {
+  it('container-fail-open: a DUPLICATED end marker is ambiguous -> untouched', () => {
+    // Only the start marker was re-searched, so a second END marker silently
+    // took the region as ending at the first one and rewrote everything between
+    // them. The function's own contract promised duplicated markers fail open;
+    // that promise was half true.
+    const dupeEnd = OUTSIDE_BEFORE + LEARNINGS_START + '\n- a\n' + LEARNINGS_END + '\nmid\n' + LEARNINGS_END + '\n';
+    writeFileSync(join(tmp, 'CLAUDE.md'), dupeEnd, 'utf8');
+    const r = guardedReplaceMarkedRegion(tmp, 'CLAUDE.md', LEARNINGS_START, LEARNINGS_END, '\n- new\n');
+    expect(r.replaced).toBe(false);
+    expect(r.reason).toMatch(/more than one/);
+    expect(readFileSync(join(tmp, 'CLAUDE.md'), 'utf8')).toBe(dupeEnd);
+  });
+
+  it('narrow-channel-refusal: an aliased .cdd/policy.yml is refused, not followed', () => {
+    // The byte-level proof cannot catch this on its own: the "original" is read
+    // through the same alias, so a prefix check on the aliased target passes
+    // while a bucket-1 file elsewhere is quietly extended. The generic guarded
+    // writers get alias resolution from isBucket1; this channel bypassed them.
+    mkdirSync(join(tmp, 'contracts'), { recursive: true });
+    const victim = join(tmp, 'contracts', 'api.md');
+    const victimBody = '# API contract\n\nreal ground truth\n';
+    writeFileSync(victim, victimBody, 'utf8');
+
+    let linked = false;
+    try {
+      symlinkSync(victim, join(tmp, '.cdd', 'policy.yml'), 'file');
+      linked = true;
+    } catch {
+      // POSIX symlink needs no privilege; Windows does unless developer mode is
+      // on. Skipping is honest — the assertion below only means something when
+      // the alias actually exists.
+    }
+    if (!linked) return;
+
+    expect(() => guardedAddPolicyKeys(tmp, { brand_new_key: 'shadow' })).toThrow(/refused/);
+    expect(readFileSync(victim, 'utf8'), 'bucket-1 file must be byte-identical').toBe(victimBody);
+  });
+
+  it('a normal (unaliased) policy file is still writable — the alias check is not a blanket refusal', () => {
+    writePolicy('version: 1\n');
+    const r = guardedAddPolicyKeys(tmp, { brand_new_key: 'shadow' });
+    expect(r.added).toEqual(['brand_new_key']);
   });
 });

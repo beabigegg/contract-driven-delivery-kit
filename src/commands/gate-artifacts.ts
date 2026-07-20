@@ -59,9 +59,61 @@ export const REQUIRED_FILES_V2 = [
 ];
 
 /** Sections `implementation-plan.md` must carry under v2, absorbing the two
- *  files v1 kept separate. Checked with the same `sectionBody` machinery the
- *  gate already uses elsewhere -- the requirement moved, it did not soften. */
+ *  files v1 kept separate. */
 export const V2_PLAN_SECTIONS = ['Test Plan', 'CI Gates'];
+
+/**
+ * Whether a v2 plan section carries real content, and the finding if it does not.
+ *
+ * A bare non-empty check on the section body was VACUOUS: the scaffold ships
+ * guidance prose and empty table skeletons, so `## Test Plan` measured 541
+ * characters and `## CI Gates` 216 before an author typed anything, and both
+ * "passed". The commit that introduced the fold claimed the requirement had
+ * moved rather than softened; that was false until this check existed.
+ *
+ * What counts as content: at least one table row whose cells are not all blank,
+ * or at least one filled bullet. Template scaffolding does not qualify -- an
+ * all-empty row (`|  |  |  |`), a separator row, a bare `-` bullet, and a
+ * heading are all shapes the scaffold ships pre-filled.
+ */
+export function v2PlanSectionFinding(planContent: string, section: string): string | null {
+  const body = sectionBody(planContent, section);
+  const source = section === 'Test Plan' ? 'test-plan.md' : 'ci-gates.md';
+  if (body.trim() === '') {
+    return `implementation-plan.md: missing or empty \`## ${section}\` section — v2 folds ${source} ` +
+      'into the plan rather than a separate file, so the section is required here.';
+  }
+  if (!hasAuthoredContent(body)) {
+    return `implementation-plan.md: \`## ${section}\` still holds only the scaffold — every table row is ` +
+      `blank and no bullet is filled in. v2 folds ${source} into the plan, so this section carries that ` +
+      'content and must actually be authored (a present-but-unfilled section is not a plan).';
+  }
+  return null;
+}
+
+/** A markdown table row whose cells are all blank, or a separator row. */
+function isEmptyTableRow(line: string): boolean {
+  const inner = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  return inner.split('|').every(c => c.trim() === '' || /^:?-{2,}:?$/.test(c.trim()));
+}
+
+function hasAuthoredContent(body: string): boolean {
+  let sawHeaderRow = false;
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    if (line.startsWith('|')) {
+      if (isEmptyTableRow(line)) continue;
+      // The first non-empty row of a table is its header, which the scaffold
+      // ships. Only a row after it counts as authored data.
+      if (!sawHeaderRow) { sawHeaderRow = true; continue; }
+      return true;
+    }
+    // A bullet with real text after the marker.
+    if (/^[-*]\s+\S/.test(line)) return true;
+  }
+  return false;
+}
 
 /** Back-compat alias: callers that just want "the artifact set" without a change
  *  directory in hand (e.g. `cdd-kit metadata`) get the current default shape. */
@@ -224,6 +276,17 @@ export function enforceClassificationSubstance(
       'tasks.yml frontmatter — it needs `types`, `risk`, and `impact`).',
     );
     return;
+  }
+  // v1 kept the tier in `## Tier` inside change-classification.md, and the
+  // missing-tier guard only fires when that file exists. v2 removed the file, so
+  // nothing demanded a tier any more: a v2 change with `tier: null` and no
+  // tier-floor match would resolve to null and the gate would lose the input it
+  // uses to decide strictness. The requirement follows the classification.
+  if (typeof tasks?.tier !== 'number') {
+    errors.push(
+      'tasks.yml: `tier:` is required (0-5) — it is what the gate uses to decide how much process this ' +
+      'change earns. v1 carried it in change-classification.md `## Tier`; v2 keeps it as a top-level key.',
+    );
   }
   if (c['architecture-review'] === true && !(c['architecture-review-reason'] ?? '').trim()) {
     errors.push(

@@ -74,7 +74,7 @@ e2e / data-boundary / resilience / monkey / stress / soak
 
 | criterion id | test family | test file path | tier |
 |---|---|---|---|
-| AC-1 |  |  |  |
+|  |  |  |  |
 
 **Test update contract** — which existing tests may change, and why a change to
 an existing test is a spec change rather than a convenience:

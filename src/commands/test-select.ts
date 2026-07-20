@@ -502,8 +502,20 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const touched = getTouchedPaths(cwd).map((p) => p.replace(/\\/g, '/'));
   const runnerPlan = detectRunnerPlan(cwd);
 
-  // Explicit mapping first: test-plan.md, then implementation-plan.md.
+  // Explicit mapping, in the order a change is most likely to carry it:
+  //   1. v1's separate test-plan.md
+  //   2. v2's `## Test Plan` section of implementation-plan.md (where v1's
+  //      test-plan.md was folded). Without this, a v2 change scaffolded by
+  //      `cdd-kit new` has no test-plan.md at all, so selection returned
+  //      `needs-test-plan-update` and no bounded evidence could be recorded --
+  //      while the gate went on requiring that evidence. A deadlock.
+  //   3. implementation-plan.md's older `## Test Execution Plan`.
   let rows = extractMappedRows(parseMarkdownTable(testPlanText, /acceptance criteria.*test mapping/i), 'test-plan.md', cwd);
+  if (rows.length === 0) {
+    // Anchored on the heading form: `parseMarkdownTable` tests whole lines, and
+    // an unanchored /test plan/i would also hit prose that merely mentions one.
+    rows = extractMappedRows(parseMarkdownTable(implPlanText, /^#{1,6}\s+test plan\s*$/i), 'implementation-plan.md', cwd);
+  }
   if (rows.length === 0) {
     rows = extractMappedRows(parseMarkdownTable(implPlanText, /test execution plan/i), 'implementation-plan.md', cwd);
   }

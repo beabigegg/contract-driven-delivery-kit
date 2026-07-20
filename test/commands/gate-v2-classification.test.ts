@@ -18,6 +18,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { readLane } from '../../src/commands/gate-evidence.js';
+import { v2PlanSectionFinding, enforceClassificationSubstance } from '../../src/commands/gate-artifacts.js';
+import { readFileSync } from 'fs';
+import { ASSET } from '../../src/utils/paths.js';
 import { enforceRequiredAgentEvidence, readRequiredAgents } from '../../src/commands/gate-agents.js';
 import { makeTempDir, cleanupDir } from '../helpers.js';
 
@@ -144,5 +147,79 @@ describe('required-agent evidence — v2 reads tasks.yml classification.required
   it('ignores a malformed entry rather than trusting it', () => {
     writeTasks(`${V2_BASE}\n  required-agents: ["Not An Agent", backend-engineer]`);
     expect(readRequiredAgents(changeDir)).toEqual(['backend-engineer']);
+  });
+});
+
+// ── v2 folded plan sections (codex review, PR #69) ───────────────────────────
+
+describe('v2PlanSectionFinding — the folded Test Plan / CI Gates must be AUTHORED', () => {
+  // The first version of this check asked only "is the section non-empty".
+  // That was vacuous: the shipped scaffold's `## Test Plan` measures 541
+  // characters and `## CI Gates` 216 before an author types anything, so both
+  // "passed" on an untouched change — while the commit that introduced the fold
+  // claimed the requirement had moved rather than softened.
+  const SCAFFOLD = readFileSync(join(ASSET.specsTemplates, 'implementation-plan.md'), 'utf8');
+
+  it('rejects the untouched scaffold for both folded sections', () => {
+    for (const section of ['Test Plan', 'CI Gates']) {
+      const finding = v2PlanSectionFinding(SCAFFOLD, section);
+      expect(finding, `${section} must be rejected while it is still scaffold`).toBeTruthy();
+      expect(finding).toMatch(/still holds only the scaffold/);
+    }
+  });
+
+  it('the scaffold sections are NOT empty — proving a bare non-empty check would pass them', () => {
+    // Pins the reason the naive check was vacuous, so nobody "simplifies" it back.
+    for (const section of ['Test Plan', 'CI Gates']) {
+      const finding = v2PlanSectionFinding(SCAFFOLD, section);
+      expect(finding).not.toMatch(/missing or empty/);
+    }
+  });
+
+  it('accepts a section once a real table row is filled in', () => {
+    const filled = SCAFFOLD
+      .replace('|  |  |  |  |', '| AC-1 | unit | test/unit/foo.test.ts | 2 |')
+      .replace('|  |  |  |  |', '| unit-tests | PR | yes | existing |');
+    for (const section of ['Test Plan', 'CI Gates']) {
+      expect(v2PlanSectionFinding(filled, section), `${section} should pass once authored`).toBeNull();
+    }
+  });
+
+  it('accepts a section authored with bullets instead of a table', () => {
+    const plan = '## Test Plan\n\n- AC-1 covered by tests/unit/foo.test.ts\n\n## Next\n';
+    expect(v2PlanSectionFinding(plan, 'Test Plan')).toBeNull();
+  });
+
+  it('a missing section reports missing, not unfilled', () => {
+    expect(v2PlanSectionFinding('# Plan\n\n## Something Else\n', 'Test Plan')).toMatch(/missing or empty/);
+  });
+
+  it('a table header with no data row does not count as authored', () => {
+    const plan = '## CI Gates\n\n| gate | trigger |\n|---|---|\n|  |  |\n';
+    expect(v2PlanSectionFinding(plan, 'CI Gates')).toMatch(/still holds only the scaffold/);
+  });
+});
+
+describe('v2 requires a tier (codex review, PR #69)', () => {
+  // v1 kept the tier in change-classification.md `## Tier`, and the missing-tier
+  // guard only fires when that file exists. v2 removed the file, so nothing
+  // demanded a tier: a v2 change could resolve to `tier: null` and the gate
+  // would lose the input it uses to decide strictness.
+  const V2 = ['classification:', '  types: [feature]', '  risk: low', '  impact: isolated'].join('\n');
+
+  it('errors when a v2 change has no numeric tier', () => {
+    writeTasks(V2);
+    const tasks = { 'change-id': 'demo', status: 'in-progress', 'context-governance': 'v2' as const, tier: null, classification: { types: ['feature'], risk: 'low' as const, impact: 'isolated' as const }, tasks: [] };
+    const errors: string[] = [];
+    enforceClassificationSubstance(changeDir, tasks, errors);
+    expect(errors.join('\n')).toMatch(/`tier:` is required/);
+  });
+
+  it('is silent when the tier is set', () => {
+    writeTasks(V2);
+    const tasks = { 'change-id': 'demo', status: 'in-progress', 'context-governance': 'v2' as const, tier: 2, classification: { types: ['feature'], risk: 'low' as const, impact: 'isolated' as const }, tasks: [] };
+    const errors: string[] = [];
+    enforceClassificationSubstance(changeDir, tasks, errors);
+    expect(errors.join('\n')).not.toMatch(/tier/);
   });
 });

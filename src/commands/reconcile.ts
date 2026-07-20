@@ -95,7 +95,7 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
   }
 
   log.info('applying bucket-2 (kit-shipped scaffold) via the same guarded path as `cdd-kit refresh --yes` (templates-only)');
-  await refresh({ yes: true, noUpdate: true, noUpgrade: true, noHooks: true, noCodeMap: true });
+  await refresh({ yes: true, noUpdate: true, noUpgrade: true, noHooks: true, noCodeMap: true, noModelPolicy: true });
 
   const write = makeGuardedWrite(cwd);
   if (reconcilers.length === 0) {
