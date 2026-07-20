@@ -312,7 +312,7 @@ export function findMappingTable(text: string): MarkdownTable | null {
   }
   return null;
 }
-function columnIndex(headers: string[], matchers: RegExp[]): number {
+export function columnIndex(headers: string[], matchers: RegExp[]): number {
   for (let k = 0; k < headers.length; k++) {
     const h = headers[k].toLowerCase();
     if (matchers.some((m) => m.test(h))) return k;
@@ -320,8 +320,9 @@ function columnIndex(headers: string[], matchers: RegExp[]): number {
   return -1;
 }
 
-const TARGET_COLUMN = [/test file/, /test path/, /node ?id/, /\btarget\b/, /\bpath\b/, /\bcommand\b/];
-const CRITERION_COLUMN = [/criterion/, /acceptance/, /\bac\b/, /^id$/];
+export const GATE_COLUMN = [/^gate$/, /\bgate\b/];
+export const TARGET_COLUMN = [/test file/, /test path/, /node ?id/, /\btarget\b/, /\bpath\b/, /\bcommand\b/];
+export const CRITERION_COLUMN = [/criterion/, /acceptance/, /\bac\b/, /^id$/];
 
 /**
  * Pull usable rows out of an acceptance->test mapping table, paired with the
@@ -423,7 +424,7 @@ export function findGateTable(text: string): MarkdownTable | null {
   for (let i = 0; i + 1 < lines.length; i++) {
     if (!lines[i].trim().startsWith("|") || !isSeparatorRow(lines[i + 1])) continue;
     const headers = splitTableRow(lines[i]);
-    if (columnIndex(headers, [/^gate$/, /gate/]) < 0) continue;
+    if (columnIndex(headers, GATE_COLUMN) < 0) continue;
     if (columnIndex(headers, [/command/]) < 0 && columnIndex(headers, [/workflow/]) < 0) continue;
     const rows: string[][] = [];
     for (let j = i + 2; j < lines.length; j++) {

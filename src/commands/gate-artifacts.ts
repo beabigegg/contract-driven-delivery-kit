@@ -4,7 +4,7 @@ import yaml from 'js-yaml';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { ajv, ajvErrorsToMessages, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { sectionBody, stripHtmlComments } from '../utils/markdown-section.js';
-import { findMappingTable } from './test-select.js';
+import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from './test-select.js';
 
 const validateTasks = ajv.compile(tasksSchema);
 
@@ -156,8 +156,11 @@ function isEmptyTableRow(line: string): boolean {
 function hasMappingRow(body: string): boolean {
   const table = findMappingTable(body);
   if (!table) return false;
-  const ci = table.headers.findIndex(h => /criterion|acceptance|ac|^id$/i.test(h.trim()));
-  const ti = table.headers.findIndex(h => /test file|test path|node ?id|target|path|command/i.test(h.trim()));
+  // Reuse the SELECTOR's column matchers. Retyping them here is how the gate
+  // and  drift: a header the selector accepts must never be one the
+  // gate rejects, or the gate blocks a plan the tooling can read perfectly well.
+  const ci = columnIndex(table.headers, CRITERION_COLUMN);
+  const ti = columnIndex(table.headers, TARGET_COLUMN);
   if (ci < 0 || ti < 0) return false;
   return table.rows.some(r => (r[ci] ?? "").trim() !== "" && (r[ti] ?? "").trim() !== "");
 }

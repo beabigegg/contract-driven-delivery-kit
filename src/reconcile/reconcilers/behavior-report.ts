@@ -95,8 +95,8 @@ export function planBehaviorReport(cwd: string): BehaviorDelta {
   return { unseen: shippedEntries.filter(e => !seenEntries.has(e)), firstRun: false, shippedAvailable: true };
 }
 
-function renderReport(cwd: string, delta: BehaviorDelta, shipped: string): string {
-  const from = lastInstalledKitVersion(cwd);
+function renderReport(cwd: string, delta: BehaviorDelta, shipped: string, previousKitVersion?: string | null): string {
+  const from = previousKitVersion ?? lastInstalledKitVersion(cwd);
   const to = readKitVersion();
   const lines: string[] = [
     '# Behaviour-change report',
@@ -147,7 +147,7 @@ export const behaviorReportReconciler: Reconciler = {
     const delta = planBehaviorReport(ctx.cwd);
     if (!delta.shippedAvailable) return 'kit contract changelog not readable -- no report can be produced (nothing written)';
     if (delta.unseen.length === 0) return 'no contract change since the last report -- nothing to report';
-    const from = lastInstalledKitVersion(ctx.cwd);
+    const from = ctx.previousKitVersion ?? lastInstalledKitVersion(ctx.cwd);
     const scope = delta.firstRun ? 'first report for this repo, so every recorded change is listed' : 'delta since the last report';
     return `write ${REPORT_REL}: ${delta.unseen.length} unseen contract change(s) (${scope}; last installed by ${from ?? 'unknown'} -> now ${readKitVersion()})`;
   },
@@ -161,7 +161,7 @@ export const behaviorReportReconciler: Reconciler = {
     if (delta.unseen.length === 0) {
       return { surface: 'behavior-report', applied: false, detail: 'no contract change since the last report' };
     }
-    write.writeInto(resolve(ctx.cwd, REPORT_REL), renderReport(ctx.cwd, delta, shipped));
+    write.writeInto(resolve(ctx.cwd, REPORT_REL), renderReport(ctx.cwd, delta, shipped, ctx.previousKitVersion));
     // Snapshot AFTER the report: if the report write throws, the next run must
     // still see these entries as unseen rather than silently swallowing them.
     write.writeInto(resolve(ctx.cwd, SEEN_SNAPSHOT_REL), shipped);

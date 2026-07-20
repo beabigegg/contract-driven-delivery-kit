@@ -29,6 +29,17 @@ export interface SurfaceDisposition {
 
 export interface ReconcileContext {
   cwd: string;
+  /**
+   * The kit version stamped in `.cdd/asset-manifest.json` BEFORE this run
+   * refreshed anything, when the caller captured it.
+   *
+   * `reconcile --yes` applies bucket 2 — which re-stamps that manifest at the
+   * CURRENT version — before running bucket-3 reconcilers, so a reconciler that
+   * reads the manifest afterwards sees `current` on both sides and reports no
+   * delta. For the behaviour-change report the delta IS the report, so the
+   * caller captures this once, up front, and passes it down.
+   */
+  previousKitVersion?: string | null;
 }
 
 /**

@@ -26,6 +26,7 @@ import { KIT_SURFACES } from '../reconcile/classifier.js';
 import { defaultRegistry } from '../reconcile/registry.js';
 import { registerShippedReconcilers } from '../reconcile/reconcilers/index.js';
 import { makeGuardedWrite } from '../reconcile/guard.js';
+import { lastInstalledKitVersion } from '../reconcile/reconcilers/behavior-report.js';
 import { refresh } from './refresh.js';
 import type { Bucket } from '../schemas/reconciliation.schema.js';
 
@@ -52,6 +53,11 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
   const cwd = process.cwd();
   const apply = !!opts.yes;
 
+  // Captured BEFORE the bucket-2 refresh re-stamps .cdd/asset-manifest.json at
+  // the current version -- otherwise the behaviour-change report loses the very
+  // version delta it exists to explain.
+  const previousKitVersion = lastInstalledKitVersion(cwd);
+
   registerShippedReconcilers();
   // Single plan/apply pass (AC-3): `list()` is called exactly ONCE per
   // invocation and the result reused below -- never four ad-hoc bucket-3 code
@@ -75,7 +81,7 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
       if (!r) {
         log.dim(`  reconciler: ${surface.reconciler ?? '(none)'} -- registry slot only, none ships in this kit version`);
       } else {
-        log.dim(`  reconciler: ${r.surface} -- ${r.planDescription({ cwd })}`);
+        log.dim(`  reconciler: ${r.surface} -- ${r.planDescription({ cwd, previousKitVersion })}`);
       }
     }
   }
@@ -84,7 +90,7 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
   log.blank();
 
   if (!apply) {
-    const pending = reconcilers.filter(r => r.detectNeedsReconcile({ cwd }));
+    const pending = reconcilers.filter(r => r.detectNeedsReconcile({ cwd, previousKitVersion }));
     log.info('Dry-run finished. Re-run with `--yes` to apply bucket-2 (kit-scaffold) and bucket-3 (reconcile) changes.');
     log.dim('  bucket-1 (ground truth) is never touched.');
     log.dim(pending.length === 0
@@ -102,8 +108,8 @@ export async function reconcile(opts: ReconcileOptions): Promise<void> {
     log.info('no bucket-3 reconcilers registered -- nothing to reconcile in this framework version.');
   } else {
     for (const r of reconcilers) {
-      if (!r.detectNeedsReconcile({ cwd })) continue;
-      const result = r.apply({ cwd }, write);
+      if (!r.detectNeedsReconcile({ cwd, previousKitVersion })) continue;
+      const result = r.apply({ cwd, previousKitVersion }, write);
       log.info(`  ${result.surface}: ${result.applied ? 'applied' : 'skipped'} -- ${result.detail}`);
     }
   }
