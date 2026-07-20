@@ -95,9 +95,9 @@ push on:
 <!-- v2 folds ci-gates.md in here. Same rule as above: this section is required
      and must say something real. -->
 
-| gate | trigger | required? | new or existing |
-|---|---|---|---|
-|  |  |  |  |
+| gate | trigger | required | command | new or existing |
+|---|---|---|---|---|
+|  |  |  |  |  |
 
 **Merge eligibility** — what must be green before this merges:
 

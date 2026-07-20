@@ -109,12 +109,29 @@ export function v2PlanSectionFinding(planContent: string, section: string): stri
 export function readPlanSourceText(changeDir: string, section: 'Test Plan' | 'CI Gates'): string {
   const v1File = section === 'Test Plan' ? 'test-plan.md' : 'ci-gates.md';
   const v1Path = join(changeDir, v1File);
-  if (existsSync(v1Path)) {
+  // Governance decides, not mere presence. `cdd-kit new --force` over an old v1
+  // directory does NOT delete its files, so a v2 change can still carry a stale
+  // test-plan.md; preferring it would plan and record evidence from an obsolete
+  // mapping while the gate validated the folded section. Same stale-v1 trap
+  // `readLane` already closes.
+  const preferFolded = governanceVersion(changeDir) === 'v2';
+  if (!preferFolded && existsSync(v1Path)) {
     try { return readFileSync(v1Path, 'utf8'); } catch { return ''; }
   }
   const planPath = join(changeDir, 'implementation-plan.md');
-  if (!existsSync(planPath)) return '';
-  try { return sectionBody(readFileSync(planPath, 'utf8'), section); } catch { return ''; }
+  if (existsSync(planPath)) {
+    try {
+      const folded = sectionBody(readFileSync(planPath, 'utf8'), section);
+      if (folded.trim()) return folded;
+    } catch { /* fall through */ }
+  }
+  // A v2 change whose plan has no such section still falls back to a v1 file if
+  // one happens to exist -- better a stale mapping than none, and the gate
+  // separately requires the folded section to be authored.
+  if (existsSync(v1Path)) {
+    try { return readFileSync(v1Path, 'utf8'); } catch { return ''; }
+  }
+  return '';
 }
 
 /** A markdown table row whose cells are all blank, or a separator row. */
@@ -127,7 +144,11 @@ function hasAuthoredContent(body: string): boolean {
   let sawHeaderRow = false;
   for (const raw of body.split('\n')) {
     const line = raw.trim();
-    if (line === '' || line.startsWith('#')) continue;
+    // A blank line or heading ENDS a table, so header tracking resets with it.
+    // Kept global, a section with two tables (the test-strategist output shape has
+    // an AC-mapping table then a Test-Families table) let an empty first table set
+    // the flag, after which the SECOND table header counted as authored data.
+    if (line === '' || line.startsWith('#')) { sawHeaderRow = false; continue; }
     if (line.startsWith('|')) {
       if (isEmptyTableRow(line)) continue;
       // The first non-empty row of a table is its header, which the scaffold

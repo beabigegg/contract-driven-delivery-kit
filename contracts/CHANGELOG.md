@@ -8,6 +8,23 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [upgrade 0.3.0] — 2026-07-20
+### Changed
+- **BREAKING (0.x minor) — the kit-shipped files of `tests/contract/**` are no
+  longer bucket 1.** Routing `refresh`'s apply through the guard made
+  `cdd-kit refresh --yes` THROW: the packaged response-shape harness lands under
+  `tests/contract/`, which the whole-`tests/**` rule refused. Recorded as
+  breaking because it removes surfaces from absolute bucket-1 protection.
+
+  The narrowing is per-FILE, not per-directory, because `tests/contract/` is
+  mixed ownership: the kit ships a README, an example JSON and a
+  `samples/.gitkeep`, while `tests/contract/samples/*.json` holds the adopter's
+  captured real responses (`docs/boundary-guard.md`) and stays ground truth.
+  Membership is DERIVED from what the package actually ships rather than a
+  hardcoded filename list, so a growing harness follows automatically and an
+  adopter file that merely shares the directory never becomes writable. An
+  unreadable asset directory yields "not kit-shipped" — fail safe.
+
 ## [upgrade 0.2.0] — 2026-07-16
 ### Added
 - **`## Bucket-1 containers and their narrow channels`** — a binding, closed

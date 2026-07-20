@@ -209,14 +209,18 @@ export function buildChangeMetadata(changeDir: string, cwd: string): BuildResult
   // the v1 file reports every v2 change as having no types and no required
   // agents, which looks identical to a change that declared none.
   const classifText = readIfExists(join(changeDir, 'change-classification.md'));
-  const v2Types = (tasks?.classification?.types ?? []).map(t => String(t).trim()).filter(Boolean);
+  // Array.isArray, not `?? []`: tasks.yml may be parseable YAML yet schema-invalid
+  // (`types: feature` instead of a list), and this builder must degrade to warnings
+  // like the rest of the derived index rather than crash `metadata`/`doctor --fix`.
+  const rawTypes = tasks?.classification?.types;
+  const v2Types = (Array.isArray(rawTypes) ? rawTypes : []).map(t => String(t).trim()).filter(Boolean);
   // v2's flat `types:` list maps onto the v1 primary/secondary split by position:
   // the first entry is the primary type, the rest are secondary.
   const types = v2Types.length > 0
     ? { primary: v2Types[0], secondary: v2Types.slice(1) }
     : parseChangeTypes(classifText);
   const requiredAgents = tasks?.classification
-    ? (tasks.classification['required-agents'] ?? []).map(a => String(a).trim()).filter(Boolean)
+    ? (Array.isArray(tasks.classification['required-agents']) ? tasks.classification['required-agents'] : []).map(a => String(a).trim()).filter(Boolean)
     : parseRequiredAgents(classifText);
   const classificationLane = readLane(changeDir);
 
@@ -259,11 +263,20 @@ export function buildTraceMetadata(changeDir: string, cwd: string): BuildResult<
   const testPlanText = readPlanSourceText(changeDir, 'Test Plan');
   const ciGatesText = readPlanSourceText(changeDir, 'CI Gates');
 
-  const acList = parseAcceptanceCriteria(classifText);
   const testRows = parseTestMapping(testPlanText);
   const requiredGates = parseRequiredGates(ciGatesText);
 
-  const criteria: TraceCriterion[] = acList.map(c => {
+  // v1 listed criteria under change-classification.md `## Inferred Acceptance
+  // Criteria`. A v2 change has no such file, so the criterion ids are recovered
+  // from the folded Test Plan's own mapping rows — the same ids, in the artifact
+  // that now owns them. Without this the criteria list came out empty and
+  // trace.yml carried no criterion→test/gate links at all.
+  const acList = parseAcceptanceCriteria(classifText);
+  const criteriaSource = acList.length > 0
+    ? acList
+    : [...new Map(testRows.filter(r => r.criterion).map(r => [r.criterion, { id: r.criterion, text: '' }])).values()];
+
+  const criteria: TraceCriterion[] = criteriaSource.map(c => {
     const tests = testRows.filter(r => r.criterion === c.id).map(r => ({ family: r.family, path: r.path }));
     const families = new Set(tests.map(t => t.family).filter(Boolean));
     const gates = requiredGates.filter(g => [...families].some(f => gateMatchesFamily(g, f)));

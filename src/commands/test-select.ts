@@ -415,8 +415,31 @@ const WORKFLOW_REF = /(^|\/)[\w.-]+\.ya?ml$/i;
  * runnable COMMAND cell (not an empty template cell, an angle-placeholder, or a
  * workflow-file reference). A real `command` column is preferred over `workflow`.
  */
+/** The CI-gate table: a header row carrying both a gate name and a runnable
+ *  command/workflow column. Mirrors findMappingTable (column signature, not
+ *  heading adjacency). */
+export function findGateTable(text: string): MarkdownTable | null {
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (!lines[i].trim().startsWith("|") || !isSeparatorRow(lines[i + 1])) continue;
+    const headers = splitTableRow(lines[i]);
+    if (columnIndex(headers, [/^gate$/, /gate/]) < 0) continue;
+    if (columnIndex(headers, [/command/]) < 0 && columnIndex(headers, [/workflow/]) < 0) continue;
+    const rows: string[][] = [];
+    for (let j = i + 2; j < lines.length; j++) {
+      if (!lines[j].trim().startsWith("|")) break;
+      rows.push(splitTableRow(lines[j]));
+    }
+    return { headers, rows };
+  }
+  return null;
+}
+
 export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
-  const table = parseMarkdownTable(ciGatesText, /required gates/i);
+  // v1 scoped this under `## Required Gates`; v2 folds it into `## CI Gates`
+  // with no such subheading. Locate it by column signature (gate + command)
+  // rather than by a heading that only one shape has.
+  const table = parseMarkdownTable(ciGatesText, /required gates/i) ?? findGateTable(ciGatesText);
   if (!table) return [];
   const gi = columnIndex(table.headers, [/^gate$/, /\bgate\b/]);
   let cmdi = columnIndex(table.headers, [/command/]);

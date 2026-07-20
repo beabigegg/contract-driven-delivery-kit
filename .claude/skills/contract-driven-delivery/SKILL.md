@@ -174,7 +174,7 @@ CI policy, design rationale, or contract prose across artifacts.
 ## Scripts
 
 - `scripts/detect_project_profile.py`: inspect a repository and emit a Markdown project profile.
-- `scripts/generate_change_scaffold.py`: create a change folder from templates.
+- `scripts/generate_change_scaffold.py`: DEPRECATED — it kept a second copy of the artifact list and drifted. Use `cdd-kit new <change-id>`, the only scaffolder.
 - `scripts/validate_contracts.py`: check for required contract files.
 - `scripts/validate_env_contract.py`: check env contract basics.
 - `scripts/validate_ci_gates.py`: check CI-gate structure — `ci-gates.md` when a change has one (v1), otherwise the `## CI Gates` section of `implementation-plan.md` (v2). Each shape is checked against the terms it actually declares; whether the section is authored at all is the gate's job (`v2PlanSectionFinding`).

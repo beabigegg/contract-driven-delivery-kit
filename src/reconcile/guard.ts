@@ -17,11 +17,11 @@
  * contract text so the two cannot silently drift (dropping a row here is a
  * HARD gate failure, not a silent hole).
  */
-import { mkdirSync, copyFileSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'fs';
+import { mkdirSync, copyFileSync, writeFileSync, readFileSync, readdirSync, existsSync, realpathSync } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import yaml from 'js-yaml';
 import { isOwnedAndUnmodified } from '../utils/user-asset-manifest.js';
-import { AGENTS_HOME, SKILLS_HOME, CODEX_SKILLS_HOME } from '../utils/paths.js';
+import { AGENTS_HOME, SKILLS_HOME, CODEX_SKILLS_HOME, ASSET } from '../utils/paths.js';
 import type { GuardedWrite, AddPolicyKeysResult, ReplaceRegionResult } from '../schemas/reconciliation.schema.js';
 
 interface Bucket1MatchCtx {
@@ -74,14 +74,56 @@ function relPosixFromCwd(absDest: string, cwd: string): string {
   return relative(resolve(cwd), absDest).split(sep).join('/').split('\\').join('/');
 }
 
+/**
+ * Whether a `tests/contract/...` path is one of the files the KIT ships in
+ * `contract-harness/`, as opposed to the adopter's own captured data.
+ *
+ * `tests/contract/` is mixed ownership, which is why neither "all bucket 1" nor
+ * "all bucket 2" is right. The kit ships a README, an example JSON, and a
+ * `samples/.gitkeep`; `tests/contract/samples/*.json` holds the adopter's
+ * captured real responses (`docs/boundary-guard.md`: `path:
+ * tests/contract/samples/health.json`) and is ground truth that must never be
+ * force-refreshed.
+ *
+ * The membership test is DERIVED from what the package actually ships rather
+ * than a hardcoded filename list, mirroring how the agents/skills rule delegates
+ * to the ownership check: if the harness grows a file, this follows, and an
+ * adopter file that merely shares a directory with it never becomes writable.
+ * An unreadable asset directory yields `false` -- fail safe, i.e. keep treating
+ * the path as bucket 1.
+ */
+function isKitShippedHarnessFile(relPosixLower: string): boolean {
+  if (!relPosixLower.startsWith('tests/contract/')) return false;
+  const rel = relPosixLower.slice('tests/contract/'.length);
+  try {
+    return listRelFiles(ASSET.contractHarness).some(f => f.toLowerCase() === rel);
+  } catch {
+    return false;
+  }
+}
+
+/** Repo-relative POSIX paths of every file under `root` (recursive). */
+function listRelFiles(root: string, prefix = ''): string[] {
+  if (!existsSync(root)) return [];
+  const out: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...listRelFiles(join(root, entry.name), rel));
+    else out.push(rel);
+  }
+  return out;
+}
+
 const BUCKET_1_RULES: readonly Bucket1Rule[] = [
   {
-    contractRow: '`contracts/**`, `src/**`, `tests/**` (excluding `tests/templates/**`), `specs/changes/**`, `specs/archive/**`',
+    contractRow: '`contracts/**`, `src/**`, `tests/**` (excluding `tests/templates/**` and the kit-shipped files of `tests/contract/**`), `specs/changes/**`, `specs/archive/**`',
     test: ({ relPosixLower }) =>
       relPosixLower === 'contracts' || relPosixLower.startsWith('contracts/') ||
       relPosixLower === 'src' || relPosixLower.startsWith('src/') ||
       relPosixLower === 'tests' ||
-      (relPosixLower.startsWith('tests/') && !relPosixLower.startsWith('tests/templates/')) ||
+      (relPosixLower.startsWith('tests/')
+        && !relPosixLower.startsWith('tests/templates/')
+        && !isKitShippedHarnessFile(relPosixLower)) ||
       relPosixLower === 'specs/changes' || relPosixLower.startsWith('specs/changes/') ||
       relPosixLower === 'specs/archive' || relPosixLower.startsWith('specs/archive/'),
   },

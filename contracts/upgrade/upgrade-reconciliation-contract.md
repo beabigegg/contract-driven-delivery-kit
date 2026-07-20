@@ -3,7 +3,7 @@ contract: upgrade
 summary: Three-bucket (keep/replace/reconcile) surface taxonomy and the two non-negotiable write-safety invariants governing every kit-shipped upgrade path (refresh, upgrade, update, reconcile).
 owner: platform-team
 surface: upgrade-reconciliation
-schema-version: 0.2.0
+schema-version: 0.3.0
 last-changed: 2026-07-14
 breaking-change-policy: deprecate-2-minors
 ---
@@ -42,7 +42,7 @@ a style nit.
 
 | surface | rationale |
 |---|---|
-| `contracts/**`, `src/**`, `tests/**` (excluding `tests/templates/**`), `specs/changes/**`, `specs/archive/**` | adopter/tool ground truth |
+| `contracts/**`, `src/**`, `tests/**` (excluding `tests/templates/**` and the kit-shipped files of `tests/contract/**`), `specs/changes/**`, `specs/archive/**` | adopter/tool ground truth |
 | `CLAUDE.md` (everything OUTSIDE its `cdd-kit:learnings` markers — see per-region rule below), `AGENTS.md`, `CODEX.md`, `package.json` | user-owned guidance and manifests |
 | `.cdd/policy.yml` (user-set key values only — see per-key rule below), `.cdd/context-policy.json`, `.cdd/code-map-config.yml` | adopter policy |
 | `acceptance.yml`, `interaction-design.md`, `.cdd/*-lock.json` (e.g. `.cdd/design-lock.json`, `.cdd/acceptance-lock.json`) | human-confirmed oracle/design and their tamper-evident locks |

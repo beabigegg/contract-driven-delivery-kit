@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, symlinkS
 import { join } from 'path';
 import yaml from 'js-yaml';
 import { makeTempDir, cleanupDir } from '../helpers.js';
-import { guardedAddPolicyKeys, guardedReplaceMarkedRegion, makeGuardedWrite } from '../../src/reconcile/guard.js';
+import { guardedAddPolicyKeys, guardedReplaceMarkedRegion, makeGuardedWrite, isBucket1 } from '../../src/reconcile/guard.js';
 import { policyKeyCatalog, planPolicyKeys, policyKeysReconciler } from '../../src/reconcile/reconcilers/policy-keys.js';
 import { changelogEntries, entryBody, planBehaviorReport, behaviorReportReconciler, REPORT_REL, SEEN_SNAPSHOT_REL } from '../../src/reconcile/reconcilers/behavior-report.js';
 import { planLearningsRegion, learningsRegionReconciler, LEARNINGS_START, LEARNINGS_END } from '../../src/reconcile/reconcilers/learnings-region.js';
@@ -461,5 +461,37 @@ describe('narrow-channel hardening from external review', () => {
     writePolicy('version: 1\n');
     const r = guardedAddPolicyKeys(tmp, { brand_new_key: 'shadow' });
     expect(r.added).toEqual(['brand_new_key']);
+  });
+});
+
+// ── codex round 3, PR #69 ────────────────────────────────────────────────────
+
+describe('tests/contract is MIXED ownership, not one bucket', () => {
+  // Routing refresh's apply through the guard broke `cdd-kit refresh --yes`:
+  // the packaged response-shape harness lands under tests/contract, which the
+  // bucket-1 rule refused wholesale. But the obvious fix — allow all of
+  // tests/contract — would expose `samples/*.json`, the adopter's captured real
+  // responses (docs/boundary-guard.md `path: tests/contract/samples/health.json`).
+  // So the split is per-file, derived from what the package actually ships.
+  it('the kit-shipped harness files are writable', () => {
+    for (const f of ['tests/contract/README.md', 'tests/contract/response-samples.example.json']) {
+      expect(isBucket1(f, tmp).blocked, `${f} must be refreshable`).toBe(false);
+    }
+  });
+
+  it("narrow-channel-refusal: the adopter's captured samples stay bucket 1", () => {
+    for (const f of ['tests/contract/samples/health.json', 'tests/contract/samples/orders.json']) {
+      expect(isBucket1(f, tmp).blocked, `${f} is captured adopter data`).toBe(true);
+    }
+  });
+
+  it('the rest of tests/** is untouched by the narrowing', () => {
+    for (const f of ['tests/unit/foo.test.ts', 'tests/contract/my-own-test.py']) {
+      expect(isBucket1(f, tmp).blocked, `${f} must stay bucket 1`).toBe(true);
+    }
+  });
+
+  it('tests/templates/ remains the other documented exception', () => {
+    expect(isBucket1('tests/templates/refresh.test.ts', tmp).blocked).toBe(false);
   });
 });
