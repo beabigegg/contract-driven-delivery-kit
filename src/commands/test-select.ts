@@ -7,6 +7,10 @@ import { detectStack, type StackKind } from '../utils/stack-detect.js';
 import { SAFE_CHANGE_ID } from '../utils/change-id.js';
 import { findAcceptanceDriverFiles } from '../utils/mock-of-sut-scan.js';
 import { readPlanSourceText } from './gate-artifacts.js';
+import {
+  type MarkdownTable, GATE_COLUMN, TARGET_COLUMN, CRITERION_COLUMN, isSeparatorRow, splitTableRow,
+  columnIndex, parseMarkdownTable, findMappingTable, findGateTable,
+} from '../utils/plan-tables.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select` reads
 // test-plan.md (then implementation-plan.md as fallback), the change's touched
@@ -241,88 +245,11 @@ function fullCommand(plan: RunnerPlan): string {
 
 // ── markdown table parsing ────────────────────────────────────────────────────
 
-export interface MarkdownTable {
-  headers: string[];
-  rows: string[][];
-}
-
-function splitTableRow(line: string): string[] {
-  let s = line.trim();
-  if (s.startsWith('|')) s = s.slice(1);
-  if (s.endsWith('|')) s = s.slice(0, -1);
-  return s.split('|').map((c) => c.trim());
-}
-
-function isSeparatorRow(line: string): boolean {
-  const s = line.trim();
-  return /^[\s|:-]+$/.test(s) && s.includes('-') && s.includes('|');
-}
-
-/**
- * Parse the first GitHub-style pipe table that appears after the first heading
- * matching `headingRe`. Returns null when the heading or a well-formed table
- * (header row + separator row) is not found before the next heading.
- */
-export function parseMarkdownTable(text: string, headingRe: RegExp): MarkdownTable | null {
-  const lines = text.split(/\r?\n/);
-  let i = 0;
-  for (; i < lines.length; i++) {
-    if (headingRe.test(lines[i])) break;
-  }
-  if (i >= lines.length) return null;
-
-  for (i += 1; i < lines.length; i++) {
-    if (/^#{1,6}\s/.test(lines[i])) return null; // next heading first -> no table
-    if (lines[i].trim().startsWith('|')) break;
-  }
-  if (i + 1 >= lines.length || !isSeparatorRow(lines[i + 1])) return null;
-
-  const headers = splitTableRow(lines[i]);
-  const rows: string[][] = [];
-  for (let j = i + 2; j < lines.length; j++) {
-    if (!lines[j].trim().startsWith('|')) break;
-    rows.push(splitTableRow(lines[j]));
-  }
-  return { headers, rows };
-}
-
-/**
- * Find the acceptance->test mapping table inside a block of text by its COLUMN
- * SIGNATURE, not by proximity to a heading.
- *
- * parseMarkdownTable bails the moment it meets another heading before a table,
- * which is correct when it is scoped by a heading but wrong here: the folded
- * `## Test Plan` section legitimately contains subheadings (the test-strategist
- * prompt documents a `### Acceptance Criteria → Test Mapping` one), and an
- * author may add prose or extra tables. Matching on the header row means the
- * right table is found wherever it sits.
- */
-export function findMappingTable(text: string): MarkdownTable | null {
-  const lines = text.split(/\r?\n/);
-  for (let i = 0; i + 1 < lines.length; i++) {
-    if (!lines[i].trim().startsWith("|") || !isSeparatorRow(lines[i + 1])) continue;
-    const headers = splitTableRow(lines[i]);
-    if (columnIndex(headers, TARGET_COLUMN) < 0) continue;
-    const rows: string[][] = [];
-    for (let j = i + 2; j < lines.length; j++) {
-      if (!lines[j].trim().startsWith("|")) break;
-      rows.push(splitTableRow(lines[j]));
-    }
-    return { headers, rows };
-  }
-  return null;
-}
-export function columnIndex(headers: string[], matchers: RegExp[]): number {
-  for (let k = 0; k < headers.length; k++) {
-    const h = headers[k].toLowerCase();
-    if (matchers.some((m) => m.test(h))) return k;
-  }
-  return -1;
-}
-
-export const GATE_COLUMN = [/^gate$/, /\bgate\b/];
-export const TARGET_COLUMN = [/test file/, /test path/, /node ?id/, /\btarget\b/, /\bpath\b/, /\bcommand\b/];
-export const CRITERION_COLUMN = [/criterion/, /acceptance/, /\bac\b/, /^id$/];
+// The table-reading vocabulary lives in ../utils/plan-tables.ts, owned by
+// neither this module nor the gate. Re-exported here so existing importers of
+// `parseMarkdownTable` keep working.
+export { parseMarkdownTable, findMappingTable, findGateTable, columnIndex } from '../utils/plan-tables.js';
+export type { MarkdownTable } from '../utils/plan-tables.js';
 
 /**
  * Pull usable rows out of an acceptance->test mapping table, paired with the
@@ -416,26 +343,6 @@ const WORKFLOW_REF = /(^|\/)[\w.-]+\.ya?ml$/i;
  * runnable COMMAND cell (not an empty template cell, an angle-placeholder, or a
  * workflow-file reference). A real `command` column is preferred over `workflow`.
  */
-/** The CI-gate table: a header row carrying both a gate name and a runnable
- *  command/workflow column. Mirrors findMappingTable (column signature, not
- *  heading adjacency). */
-export function findGateTable(text: string): MarkdownTable | null {
-  const lines = text.split(/\r?\n/);
-  for (let i = 0; i + 1 < lines.length; i++) {
-    if (!lines[i].trim().startsWith("|") || !isSeparatorRow(lines[i + 1])) continue;
-    const headers = splitTableRow(lines[i]);
-    if (columnIndex(headers, GATE_COLUMN) < 0) continue;
-    if (columnIndex(headers, [/command/]) < 0 && columnIndex(headers, [/workflow/]) < 0) continue;
-    const rows: string[][] = [];
-    for (let j = i + 2; j < lines.length; j++) {
-      if (!lines[j].trim().startsWith("|")) break;
-      rows.push(splitTableRow(lines[j]));
-    }
-    return { headers, rows };
-  }
-  return null;
-}
-
 export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
   // v1 scoped this under `## Required Gates`; v2 folds it into `## CI Gates`
   // with no such subheading. Locate it by column signature (gate + command)

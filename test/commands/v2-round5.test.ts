@@ -19,7 +19,10 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { makeTempDir, cleanupDir } from '../helpers.js';
 import { v2PlanSectionFinding } from '../../src/commands/gate-artifacts.js';
-import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from '../../src/commands/test-select.js';
+// From the shared leaf module, not from either consumer: `test-select.ts` and
+// `gate-artifacts.ts` both read these, and having one import them from the other
+// is what created a circular dependency between the selector and the gate.
+import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from '../../src/utils/plan-tables.js';
 import { behaviorReportReconciler, REPORT_REL } from '../../src/reconcile/reconcilers/behavior-report.js';
 import { makeGuardedWrite } from '../../src/reconcile/guard.js';
 
@@ -76,5 +79,24 @@ describe('behaviour-change report keeps the version delta', () => {
     // "unknown" rather than inventing a delta.
     writeFileSync(join(tmp, '.cdd', 'asset-manifest.json'), '{}', 'utf8');
     expect(behaviorReportReconciler.planDescription({ cwd: tmp })).toMatch(/last installed by unknown/);
+  });
+});
+
+describe('no circular dependency between the gate and the selector', () => {
+  // Round 5 fixed the duplicated regexes by having the gate import them FROM the
+  // selector — while the selector already imported `readPlanSourceText` from the
+  // gate. That cycle happened to work because the bundler ordered it favourably;
+  // it is not something to depend on. The shared vocabulary now lives in a leaf
+  // module that imports nothing local, so neither side can pull the other in.
+  const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
+
+  it('the shared table module imports nothing from src/commands', () => {
+    expect(read('src/utils/plan-tables.ts')).not.toMatch(/from '\.\.\/commands\//);
+  });
+
+  it('neither the gate nor metadata imports from the selector', () => {
+    for (const f of ['src/commands/gate-artifacts.ts', 'src/commands/metadata.ts']) {
+      expect(read(f), `${f} must not import from test-select`).not.toMatch(/from '\.\/test-select\.js'/);
+    }
   });
 });

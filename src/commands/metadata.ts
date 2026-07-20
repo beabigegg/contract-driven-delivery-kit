@@ -7,7 +7,7 @@ import { sectionBody } from '../utils/markdown-section.js';
 import { parsePipeTable } from '../utils/markdown-table.js';
 import { ajv, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { requiredFilesFor, readPlanSourceText } from './gate-artifacts.js';
-import { findMappingTable, findGateTable } from './test-select.js';
+import { findMappingTable, findGateTable } from '../utils/plan-tables.js';
 import { resolveTier } from './gate-tier.js';
 import { readLane } from './gate-evidence.js';
 import { changeMetadataSchema } from '../schemas/change-metadata.schema.js';

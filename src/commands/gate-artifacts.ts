@@ -4,7 +4,7 @@ import yaml from 'js-yaml';
 import { tasksSchema } from '../schemas/tasks.schema.js';
 import { ajv, ajvErrorsToMessages, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { sectionBody, stripHtmlComments } from '../utils/markdown-section.js';
-import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from './test-select.js';
+import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from '../utils/plan-tables.js';
 
 const validateTasks = ajv.compile(tasksSchema);
 
