@@ -2,6 +2,51 @@
 
 ## [Unreleased]
 
+## [3.14.0] - 2026-07-21
+
+### Added
+
+- `cdd-kit reconcile` (`--plan`/`--yes`): three-bucket upgrade reconciliation
+  (keep / replace / reconcile) with a single guarded writer enforcing INV-1
+  (fail-open safe defaults) and INV-2 (never overwrite adopter ground truth),
+  per-key `.cdd/policy.yml` classification, two byte-proven narrow channels
+  (policy-key append, `CLAUDE.md` learnings region), a behaviour-change report
+  that preserves the real version delta across partial upgrades, and the
+  `enforceReconciliationInvariants` gate check (five checks / seven scans)
+  wired into both `gate` and `validate`. Binding contract:
+  `contracts/upgrade/upgrade-reconciliation-contract.md` (0.4.0).
+- `context-governance: v2`: new changes scaffold 5 files (~310 lines) instead
+  of 9 (~674) — `change-classification.md`, `test-plan.md`, `ci-gates.md` fold
+  into `tasks.yml` frontmatter and `implementation-plan.md` sections with the
+  same gate checks intact; v1 directories stay grandfathered forever.
+- Write-guard hardening from nine external review rounds (46 findings, zero
+  false positives): symlink/junction alias resolution on both sides, dangling
+  symlinks fail closed, hard-linked destinations refused (`nlink > 1` — the
+  alias `realpath` structurally cannot see), kit-managed locations excluded
+  from bucket-1 shape rules by construction.
+- Acceptance drivers + recorded acceptance-phase evidence + human hash-locks
+  for both shipped changes; `docs/glossary.md`; `docs/interaction-design-guide.md`.
+
+### Fixed
+
+- ADR 0012 citation resolver accepts the standard nullable-union
+  `type: ["object", "null"]` for full dotted-path citations (#66).
+- Acceptance hardcoded-expect scan is per-case scoped: a case's answer key is
+  only searched in a driver that exercises that case; change-name vocabulary
+  and sub-4-digit numerics no longer false-flag honest loader-driven drivers
+  (#67).
+- Version-skew phantom #64 closed by the behaviour-change report: adopters
+  jumping multiple versions now get an explicit gate-semantics delta instead
+  of silence.
+- Boundary Guard adopter-CI parity (#61, #62, #63, #65): the shipped workflow
+  enforces the same shadow/enforce semantics as the gate.
+- The Python validators (`applicability`, spec traceability, CI gates,
+  contract versions) read YAML inline comments identically to the TypeScript
+  gate — a legal `# comment` no longer flips a change between governance
+  shapes; the `upgrade` contract family is version-validated when present.
+- `cdd-kit gate` reports schema errors for a malformed `classification:`
+  block instead of crashing with a TypeError before printing them.
+
 ## [3.13.1] - 2026-07-13
 
 ### Added
