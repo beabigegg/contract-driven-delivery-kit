@@ -3,8 +3,8 @@ contract: upgrade
 summary: Three-bucket (keep/replace/reconcile) surface taxonomy and the two non-negotiable write-safety invariants governing every kit-shipped upgrade path (refresh, upgrade, update, reconcile).
 owner: platform-team
 surface: upgrade-reconciliation
-schema-version: 0.3.0
-last-changed: 2026-07-14
+schema-version: 0.4.0
+last-changed: 2026-07-21
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -26,6 +26,7 @@ a guarantee that does not exist:
 | `cdd-kit refresh --yes` (bucket-2 apply) | **guarded** — same writer, same static check |
 | `cdd-kit upgrade` | **not guard-routed.** It plans only files that do not exist (`if (!existsSync(dest))`), which bucket 1 already permits ("may create it if entirely absent"), so it cannot overwrite ground truth — but that is a property of its planner, not a chokepoint the validator enforces. |
 | `cdd-kit update` | **not guard-routed.** It writes user-level agents/skills and makes its own kit-owned-and-unmodified decision, i.e. a SECOND implementation of bucket-1 rule 5's semantics. Not known to be wrong; not mechanically prevented from becoming wrong. |
+| `.cdd/model-policy.json` (written raw by `upgrade` and by `refresh`'s `resyncModelPolicy`, outside the guard and outside the single-writer scan) | **explicitly exempt from the bucket taxonomy** — a REGENERABLE derived sidecar, like `.cdd/asset-manifest.json`: its `roles` map is derived wholesale from agent frontmatter (the stated source of truth; an adopter's customization surface is the agent files, which ARE bucket-guarded — not this projection of them). It carries no independent adopter authorship, so there is no ground truth to preserve and backup-then-replace would archive a value nothing authored. Surfaced by the reconcile-framework contract review: two of the four governed commands demonstrably write it, and a taxonomy claiming to cover "every surface an upgrade path touches" must say so rather than leave it unclassified — an unclassified surface would otherwise default to bucket 1 (INV-1), which the observed behavior of both commands contradicts. Routing these two writes through the guard is part of the same deliberately-unclaimed gap as the `update`/`upgrade` rows above. |
 
 Routing the last two through the guard is the obvious next step and is
 deliberately not claimed here until it is done and verified — the same guard has

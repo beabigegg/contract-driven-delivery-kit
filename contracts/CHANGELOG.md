@@ -70,6 +70,37 @@ a corresponding entry below.
   backed by the new `enforceReconciliationInvariants` gate check
   (`[ci 0.12.0]` below).
 
+## [ci 0.14.0] — 2026-07-21
+### Changed (non-breaking)
+- `### enforceReconciliationInvariants` scan count corrected again: "six scans"
+  credited only clause #4 with being two, while clause #5's
+  `narrow-channel-refusal` / `container-fail-open` are two equally independent
+  scans. Now "five checks (seven scans)".
+- Repointed the "Honest limit" sentence that cited a "`full vitest suite` row
+  above" — no such row exists in this contract's Gate Inventory (it lived in a
+  per-change scratch file). Now names the real prover: the `test` workflow
+  (`.github/workflows/test.yml`). Both caught by the reconcile-framework
+  contract review (5.3).
+
+## [upgrade 0.4.0] — 2026-07-21
+### Added
+- `.cdd/model-policy.json` given an explicit disposition in the Scope
+  enforcement table: a REGENERABLE derived sidecar (like
+  `.cdd/asset-manifest.json`), exempt from the bucket taxonomy — its `roles`
+  map derives wholesale from agent frontmatter, which is the guarded
+  customization surface. Written raw today by `upgrade` and by `refresh`'s
+  `resyncModelPolicy`, outside the guard; stated as part of the same
+  deliberately-unclaimed guard-routing gap as the `update`/`upgrade` rows.
+  Surfaced by the reconcile-framework contract review: a taxonomy claiming to
+  cover every surface an upgrade path touches was silent on one that two of
+  its four governed commands demonstrably write.
+- The `upgrade` contract family is now wired into
+  `validate_contract_versions.py` (`OPTIONAL_CONTRACT_FILES` — validated when
+  present, absence is not an adopter error). Until now `cdd-kit gate` ran that
+  validator with `versions: true` and it silently never read this file, so
+  frontmatter staleness (`last-changed` stuck at the 0.1.0 date across two
+  bumps) went undetected — also fixed here.
+
 ## [ci 0.13.0] — 2026-07-20
 ### Added
 - **`enforceReconciliationInvariants` check #4 is now TWO scans.** The upgrade

@@ -2,9 +2,9 @@
 artifact: contracts-index
 generated-by: cdd-kit context-scan
 schema-version: 1
-contract-count: 9
+contract-count: 10
 missing-summary-count: 0
-inputs-digest: cf10884bec6d85598bfd7ca467e92a6d15cfe4ebaa95e2033de0591191fbb405
+inputs-digest: 4d3bd9f2faffc2228fea9b0b0e4a0da123dc80a0d20d5f28f9861079629507db
 ---
 
 # Contracts Index
@@ -24,6 +24,7 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 | contracts/css/design-tokens.md | design-tokens | ui | design-system | yes |
 | contracts/data/data-shape-contract.md | data | data | application-team | yes |
 | contracts/env/env-contract.md | env | runtime-config | platform-team | yes |
+| contracts/upgrade/upgrade-reconciliation-contract.md | upgrade | upgrade-reconciliation | platform-team | yes |
 
 ## Contract Details
 
@@ -84,8 +85,8 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - title: CI/CD Gate Contract
 - owner: platform-team
 - surface: delivery-pipeline
-- schema-version: 0.11.0
-- last-changed: 2026-07-14
+- schema-version: 0.14.0
+- last-changed: 2026-07-21
 - breaking-change-policy: deprecate-2-minors
 - summary: CI gate inventory, artifact retention, and rollback requirements.
 
@@ -141,4 +142,17 @@ Generated from deterministic metadata. Add YAML frontmatter fields such as `summ
 - last-changed: 2026-07-10
 - breaking-change-policy: deprecate-2-minors
 - summary: Environment variable inventory, secret handling, and deployment sync policy.
+
+
+## contracts/upgrade/upgrade-reconciliation-contract.md
+- path: `contracts/upgrade/upgrade-reconciliation-contract.md`
+- type: upgrade
+- directory: contracts/upgrade
+- title: Upgrade Reconciliation Contract
+- owner: platform-team
+- surface: upgrade-reconciliation
+- schema-version: 0.4.0
+- last-changed: 2026-07-21
+- breaking-change-policy: deprecate-2-minors
+- summary: Three-bucket (keep/replace/reconcile) surface taxonomy and the two non-negotiable write-safety invariants governing every kit-shipped upgrade path (refresh, upgrade, update, reconcile).
 

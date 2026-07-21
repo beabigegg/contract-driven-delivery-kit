@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { readFileSync, writeFileSync, appendFileSync } from 'fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { spawnSync } from 'child_process';
 import { runCli, makeTempDir, cleanupDir, hasPython } from '../helpers.js';
@@ -95,6 +95,27 @@ describe.skipIf(!hasPython())('cdd-kit validate --versions', () => {
     const r = runCli(['validate', '--versions'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/contract version validation passed/i);
+  });
+
+  // ── Optional `upgrade` contract family ────────────────────────────────────
+  it('an absent optional upgrade contract is not an error, a malformed one IS', () => {
+    // The upgrade contract is kit-internal dogfood, not an adopter scaffold
+    // artifact — an adopter repo without it (this fixture) must keep passing.
+    // But once present, it gets the full frontmatter rules: before the
+    // reconcile-framework contract review, `versions: true` ran this validator
+    // and it silently never read the file, so a stale/invalid frontmatter in
+    // the newest contract family was mechanically invisible.
+    const rel = join('contracts', 'upgrade', 'upgrade-reconciliation-contract.md');
+    const abs = join(tmpRepo, rel);
+    mkdirSync(join(tmpRepo, 'contracts', 'upgrade'), { recursive: true });
+    writeFileSync(abs, '---\ncontract: upgrade\nschema-version: not-semver\nlast-changed: 2026-07-21\nbreaking-change-policy: deprecate-2-minors\n---\n\n# Upgrade\n', 'utf8');
+    const bad = runCli(['validate', '--versions'], { cwd: tmpRepo, home: tmpHome });
+    expect(bad.status, `stdout: ${bad.stdout}\nstderr: ${bad.stderr}`).not.toBe(0);
+    expect(bad.stdout + bad.stderr).toMatch(/invalid schema-version "not-semver"/);
+
+    writeFileSync(abs, '---\ncontract: upgrade\nschema-version: 0.4.0\nlast-changed: 2026-07-21\nbreaking-change-policy: deprecate-2-minors\n---\n\n# Upgrade\n', 'utf8');
+    const good = runCli(['validate', '--versions'], { cwd: tmpRepo, home: tmpHome });
+    expect(good.status, `stdout: ${good.stdout}\nstderr: ${good.stderr}`).toBe(0);
   });
 
   // ── Test 2 ────────────────────────────────────────────────────────────────

@@ -17,7 +17,7 @@
  * contract text so the two cannot silently drift (dropping a row here is a
  * HARD gate failure, not a silent hole).
  */
-import { mkdirSync, copyFileSync, writeFileSync, readFileSync, readdirSync, existsSync, lstatSync, realpathSync } from 'fs';
+import { mkdirSync, copyFileSync, writeFileSync, readFileSync, readdirSync, existsSync, lstatSync, statSync, realpathSync } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import yaml from 'js-yaml';
 import { isOwnedAndUnmodified } from '../utils/user-asset-manifest.js';
@@ -260,6 +260,41 @@ function isSymbolicLink(p: string): boolean {
   }
 }
 
+/**
+ * A refusal reason when writing to `abs` would go through a HARD-linked inode,
+ * else null.
+ *
+ * Hard links are the alias the realpath layer cannot see: a hard link IS the
+ * file — a second directory entry for the same inode — so `realpathSync` on it
+ * returns the destination's own path unchanged, every rule match sees an
+ * innocent-looking spelling, and `writeFileSync`/`copyFileSync` then truncate
+ * the shared inode. `.cdd/migration/report.md` hard-linked to `contracts/api.md`
+ * let `reconcile --yes` rewrite the contract THROUGH the guard (codex review,
+ * PR #69). There is no way to enumerate an inode's other names without walking
+ * the whole filesystem, so a multi-link destination cannot be proven safe —
+ * fail open to refuse, the guard's standing posture.
+ *
+ * `statSync` (follows symlinks) rather than `lstatSync`: the write lands on the
+ * symlink's target, so the target's link count is the one that matters. ENOENT
+ * means no existing inode — creating a new file cannot truncate another one —
+ * and is NOT a refusal; any other stat failure is unverifiable and is.
+ */
+function hardLinkRefusal(abs: string): string | null {
+  let st;
+  try {
+    st = statSync(abs);
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ? null
+      : `cannot stat existing destination "${abs}" to verify its hard-link count -- failing open to refuse`;
+  }
+  if (st.isFile() && st.nlink > 1) {
+    return `destination is a hard link (${st.nlink} names share one inode) -- writing would also rewrite ` +
+      'every other name of that inode, which realpath cannot enumerate; remove the extra link first';
+  }
+  return null;
+}
+
 export interface Bucket1Result {
   blocked: boolean;
   rule?: Bucket1Rule;
@@ -282,6 +317,13 @@ export function isBucket1(dest: string, cwd: string = process.cwd()): Bucket1Res
 
   const directRule = matchRule(absDest, cwd);
   if (directRule) return { blocked: true, rule: directRule };
+
+  // Layer 3 (codex review, PR #69): hard links. Independent of the realpath
+  // layer below, which is structurally blind to them — realpath resolves
+  // symlinks/junctions, but a hard link is not a pointer to the file, it IS the
+  // file under a second name.
+  const hardLink = hardLinkRefusal(absDest);
+  if (hardLink) return { blocked: true, reason: hardLink };
 
   const real = realpathOfLongestExistingAncestor(absDest);
   if (real === null) {
@@ -433,6 +475,17 @@ export function guardedAddPolicyKeys(
       'aliases it to. See contracts/upgrade/upgrade-reconciliation-contract.md INV-2.',
     );
   }
+  // Hard links slip the realpath check above entirely (a hard link IS the file,
+  // so realpath returns this same path), and the byte-proof below re-reads
+  // through the SAME alias — a policy.yml hard-linked to a contract would pass
+  // both while the contract's inode is rewritten into policy content.
+  const policyHardLink = hardLinkRefusal(abs);
+  if (policyHardLink) {
+    throw new Error(
+      `guardedAddPolicyKeys refused: ${POLICY_REL} ${policyHardLink}. ` +
+      'See contracts/upgrade/upgrade-reconciliation-contract.md INV-2.',
+    );
+  }
   const original = readFileSync(abs, 'utf8');
   const before = parsePolicyMapping(original);
   if (before === null) {
@@ -533,6 +586,12 @@ export function guardedReplaceMarkedRegion(
       replaced: false,
       reason: `${relFile} resolves to "${realFile ?? "(unresolvable)"}" through a symlink/junction -- this channel may only rewrite the marked region of the repo's own file, left untouched (INV-2)`,
     };
+  }
+  // Same hard-link blindness as the policy channel: realpath is a no-op on a
+  // hard link, and the head/tail byte-proof re-reads through the same alias.
+  const regionHardLink = hardLinkRefusal(abs);
+  if (regionHardLink) {
+    return { replaced: false, reason: `${relFile} ${regionHardLink} (INV-2)` };
   }
 
   let original: string;

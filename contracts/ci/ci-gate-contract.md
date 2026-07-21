@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.13.0
-last-changed: 2026-07-20
+schema-version: 0.14.0
+last-changed: 2026-07-21
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -421,12 +421,15 @@ is absent from the project being gated, mirroring `validate`'s opt-in policy
 bone-audit (`### Loosening policy — bone-audit`), which only runs when
 `.cdd/policy.yml` exists.
 
-**Five checks** (six scans — clause #4 is two), per
-`contracts/upgrade/upgrade-reconciliation-contract.md` `## Mechanical
-Enforcement`. This list previously said "four" and omitted the narrow-channel
-checks entirely, which shipped in the same change: a binding contract
-describing less than the code enforces is the same drift as one describing
-more, and only one of the two directions is caught by a red build.
+**Five checks** (seven scans — clauses #4 AND #5 are two independent scans
+each), per `contracts/upgrade/upgrade-reconciliation-contract.md`
+`## Mechanical Enforcement`. This list previously said "four" and omitted the
+narrow-channel checks entirely, which shipped in the same change; the first
+correction then wrote "six scans", crediting only clause #4 with being two —
+while clause #5's `narrow-channel-refusal` and `container-fail-open` are run as
+two equally independent scans in the same shape. A binding contract describing
+less than the code enforces is the same drift as one describing more, and only
+one of the two directions is caught by a red build.
 
 1. the guard's bucket-1 matcher (`src/reconcile/guard.ts` `BUCKET_1_RULES`)
    COVERS every surface enumerated in the contract's
@@ -478,11 +481,15 @@ it would silently reopen the exact hole this change exists to close. This is a
 deliberate, permanent divergence from the Boundary Guard precedent, not an
 oversight.
 
-**Honest limit.** This check is static-analysis evidence that the two
-tests EXIST and name the right assertions, and that the guard/contract text
-agree — it does not itself re-run those tests. The `full vitest suite` row
-above is what proves they currently PASS; a suite failure there blocks the gate
-independently of this check.
+**Honest limit.** This check is static-analysis evidence that the named
+tests EXIST and assert the right things, and that the guard/contract text
+agree — it does not itself re-run those tests. What proves they currently PASS
+is the repository CI's `test` workflow (`.github/workflows/test.yml` runs the
+full vitest suite on every push/PR); a suite failure there blocks the
+merge independently of this check. This sentence previously cited a
+"`full vitest suite` row above" that exists only in a per-change scratch file,
+not in this contract's Gate Inventory — a dangling reference the
+reconcile-framework contract review caught.
 
 ## Boundary Guard Enforcement Semantics (added by boundary-ci-adopter-parity)
 

@@ -269,6 +269,18 @@ function getResponseSchema(doc: Record<string, unknown>, op: Record<string, unkn
   return responses?.[code]?.content?.['application/json']?.schema;
 }
 
+/**
+ * JSON Schema `type` is a string OR an array of strings — the nullable-union
+ * form `"type": ["object", "null"]` is the standard way to say "this field is
+ * an object, or null". A strict `=== 'object'` comparison rejected it, so an
+ * envelope-tolerant schema could only be cited one level deep while the
+ * byte-identical bare-`"object"` schema allowed full dotted paths (#66).
+ */
+function typeIncludes(node: JsonSchema | undefined, want: string): boolean {
+  const t = node?.type as unknown;
+  return t === want || (Array.isArray(t) && t.includes(want));
+}
+
 /** Follow `$ref` and descend `array.items` until neither applies (bounded to defend against a cyclic/self-referential schema). */
 function deref(doc: Record<string, unknown>, schema: JsonSchema | undefined): JsonSchema | undefined {
   let current = schema;
@@ -279,7 +291,7 @@ function deref(doc: Record<string, unknown>, schema: JsonSchema | undefined): Js
       current = components[name];
       continue;
     }
-    if (current.type === 'array' && current.items) {
+    if (typeIncludes(current, 'array') && current.items) {
       current = current.items as JsonSchema;
       continue;
     }
@@ -301,7 +313,7 @@ function resolveDottedField(
   let current = deref(doc, rootSchema);
   for (const seg of segments) {
     const properties = current?.properties as Record<string, JsonSchema> | undefined;
-    if (!current || current.type !== 'object' || !properties || !(seg in properties)) {
+    if (!current || !typeIncludes(current, 'object') || !properties || !(seg in properties)) {
       return { ok: false, message: 'field "' + segments.join('.') + '" not found (no property "' + seg + '" on the resolved response schema)' };
     }
     current = deref(doc, properties[seg]);

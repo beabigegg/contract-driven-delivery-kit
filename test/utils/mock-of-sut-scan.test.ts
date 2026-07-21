@@ -191,6 +191,92 @@ describe('scanDriverForHardcodedExpect', () => {
     const violations = scanDriverForHardcodedExpect(content, placeholderCases);
     expect(violations.length).toBeGreaterThan(0);
   });
+
+  // ── #67: per-case scoping ──────────────────────────────────────────────────
+
+  it('a short numeric leaf is below the meaningful-length floor, like a short string (#67 sibling)', () => {
+    // `exit_code: 0` / `count: 1` leaves collide with `version: 1` and
+    // `schema-version: 1.0.0` in ANY fixture — a check that fires on every
+    // fixture discriminates nothing. `1500` (4+ digits) keeps full protection.
+    const shortNum = [{ id: 'exit-code-case', expect: { exit_code: 0 } }];
+    const content = "it('exit-code-case', () => { const contract = 'schema-version: 1.0.0'; run(contract); });";
+    expect(scanDriverForHardcodedExpect(content, shortNum)).toHaveLength(0);
+    const longNum = [{ id: 'exit-code-case', expect: { threshold: 1500 } }];
+    const hardcoded = "it('exit-code-case', () => { expect(r.threshold).toBe(1500); });";
+    expect(scanDriverForHardcodedExpect(hardcoded, longNum).length).toBeGreaterThan(0);
+  });
+
+  it('does NOT flag an UNDRIVEN case whose expect leaf coincides with unrelated driver text (#67)', () => {
+    // The issue's exact repro: the driver exercises only case-a via the loader;
+    // case-b (expect.count: 0) is never referenced, yet a plain `== 0` in an
+    // unrelated assertion was flagged as "hardcodes case case-b". A case's
+    // answer key can only be hardcoded in a file that exercises that case.
+    const twoCases = [
+      { id: 'case-a-merge', expect: { merged_group: 'SOME-VALUE' } },
+      { id: 'case-b-empty', expect: { count: 0 } },
+    ];
+    const content = [
+      'def test_case_a_merge():',
+      '    case = load_case("my-change", "case-a-merge")',
+      '    actual = real_system(case["input"])',
+      '    assert actual["merged_group"] == case["expect"]["merged_group"]',
+      '    assert len(warnings) == 0  # unrelated bookkeeping, not an answer key',
+    ].join('\n');
+    expect(scanDriverForHardcodedExpect(content, twoCases)).toHaveLength(0);
+  });
+
+  it('a loadAllCases driver keeps EVERY case in scope — scoping never blinds a load-all file (#67)', () => {
+    const twoCases = [
+      { id: 'case-a-merge', expect: { merged_group: 'SOME-VALUE' } },
+      { id: 'case-b-empty', expect: { threshold: 1500 } },
+    ];
+    const content = [
+      'for (const c of loadAllCases("my-change")) run(c);',
+      'expect(result.threshold).toBe(1500); // hardcoded answer for a case never named',
+    ].join('\n');
+    const violations = scanDriverForHardcodedExpect(content, twoCases);
+    expect(violations.map((v) => v.caseId)).toContain('case-b-empty');
+  });
+
+  it('a leaf that is a fragment of the CHANGE ID is API vocabulary, not an answer key', () => {
+    // An oracle answering "reconcile" for the reconcile-framework change: every
+    // legitimate driver must spell `src/reconcile/...` in an import and the
+    // `reconcile` CLI verb — both word-boundary hits. Naming the thing under
+    // test is not typing its answer key.
+    const vocabCases = [
+      { id: 'new-key-fails-open', expect: { classification: 'reconcile', bucket: 'keep' } },
+    ];
+    const content = [
+      "import { classifyPolicyKey } from '../../src/reconcile/classifier.js';",
+      "it('new-key-fails-open', () => {",
+      "  const r = runCli(['reconcile', '--plan']);",
+      '  expect(actual).toEqual(loaded.expect);',
+      '});',
+    ].join('\n');
+    expect(scanDriverForHardcodedExpect(content, vocabCases, 'reconcile-framework')).toHaveLength(0);
+    // A leaf NOT contained in the change id keeps full protection: typing it
+    // standalone is still flagged in the very same file.
+    const hardcoding = content + "\nexpect(d.bucket).toBe('keep');\n";
+    const flagged = scanDriverForHardcodedExpect(hardcoding, vocabCases, 'reconcile-framework');
+    expect(flagged.map((v) => v.literal)).toContain('keep');
+    // And without a changeId (direct unit callers), nothing is excused.
+    expect(scanDriverForHardcodedExpect(content, vocabCases).map((v) => v.literal)).toContain('reconcile');
+  });
+
+  it('a snake_case Python function name keeps the kebab-case case in scope (#67)', () => {
+    // `def test_over-limit` is a Python syntax error, so the separator-swapped
+    // spelling IS how a Python driver references the case. Skipping it would
+    // un-scan the canonical pytest driver shape — a loosening, not a fix.
+    const kebabCases = [
+      { id: 'over-limit', expect: { reason: 'credit-limit-exceeded' } },
+    ];
+    const content = [
+      'def test_over_limit():',
+      '    actual = real_system_under_test({"customer_limit": 1000})',
+      '    assert actual["reason"] == "credit-limit-exceeded"',
+    ].join('\n');
+    expect(scanDriverForHardcodedExpect(content, kebabCases).length).toBeGreaterThan(0);
+  });
 });
 
 describe('sutMatchTokens', () => {
@@ -521,12 +607,17 @@ describe('scanDriverForHardcodedExpect -- word-boundary substring safety', () =>
     // A prose comment containing the word must not trip it either.
     expect(scanDriverForHardcodedExpect('// always true\n', cases)).toEqual([]);
 
-    // But a NUMBER in expect is a real answer key, and typing it is still a violation.
+    // But a NUMBER in expect is a real answer key, and typing it is still a
+    // violation. The fixture names the case, as any driver that exercises it
+    // does — per-case scoping (#67) skips files with zero trace of the case,
+    // and a bare one-liner was exactly that.
     const numericCases = [{ id: 'over-limit-case', expect: { refund: 1500 } }];
-    expect(scanDriverForHardcodedExpect('expect(r.refund).toBe(1500);', numericCases).length)
+    const numericDriver = "it('over-limit-case', () => { expect(r.refund).toBe(1500); });";
+    expect(scanDriverForHardcodedExpect(numericDriver, numericCases).length)
       .toBeGreaterThan(0);
     // …while reading it from the case at runtime is clean.
-    expect(scanDriverForHardcodedExpect("expect(r.refund).toBe(c.expect.refund);", numericCases))
+    const cleanDriver = "it('over-limit-case', () => { expect(r.refund).toBe(c.expect.refund); });";
+    expect(scanDriverForHardcodedExpect(cleanDriver, numericCases))
       .toEqual([]);
   });
 });

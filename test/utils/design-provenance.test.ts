@@ -110,6 +110,63 @@ describe('resolveCitation: endpoint + schema field (Tier A / Tier B / nested / a
     expect(r.ok, r.message).toBe(true);
   });
 
+  it('descends a nullable-union node — type: ["object","null"] — exactly like a bare object (#66)', async () => {
+    // The standard JSON Schema way to say "an object, or null" (an
+    // envelope-tolerant `data` field). A strict `type === "object"` comparison
+    // rejected it, so this citation resolved one level deep only, while the
+    // byte-identical bare-"object" schema allowed the full dotted path.
+    var envelope = [
+      '',
+      '### Envelope',
+      '```json-schema',
+      JSON.stringify({
+        type: 'object',
+        properties: {
+          data: {
+            type: ['object', 'null'],
+            properties: { orderId: { type: 'string' } },
+          },
+        },
+      }),
+      '```',
+      '',
+    ].join('\n');
+    write(API_PATH, apiContract({
+      rows: ['| GET | /api/v1/envelope | required | - | Envelope | 401 | x |'],
+      schemas: envelope,
+    }));
+    await regenerateOpenapi();
+
+    // One level deep worked even before the fix; the DEEP path is the
+    // discriminator — the unfixed walker answered "no property orderId".
+    var shallow = await resolveCitation('GET /api/v1/envelope → data', tmpRepo);
+    expect(shallow.ok, shallow.message).toBe(true);
+    var deep = await resolveCitation('GET /api/v1/envelope → data.orderId', tmpRepo);
+    expect(deep.ok, deep.message).toBe(true);
+  });
+
+  it('a genuinely wrong field under a nullable-union node still fails (the check is not loosened)', async () => {
+    var envelope = [
+      '',
+      '### Envelope',
+      '```json-schema',
+      JSON.stringify({
+        type: 'object',
+        properties: { data: { type: ['object', 'null'], properties: { orderId: { type: 'string' } } } },
+      }),
+      '```',
+      '',
+    ].join('\n');
+    write(API_PATH, apiContract({
+      rows: ['| GET | /api/v1/envelope | required | - | Envelope | 401 | x |'],
+      schemas: envelope,
+    }));
+    await regenerateOpenapi();
+
+    var r = await resolveCitation('GET /api/v1/envelope → data.nonexistent', tmpRepo);
+    expect(r.ok).toBe(false);
+  });
+
   it('resolves a nested $ref dotted path', async () => {
     write(API_PATH, apiContract({
       rows: ['| GET | /api/v1/orders/:id | required | - | Order | 404 | x |'],
