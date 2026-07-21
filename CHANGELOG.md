@@ -2,7 +2,23 @@
 
 ## [Unreleased]
 
-## [3.14.0] - 2026-07-21
+## [4.0.0] - 2026-07-21
+
+### Upgrading
+
+One action is expected of every existing repo — which is why this is a major
+version, not a minor one:
+
+```bash
+npm install -g contract-driven-delivery
+cdd-kit reconcile --plan     # read-only preview
+cdd-kit reconcile --yes      # apply; your ground truth is mechanically guarded
+cat .cdd/migration/behavior-change-report.md
+```
+
+Existing change directories are grandfathered on v1 forever (no migration);
+nothing you authored is overwritten (INV-2, enforced by a single write guard,
+not by convention). Full guide: `docs/upgrading-to-4.md`.
 
 ### Added
 

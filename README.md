@@ -642,6 +642,26 @@ place. Then run `cdd-kit migrate --all` so existing active change directories
 receive `implementation-plan.md`; fill required `design.md` with
 `spec-architect` before resuming the planner or implementation agents.
 
+#### Upgrading to 4.0.0
+
+4.0.0 introduces `cdd-kit reconcile` — the version-upgrade path that knows the
+difference between YOUR files (never overwritten, mechanically guarded) and the
+kit's files (refreshed with backup), and writes
+`.cdd/migration/behavior-change-report.md` telling you exactly which gate
+semantics moved since the version that last installed into your repo:
+
+```bash
+npm install -g contract-driven-delivery   # 4.0.0
+cdd-kit reconcile --plan                  # read-only preview, per surface
+cdd-kit reconcile --yes                   # apply refresh + typed migrations
+cat .cdd/migration/behavior-change-report.md
+cdd-kit doctor --strict
+```
+
+New changes also scaffold 5 files instead of 9 (`context-governance: v2`);
+existing change directories are grandfathered on v1 forever — no migration.
+Full notes: [docs/upgrading-to-4.md](docs/upgrading-to-4.md).
+
 #### Upgrading to 2.2.0
 
 2.2.0 **arms enforcement chokepoints by default on a fresh `cdd-kit init`**, adds
