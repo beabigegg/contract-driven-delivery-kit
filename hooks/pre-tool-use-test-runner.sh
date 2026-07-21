@@ -70,7 +70,12 @@ if command -v jq >/dev/null 2>&1; then
   cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
 fi
 if [ -z "$cmd" ]; then
-  cmd="$(printf '%s' "$payload" | grep -oE '"command"[[:space:]]*:[[:space:]]*"[^"]+"' | head -n1 | sed -E 's/.*"command"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+  # The value is a JSON string, so a `\"` inside it must not end the match — with
+  # a naive `"[^"]+"` a quoted `--command "..."` truncates at its first inner
+  # quote and everything after it escapes the scan entirely (fail-open). Only
+  # jq-less machines reach this branch, which is how CI's preinstalled jq kept
+  # the Linux runners green over it. Unescape \" and \\ after extracting.
+  cmd="$(printf '%s' "$payload" | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -n1 | sed -E 's/.*"command"[[:space:]]*:[[:space:]]*"((\\.|[^"\\])*)".*/\1/' | sed -E 's/\\(["\\])/\1/g')"
 fi
 [ -z "$cmd" ] && exit 0
 

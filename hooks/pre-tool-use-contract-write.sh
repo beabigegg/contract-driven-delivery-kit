@@ -57,17 +57,25 @@ if [ -z "$path_value" ]; then
 fi
 [ -z "$path_value" ] && exit 0
 
+# Canonicalize before matching (same idiom as pre-tool-use-design-write.sh):
+# fold JSON-escaped `\\` and raw `\` to `/`, collapse `//` and `/./`, drop a
+# leading `./`. A Windows absolute path is what Claude Code actually sends on
+# Windows, and without this fold it silently missed the case arms below. The
+# match is lowercased separately so the file probe keeps the path's real casing.
+fs_path="$(printf '%s' "$path_value" | sed -e 's|\\\\|/|g' -e 's|\\|/|g' -e ':a' -e 's|//|/|g' -e 'ta' -e ':b' -e 's|/\./|/|g' -e 'tb' -e 's|^\./||')"
+match_path="$(printf '%s' "$fs_path" | tr 'A-Z' 'a-z')"
+
 # Only steer the one contract `contract set` can mutate. Match the exact relative
 # path, or any absolute/nested path ending in it — never a lookalike such as
 # `other-contracts/api/api-contract.md`. Everything else is allowed.
-case "$path_value" in
+case "$match_path" in
   contracts/api/api-contract.md|*/contracts/api/api-contract.md) : ;;
   *) exit 0 ;;
 esac
 
 # A first-time scaffold has nothing to `set` into (`contract set` requires the
 # file to exist), so only steer an edit to a contract that is already present.
-[ -f "$path_value" ] || exit 0
+[ -f "$fs_path" ] || exit 0
 
 msg="cdd-kit: prefer \`cdd-kit contract endpoint set --method <M> --path </path> ...\` (or \`cdd-kit contract schema set <Name> --field ...\`) over editing contracts/api/api-contract.md by hand — it validates the change, upserts by key, and touches only that row/section."
 

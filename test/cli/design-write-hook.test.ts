@@ -18,7 +18,7 @@ import { spawnSync } from 'child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { makeTempDir, cleanupDir } from '../helpers.js';
+import { makeTempDir, cleanupDir, posixShell, posixShellEnv } from '../helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HOOK = resolve(__dirname, '..', '..', 'hooks', 'pre-tool-use-design-write.sh');
@@ -44,10 +44,9 @@ function runHook(
   const env = { ...process.env };
   delete env.CDD_DESIGN_WRITE_STRICT;
   if (opts.legacyToggle !== undefined) env.CDD_DESIGN_WRITE_STRICT = opts.legacyToggle;
-  // `sh` via PATH, not `/bin/sh`: Git Bash puts `sh` on PATH on Windows, so these
-  // run here instead of skipping. A hook test that skips on the maintainer's own
-  // platform proves nothing about the hook that ships to it.
-  const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
+  // posixShell(), never a bare `sh`: a hook test that skips (or false-fails)
+  // on the maintainer's own platform proves nothing about the hook that ships to it.
+  const r = spawnSync(posixShell(), [HOOK], { cwd: repo, input: payload, env: posixShellEnv(env), encoding: 'utf8' });
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
@@ -109,10 +108,10 @@ describe('pre-tool-use-design-write.sh', () => {
 
   it('allows when the payload carries no file_path', () => {
     const payload = JSON.stringify({ tool_name: 'Edit', tool_input: {} });
-    const r = spawnSync('sh', [HOOK], {
+    const r = spawnSync(posixShell(), [HOOK], {
       cwd: repo,
       input: payload,
-      env: { ...process.env, CDD_DESIGN_WRITE_STRICT: '1' },
+      env: posixShellEnv({ ...process.env, CDD_DESIGN_WRITE_STRICT: '1' }),
       encoding: 'utf8',
     });
     expect(r.status).toBe(0);
@@ -153,7 +152,7 @@ describe('pre-tool-use-design-write.sh', () => {
   // real path has `\`. Canonicalization must unescape before folding separators.
   it('T3e: blocks the JSON-escaped Windows path the harness actually serializes', () => {
     const payload = '{"tool_name":"Write","tool_input":{"file_path":"D:\\\\repo\\\\.cdd\\\\design-lock.json"}}';
-    const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, encoding: 'utf8' });
+    const r = spawnSync(posixShell(), [HOOK], { cwd: repo, input: payload, encoding: 'utf8', env: posixShellEnv() });
     expect(r.status).toBe(2);
   });
 
@@ -170,7 +169,7 @@ describe('pre-tool-use-design-write.sh', () => {
     ['an empty payload', '', 0],
     ['malformed JSON', '{"tool_name":', 0],
   ])('T3f: %s -> exit %i', (_label, payload, want) => {
-    const r = spawnSync('sh', [HOOK], { cwd: repo, input: payload, encoding: 'utf8' });
+    const r = spawnSync(posixShell(), [HOOK], { cwd: repo, input: payload, encoding: 'utf8', env: posixShellEnv() });
     expect(r.status).toBe(want);
   });
 

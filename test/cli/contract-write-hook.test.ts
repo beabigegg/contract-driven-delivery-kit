@@ -11,7 +11,7 @@ import { spawnSync } from 'child_process';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { makeTempDir, cleanupDir } from '../helpers.js';
+import { makeTempDir, cleanupDir, posixShell, posixShellEnv } from '../helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // The SOURCE script (single source of truth; build.js copies it into assets/).
@@ -34,14 +34,14 @@ function runHook(
   const env = { ...process.env };
   if (opts.strict) env.CDD_CONTRACT_WRITE_STRICT = '1';
   else delete env.CDD_CONTRACT_WRITE_STRICT;
-  const r = spawnSync('/bin/sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
+  const r = spawnSync(posixShell(), [HOOK], { cwd: repo, input: payload, env: posixShellEnv(env), encoding: 'utf8' });
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
 beforeEach(() => { repo = makeTempDir('cdd-cwhook-'); });
 afterEach(() => { cleanupDir(repo); });
 
-describe.skipIf(process.platform === 'win32')('pre-tool-use-contract-write.sh', () => {
+describe('pre-tool-use-contract-write.sh', () => {
   it('advisory: nudges toward `contract set` and ALLOWS the edit (exit 0)', () => {
     writeContract();
     const r = runHook(CONTRACT_REL);
@@ -94,10 +94,10 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-contract-write.sh', 
   it('allows when the payload carries no file_path', () => {
     writeContract();
     const payload = JSON.stringify({ tool_name: 'Edit', tool_input: {} });
-    const r = spawnSync('/bin/sh', [HOOK], {
+    const r = spawnSync(posixShell(), [HOOK], {
       cwd: repo,
       input: payload,
-      env: { ...process.env, CDD_CONTRACT_WRITE_STRICT: '1' },
+      env: posixShellEnv({ ...process.env, CDD_CONTRACT_WRITE_STRICT: '1' }),
       encoding: 'utf8',
     });
     expect(r.status).toBe(0);

@@ -22,7 +22,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { runCli, makeTempDir, cleanupDir, CLI_PATH } from '../helpers.js';
+import { runCli, makeTempDir, cleanupDir, CLI_PATH, posixShell, posixShellEnv } from '../helpers.js';
 import { loadCase } from '../../specs/templates/acceptance-driver/acceptance.loader.js';
 
 const CHANGE_ID = 'enforce-human-confirmation';
@@ -33,10 +33,10 @@ interface HookRun { status: number | null; stdout: string; stderr: string }
 /** Run a real hook script with a real PreToolUse payload. No mock anywhere. */
 function runHook(hookFile: string, toolName: string, filePath: string, env: Record<string, string> = {}): HookRun {
   const payload = JSON.stringify({ tool_name: toolName, tool_input: { file_path: filePath } });
-  const r = spawnSync('sh', [join(REPO_ROOT, 'hooks', hookFile)], {
+  const r = spawnSync(posixShell(), [join(REPO_ROOT, 'hooks', hookFile)], {
     input: payload,
     encoding: 'utf8',
-    env: { ...process.env, ...env },
+    env: posixShellEnv({ ...process.env, ...env }),
   });
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -356,7 +356,7 @@ describe('acceptance: enforce-human-confirmation', () => {
     // Forward slashes + single quotes so Git Bash reads the Windows path literally.
     const shLock = lockPath.replace(/\\/g, '/');
     const before = readFileSync(lockPath, 'utf8');
-    const redirect = spawnSync('sh', ['-c', `printf '%s' 'FORGED' > '${shLock}'`], { encoding: 'utf8' });
+    const redirect = spawnSync(posixShell(), ['-c', `printf '%s' 'FORGED' > '${shLock}'`], { encoding: 'utf8', env: posixShellEnv() });
     const reachedLock = redirect.status === 0
       && readFileSync(lockPath, 'utf8') === 'FORGED'
       && before !== 'FORGED';

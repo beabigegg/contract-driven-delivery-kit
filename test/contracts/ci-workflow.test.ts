@@ -19,7 +19,7 @@ import { spawnSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
-import { makeTempDir, cleanupDir } from '../helpers.js';
+import { makeTempDir, cleanupDir, posixShell, posixShellEnv } from '../helpers.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ADOPTER_TEMPLATE_PATH = join(REPO_ROOT, 'github-workflows', 'contract-driven-gates.yml');
@@ -58,7 +58,7 @@ function runIdsPipeline(idsLine: string, changedPaths: string[], cwd: string) {
     idsLine,
     `printf '%s' "$IDS"`,
   ].join('\n');
-  return spawnSync('bash', ['-c', `set -eo pipefail\n${script}`], { cwd, encoding: 'utf8' });
+  return spawnSync(posixShell('bash'), ['-c', `set -eo pipefail\n${script}`], { cwd, encoding: 'utf8', env: posixShellEnv() });
 }
 
 interface WorkflowStep {

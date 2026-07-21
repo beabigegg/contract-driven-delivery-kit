@@ -14,7 +14,7 @@ import { spawnSync } from 'child_process';
 import { mkdirSync, writeFileSync, utimesSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { makeTempDir, cleanupDir } from '../helpers.js';
+import { makeTempDir, cleanupDir, posixShell, posixShellEnv } from '../helpers.js';
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'hooks', 'pre-tool-use-graph-first.sh');
 
@@ -29,11 +29,11 @@ afterEach(() => {
 });
 
 function runHook(filePath: string, env: Record<string, string> = {}): { status: number | null; stderr: string } {
-  const r = spawnSync('sh', [HOOK], {
+  const r = spawnSync(posixShell(), [HOOK], {
     cwd,
     input: JSON.stringify({ tool_input: { file_path: filePath } }),
     encoding: 'utf8',
-    env: { ...process.env, ...env },
+    env: posixShellEnv({ ...process.env, ...env }),
   });
   return { status: r.status, stderr: (r.stderr ?? '').trim() };
 }
@@ -52,10 +52,7 @@ function seed(opts: { fileNewerThanMap: boolean }): void {
   utimesSync(join(cwd, '.cdd', 'code-map.yml'), mapTime, mapTime);
 }
 
-// POSIX-sh only — the hook is a shell script spawned via `sh`, which is not on
-// PATH in a default Windows shell (PowerShell/cmd). Skip on win32, matching the
-// sibling hook tests (contract-write-hook, test-runner-hook, install-agent-hooks).
-describe.skipIf(process.platform === 'win32')('graph-first hook runtime', () => {
+describe('graph-first hook runtime', () => {
   it('allows silently when no code-map exists', () => {
     writeFileSync(join(cwd, 'foo.ts'), 'export function foo() {}\n', 'utf8');
     const r = runHook('foo.ts');

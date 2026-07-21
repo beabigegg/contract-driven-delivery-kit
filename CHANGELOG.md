@@ -62,6 +62,20 @@ not by convention). Full guide: `docs/upgrading-to-4.md`.
   shapes; the `upgrade` contract family is version-validated when present.
 - `cdd-kit gate` reports schema errors for a malformed `classification:`
   block instead of crashing with a TypeError before printing them.
+- The test-runner hook's jq-less fallback no longer truncates a quoted
+  `--command "..."` value at its first JSON-escaped quote — on machines
+  without jq (most Windows installs) a broad run chained after a ladder
+  command silently escaped the scan entirely. CI never caught it because
+  ubuntu runners preinstall jq, so the fallback branch had never executed
+  under test.
+- The contract-write hook canonicalizes the target path before matching
+  (same fold as the design-write hook): a Windows absolute path — what
+  Claude Code actually sends on Windows — no longer bypasses it.
+- The `prepublishOnly` test gate is shell-agnostic on Windows: hook tests
+  resolve Git's own `sh`/`bash` via `git --exec-path` instead of trusting
+  the invoking terminal's PATH (PowerShell/cmd have no `sh`, and `bash`
+  there is WSL's). `npm publish` now passes from any shell, and the four
+  hook-test files previously skipped on win32 run there for real.
 
 ## [3.13.1] - 2026-07-13
 

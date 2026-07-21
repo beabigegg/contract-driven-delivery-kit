@@ -15,7 +15,7 @@ import { spawnSync } from 'child_process';
 import { mkdirSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { makeTempDir, cleanupDir } from '../helpers.js';
+import { makeTempDir, cleanupDir, posixShell, posixShellEnv } from '../helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // The SOURCE script (single source of truth; build.js copies it into assets/).
@@ -34,14 +34,14 @@ function runHook(
   const env = { ...process.env };
   if (opts.strict) env.CDD_TEST_RUNNER_STRICT = '1';
   else delete env.CDD_TEST_RUNNER_STRICT;
-  const r = spawnSync('/bin/sh', [HOOK], { cwd: repo, input: payload, env, encoding: 'utf8' });
+  const r = spawnSync(posixShell(), [HOOK], { cwd: repo, input: payload, env: posixShellEnv(env), encoding: 'utf8' });
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
 beforeEach(() => { repo = makeTempDir('cdd-trhook-'); });
 afterEach(() => { cleanupDir(repo); });
 
-describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () => {
+describe('pre-tool-use-test-runner.sh', () => {
   it('advisory: nudges a broad `pytest` toward the ladder and ALLOWS it (exit 0)', () => {
     const r = runHook('pytest');
     expect(r.status).toBe(0);
@@ -301,10 +301,10 @@ describe.skipIf(process.platform === 'win32')('pre-tool-use-test-runner.sh', () 
   it('allows when the payload carries no command', () => {
     mkdirSync(join(repo, '.cdd'), { recursive: true });
     const payload = JSON.stringify({ tool_name: 'Bash', tool_input: {} });
-    const r = spawnSync('/bin/sh', [HOOK], {
+    const r = spawnSync(posixShell(), [HOOK], {
       cwd: repo,
       input: payload,
-      env: { ...process.env, CDD_TEST_RUNNER_STRICT: '1' },
+      env: posixShellEnv({ ...process.env, CDD_TEST_RUNNER_STRICT: '1' }),
       encoding: 'utf8',
     });
     expect(r.status).toBe(0);

@@ -29,7 +29,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, readFileSync } from "fs";
 import { spawnSync } from "child_process";
 import { join } from "path";
-import { runCli, makeTempDir, cleanupDir, hasPython } from "../helpers.js";
+import { runCli, makeTempDir, cleanupDir, hasPython, posixShell, posixShellEnv } from "../helpers.js";
 import { loadAllCases, loadCase } from "../../specs/templates/acceptance-driver/acceptance.loader.js";
 
 const CHANGE_ID = "interaction-design-loop";
@@ -307,15 +307,15 @@ describe.skipIf(!hasPython())("interaction-design-loop acceptance driver (specs/
     expect(tools).toEqual(["Glob", "Grep", "Read"]);
   });
 
-  it.skipIf(process.platform === "win32")(
+  it(
     "rule human-answer-never-invented: pre-tool-use-design-write.sh blocks an agent write to the lock sidecar",
     () => {
       const hookPath = join(process.cwd(), "hooks", "pre-tool-use-design-write.sh");
       const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: ".cdd/design-lock.json" } });
-      const hookRun = spawnSync("/bin/sh", [hookPath], {
+      const hookRun = spawnSync(posixShell(), [hookPath], {
         cwd: tmpRepo,
         input: payload,
-        env: { ...process.env, CDD_DESIGN_WRITE_STRICT: "1" },
+        env: posixShellEnv({ ...process.env, CDD_DESIGN_WRITE_STRICT: "1" }),
         encoding: "utf8",
       });
       expect(hookRun.status).toBe(2);
