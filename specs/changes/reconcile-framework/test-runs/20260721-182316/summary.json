@@ -1,0 +1,15 @@
+{
+  "change_id": "reconcile-framework",
+  "phase": "acceptance",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node node_modules/vitest/vitest.mjs run test/acceptance/reconcile-framework.driver.test.ts",
+  "duration_ms": 1265,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/reconcile-framework/test-runs/20260721-182316/summary.json",
+    "stdout": "specs/changes/reconcile-framework/test-runs/20260721-182316/stdout.log",
+    "stderr": "specs/changes/reconcile-framework/test-runs/20260721-182316/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

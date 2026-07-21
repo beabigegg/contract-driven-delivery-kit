@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from applicability import strip_inline_comment
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 CONTRACT_FILES = [
@@ -28,7 +30,19 @@ CONTRACT_FILES = [
     'contracts/ci/ci-gate-contract.md',
 ]
 
-VALID_CONTRACT_TYPES = {'api', 'css', 'env', 'data', 'business', 'ci'}
+# Contract families that exist only in SOME repos (the upgrade contract is
+# kit-internal dogfood, not an adopter scaffold artifact). Validated with the
+# full frontmatter/version/CHANGELOG rules IF present; absence is not an error
+# -- putting one of these in CONTRACT_FILES would fail every adopter repo that
+# legitimately does not have it. Before this list existed, gate ran this
+# validator with versions:true and it silently never looked at the upgrade
+# contract at all (contract-review finding, reconcile-framework 5.3) -- so the
+# "versioning is machine-enforced" claim was false for the newest family.
+OPTIONAL_CONTRACT_FILES = [
+    'contracts/upgrade/upgrade-reconciliation-contract.md',
+]
+
+VALID_CONTRACT_TYPES = {'api', 'css', 'env', 'data', 'business', 'ci', 'upgrade'}
 VALID_BREAKING_POLICIES = {'deprecate-2-minors', 'fail-on-major', 'no-breaking'}
 SEMVER_RE = re.compile(r'^\d+\.\d+\.\d+$')
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -57,7 +71,7 @@ def parse_frontmatter(text: str):
     for line in fm_block.splitlines():
         if ':' in line:
             key, _, value = line.partition(':')
-            fields[key.strip()] = value.strip()
+            fields[key.strip()] = strip_inline_comment(value)
 
     return fields, body
 
@@ -374,6 +388,10 @@ def main():
 
     for rel_path in CONTRACT_FILES:
         validate_file(root, rel_path, changelog_entries, errors)
+
+    for rel_path in OPTIONAL_CONTRACT_FILES:
+        if (root / rel_path).exists():
+            validate_file(root, rel_path, changelog_entries, errors)
 
     if errors:
         print('Contract version validation FAILED:')

@@ -6,6 +6,11 @@ import { isPytestCommand } from './test-run.js';
 import { detectStack, type StackKind } from '../utils/stack-detect.js';
 import { SAFE_CHANGE_ID } from '../utils/change-id.js';
 import { findAcceptanceDriverFiles } from '../utils/mock-of-sut-scan.js';
+import { readPlanSourceText } from './gate-artifacts.js';
+import {
+  type MarkdownTable, GATE_COLUMN, TARGET_COLUMN, CRITERION_COLUMN, isSeparatorRow, splitTableRow,
+  columnIndex, parseMarkdownTable, findMappingTable, findGateTable,
+} from '../utils/plan-tables.js';
 
 // Deterministic, static test selection (ADR 0005 §3). `cdd-kit test select` reads
 // test-plan.md (then implementation-plan.md as fallback), the change's touched
@@ -240,61 +245,11 @@ function fullCommand(plan: RunnerPlan): string {
 
 // ── markdown table parsing ────────────────────────────────────────────────────
 
-export interface MarkdownTable {
-  headers: string[];
-  rows: string[][];
-}
-
-function splitTableRow(line: string): string[] {
-  let s = line.trim();
-  if (s.startsWith('|')) s = s.slice(1);
-  if (s.endsWith('|')) s = s.slice(0, -1);
-  return s.split('|').map((c) => c.trim());
-}
-
-function isSeparatorRow(line: string): boolean {
-  const s = line.trim();
-  return /^[\s|:-]+$/.test(s) && s.includes('-') && s.includes('|');
-}
-
-/**
- * Parse the first GitHub-style pipe table that appears after the first heading
- * matching `headingRe`. Returns null when the heading or a well-formed table
- * (header row + separator row) is not found before the next heading.
- */
-export function parseMarkdownTable(text: string, headingRe: RegExp): MarkdownTable | null {
-  const lines = text.split(/\r?\n/);
-  let i = 0;
-  for (; i < lines.length; i++) {
-    if (headingRe.test(lines[i])) break;
-  }
-  if (i >= lines.length) return null;
-
-  for (i += 1; i < lines.length; i++) {
-    if (/^#{1,6}\s/.test(lines[i])) return null; // next heading first -> no table
-    if (lines[i].trim().startsWith('|')) break;
-  }
-  if (i + 1 >= lines.length || !isSeparatorRow(lines[i + 1])) return null;
-
-  const headers = splitTableRow(lines[i]);
-  const rows: string[][] = [];
-  for (let j = i + 2; j < lines.length; j++) {
-    if (!lines[j].trim().startsWith('|')) break;
-    rows.push(splitTableRow(lines[j]));
-  }
-  return { headers, rows };
-}
-
-function columnIndex(headers: string[], matchers: RegExp[]): number {
-  for (let k = 0; k < headers.length; k++) {
-    const h = headers[k].toLowerCase();
-    if (matchers.some((m) => m.test(h))) return k;
-  }
-  return -1;
-}
-
-const TARGET_COLUMN = [/test file/, /test path/, /node ?id/, /\btarget\b/, /\bpath\b/, /\bcommand\b/];
-const CRITERION_COLUMN = [/criterion/, /acceptance/, /\bac\b/, /^id$/];
+// The table-reading vocabulary lives in ../utils/plan-tables.ts, owned by
+// neither this module nor the gate. Re-exported here so existing importers of
+// `parseMarkdownTable` keep working.
+export { parseMarkdownTable, findMappingTable, findGateTable, columnIndex } from '../utils/plan-tables.js';
+export type { MarkdownTable } from '../utils/plan-tables.js';
 
 /**
  * Pull usable rows out of an acceptance->test mapping table, paired with the
@@ -389,7 +344,10 @@ const WORKFLOW_REF = /(^|\/)[\w.-]+\.ya?ml$/i;
  * workflow-file reference). A real `command` column is preferred over `workflow`.
  */
 export function extractQualityGates(ciGatesText: string): SelectionEntry[] {
-  const table = parseMarkdownTable(ciGatesText, /required gates/i);
+  // v1 scoped this under `## Required Gates`; v2 folds it into `## CI Gates`
+  // with no such subheading. Locate it by column signature (gate + command)
+  // rather than by a heading that only one shape has.
+  const table = parseMarkdownTable(ciGatesText, /required gates/i) ?? findGateTable(ciGatesText);
   if (!table) return [];
   const gi = columnIndex(table.headers, [/^gate$/, /\bgate\b/]);
   let cmdi = columnIndex(table.headers, [/command/]);
@@ -502,8 +460,12 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const touched = getTouchedPaths(cwd).map((p) => p.replace(/\\/g, '/'));
   const runnerPlan = detectRunnerPlan(cwd);
 
-  // Explicit mapping first: test-plan.md, then implementation-plan.md.
-  let rows = extractMappedRows(parseMarkdownTable(testPlanText, /acceptance criteria.*test mapping/i), 'test-plan.md', cwd);
+  // One resolver for both governance shapes (readPlanSourceText): v1's
+  // test-plan.md, or v2's folded  section. The table is located by
+  // its COLUMN SIGNATURE within that text rather than by heading adjacency, so an
+  // author (or the test-strategist prompt) may add a  subheading without the parser losing the table.
+  const planSource = readPlanSourceText(changeDir, 'Test Plan');
+  let rows = extractMappedRows(findMappingTable(planSource), testPlanExists ? 'test-plan.md' : 'implementation-plan.md ', cwd);
   if (rows.length === 0) {
     rows = extractMappedRows(parseMarkdownTable(implPlanText, /test execution plan/i), 'implementation-plan.md', cwd);
   }
@@ -558,7 +520,8 @@ function buildSelection(cwd: string, changeId: string, changeDir: string): Selec
   const contract = detectContractAffected(touched, implPlanText);
   if (contract) phases.contract = [{ reason: contract.reason, command: contract.command }];
 
-  const quality = extractQualityGates(readIf('ci-gates.md'));
+  // v1 file or v2's folded `## CI Gates` section -- see readPlanSourceText.
+  const quality = extractQualityGates(readPlanSourceText(changeDir, 'CI Gates'));
   if (quality.length) phases.quality = quality;
 
   const acceptance = detectAcceptancePhase(cwd, runnerPlan);

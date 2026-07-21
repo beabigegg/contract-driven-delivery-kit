@@ -1,0 +1,15 @@
+{
+  "change_id": "reconcile-framework",
+  "phase": "contract",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node dist/cli/index.js validate --contracts --env --ci",
+  "duration_ms": 1267,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/reconcile-framework/test-runs/20260715-081457/summary.json",
+    "stdout": "specs/changes/reconcile-framework/test-runs/20260715-081457/stdout.log",
+    "stderr": "specs/changes/reconcile-framework/test-runs/20260715-081457/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

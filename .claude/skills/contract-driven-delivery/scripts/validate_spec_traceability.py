@@ -2,8 +2,14 @@
 """Coarse traceability check for a change folder."""
 from pathlib import Path
 import argparse, sys
-from applicability import parse_frontmatter, _unquote
-REQUIRED=['change-classification.md','implementation-plan.md','test-plan.md','ci-gates.md','tasks.yml']
+from applicability import parse_frontmatter, _unquote, strip_inline_comment
+# The required artifact set depends on the change's `context-governance` marker,
+# exactly as src/commands/gate-artifacts.ts REQUIRED_FILES_V1/V2 does. Keeping
+# only the v1 list here made this validator reject every v2 change -- and because
+# `cdd-kit validate` runs it in CI, before the gate, a normal `cdd-kit new`
+# change could not pass CI at all.
+REQUIRED_V1=['change-classification.md','implementation-plan.md','test-plan.md','ci-gates.md','tasks.yml']
+REQUIRED_V2=['change-request.md','implementation-plan.md','tasks.yml']
 
 def _tasks_field(fm, key):
     """Extract and unquote a top-level tasks.yml scalar field already parsed
@@ -15,10 +21,13 @@ def _tasks_field(fm, key):
     frontmatter. This is a minimal local supplement to the reused reader, not
     a competing third parser."""
     raw = fm.get(key, '')
-    v = raw.strip()
+    # Comment-strip FIRST: the single-quoted branch below returns early and
+    # would otherwise never reach _unquote's stripping, so `status: 'abandoned'
+    # # note` kept the trailing comment inside the value.
+    v = strip_inline_comment(raw)
     if len(v) >= 2 and v[0] == v[-1] == "'":
         return v[1:-1].replace("''", "'")
-    return _unquote(raw)
+    return _unquote(v)
 
 def _read_abandoned_marker(d):
     """Read tasks.yml's top-level `status` + `abandoned-reason` fields, if any.
@@ -41,6 +50,19 @@ def _read_abandoned_marker(d):
         return ('', '')
     fm = parse_frontmatter('---\n' + text + '\n---\n')
     return (_tasks_field(fm, 'status'), _tasks_field(fm, 'abandoned-reason'))
+
+def _read_governance(d):
+    """`v2` | `v1` | '' (legacy/unreadable) from tasks.yml, mirroring
+    gate-artifacts.ts governanceVersion. An unreadable file yields '' and so
+    falls back to the v1 list -- the stricter of the two, never the looser."""
+    tasks_path = d / 'tasks.yml'
+    if not tasks_path.exists():
+        return ''
+    try:
+        text = tasks_path.read_text(encoding='utf-8', errors='ignore')
+    except OSError:
+        return ''
+    return _tasks_field(parse_frontmatter('---\n' + text + '\n---\n'), 'context-governance')
 
 def check_change_dir(d):
     """Check one change directory. Returns list of error strings (empty = pass)."""
@@ -65,11 +87,13 @@ def check_change_dir(d):
         print(f'Info: {d.name} marked tasks.yml status: abandoned ({reason}) — required-artifact check skipped.')
         return errors
 
-    missing=[f for f in REQUIRED if not (d/f).exists()]
+    governance=_read_governance(d)
+    required = REQUIRED_V2 if governance == 'v2' else REQUIRED_V1
+    missing=[f for f in required if not (d/f).exists()]
     if missing:
         errors.append(f'{d.name}: missing required artifacts: '+', '.join(missing))
         return errors
-    text='\n'.join((d/f).read_text(encoding='utf-8', errors='ignore') for f in REQUIRED)
+    text='\n'.join((d/f).read_text(encoding='utf-8', errors='ignore') for f in required)
     warnings=[]
     for term in ['contract','test','ci','gate']:
         if term not in text.lower(): warnings.append(term)

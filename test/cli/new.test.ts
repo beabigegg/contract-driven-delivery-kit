@@ -4,14 +4,14 @@ import { join } from 'path';
 import yaml from 'js-yaml';
 import { runCli, makeTempDir, cleanupDir } from '../helpers.js';
 
+// The v2 scaffold set. change-classification.md folded into tasks.yml
+// frontmatter; test-plan.md and ci-gates.md into implementation-plan.md;
+// context-manifest.md demoted to optional (nothing enforced the read boundary
+// it declared).
 const REQUIRED_TEMPLATES = [
   'change-request.md',
-  'change-classification.md',
   'implementation-plan.md',
-  'test-plan.md',
-  'ci-gates.md',
   'tasks.yml',
-  'context-manifest.md',
   'acceptance.yml',
   'interaction-design.md',
 ];
@@ -35,7 +35,7 @@ describe('cdd-kit new', () => {
     cleanupDir(tmpHome);
   });
 
-  it('new feat-001 creates all required templates and marks context governance v1', () => {
+  it('new feat-001 creates all required templates and marks context governance v2', () => {
     const r = runCli(['new', 'feat-001'], { cwd: tmpRepo, home: tmpHome });
     expect(r.status, `stderr: ${r.stderr}`).toBe(0);
 
@@ -49,7 +49,15 @@ describe('cdd-kit new', () => {
     const raw = readFileSync(join(changeDir, 'tasks.yml'), 'utf8');
     const data = yaml.load(raw) as Record<string, unknown>;
     expect(data['change-id']).toBe('feat-001');
-    expect(data['context-governance']).toBe('v1');
+    expect(data['context-governance']).toBe('v2');
+
+    // v2 folded three files away. Scaffolding them again would recreate exactly
+    // what it removed, so their absence is the assertion, not an omission.
+    for (const gone of ['change-classification.md', 'test-plan.md', 'ci-gates.md', 'context-manifest.md']) {
+      expect(existsSync(join(changeDir, gone)), `${gone} should not be scaffolded under v2`).toBe(false);
+    }
+    // ...and the facts they carried are still demanded, in their new home.
+    expect(data).toHaveProperty('classification');
   });
 
   it('new uses bundled package templates, not stale project specs/templates', () => {
@@ -70,7 +78,7 @@ describe('cdd-kit new', () => {
     const raw = readFileSync(join(tmpRepo, 'specs', 'changes', 'feat-bundled-template', 'tasks.yml'), 'utf8');
     const data = yaml.load(raw) as Record<string, unknown>;
     expect(data['change-id']).toBe('feat-bundled-template');
-    expect(data['context-governance']).toBe('v1');
+    expect(data['context-governance']).toBe('v2');
     expect(Array.isArray(data.tasks)).toBe(true);
     expect(data.tasks as unknown[]).toHaveLength(30);
     expect(raw).not.toContain('stale-project-template');

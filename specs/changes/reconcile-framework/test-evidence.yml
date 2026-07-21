@@ -1,0 +1,50 @@
+change-id: reconcile-framework
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+  - contract
+  - quality
+runs:
+  - phase: collect
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/reconcile-plan.test.ts
+      test/monkey/reconcile-adversarial.test.ts
+    summary: specs/changes/reconcile-framework/test-runs/20260715-093220/summary.json
+  - phase: targeted
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/reconcile-plan.test.ts
+      test/cli/refresh.test.ts test/contracts/ci-workflow.test.ts test/monkey/reconcile-adversarial.test.ts
+    summary: specs/changes/reconcile-framework/test-runs/20260715-093239/summary.json
+  - phase: changed-area
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/reconcile-plan.test.ts
+      test/cli/refresh.test.ts test/contracts/reconciliation-invariants.test.ts test/e2e/reconcile-plan.e2e.test.ts
+      test/monkey/reconcile-adversarial.test.ts
+    summary: specs/changes/reconcile-framework/test-runs/20260715-093258/summary.json
+  - phase: contract
+    status: passed
+    command: node dist/cli/index.js validate --contracts --env --ci
+    summary: specs/changes/reconcile-framework/test-runs/20260715-093322/summary.json
+  - phase: quality
+    status: passed
+    command: npm run typecheck
+    summary: specs/changes/reconcile-framework/test-runs/20260715-093323/summary.json
+  - phase: full
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/reconcile-plan.test.ts
+      test/cli/refresh.test.ts test/contracts/reconciliation-invariants.test.ts test/contracts/ci-workflow.test.ts
+      test/cli/gate.test.ts test/cli/validate.test.ts test/e2e/reconcile-plan.e2e.test.ts
+      test/monkey/reconcile-adversarial.test.ts
+    summary: specs/changes/reconcile-framework/test-runs/20260715-093340/summary.json
+  - phase: acceptance
+    status: passed
+    command: node node_modules/vitest/vitest.mjs run test/acceptance/reconcile-framework.driver.test.ts
+    summary: specs/changes/reconcile-framework/test-runs/20260721-182316/summary.json
+final-status: passed

@@ -101,12 +101,28 @@ true, output Tier 5 and skip the heavy artifact list:
 - No env var, secret, or runtime configuration change.
 - No public API behavior change.
 
-Tier 5 fast-path output minima:
-- `## Tier` → `- 5`
-- `## Required Agents` → `contract-reviewer` (read-only confirmation that no
-  contracts are touched) and `qa-reviewer` (release readiness, ~1 paragraph).
-- `## Optional Artifacts` → all `no`.
-- `## Required Tests` → all blank.
+The fast path emits the SAME paste-ready YAML block as `## Output` below — it is
+a shorter classification, not a different format. `/cdd-new` lints for a `tier:`
+line and a non-placeholder `classification:` block before transcribing into
+`tasks.yml`, so markdown headings here would be rejected and the workflow would
+loop even though the classifier followed its own prompt.
+
+Tier 5 fast-path minima, in that block:
+
+```yaml
+tier: 5
+
+classification:
+  types: [docs]
+  risk: low
+  impact: isolated
+  architecture-review: false
+  # contract-reviewer confirms no contract is touched; qa-reviewer gives a
+  # ~1-paragraph release-readiness read. No other agent is needed.
+  required-agents: [contract-reviewer, qa-reviewer]
+```
+
+Optional artifacts: none. Required tests: none.
 
 This exists because previously every doc-only change paid 8–12 agent
 invocations of token cost. The fast-path bounds it to 2 read-only reviews. If
@@ -186,50 +202,52 @@ create a follow-up tracked change for the actual fix.
 
 Use this structure:
 
-```md
-# Change Classification
+Emit the classification as the YAML block below, ready to paste into
+`tasks.yml`. Emit YAML, not prose about YAML: main Claude transcribes this
+verbatim, and every hand-translation step between your output and the file is a
+chance to drop a field the gate reads.
 
-## Change Types
-- primary:
-- secondary:
+```yaml
+# → paste into specs/changes/<change-id>/tasks.yml, replacing the scaffolded
+#   `classification:` block. `tier:` is a TOP-LEVEL key, not part of this block.
+tier: 0 | 1 | 2 | 3 | 4 | 5
 
-## Lane
-- feature | bug-fix
+classification:
+  types: []                    # first entry is the primary type; the rest are secondary
+  risk:                        # low | medium | high | critical
+  impact:                      # isolated | module-level | cross-module | system-wide
+  architecture-review: false   # true only with a real reason below
+  # architecture-review-reason: <required, and non-trivial, when the flag is true>
 
-<!-- The next three sections are REQUIRED when ## Lane is bug-fix; omit them for
-     feature work. See "Bug-fix lane detection" above for symptom-type routing. -->
-## Bug Symptom Type
-- ui | visual | api | data | performance | crash | test-failure | ci-failure | unknown
+  # Bug-fix lane (ADR 0006). Omit `lane` entirely for feature work — an absent
+  # lane means "not a defect", and setting `lane: bug-fix` ARMS bug-fix evidence
+  # enforcement in the gate. See "Bug-fix lane detection" above.
+  # lane: bug-fix
+  # diagnostic-only: true      # ADR 0006 §7 — only when the first correct step is instrumentation, not a behaviour fix
 
-## Diagnostic Only
-- no            # yes only when the first correct step is instrumentation, not a behavior fix
+  # ADR 0008 — the gate warns when a named agent leaves no agent-log entry.
+  required-agents: []
+```
 
-## Bug Evidence Required
-- symptom
-- expected behavior
-- actual behavior
-- reproduction status
-- hypotheses
-- root cause pointer
-- regression evidence
+The bug symptom type and the bug-evidence checklist below are NOT fields in
+`tasks.yml`; they are routing guidance for main Claude and the bug-fix engineer.
+Emit them as prose in your response when the lane is `bug-fix`:
 
-## Risk Level
-- low / medium / high / critical
+- **Bug symptom type**: ui | visual | api | data | performance | crash | test-failure | ci-failure | unknown
 
-## Impact Radius
-- isolated / module-level / cross-module / system-wide
-
-## Tier
-- 0 / 1 / 2 / 3 / 4 / 5
-
-## Architecture Review Required
-- yes / no
-- reason: (fill only if yes)
+- **Bug evidence required**: symptom, expected behavior, actual behavior,
+  reproduction status, hypotheses, root cause pointer, regression evidence
 
 ## Required Artifacts
 
-The following 7 artifacts are always required for implementation changes:
-`change-request.md`, `change-classification.md`, `implementation-plan.md`, `test-plan.md`, `ci-gates.md`, `tasks.yml`, `context-manifest.md`
+The following 4 artifacts are always required for implementation changes:
+`change-request.md`, `implementation-plan.md`, `tasks.yml`, `context-manifest.md`.
+`tasks.yml` carries this classification as its `classification:` block (`types`,
+`risk`, `impact`, `architecture-review` + reason) and top-level `tier:`;
+`implementation-plan.md` carries the test plan and CI gate plan as its
+`## Test Plan` and `## CI Gates` sections. (A v1 change --
+`context-governance: v1` -- still uses the old `change-classification.md` /
+`test-plan.md` / `ci-gates.md` files; never create them for a new change.)
 
 ## Optional Artifacts (default: no — set yes only with explicit reason)
 
@@ -263,7 +281,7 @@ Artifact minimization rule:
 
 Design consistency rule:
 - If `Architecture Review Required` is `yes`, set `design.md` to `yes` and include `spec-architect` in `## Required Agents`.
-- If `design.md` is `yes`, `Architecture Review Required` must also be `yes` and `spec-architect` must be listed.
+- If `design.md` is `yes`, `classification.architecture-review` must also be `true` (with a real `architecture-review-reason`) and `spec-architect` must be listed in `classification.required-agents`.
 - If no design review is needed, include task `1.3` in `## Tasks Not Applicable`.
 
 ## Required Contracts
@@ -363,7 +381,7 @@ concrete pointer (path:line-range, test-id, URL, or pass/fail string):
 artifacts:
   - { type: tier, pointer: "Tier 2" }
   - { type: risk, pointer: "medium" }
-  - { type: required-artifacts, pointer: "change-request, classification, context-manifest, test-plan, ci-gates, implementation-plan, tasks" }
+  - { type: required-artifacts, pointer: "change-request, tasks (classification block), context-manifest, implementation-plan (test plan + ci gates sections)" }
   - { type: required-reviewers, pointer: "contract-reviewer, qa-reviewer" }
   - { type: context-manifest-draft, pointer: "specs/changes/<id>/context-manifest.md#allowed-paths" }
 ```

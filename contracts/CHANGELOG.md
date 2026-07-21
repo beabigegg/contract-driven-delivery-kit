@@ -8,6 +8,155 @@ While a contract is at 0.x (draft), entries here are optional.
 Once a contract reaches 1.0.0, every schema-version bump must have
 a corresponding entry below.
 
+## [upgrade 0.3.0] — 2026-07-20
+### Changed
+- **BREAKING (0.x minor) — the kit-shipped files of `tests/contract/**` are no
+  longer bucket 1.** Routing `refresh`'s apply through the guard made
+  `cdd-kit refresh --yes` THROW: the packaged response-shape harness lands under
+  `tests/contract/`, which the whole-`tests/**` rule refused. Recorded as
+  breaking because it removes surfaces from absolute bucket-1 protection.
+
+  The narrowing is per-FILE, not per-directory, because `tests/contract/` is
+  mixed ownership: the kit ships a README, an example JSON and a
+  `samples/.gitkeep`, while `tests/contract/samples/*.json` holds the adopter's
+  captured real responses (`docs/boundary-guard.md`) and stays ground truth.
+  Membership is DERIVED from what the package actually ships rather than a
+  hardcoded filename list, so a growing harness follows automatically and an
+  adopter file that merely shares the directory never becomes writable. An
+  unreadable asset directory yields "not kit-shipped" — fail safe.
+
+## [upgrade 0.2.0] — 2026-07-16
+### Added
+- **`## Bucket-1 containers and their narrow channels`** — a binding, closed
+  list of the two bucket-1 surfaces that are CONTAINERS (`.cdd/policy.yml`,
+  `CLAUDE.md`) and the single narrow channel each permits, plus the four
+  conditions a channel must satisfy to be binding (implemented inside the
+  guarded writer; proves preservation byte-for-byte FROM DISK and restores on
+  failure; never re-serializes a container it only means to extend; refuses or
+  reports rather than guessing when the container is malformed or its region
+  ambiguous). Adding or widening a channel is a breaking change under the same
+  rule as reclassifying a bucket-1 surface.
+
+### Changed
+- **BREAKING (0.x minor) — `CLAUDE.md` bucket-1 row narrowed** to "everything
+  OUTSIDE its `cdd-kit:learnings` markers". The kit already promised this in the
+  CLAUDE.md template itself ("Anything you write outside the markers is yours and
+  is never edited or evicted"), but this contract's row claimed the whole file,
+  so the promise had no contract behind it and the region had no lawful writer.
+  Recorded as breaking because it removes a surface from absolute bucket-1
+  protection, which is the write-safety equivalent of disabling a bone.
+
+### Fixed
+- **`.cdd/policy.yml` per-key migration was unimplementable.** The contract's
+  bucket-1 row already scoped protection to "user-set key values only" and
+  `## .cdd/policy.yml is classified PER-KEY` already REQUIRED a genuinely-new key
+  to be added at a safe default — but the guard refused the whole file, so the
+  plan could print `needs-reconcile` and the apply could never honour it. The
+  guard was stricter than its own contract; no protection is removed by fixing
+  it. Found by building the first reconciler that had to use it: the framework
+  shipped with an empty registry, so nothing had ever hit the wall.
+
+## [upgrade 0.1.0] — 2026-07-14
+### Added
+- **Initial contract** (added by `reconcile-framework`, ADR 0014). Establishes
+  the three-bucket (keep/replace/reconcile) surface taxonomy governing every
+  kit upgrade path (`refresh`, `upgrade`, `update`, `reconcile`), the binding
+  bucket-1 never-overwrite ground-truth enumeration, INV-1 (fail-open safe
+  defaults for new surfaces/keys) and INV-2 (never flip / never overwrite
+  existing ground truth via a single guarded writer), the per-key
+  classification rule for `.cdd/policy.yml` (adopter-set key stays keep;
+  genuinely-new key reconciles with a safe default), and `## Mechanical
+  Enforcement` naming the four checks a validator must implement. Mechanically
+  backed by the new `enforceReconciliationInvariants` gate check
+  (`[ci 0.12.0]` below).
+
+## [ci 0.14.0] — 2026-07-21
+### Changed (non-breaking)
+- `### enforceReconciliationInvariants` scan count corrected again: "six scans"
+  credited only clause #4 with being two, while clause #5's
+  `narrow-channel-refusal` / `container-fail-open` are two equally independent
+  scans. Now "five checks (seven scans)".
+- Repointed the "Honest limit" sentence that cited a "`full vitest suite` row
+  above" — no such row exists in this contract's Gate Inventory (it lived in a
+  per-change scratch file). Now names the real prover: the `test` workflow
+  (`.github/workflows/test.yml`). Both caught by the reconcile-framework
+  contract review (5.3).
+
+## [upgrade 0.4.0] — 2026-07-21
+### Added
+- `.cdd/model-policy.json` given an explicit disposition in the Scope
+  enforcement table: a REGENERABLE derived sidecar (like
+  `.cdd/asset-manifest.json`), exempt from the bucket taxonomy — its `roles`
+  map derives wholesale from agent frontmatter, which is the guarded
+  customization surface. Written raw today by `upgrade` and by `refresh`'s
+  `resyncModelPolicy`, outside the guard; stated as part of the same
+  deliberately-unclaimed guard-routing gap as the `update`/`upgrade` rows.
+  Surfaced by the reconcile-framework contract review: a taxonomy claiming to
+  cover every surface an upgrade path touches was silent on one that two of
+  its four governed commands demonstrably write.
+- The `upgrade` contract family is now wired into
+  `validate_contract_versions.py` (`OPTIONAL_CONTRACT_FILES` — validated when
+  present, absence is not an adopter error). Until now `cdd-kit gate` ran that
+  validator with `versions: true` and it silently never read this file, so
+  frontmatter staleness (`last-changed` stuck at the 0.1.0 date across two
+  bumps) went undetected — also fixed here.
+
+## [ci 0.13.0] — 2026-07-20
+### Added
+- **`enforceReconciliationInvariants` check #4 is now TWO scans.** The upgrade
+  contract's Mechanical Enforcement #4 has two halves — fail-open-to-keep for
+  malformed classifier input, AND a non-enforcing default for a newly-added
+  surface/`.cdd/policy.yml` key (INV-1) — but only the first was scanned. The
+  safe-default evidence could be deleted while a malformed-input test kept the
+  check green. A named `safe-default` test whose body inspects `safeDefault` is
+  now required, additionally searched under `test/cli/reconcile-bucket3.test.ts`.
+  Bucket routing alone is explicitly NOT the evidence: a key correctly routed to
+  `reconcile` and then added at an enforcing default still newly blocks the
+  adopter.
+
+### Changed (non-breaking)
+- The subsection said **"Four checks"** and omitted the two narrow-channel
+  checks that shipped in the same change (`narrow-channel-refusal`,
+  `container-fail-open`). Now "Five checks (six scans)", with #5 enumerated. A
+  binding contract that describes LESS than the code enforces is the same drift
+  as one describing more — and only one of those two directions is caught by a
+  red build, which is why this one survived.
+
+## [ci 0.12.0] — 2026-07-14
+### Added
+- **`enforceReconciliationInvariants`** Gate Inventory row and subsection
+  (added by `reconcile-framework`, ADR 0014), `ci-or-strict`, hosted by both
+  `cdd-kit gate` and `cdd-kit validate` (same "two host commands" shape as
+  `enforceConfirmationHookInstallation`). Enforces
+  `contracts/upgrade/upgrade-reconciliation-contract.md` `## Mechanical
+  Enforcement`'s four checks: bucket-1 matcher coverage, a single-writer static
+  scan, and a recorded PASSED test for each of the two linchpin invariants
+  (guard-refusal, fail-open). NOT gated on `isNewChange`; carries NO
+  shadow-mode knob — a deliberate, permanent divergence from the Boundary
+  Guard `shadow_mode` precedent, since INV-2 is contract-binding and
+  non-negotiable.
+
+## [ci 0.11.0] — 2026-07-14
+### Added
+- **Boundary Guard Enforcement Semantics** section (added by `boundary-ci-adopter-parity`,
+  production issues #62 / #63 / #65). Binds the invariant that `cdd-kit gate <id>` and
+  standalone `cdd-kit boundary check` derive the shadow/blocking decision from ONE shared
+  source: with `.cdd/policy.yml` `shadow_mode: true` (shipped default) an `error` finding is
+  advisory in both paths (exit 0); `cdd-kit boundary check --enforce` overrides shadow mode
+  (exit 1); `shadow_mode: false` blocks both paths. Also binds single effective-base resolution
+  reused for both changed-file detection and the changed-contract-operation snapshot (only the
+  actually-changed operations selected when given `CDD_BASE_SHA` alone), and requires the
+  shipped adopter workflow to pass `--base "$CDD_BASE_SHA"`.
+- **Archive-only push robustness** subsection under Gate Inventory (added by
+  `boundary-ci-adopter-parity`, production issue #61). Binds AC-6: the "Determine changed spec
+  directories" step exits 0 with empty `ids` on an archive-only push under `bash -eo pipefail`,
+  using a structured `if` form rather than a chained `&&` list.
+### Note
+- The underlying standalone `cdd-kit boundary check` exit-code default changes (1 → 0 in shadow
+  mode); this is an intended parity correction with `cdd-kit gate`, with `--enforce` as the
+  rollback path. Adopters see the behavior change on `npm` upgrade, not on a workflow edit — the
+  package release notes must call this out.
+
 ## [ci 0.10.0] — 2026-07-13
 ### Added
 - **Loosening policy — bone-audit** subsection under Informational Gate Promotion

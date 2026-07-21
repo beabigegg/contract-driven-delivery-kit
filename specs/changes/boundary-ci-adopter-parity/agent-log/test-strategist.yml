@@ -1,0 +1,49 @@
+change-id: boundary-ci-adopter-parity
+timestamp: 2026-07-14T00:00:00Z
+agent: test-strategist
+status: complete
+files-read:
+  - specs/changes/boundary-ci-adopter-parity/change-classification.md
+  - specs/changes/boundary-ci-adopter-parity/context-manifest.md
+  - specs/changes/boundary-ci-adopter-parity/acceptance.yml
+  - contracts/ci/ci-gate-contract.md
+  - src/commands/boundary.ts
+  - src/boundary/guard.ts
+  - src/commands/gate.ts
+  - test/cli/boundary.test.ts
+  - test/cli/gate.test.ts
+  - test/contracts/ci-workflow.test.ts
+  - test/helpers.ts
+  - test/setup-git-env.ts
+  - github-workflows/contract-driven-gates.yml
+  - .github/workflows/contract-driven-gates.yml
+  - .cdd/code-map.yml
+artifacts:
+  - type: test-plan-path
+    pointer: "specs/changes/boundary-ci-adopter-parity/test-plan.md"
+  - type: tdd-pairs
+    pointer: "test/cli/boundary.test.ts (AC-1..AC-4) -> src/commands/boundary.ts, src/boundary/guard.ts, src/commands/gate.ts"
+  - type: tdd-pairs
+    pointer: "test/contracts/ci-workflow.test.ts (AC-5..AC-7) -> github-workflows/contract-driven-gates.yml, .github/workflows/contract-driven-gates.yml, build.js"
+  - type: tdd-pairs
+    pointer: "test/acceptance/boundary-ci-adopter-parity.driver.test.ts (acceptance phase) -> specs/changes/boundary-ci-adopter-parity/acceptance.yml (still human-drafted placeholder at time of writing)"
+  - type: coverage-tiers
+    pointer: "integration (real git + built CLI, no mocked git/fs), contract (workflow YAML + asset-drift), acceptance (ADR 0010 driver)"
+  - type: mapping-completeness
+    pointer: "AC-1..AC-7 mapped to concrete new/extended test cases with a per-AC mutation-red proof row; AC-8 mapped to contract-reviewer sign-off (process check, no dedicated automated test) backed mechanically by AC-1..AC-5"
+key-findings:
+  - "AC-3 parity test cannot live in test/cli/gate.test.ts: bug-fix-engineer's context-manifest Allowed Paths include test/cli/boundary.test.ts and test/contracts/ci-workflow.test.ts but NOT test/cli/gate.test.ts, so the anti-divergence assertion is placed in boundary.test.ts, invoking both `boundary check` and `gate <id>` via runCli against one shared fixture."
+  - "The existing ci-workflow.test.ts archive-only regression test ('the SHIPPED IDS pipeline drops an archived id, keeps a live one') runs the IDS= line via plain `sh -c` with no `-e`/pipefail, and mixes one live id with one archived id. Neither property reproduces the #61 defect: (a) without errexit the chained && failure never kills the script, and (b) a trailing live id's success is the LAST command in the while loop, masking an earlier failing iteration under bash semantics. AC-6's new test must run under `bash -c 'set -eo pipefail; ...'` with an ALL-archived batch (no live id) to actually reproduce."
+  - "github-workflows/contract-driven-gates.yml (adopter template) still ships the buggy chained `[ -n \"$id\" ] && [ -d ... ] && printf` form; .github/workflows/contract-driven-gates.yml (this repo's own) already uses the structured if/then/fi form. Confirmed by direct read, not inference."
+  - "Neither template's Boundary Guard step passes an explicit --base flag today (env var CDD_BASE_SHA only) -- AC-5 is currently unmet in both files, confirmed by direct read."
+next-action: >-
+  bug-fix-engineer implements the AC-1..AC-4 fixes in src/commands/boundary.ts +
+  src/boundary/guard.ts + src/commands/gate.ts with mutation-red proof per the
+  Mutation-Red Proof table in test-plan.md; ci-cd-gatekeeper implements AC-5..AC-7
+  in both workflow files + build.js; qa-reviewer verifies each regression test is
+  non-vacuous before release.
+notes: >-
+  Test-plan.md stays within the 100-line soft cap (79 lines) by folding the
+  mutation-red requirement into its own compact table rather than a prose
+  paragraph per AC, per the CLAUDE.md "Vacuous tests" and "guarantees that never
+  happened" standing lessons.

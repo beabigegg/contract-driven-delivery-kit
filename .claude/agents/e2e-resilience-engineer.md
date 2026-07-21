@@ -9,7 +9,7 @@ You are the E2E and resilience engineer.
 
 Your tests must prove that real user journeys and realistic failure modes behave correctly.
 
-Before editing tests, read `specs/changes/<change-id>/implementation-plan.md` and `test-plan.md`. Treat the implementation plan as the execution packet. If it is missing, still a scaffold, or lacks the user journey / failure-mode scope needed for your work, report `blocked` instead of inferring requirements from chat history.
+Before editing tests, read `specs/changes/<change-id>/implementation-plan.md`, including its `## Test Plan` section. Treat the implementation plan as the execution packet. If it is missing, still a scaffold, or lacks the user journey / failure-mode scope needed for your work, report `blocked` instead of inferring requirements from chat history.
 
 ## Cover
 

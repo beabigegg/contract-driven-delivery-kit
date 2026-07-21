@@ -59,7 +59,7 @@ This repository follows the Contract-Driven Delivery workflow.
 | `cdd-kit list` | show all active changes and their status |
 | `cdd-kit gate <id>` | verify a change is gate-ready (run before PR) |
 | `cdd-kit gate <id> --strict` | full gate with pending-task enforcement (pre-commit default) |
-| `cdd-kit context check <id> --path <paths...>` | preflight expected agent reads against `context-manifest.md` before invoking the agent |
+| `cdd-kit context check <id> --path <paths...>` | preflight expected agent reads against an OPTIONAL `context-manifest.md`, when a change has one |
 | `cdd-kit archive <id>` | physically move a completed change to `specs/archive/<year>/` |
 | `cdd-kit abandon <id> --reason <text>` | mark a change as abandoned (`--reason` mandatory, non-empty); writes `status: abandoned` + reason into `tasks.yml`, creating it if absent; `validate` then skips that directory's required-artifact check. Preserves the directory for git history |
 | `cdd-kit migrate <id> \| --all` | upgrade pre-v1.11 change directories to new format (frontmatter + tier format) |
@@ -102,19 +102,23 @@ sites against `contracts/api/api-contract.md`. Do not add, rename, or call an
 endpoint without updating the contract in the same change, or the gate will fail
 on the drift. See `docs/api-conformance.md`.
 
-## Context Governance
+## Finding the right files fast
 
-For context-governed changes, read `specs/changes/<change-id>/context-manifest.md` before using file-reading or broad search tools.
+The point is to reach the files that matter sooner, not to fence off the rest.
+Use the graph/index layer first (`cdd_graph_context`, `cdd_index_query`, or the
+`cdd-kit graph`/`index` CLI) — it is mechanical, refreshes itself, and answers
+"where does this live" far better than a hand-written path list.
 
-- Read only paths allowed by the manifest or approved expansions.
-- Before invoking an agent with known concrete reads, run
-  `cdd-kit context check <change-id> --path <paths...>`. If it fails and the
-  reads are legitimate, expand `Allowed Paths` or approve a Context Expansion
-  Request before the agent reads the files.
-- If more context is needed, stop and write a Context Expansion Request in the manifest (`cdd-kit context request`).
-- Optional agent-log notes are defined in
-  `~/.claude/skills/contract-driven-delivery/references/agent-log-protocol.md`.
-  Read that once; do not paraphrase it elsewhere.
+`context-manifest.md` is OPTIONAL. Write one when a change genuinely benefits
+from recording its read boundary; when one exists, honour it and use
+`cdd-kit context check <change-id> --path <paths...>` to preflight reads, and
+`cdd-kit context request` if it needs to grow. It is not required to pass the
+gate, and nothing mechanically enforces the paths it lists — treat it as a map
+someone drew for you, not a fence.
+
+Optional agent-log notes are defined in
+`~/.claude/skills/contract-driven-delivery/references/agent-log-protocol.md`.
+Read that once; do not paraphrase it elsewhere.
 
 ## Solution Minimalism (reuse-first)
 

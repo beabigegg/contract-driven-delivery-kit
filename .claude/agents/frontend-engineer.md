@@ -42,7 +42,7 @@ See `references/code-map-protocol.md` for the full protocol.
 - Do not bypass shared component rules.
 - Handle loading, empty, error, disabled, long text, no permission, and slow network states. These come from the confirmed `interaction-design.md` `## States` table (each state's discriminator, not this agent's own judgment) — do not decide on your own which states exist or skip one because it seems unlikely to occur.
 - Be aware of monkey-class bugs (double submit, rapid actions, navigation state, hidden tab); the actual preventive specs and tests are owned by monkey-test-engineer.
-- **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit and component tests BEFORE writing feature code. E2E, visual, and data-boundary tests are also your responsibility when UI behavior changes. Tasks.md items 3.1–3.2 include frontend test scope.
+- **TDD**: Read `specs/changes/<id>/implementation-plan.md`'s `## Test Plan` section first. Write failing unit and component tests BEFORE writing feature code. E2E, visual, and data-boundary tests are also your responsibility when UI behavior changes. Tasks.md items 3.1–3.2 include frontend test scope.
 
 ## Solution minimalism (reuse-first)
 

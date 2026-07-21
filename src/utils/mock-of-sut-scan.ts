@@ -135,9 +135,15 @@ function collectLeafLiterals(value: unknown, out: Set<string>): void {
     return;
   }
   if (typeof value === 'number') {
-    // Numbers stay collected. `1500` in an expect IS an answer key, and a driver that
-    // types it has hardcoded the answer.
-    out.add(String(value));
+    // Numbers stay collected — `1500` in an expect IS an answer key, and a
+    // driver that types it has hardcoded the answer — but under the SAME
+    // meaningful-length floor strings get. A short number (`0`, `1`, `200`) is
+    // structurally incapable of discriminating a hardcode from omnipresent
+    // fixture noise: `version: 1`, `schema-version: 1.0.0`, an HTTP status in
+    // any fixture body. A fully loader-driven driver with zero hardcodes was
+    // flagged three times over exactly those (#67's sibling false positive).
+    const s = String(value);
+    if (s.length >= 4) out.add(s);
     return;
   }
   if (Array.isArray(value)) {
@@ -197,17 +203,51 @@ export function isWordBoundaryOccurrence(haystack: string, start: number, end: n
  * referencing the case by name never trips the scan, but a genuine standalone
  * hardcoded comparison still does.
  */
+// A load-ALL loader call puts every case in scope for the file, without the
+// file ever naming individual ids.
+const LOAD_ALL_RE = /\bload(?:_all_cases|AllCases)\s*\(/;
+
 export function scanDriverForHardcodedExpect(
   content: string,
   cases: Array<{ id?: unknown; expect?: unknown }>,
+  changeId?: string,
 ): HardcodedExpectViolation[] {
   const violations: HardcodedExpectViolation[] = [];
+  const loadsAll = LOAD_ALL_RE.test(content);
   for (const c of cases) {
     const idStr = c.id !== undefined && c.id !== null ? String(c.id) : '';
-    const idRanges = idStr.length >= 4 ? findAllOccurrences(content, idStr) : [];
+    // A Python driver CANNOT spell a kebab-case id verbatim in its test-function
+    // name (`def test_over-limit` is a syntax error), so "the file references
+    // this case" must accept the separator-swapped spellings too — that is the
+    // canonical Python driver shape both fixture suites already use.
+    const idVariants = idStr.length >= 4
+      ? [...new Set([idStr, idStr.replace(/-/g, '_'), idStr.replace(/_/g, '-')])]
+      : [];
+    // Per-case scoping (#67): a case's answer key can only be "hardcoded" in a
+    // driver that actually exercises that case — one that mentions its id in
+    // any spelling (a loadCase argument, a test title, a snake_case function
+    // name) or loads ALL cases. Scanning every case's leaves file-wide flagged
+    // an unrelated `assert len(x) == 0` because an UNDRIVEN sibling case's
+    // expect happened to contain a 0. Whether every case is driven SOMEWHERE
+    // is AC-4's coverage scan, not this one's job. Scoping deliberately uses
+    // plain occurrence (no word-boundary demand): any trace of the id keeps
+    // the file in scope, so this can only skip files with zero connection to
+    // the case, never weaken scanning of a file that drives it.
+    const referencesCase = idVariants.some((v) => content.includes(v));
+    if (!loadsAll && !referencesCase) continue;
+    const idRanges = idVariants.flatMap((v) => findAllOccurrences(content, v));
     const leaves = new Set<string>();
     collectLeafLiterals(c.expect, leaves);
     for (const literal of leaves) {
+      // A leaf that is a fragment of the CHANGE'S OWN NAME is vocabulary every
+      // legitimate driver must utter — an oracle answering `"reconcile"` for
+      // the reconcile-framework change collides with `src/reconcile/...`
+      // imports and the `reconcile` CLI verb, which no driver can avoid
+      // spelling. Same principle as the case-id exclusion below: naming the
+      // thing under test is not typing its answer key. The honest limit: for
+      // such a leaf, a literal-occurrence scan cannot tell the API token from
+      // a hardcode, so it abstains rather than false-fails every driver.
+      if (changeId && changeId.includes(literal)) continue;
       const occurrences = findAllOccurrences(content, literal)
         .filter(([s, e]) => isWordBoundaryOccurrence(content, s, e));
       if (occurrences.length === 0) continue;
@@ -380,7 +420,7 @@ export function scanAcceptanceDrivers(
           '"acceptance test mocks the thing it is supposed to verify" (AC-4; ADR 0010 section 3.3)',
       });
     }
-    for (const v of scanDriverForHardcodedExpect(content, cases)) {
+    for (const v of scanDriverForHardcodedExpect(content, cases, changeId)) {
       findings.push({
         file: rel,
         kind: 'hardcoded-expect',

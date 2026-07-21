@@ -1,0 +1,15 @@
+{
+  "change_id": "boundary-ci-adopter-parity",
+  "phase": "collect",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts",
+  "duration_ms": 11882,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144254/summary.json",
+    "stdout": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144254/stdout.log",
+    "stderr": "specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144254/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

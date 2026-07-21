@@ -17,5 +17,21 @@
     "tty": true,
     "timestamp": "2026-07-11T02:11:51.638Z",
     "git-author": "beabigegg <lin4637lin4637@gmail.com>"
+  },
+  "boundary-ci-adopter-parity": {
+    "hash": "36f019d363e5ddbbfc308b1f009393ebcf17cf362ffa1a098b3eebb0f011a761",
+    "locked-at": "2026-07-21T11:05:11.323Z",
+    "tty": true,
+    "timestamp": "2026-07-21T11:05:11.323Z",
+    "git-author": "beabigegg <lin4637lin4637@gmail.com>",
+    "mode": "human"
+  },
+  "reconcile-framework": {
+    "hash": "8b00b2434278c7949bdd568c7bb112e9a9c5df8cdb98ce16e26a18651b9c063e",
+    "locked-at": "2026-07-21T11:05:26.647Z",
+    "tty": true,
+    "timestamp": "2026-07-21T11:05:26.647Z",
+    "git-author": "beabigegg <lin4637lin4637@gmail.com>",
+    "mode": "human"
   }
 }

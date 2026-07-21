@@ -1,0 +1,25 @@
+change-id: boundary-ci-adopter-parity
+timestamp: 2026-07-14T00:00:00Z
+agent: change-classifier
+status: complete
+indexes-used:
+  - specs/context/project-map.md
+  - specs/context/contracts-index.md
+files-read:
+  - specs/changes/boundary-ci-adopter-parity/change-request.md
+  - specs/changes/boundary-ci-adopter-parity/context-manifest.md
+  - specs/context/project-map.md
+  - specs/context/contracts-index.md
+artifacts:
+  - type: classification
+    pointer: specs/changes/boundary-ci-adopter-parity/change-classification.md
+  - type: context-manifest-draft
+    pointer: specs/changes/boundary-ci-adopter-parity/change-classification.md#context-manifest-draft
+next-action: contract-reviewer updates contracts/ci/ci-gate-contract.md, then test-strategist maps AC-1..AC-8, ci-cd-gatekeeper, bug-fix-engineer, qa-reviewer.
+notes: >-
+  Tier 2, bug-fix lane, symptom=ci-failure. No atomic split (three defects share
+  one root cause — the v3.12-3.13.1 Boundary Guard rearchitecture where the
+  shipped standalone command + workflow template diverged from the internal gate
+  path — and one rollback surface). No arch review (task 1.3 skipped). Contract
+  path forced via contracts/ci/ci-gate-contract.md. CER-001 resolved at
+  classification: gate-side shadow downgrade is in src/commands/gate.ts.

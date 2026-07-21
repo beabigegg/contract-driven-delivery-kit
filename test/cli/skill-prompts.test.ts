@@ -14,7 +14,12 @@ describe('CDD skill prompt integration', () => {
     expect(skill).toMatch(/specs\/context\/contracts-index\.md/);
     expect(skill).toMatch(/Do not authorize the classifier to read `contracts\/`, `src\/`, `tests\/`/);
     expect(skill).toMatch(/Context Manifest Draft/);
-    expect(skill).toMatch(/YOU update.*context-manifest\.md/s);
+    // The manifest is OPTIONAL under v2 — `cdd-kit new` does not scaffold it and
+    // the gate does not require it, so the prompt must not send an agent looking
+    // for a file that is normally absent. Pinning the optionality, not a
+    // "YOU update it" instruction that would now be wrong.
+    expect(skill).toMatch(/context-manifest\.md[^\n]*OPTIONAL/i);
+    expect(skill).toMatch(/Optional: create `specs\/changes\/<change-id>\/context-manifest\.md`/);
     expect(skill).toMatch(/implementation-plan\.md/);
     expect(skill).toMatch(/implementation-planner/);
     expect(skill).toMatch(/Never start implementation[\s\S]*implementation-plan\.md/);
@@ -63,8 +68,11 @@ describe('CDD skill prompt integration', () => {
     const resume = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-resume', 'SKILL.md'), 'utf8');
 
     expect(cddNew).toMatch(/`design\.md` is owned by `spec-architect`, not `implementation-planner`/);
+    // The trigger moved into tasks.yml's classification block; the RULE did not.
     expect(cddNew).toMatch(/marks `design\.md` as `yes`[\s\S]*lists `spec-architect`/);
+    expect(cddNew).toMatch(/classification\.architecture-review/);
     expect(classifier).toMatch(/If `design\.md` is `yes`[\s\S]*`spec-architect` must be listed/);
+    expect(classifier).toMatch(/classification\.required-agents/);
     expect(architect).toMatch(/owner for `specs\/changes\/<change-id>\/design\.md`/);
     expect(planner).toMatch(/route back to `spec-architect`/);
     expect(resume).toMatch(/resume from `spec-architect` before invoking `implementation-planner`/);
@@ -170,7 +178,7 @@ describe('CDD skill prompt integration', () => {
     const cddNew = readFileSync(join(repoRoot, '.claude', 'skills', 'cdd-new', 'SKILL.md'), 'utf8');
     const workflow = readFileSync(join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'SKILL.md'), 'utf8');
     const tasks = readFileSync(
-      join(repoRoot, '.claude', 'skills', 'contract-driven-delivery', 'templates', 'tasks.yml'),
+      join(repoRoot, 'specs', 'templates', 'tasks.yml'),
       'utf8',
     );
     const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8');

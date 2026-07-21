@@ -6,7 +6,8 @@ import { sha256OfFileNormalized } from '../utils/digest.js';
 import { sectionBody } from '../utils/markdown-section.js';
 import { parsePipeTable } from '../utils/markdown-table.js';
 import { ajv, loadYamlFile, type TasksFile } from './gate-shared.js';
-import { REQUIRED_FILES } from './gate-artifacts.js';
+import { requiredFilesFor, readPlanSourceText } from './gate-artifacts.js';
+import { findMappingTable, findGateTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN, GATE_COLUMN } from '../utils/plan-tables.js';
 import { resolveTier } from './gate-tier.js';
 import { readLane } from './gate-evidence.js';
 import { changeMetadataSchema } from '../schemas/change-metadata.schema.js';
@@ -117,25 +118,68 @@ function parseAcceptanceCriteria(classifText: string): { id: string; text: strin
   return out;
 }
 
-function parseTestMapping(testPlanText: string): { criterion: string; family: string; path: string }[] {
-  const rows = parsePipeTable(sectionBody(testPlanText, 'Acceptance Criteria → Test Mapping'));
+/**
+ * v1's test-plan.md scopes its table under `## Acceptance Criteria → Test
+ * Mapping`. v2's folded `## Test Plan` section is already scoped, so the table
+ * sits at its top level — with or without the `###` subheading the
+ * test-strategist prompt documents. Try the sub-section, then the text itself.
+ */
+/** parsePipeTable-shaped rows for exactly ONE table, chosen by column signature
+ *  (findMappingTable / findGateTable) so a sibling table in the same section is
+ *  never folded in. Returns [] when no matching table is present. */
+function rowsOf(table: { headers: string[]; rows: string[][] } | null): Record<string, string>[] {
+  if (!table) return [];
+  return table.rows.map(r => {
+    const o: Record<string, string> = {};
+    table.headers.forEach((h, i) => { o[h.trim().toLowerCase()] = (r[i] ?? "").trim(); });
+    return o;
+  });
+}
+
+function pipeRowsOfMappingTable(text: string): Record<string, string>[] { return rowsOf(findMappingTable(text)); }
+function pipeRowsOfGateTable(text: string): Record<string, string>[] { return rowsOf(findGateTable(text)); }
+
+function scopedOrWhole(text: string, heading: string): string {
+  const scoped = sectionBody(text, heading);
+  return scoped.trim() ? scoped : text;
+}
+
+export function parseTestMapping(testPlanText: string): { criterion: string; family: string; path: string }[] {
+  // Only the AC-mapping table, located by its column signature. Passing the whole
+  // section to parsePipeTable swept in the documented `### Test Families Required`
+  // table that follows it, whose `| family | tier | notes |` header parsed as a
+  // data row and produced a bogus `FAMILY` criterion pointing at `notes`.
+  // Columns resolved with the SHARED matchers, not exact header strings. The
+  // gate and the selector both accept shorthand headers (`AC`, `target`,
+  // `path`); reading exact `criterion id` / `test file path` keys here meant a
+  // plan those two happily ran produced an empty, unlinked trace.yml.
+  const table = findMappingTable(scopedOrWhole(testPlanText, 'Acceptance Criteria → Test Mapping'));
+  if (!table) return [];
+  const ci = columnIndex(table.headers, CRITERION_COLUMN);
+  const ti = columnIndex(table.headers, TARGET_COLUMN);
+  const fi = columnIndex(table.headers, [/family/, /\btype\b/]);
+  if (ci < 0 || ti < 0) return [];
+
   const out: { criterion: string; family: string; path: string }[] = [];
-  for (const r of rows) {
-    const criterion = (r['criterion id'] ?? '').toUpperCase();
-    const family = (r['test family'] ?? '').toLowerCase();
-    const path = r['test file path'] ?? '';
+  for (const r of table.rows) {
+    const criterion = (r[ci] ?? '').trim().toUpperCase();
+    const path = (r[ti] ?? '').trim();
     if (!criterion || !path) continue;
-    out.push({ criterion, family, path });
+    out.push({ criterion, family: fi >= 0 ? (r[fi] ?? '').trim().toLowerCase() : '', path });
   }
   return out;
 }
 
 function parseRequiredGates(ciGatesText: string): string[] {
-  const rows = parsePipeTable(sectionBody(ciGatesText, 'Required Gates'));
+  const table = findGateTable(scopedOrWhole(ciGatesText, 'Required Gates'));
+  if (!table) return [];
+  const gi = columnIndex(table.headers, GATE_COLUMN);
+  const ri = columnIndex(table.headers, [/required/]);
+  if (gi < 0) return [];
   const gates: string[] = [];
-  for (const r of rows) {
-    const name = (r['gate'] ?? '').trim();
-    const required = (r['required'] ?? '').trim().toLowerCase();
+  for (const r of table.rows) {
+    const name = (r[gi] ?? '').trim();
+    const required = ri >= 0 ? (r[ri] ?? '').trim().toLowerCase() : '';
     if (name && required === 'yes') gates.push(name);
   }
   return gates;
@@ -193,9 +237,24 @@ export function buildChangeMetadata(changeDir: string, cwd: string): BuildResult
 
   const tier = resolveTier(changeDir).tier;
 
+  // v2 keeps the classification in tasks.yml; v1 in change-classification.md.
+  // Read the v2 location first, exactly as resolveTier/readLane do — reading only
+  // the v1 file reports every v2 change as having no types and no required
+  // agents, which looks identical to a change that declared none.
   const classifText = readIfExists(join(changeDir, 'change-classification.md'));
-  const types = parseChangeTypes(classifText);
-  const requiredAgents = parseRequiredAgents(classifText);
+  // Array.isArray, not `?? []`: tasks.yml may be parseable YAML yet schema-invalid
+  // (`types: feature` instead of a list), and this builder must degrade to warnings
+  // like the rest of the derived index rather than crash `metadata`/`doctor --fix`.
+  const rawTypes = tasks?.classification?.types;
+  const v2Types = (Array.isArray(rawTypes) ? rawTypes : []).map(t => String(t).trim()).filter(Boolean);
+  // v2's flat `types:` list maps onto the v1 primary/secondary split by position:
+  // the first entry is the primary type, the rest are secondary.
+  const types = v2Types.length > 0
+    ? { primary: v2Types[0], secondary: v2Types.slice(1) }
+    : parseChangeTypes(classifText);
+  const requiredAgents = tasks?.classification
+    ? (Array.isArray(tasks.classification['required-agents']) ? tasks.classification['required-agents'] : []).map(a => String(a).trim()).filter(Boolean)
+    : parseRequiredAgents(classifText);
   const classificationLane = readLane(changeDir);
 
   const optionalPresent = OPTIONAL_ARTIFACTS.filter(f => existsSync(join(changeDir, f)));
@@ -214,7 +273,10 @@ export function buildChangeMetadata(changeDir: string, cwd: string): BuildResult
     ...(classificationLane ? { 'classification-lane': classificationLane } : {}),
     types,
     'required-agents': requiredAgents,
-    artifacts: { required: [...REQUIRED_FILES], optional: optionalPresent },
+    // Per-change, not the static default: a v1 directory is held to the v1 set,
+    // and reporting the v2 set for it would describe requirements that change is
+    // not actually under.
+    artifacts: { required: [...requiredFilesFor(changeDir)], optional: optionalPresent },
     context: { manifest: manifestRel, 'allowed-paths-count': allowedPathsCount },
     dependencies,
     'generated-from': generatedFrom(changeDir, ['tasks.yml', 'change-classification.md', 'context-manifest.md']),
@@ -231,14 +293,23 @@ export function buildTraceMetadata(changeDir: string, cwd: string): BuildResult<
   const changeId = basename(changeDir);
 
   const classifText = readIfExists(join(changeDir, 'change-classification.md'));
-  const testPlanText = readIfExists(join(changeDir, 'test-plan.md'));
-  const ciGatesText = readIfExists(join(changeDir, 'ci-gates.md'));
+  const testPlanText = readPlanSourceText(changeDir, 'Test Plan');
+  const ciGatesText = readPlanSourceText(changeDir, 'CI Gates');
 
-  const acList = parseAcceptanceCriteria(classifText);
   const testRows = parseTestMapping(testPlanText);
   const requiredGates = parseRequiredGates(ciGatesText);
 
-  const criteria: TraceCriterion[] = acList.map(c => {
+  // v1 listed criteria under change-classification.md `## Inferred Acceptance
+  // Criteria`. A v2 change has no such file, so the criterion ids are recovered
+  // from the folded Test Plan's own mapping rows — the same ids, in the artifact
+  // that now owns them. Without this the criteria list came out empty and
+  // trace.yml carried no criterion→test/gate links at all.
+  const acList = parseAcceptanceCriteria(classifText);
+  const criteriaSource = acList.length > 0
+    ? acList
+    : [...new Map(testRows.filter(r => r.criterion).map(r => [r.criterion, { id: r.criterion, text: '' }])).values()];
+
+  const criteria: TraceCriterion[] = criteriaSource.map(c => {
     const tests = testRows.filter(r => r.criterion === c.id).map(r => ({ family: r.family, path: r.path }));
     const families = new Set(tests.map(t => t.family).filter(Boolean));
     const gates = requiredGates.filter(g => [...families].some(f => gateMatchesFamily(g, f)));
@@ -253,7 +324,7 @@ export function buildTraceMetadata(changeDir: string, cwd: string): BuildResult<
     criteria,
     'required-gates': requiredGates,
     evidence,
-    'generated-from': generatedFrom(changeDir, ['change-classification.md', 'test-plan.md', 'ci-gates.md', ...agentLogRefs]),
+    'generated-from': generatedFrom(changeDir, ['change-classification.md', 'test-plan.md', 'ci-gates.md', 'tasks.yml', 'implementation-plan.md', ...agentLogRefs]),
   };
 
   if (!validateTrace(data)) {

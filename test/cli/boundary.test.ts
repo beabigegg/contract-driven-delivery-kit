@@ -85,7 +85,11 @@ afterEach(() => {
 
 describe('cdd-kit boundary', () => {
   it('fails closed when an explicitly changed operation has no manifest entry', () => {
-    const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
+    // --enforce: this test is about defect DETECTION (fail-closed logic), not
+    // about shadow-mode enforcement semantics (covered separately by AC-1..AC-3
+    // below); the fixture policy defaults to shadow_mode: true, under which
+    // `boundary check` now correctly exits 0 on an unenforced error finding.
+    const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--enforce', '--json'], { cwd: repo, home });
     expect(r.status).toBe(1);
     const result = JSON.parse(r.stdout);
     expect(result.status).toBe('failed');
@@ -99,7 +103,8 @@ describe('cdd-kit boundary', () => {
     expect(existsSync(path)).toBe(true);
     const value = yaml.load(readFileSync(path, 'utf8')) as any;
     expect(value.operations[0].discovery.completeness).toBe('unknown');
-    const check = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
+    // --enforce: isolates defect detection from shadow-mode enforcement (see note above).
+    const check = runCli(['boundary', 'check', '--operation', 'GET /health', '--enforce', '--json'], { cwd: repo, home });
     expect(check.status).toBe(1);
     expect(JSON.parse(check.stdout).findings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'variant-capture-missing' }),
@@ -150,7 +155,8 @@ describe('cdd-kit boundary', () => {
     writeFileSync(join(repo, 'tests', 'contract', 'samples', 'health.json'), extraFieldCapture, 'utf8');
     manifest.operations[0].variants[0].capture.provenance.capture_digest = hash(stable({ ok: true, undeclared: 1 }));
     writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump(manifest), 'utf8');
-    const openShape = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
+    // --enforce: isolates defect detection from shadow-mode enforcement (see note above).
+    const openShape = runCli(['boundary', 'check', '--operation', 'GET /health', '--enforce', '--json'], { cwd: repo, home });
     expect(openShape.status).toBe(1);
     expect(JSON.parse(openShape.stdout).findings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'variant-shape-mismatch' }),
@@ -160,7 +166,8 @@ describe('cdd-kit boundary', () => {
     writeFileSync(join(repo, '.cdd', 'boundary-manifest.yml'), yaml.dump(manifest), 'utf8');
 
     writeFileSync(join(repo, 'src', 'health.ts'), producerContent + '// implementation changed\n', 'utf8');
-    const staleProducer = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
+    // --enforce: isolates defect detection from shadow-mode enforcement (see note above).
+    const staleProducer = runCli(['boundary', 'check', '--operation', 'GET /health', '--enforce', '--json'], { cwd: repo, home });
     expect(staleProducer.status).toBe(1);
     expect(JSON.parse(staleProducer.stdout).findings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'variant-producer-stale' }),
@@ -219,7 +226,8 @@ describe('cdd-kit boundary', () => {
         capture: registeredCapture(digest, hash('missing-producer'), { healthy: 'yes' }),
       }], consumers: ['monitor'], source_files: ['src/health.ts'], discovery: { adapter: 'test', completeness: 'complete', unknown_reasons: [] } }],
     }), 'utf8');
-    const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--json'], { cwd: repo, home });
+    // --enforce: isolates defect detection from shadow-mode enforcement (see note above).
+    const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--enforce', '--json'], { cwd: repo, home });
     expect(r.status).toBe(1);
     expect(JSON.parse(r.stdout).findings).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'variant-shape-mismatch' })]));
   });
@@ -282,7 +290,8 @@ describe('cdd-kit boundary', () => {
     const guardReplay = runCli(['boundary', 'check', '--operation', 'GET /health', '--verify-captures', '--json'], { cwd: repo, home });
     expect(guardReplay.status, guardReplay.stderr).toBe(0);
     writeFileSync(join(repo, 'app.py'), `from flask import Flask, jsonify\napp = Flask(__name__)\n@app.get('/health')\ndef health(): return jsonify(ok=False)\n`, 'utf8');
-    const forged = runCli(['boundary', 'check', '--operation', 'GET /health', '--verify-captures', '--json'], { cwd: repo, home });
+    // --enforce: isolates defect detection from shadow-mode enforcement (see note above).
+    const forged = runCli(['boundary', 'check', '--operation', 'GET /health', '--verify-captures', '--enforce', '--json'], { cwd: repo, home });
     expect(forged.status).toBe(1);
     expect(JSON.parse(forged.stdout).findings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'variant-capture-replay-failed' }),
@@ -323,5 +332,96 @@ describe('cdd-kit boundary', () => {
     const json = JSON.parse(result.stdout);
     expect(json.changed_files).toContain('src/health.ts');
     expect(json.changed_operations).toContain('GET /health');
+  });
+
+  // ── boundary-ci-adopter-parity: AC-1..AC-4 (contracts/ci/ci-gate-contract.md
+  // `## Boundary Guard Enforcement Semantics`) ────────────────────────────────
+
+  it('AC-1: shadow_mode:true (default) prints an error finding as advisory [shadow] and exits 0', () => {
+    // No .cdd/boundary-manifest.yml is written, so the explicitly-selected
+    // "GET /health" operation deterministically produces exactly one
+    // error-level 'operation-manifest-missing' finding (same fixture as the
+    // very first test in this file).
+    const r = runCli(['boundary', 'check', '--operation', 'GET /health'], { cwd: repo, home });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
+    expect(r.stdout).toContain('Boundary Guard [shadow]: GET /health: Changed operation has no Boundary Guard manifest entry.');
+    // The stream matters, not only the exit code (CLAUDE.md "vacuous tests"
+    // lesson): a shadow finding must not silently disappear onto stderr as a
+    // blocking error.
+    expect(r.stderr).not.toContain('Changed operation has no Boundary Guard manifest entry.');
+  });
+
+  it('AC-2: boundary check --enforce overrides shadow_mode and exits 1 on the same finding', () => {
+    const r = runCli(['boundary', 'check', '--operation', 'GET /health', '--enforce'], { cwd: repo, home });
+    expect(r.status, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(1);
+    expect(r.stderr).toContain('Boundary Guard: GET /health: Changed operation has no Boundary Guard manifest entry.');
+    // A finding --enforce makes blocking must not still read as advisory.
+    expect(r.stderr).not.toContain('[shadow]');
+  });
+
+  it('AC-3: boundary check and gate derive the identical shadow/enforce decision for the same finding', () => {
+    // Both callers select "GET /health" the same way here: neither passes
+    // --operation/--base, so both derive it from `git status` reporting the
+    // untracked contract file as changed (no manifest entry exists for it).
+    spawnSync('git', ['init'], { cwd: repo, encoding: 'utf8' });
+    const changeId = 'ac3-boundary-parity';
+    mkdirSync(join(repo, 'specs', 'changes', changeId), { recursive: true });
+    const expectedMessage = 'Boundary Guard [shadow]: GET /health: Changed operation has no Boundary Guard manifest entry.';
+
+    const shadowCheck = runCli(['boundary', 'check'], { cwd: repo, home });
+    const shadowGate = runCli(['gate', changeId], { cwd: repo, home });
+    expect(shadowCheck.status, `stdout: ${shadowCheck.stdout}\nstderr: ${shadowCheck.stderr}`).toBe(0);
+    expect(shadowCheck.stdout).toContain(expectedMessage);
+    expect(shadowGate.stdout).toContain(expectedMessage);
+
+    writeFileSync(join(repo, '.cdd', 'policy.yml'), policy.replace('shadow_mode: true', 'shadow_mode: false'), 'utf8');
+    const blockingMessage = 'Boundary Guard: GET /health: Changed operation has no Boundary Guard manifest entry.';
+
+    const enforcedCheck = runCli(['boundary', 'check'], { cwd: repo, home });
+    const enforcedGate = runCli(['gate', changeId], { cwd: repo, home });
+    expect(enforcedCheck.status, `stdout: ${enforcedCheck.stdout}\nstderr: ${enforcedCheck.stderr}`).toBe(1);
+    expect(enforcedCheck.stderr).toContain(blockingMessage);
+    expect(enforcedCheck.stderr).not.toContain('[shadow]');
+    expect(enforcedGate.stderr).toContain(blockingMessage);
+    expect(enforcedGate.stderr).not.toContain('[shadow]');
+  });
+
+  it('AC-4: a CDD_BASE_SHA-only run selects only the actually-changed contract operations', () => {
+    const contractV1 = `---
+contract: api
+schema-version: 1.0.0
+---
+# API Contract
+## Endpoint Requirements
+| method | path | auth | request schema | response schema | errors | tests |
+|---|---|---|---|---|---|---|
+| GET | /health | public | - | Health | - | test/health.test.ts |
+| GET | /status | public | - | Health | - | test/status.test.ts |
+| GET | /version | public | - | Health | - | test/version.test.ts |
+
+## Schemas
+### Health
+| field | type | required | format | notes |
+|---|---|---|---|---|
+| ok | boolean | yes | | health state |
+`;
+    // Only the "GET /status" row actually changes (its errors column).
+    const contractV2 = contractV1.replace(
+      '| GET | /status | public | - | Health | - | test/status.test.ts |',
+      '| GET | /status | public | - | Health | 500 | test/status.test.ts |',
+    );
+    writeFileSync(join(repo, 'contracts', 'api', 'api-contract.md'), contractV1, 'utf8');
+    const git = (args: string[]) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    git(['init']); git(['config', 'user.email', 'test@example.com']); git(['config', 'user.name', 'Test']);
+    git(['add', '.']); git(['commit', '-m', 'base']);
+    const base = git(['rev-parse', 'HEAD']).stdout.trim();
+    writeFileSync(join(repo, 'contracts', 'api', 'api-contract.md'), contractV2, 'utf8');
+    git(['add', '.']); git(['commit', '-m', 'change status errors column']);
+
+    // Only CDD_BASE_SHA is set (no --base flag).
+    const result = runCli(['boundary', 'check', '--json'], { cwd: repo, home, env: { CI: 'true', CDD_BASE_SHA: base } });
+    const json = JSON.parse(result.stdout);
+    expect(json.changed_files, result.stdout).toContain('contracts/api/api-contract.md');
+    expect(json.changed_operations).toEqual(['GET /status']);
   });
 });

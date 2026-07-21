@@ -1,0 +1,108 @@
+change-id: reconcile-framework
+timestamp: 2026-07-15T09:00:00Z
+agent: e2e-resilience-engineer
+status: completed
+files-read:
+  - specs/changes/reconcile-framework/implementation-plan.md
+  - specs/changes/reconcile-framework/test-plan.md
+  - specs/changes/reconcile-framework/design.md
+  - specs/changes/reconcile-framework/change-classification.md
+  - specs/changes/reconcile-framework/context-manifest.md
+  - contracts/upgrade/upgrade-reconciliation-contract.md
+  - src/reconcile/guard.ts
+  - src/reconcile/classifier.ts
+  - src/reconcile/registry.ts
+  - src/reconcile/invariants.ts
+  - src/commands/reconcile.ts
+  - src/commands/refresh.ts
+  - src/cli/index.ts
+  - src/schemas/reconciliation.schema.ts
+  - src/utils/paths.ts
+  - src/utils/user-asset-manifest.ts
+  - src/utils/asset-manifest.ts
+  - src/utils/digest.ts
+  - src/utils/logger.ts
+  - test/cli/reconcile-plan.test.ts
+  - test/helpers.ts
+  - test/setup-git-env.ts
+artifacts:
+  - { type: test-files, pointer: "test/e2e/reconcile-plan.e2e.test.ts (new, 16 tests, all green)" }
+  - { type: scenarios-covered, pointer: "happy-path full --plan over a hand-built fixture adopter repo covering all 3 buckets (AC-1); whole-repo content-hash snapshot proving --plan mutates nothing; failure injection during classify/plan -- corrupt .cdd/policy.yml, corrupt/truncated .cdd/asset-manifest.json, missing kit-scaffold root, unknown/unclassified surface, garbled CLAUDE.md content, directory-shadowing a bucket-2 file (deterministic unreadable-file stand-in), real OS permission-denial via icacls deny(R) (best-effort, runtime-probed, would skip-with-reason if unsimulable on the host -- ran for real on this host), malformed/empty classifyPath input types; stale asset-manifest cache demoted to keep on a post-stamp edit; full --yes apply with byte-for-byte backup-before-overwrite and bucket-1 byte-identity (incl. a deliberately garbled CLAUDE.md); direct guard-refusal boundary proof against this fixture's bucket-1 paths" }
+  - { type: mutation-checks, pointer: "none run by this agent -- the two contract-binding mutation-red proofs (guard-refusal, fail-open) are owned and already recorded by backend-engineer in agent-log/backend-engineer.yml; this suite is additive E2E/resilience coverage over the same guard/classifier, not a redundant mutation pass" }
+  - { type: trace-artifacts, pointer: "none (CLI/filesystem E2E, no browser -- Playwright/Cypress trace/video tooling is not applicable to this SUT)" }
+  - { type: test-output, pointer: "node node_modules/vitest/vitest.mjs run test/e2e/reconcile-plan.e2e.test.ts -- 16 passed, 0 failed, 0 skipped, ~11.5s; typecheck (tsc --noEmit) clean; check:mojibake passed" }
+scope-boundary-found:
+  - >-
+    cdd-kit reconcile --plan (src/commands/reconcile.ts) prints one line per
+    KIT_SURFACES catalog entry (12 static rows) -- it does NOT walk the
+    fixture repo file-by-file, and does not call classifyPath/classifyPolicyKey
+    at all in this framework version (defaultRegistry ships empty, the four
+    bucket-3 reconcilers are out of scope of this change). Per-surface CLI
+    output was therefore verified against the 12-row catalog (label +
+    surface id), and per-FILE bucket-1/2/3 dispositions of the SAME built
+    fixture were verified by calling classifyPath/classifyPolicyKey directly
+    -- documented explicitly in the test file's header rather than silently
+    assumed to be CLI-observable. This matches the task's anticipated
+    "if the empty defaultRegistry makes bucket-3 unobservable, note it".
+  - >-
+    AGENTS_HOME/SKILLS_HOME/CODEX_SKILLS_HOME (src/utils/paths.ts) are
+    resolved ONCE from os.homedir() at module-import time. A fixture's fake
+    HOME/USERPROFILE env override is only honored inside a fresh runCli
+    child-process spawn, not by a direct in-process classifyPath/
+    assertWritable call in the same vitest worker (that worker's paths.ts
+    import already happened against the real machine home directory before
+    this test file ran). Two tests initially asserted the wrong thing
+    against a fixture-relative home-agent path (always fail-open via the
+    generic "unrecognized path" branch, not the actual ownership-check
+    branch); fixed to use the REAL AGENTS_HOME with a nonexistent probe
+    filename (matching test/cli/reconcile-plan.test.ts's own existing
+    pattern) for the direct in-process assertions, and to rely on the real
+    runCli --yes journey (byte-identical after apply) for the fixture-scoped
+    proof.
+apply-boundary:
+  - >-
+    --yes is exercised, not skipped-with-a-note: every fixture in this file
+    is an isolated makeTempDir() repo+home pair (same idiom already proven
+    safe by test/cli/reconcile-plan.test.ts's own --yes integration block).
+    Journey C tampers a bucket-2 template and garbles a bucket-1 file
+    (CLAUDE.md) before --yes, then asserts (a) every bucket-1 surface --
+    user contract, acceptance.yml, adopter .cdd/policy.yml key, user
+    home-agent, garbled CLAUDE.md -- is byte-identical after apply, (b) the
+    bucket-2 backup under .cdd/.refresh-backup/ is byte-identical to the
+    PRE-overwrite tampered content, and (c) the live template was actually
+    replaced (not left tampered). Nothing in this file ever runs --yes
+    against a real, non-fixture project.
+skip-with-reason:
+  - >-
+    None were actually skipped on this run (CAN_SIMULATE_READ_DENIAL probed
+    true on this Windows host via icacls deny(R), verified by an empirical
+    read-block check before trusting it). The permission-denial test is
+    wired with it.skipIf(!CAN_SIMULATE_READ_DENIAL) for hosts where icacls
+    is unavailable or the DENY ACE does not block a same-user read (e.g. an
+    elevated/bypassing account) -- it would skip cleanly rather than fake a
+    pass; a deterministic, non-skippable directory-shadowing "unreadable"
+    fault test also runs unconditionally regardless of OS ACL support.
+not-applicable:
+  - >-
+    browser back/forward, URL state restoration, hidden-tab/visibility
+    change, slow network/500/503/abort/timeout, auth expiry -- reconcile is
+    a synchronous, offline, unauthenticated local filesystem CLI command
+    with no browser, HTTP, or auth surface (change-classification.md "no
+    HTTP API surface", "CLI-only"). Recorded per this change's own
+    test-plan.md N/A convention rather than silently dropped.
+notes: >-
+  src/**, .cdd/policy.yml, .cdd/context-policy.json, and .cdd/asset-manifest.json
+  were read-only reference points (paths.ts constants, KIT_SURFACES roots) --
+  never edited; the only file this agent wrote is test/e2e/reconcile-plan.e2e.test.ts
+  plus this log. Did not touch test/monkey/** (monkey-test-engineer's IP-12).
+  One authoring-tool finding for future agents in this repo: writing a large
+  TS file via a Bash heredoc silently HALVED an intentional double-backslash
+  regex/string escape (a working `\\]`/`\\$&` became a broken `\]`/`\$&`,
+  producing an "Unterminated regular expression" esbuild error only at test
+  run time, not at write time) and, for one chunk, the whole heredoc command
+  failed outright ("unexpected EOF while looking for matching '"). Switched to
+  building the file with the Edit tool (append-by-anchor against the
+  already-written Bash-created head), which preserved every backslash/quote
+  correctly across the remaining ~470 lines -- recommend Edit over a Bash
+  heredoc for any new-file body containing regex literals or doubled escapes.
+

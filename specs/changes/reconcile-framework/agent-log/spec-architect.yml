@@ -1,0 +1,12 @@
+agent: spec-architect
+change-id: reconcile-framework
+summary: >
+  Authored design.md for the reconciliation framework (three-bucket surface
+  taxonomy, typed reconciler registry, single guarded-writer never-overwrite
+  chokepoint, fail-open-to-keep). Wrote ADR 0014 for the single-writer + fail-open
+  trade-off. Four bucket-3 reconcilers kept explicitly out of scope.
+artifacts:
+  - { type: adr-written, pointer: "docs/adr/0014-reconciliation-framework-write-guard.md" }
+  - { type: affected-areas, pointer: "upgrade/refresh path, asset ownership, new src/reconcile module, ci-gate + new upgrade contract" }
+  - { type: decision-summary, pointer: "new `cdd-kit reconcile [--plan]` + single guarded writer routes every apply-path write through a bucket-1 guard; fail-open to keep" }
+  - { type: risks-noted, pointer: "3 medium, 0 high" }

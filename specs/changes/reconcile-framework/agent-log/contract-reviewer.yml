@@ -1,0 +1,65 @@
+change-id: reconcile-framework
+timestamp: 2026-07-14T00:00:00Z
+agent: contract-reviewer
+status: changes-required
+files-read:
+  - specs/changes/reconcile-framework/design.md
+  - specs/changes/reconcile-framework/change-classification.md
+  - contracts/ci/ci-gate-contract.md
+  - contracts/CHANGELOG.md
+  - contracts/env/env-contract.md
+  - contracts/data/data-shape-contract.md
+  - contracts/business/business-rules.md
+artifacts:
+  - type: applied-edit
+    pointer: contracts/upgrade/upgrade-reconciliation-contract.md
+  - type: version-bumps
+    pointer: "upgrade: (new) 0.1.0 written; ci 0.11.0->0.12.0 + CHANGELOG entries HELD for the implementation phase (they claim enforceReconciliationInvariants exists — must land WITH the validator code, never before)"
+  - type: direction
+    pointer: "NEW contract defining invariants the code must enforce; until src/reconcile/guard.ts refuses a bucket-1 write with a red-turns-green test AND enforceReconciliationInvariants is wired into validate/gate, the contract's Mechanical Enforcement section is prose (its own wording says so)"
+  - type: required-tests
+    pointer: "guard-refusal (red when guard removed); fail-open-to-keep (red when classifier default flipped to replace); bucket-1 matcher coverage vs contract enumeration; static single-writer scan; ci-workflow-pattern test the row is actually invoked"
+next-action: >-
+  ci-cd-gatekeeper wires enforceReconciliationInvariants into ci-gates.md and
+  applies the ci-gate-contract.md 0.12.0 row+subsection + CHANGELOG entries WHEN
+  the validator lands; backend-engineer builds src/reconcile/{registry,classifier,guard}.ts
+  + reconcile command + schema with the four red-turns-green tests; qa verifies
+  no hollow guarantee.
+notes: >-
+  Contract is NEW (contracts/upgrade family did not exist). Bucket-1
+  never-overwrite is the binding invariant; .cdd/policy.yml classified per-KEY
+  not per-file; fail-open-to-keep. The ci-gate row + CHANGELOG bump are drafted
+  (in the contract-reviewer transcript) but deliberately NOT applied yet to avoid
+  a guarantee-that-never-happened — they ship with the validator.
+---
+change-id: reconcile-framework
+timestamp: 2026-07-21T18:45:00Z
+agent: contract-reviewer
+status: approve-with-notes
+task: "5.3 final contract review (tasks.yml)"
+files-read:
+  - contracts/upgrade/upgrade-reconciliation-contract.md
+  - contracts/ci/ci-gate-contract.md
+  - contracts/CHANGELOG.md
+  - src/reconcile/invariants.ts
+  - src/reconcile/guard.ts
+  - src/commands/update.ts
+  - src/commands/upgrade.ts
+  - src/commands/refresh.ts
+  - src/commands/gate.ts
+  - test/cli/reconcile-plan.test.ts
+  - test/cli/reconcile-bucket3.test.ts
+summary: >-
+  The claims-wider-than-validator failure mode does NOT reproduce: all five
+  Mechanical-Enforcement claims match src/reconcile/invariants.ts
+  line-for-line, and guard.ts BUCKET_1_RULES match the contract's five
+  enumerated bucket-1 rows 1:1 (verified against source, not prose).
+findings-fixed-in-same-change:
+  - "validate_contract_versions.py had no knowledge of the upgrade contract family; gate ran versions:true and silently never read the file. Fixed via OPTIONAL_CONTRACT_FILES + 'upgrade' type + regression test (absent = ok for adopters, present = fully validated)."
+  - "upgrade contract last-changed stale at the 0.1.0 date across two bumps (invisible precisely because of the previous finding). Fixed with the 0.4.0 bump."
+  - ".cdd/model-policy.json written raw by upgrade + refresh(resyncModelPolicy) with no bucket disposition. Fixed: explicit exemption row in Scope — regenerable derived sidecar; agent frontmatter is the guarded authorship surface."
+  - "ci-gate-contract 'Honest limit' cited a 'full vitest suite row above' that exists only in a per-change scratch file. Repointed to .github/workflows/test.yml. ci 0.13.0 -> 0.14.0."
+  - "'six scans' undercounted: clause #5 is also two independent scans. Now 'five checks (seven scans)'."
+  - "specs/context/contracts-index.md stale (count 9, ci at 0.11.0). Regenerated: 10 contracts."
+deferred:
+  - "Guard-routing model-policy/update/upgrade raw writes remains deliberately unclaimed in contract text until done and verified."

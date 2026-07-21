@@ -1,0 +1,24 @@
+change-id: reconcile-framework
+timestamp: 2026-07-14T00:00:00Z
+agent: change-classifier
+status: complete
+indexes-used:
+  - specs/context/project-map.md
+  - specs/context/contracts-index.md
+files-read:
+  - specs/changes/reconcile-framework/change-request.md
+  - specs/changes/reconcile-framework/context-manifest.md
+  - specs/context/project-map.md
+  - specs/context/contracts-index.md
+artifacts:
+  - type: classification
+    pointer: specs/changes/reconcile-framework/change-classification.md
+  - type: tier
+    pointer: "Tier 1 / high / system-wide (adopter ground-truth blast radius)"
+next-action: spec-architect authors design.md (Architecture Review required) before implementation-planner.
+notes: >-
+  Foundation of the upgrade-reconciliation epic (5-change atomic split already
+  decided). feature lane. Architecture Review yes -> design.md + spec-architect.
+  New contract contracts/upgrade/upgrade-reconciliation-contract.md. stress/soak
+  not-applicable. CER-001 resolved: src/commands/upgrade.ts + update.ts exist.
+  qa-report.md + regression-report.md required (Tier 1 blast radius).

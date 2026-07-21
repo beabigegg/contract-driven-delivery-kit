@@ -5,15 +5,20 @@ import { validate } from './validate.js';
 import { explainGateError } from '../utils/gate-explain.js';
 import { type TasksFile, enforceConfirmationHookInstallation } from './gate-shared.js';
 import {
-  REQUIRED_FILES,
   MIN_CHARS,
+  V2_PLAN_SECTIONS,
+  v2PlanSectionFinding,
   meaningfulChars,
   findPlaceholders,
   countPendingContextRequests,
   isContextGovernedChange,
+  governanceVersion,
+  requiredFilesFor,
   lintTasksFile,
+  enforceClassificationSubstance,
   getArchiveTaskIds,
 } from './gate-artifacts.js';
+import { sectionBody } from '../utils/markdown-section.js';
 import { resolveTier, enforceTierConsistency, enforceTierFloor } from './gate-tier.js';
 import { validateDependencies } from './gate-dependencies.js';
 import { enforceContractSubstance } from './gate-contracts.js';
@@ -21,9 +26,10 @@ import { enforceTestEvidence, enforceBugFixEvidence } from './gate-evidence.js';
 import { enforceRequiredAgentEvidence } from './gate-agents.js';
 import { enforceAcceptanceOracle } from './gate-acceptance.js';
 import { enforceInteractionDesign } from './gate-design.js';
+import { enforceReconciliationInvariants } from '../reconcile/invariants.js';
 import { isSafeChangeId } from '../utils/change-id.js';
 import yaml from 'js-yaml';
-import { runBoundaryGuard } from '../boundary/guard.js';
+import { runBoundaryGuard, classifyBoundaryFinding } from '../boundary/guard.js';
 import { acceptanceOracleRequired, resolveGateProfile } from '../policy/profile.js';
 import type { WorkflowProfile } from '../runtime/types.js';
 import { verifyRuntime } from '../runtime/engine.js';
@@ -145,7 +151,9 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     }
   }
 
-  for (const f of REQUIRED_FILES) {
+  const requiredFiles = requiredFilesFor(changeDir);
+
+  for (const f of requiredFiles) {
     if (f === 'context-manifest.md') {
       if (!hasManifest) {
         if (isNewChange || strict) {
@@ -161,8 +169,19 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     }
   }
 
+  // v2 folds test-plan.md and ci-gates.md into implementation-plan.md. The
+  // requirement moved into the plan; it did not soften -- an absent section is
+  // the same failure a missing file was.
+  if (errors.length === 0 && governanceVersion(changeDir) === 'v2') {
+    const plan = readFileSync(join(changeDir, 'implementation-plan.md'), 'utf8');
+    for (const section of V2_PLAN_SECTIONS) {
+      const finding = v2PlanSectionFinding(plan, section);
+      if (finding) errors.push(finding);
+    }
+  }
+
   if (errors.length === 0) {
-    for (const f of REQUIRED_FILES) {
+    for (const f of requiredFiles) {
       if (f === 'context-manifest.md' && !hasManifest) continue;
       if (f === 'tasks.yml') continue;
       const content = readFileSync(join(changeDir, f), 'utf8');
@@ -171,11 +190,16 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
         errors.push(`${f}: appears to be a stub (< ${minChars} meaningful chars)`);
         continue;
       }
-      // context-manifest.md is exempt: its template ships illustrative agent
-      // sub-sections (`### <implementation-agent>`, `<change-id>` path stubs)
-      // that are explicitly "documentation only — gate enforces Allowed Paths,
-      // not individual packets". Its real enforcement lives elsewhere, so a
-      // placeholder there is not an unfilled-substance signal.
+      // context-manifest.md is exempt from the placeholder check: its template
+      // ships illustrative agent sub-sections (`### <implementation-agent>`,
+      // `<change-id>` path stubs) that are documentation, not fields to fill,
+      // so a placeholder there is not an unfilled-substance signal.
+      //
+      // The exemption used to be justified with "gate enforces Allowed Paths,
+      // not individual packets". That was false: no gate code reads Allowed
+      // Paths. `cdd-kit context check` does, and nothing invokes it -- not CI,
+      // not validate, not a hook. Under v2 the manifest is optional and this
+      // branch only runs for a v1 change that still ships one.
       if (f !== 'context-manifest.md') {
         const placeholders = findPlaceholders(content);
         if (placeholders.length > 0) {
@@ -198,6 +222,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   if (existsSync(tasksPath)) {
     tasksData = lintTasksFile(tasksPath, errors, warnings);
   }
+  enforceClassificationSubstance(changeDir, tasksData, errors);
   if (tasksData) {
     const archiveIds = new Set(getArchiveTaskIds(tasksData));
     const nonArchivePending = (tasksData.tasks ?? [])
@@ -240,6 +265,13 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
   // check does not run twice within one `gate`.
   enforceConfirmationHookInstallation(cwd, strict, errors, warnings);
 
+  // enforceReconciliationInvariants (contracts/upgrade/upgrade-reconciliation-
+  // contract.md `## Mechanical Enforcement`; ci-gate-contract.md
+  // `### enforceReconciliationInvariants`). `ci-or-strict`, NOT gated on
+  // isNewChange, no shadow-mode knob -- a no-op outside this kit's own repo
+  // (see src/reconcile/invariants.ts module header).
+  enforceReconciliationInvariants(cwd, strict, errors, warnings);
+
   // Agent-native Boundary Guard starts in shadow mode. Shadow findings remain
   // visible but cannot break the legacy strict compatibility gate. Projects
   // promote it explicitly by setting shadow_mode: false after parity evidence.
@@ -248,10 +280,11 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
     try {
       const policy = yaml.load(readFileSync(runtimePolicyPath, 'utf8'), { schema: yaml.JSON_SCHEMA }) as { shadow_mode?: boolean };
       const boundary = runBoundaryGuard({ cwd });
+      const enforced = policy.shadow_mode === false;
       for (const finding of boundary.findings) {
         if (finding.level === 'info') continue;
-        const message = `Boundary Guard${policy.shadow_mode !== false ? ' [shadow]' : ''}: ${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`;
-        if (finding.level === 'error' && policy.shadow_mode === false) errors.push(message);
+        const { blocking, message } = classifyBoundaryFinding(finding, enforced);
+        if (blocking) errors.push(message);
         else warnings.push(message);
       }
     } catch (error) {
@@ -286,7 +319,7 @@ export async function gate(changeId: string, opts: GateOptions = {}): Promise<vo
 
   log.info(`gate: running contract validators for ${changeId}`);
   try {
-    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true, hookCheck: false });
+    await validate({ contracts: true, env: true, ci: true, spec: false, versions: true, hookCheck: false, reconciliationCheck: false });
   } catch (err) {
     reportGateFailure(
       changeId,

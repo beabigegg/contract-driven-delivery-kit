@@ -22,7 +22,18 @@ export interface TasksFile {
   'change-id': string;
   status: string;
   tier?: number | null;
-  'context-governance'?: 'v1';
+  'context-governance'?: 'v1' | 'v2';
+  /** v2 only — the fields `change-classification.md` carried under v1. */
+  classification?: {
+    types?: string[];
+    risk?: 'low' | 'medium' | 'high' | 'critical';
+    impact?: 'isolated' | 'module-level' | 'cross-module' | 'system-wide';
+    'architecture-review'?: boolean;
+    'architecture-review-reason'?: string;
+    lane?: 'feature' | 'bug-fix';
+    'diagnostic-only'?: boolean;
+    'required-agents'?: string[];
+  };
   'archive-tasks'?: string[];
   'depends-on'?: string[];
   'tier-floor-override'?: string;
@@ -37,6 +48,30 @@ export function loadYamlFile<T>(path: string): { data: T | null; parseError: str
   } catch (err) {
     return { data: null, parseError: (err as Error).message };
   }
+}
+
+/**
+ * The `classification` block only as a keyed mapping — `null` for every other
+ * shape YAML can produce there.
+ *
+ * `lintTasksFile` records a schema error for a malformed `classification:` but
+ * still RETURNS the raw parsed data, so gate steps run against it. A scalar
+ * (`classification: bug-fix`) or a list then reaches code that assumes an
+ * object: `'lane' in classification` throws on a primitive, and reading a
+ * sub-field off it silently yields nonsense. Both crash the gate with a raw
+ * TypeError *before* it can print the schema errors it already collected — the
+ * user sees a stack trace instead of "classification must be a mapping".
+ * Route every `classification` sub-field access through this guard so an invalid
+ * shape degrades to "no classification object" and the schema error is what
+ * surfaces. Arrays are objects to `typeof`, hence the explicit exclusion.
+ */
+export function classificationObject(
+  tasks: TasksFile | null,
+): NonNullable<TasksFile['classification']> | null {
+  const c = tasks?.classification as unknown;
+  return c && typeof c === 'object' && !Array.isArray(c)
+    ? (c as NonNullable<TasksFile['classification']>)
+    : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -122,6 +122,21 @@ program
     });
   });
 
+// ── cdd reconcile ────────────────────────────────────────────────────────────
+// Three-bucket (keep/replace/reconcile) upgrade framework: `--plan` (default)
+// is read-only; `--yes` applies bucket-2 (via the guarded refresh path) and any
+// registered bucket-3 reconcilers. See src/reconcile/ and
+// contracts/upgrade/upgrade-reconciliation-contract.md.
+program
+  .command('reconcile')
+  .description('Classify every kit-shipped surface into keep/replace/reconcile and (with --yes) apply it through the single bucket-1 write guard')
+  .option('--plan', 'Read-only: print the disposition of every surface without writing anything (default)', false)
+  .option('--yes', 'Apply changes: bucket-2 via the guarded refresh path, any registered bucket-3 reconcilers', false)
+  .action(async (opts: { plan?: boolean; yes?: boolean }) => {
+    const { reconcile } = await import('../commands/reconcile.js');
+    await reconcile({ yes: opts.yes === true });
+  });
+
 program
   .command('doctor')
   .description('Inspect cdd-kit repo health, provider guidance, and context index freshness')
@@ -209,8 +224,9 @@ boundary
   .option('--operation <method-path...>', 'Check one or more explicit operations, e.g. "GET /health"')
   .option('--verify-generated', 'Replay registered generators and compare their output with committed artifacts', false)
   .option('--verify-captures', 'Replay registered framework adapters and compare observed serialized boundaries', false)
+  .option('--enforce', 'Fail on any error-level finding even under .cdd/policy.yml shadow_mode', false)
   .option('--json', 'Emit machine-readable Boundary Guard result', false)
-  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; verifyGenerated?: boolean; verifyCaptures?: boolean; json?: boolean }) => {
+  .action(async (opts: { contract?: string; policy?: string; manifest?: string; base?: string; head?: string; all?: boolean; operation?: string[]; verifyGenerated?: boolean; verifyCaptures?: boolean; enforce?: boolean; json?: boolean }) => {
     const { boundaryCheck } = await import('../commands/boundary.js');
     process.exitCode = boundaryCheck({ ...opts, operations: opts.operation });
   });

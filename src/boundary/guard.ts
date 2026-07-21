@@ -54,11 +54,39 @@ export interface BoundaryGuardResult {
   summary: { errors: number; warnings: number; checked_operations: number };
 }
 
+export interface BoundaryEnforcementDecision {
+  /** True when this finding must count as a blocking error for the caller. */
+  blocking: boolean;
+  /** Fully formatted display text, e.g. "Boundary Guard [shadow]: GET /health: ...". */
+  message: string;
+}
+
+/**
+ * The ONE enforcement-semantics source shared by `cdd-kit gate <id>` and
+ * standalone `cdd-kit boundary check` (contracts/ci/ci-gate-contract.md
+ * `## Boundary Guard Enforcement Semantics`). Only an `error`-level finding
+ * can ever block; `warning`/`info` findings are always advisory regardless of
+ * `enforced`. `enforced` is the caller-resolved combination of
+ * `.cdd/policy.yml` `shadow_mode` and, for standalone `boundary check` only,
+ * an explicit `--enforce` override — `gate` has no such override and passes
+ * `policy.shadow_mode === false` directly. The `[shadow]` label reflects
+ * ACTUAL treatment: it is present whenever a finding is NOT enforced (matching
+ * the previous gate-only behavior, which applied it to warnings too) and is
+ * dropped once `enforced` makes the finding blocking, so an enforced finding
+ * never reads as advisory.
+ */
+export function classifyBoundaryFinding(finding: BoundaryFinding, enforced: boolean): BoundaryEnforcementDecision {
+  const blocking = finding.level === 'error' && enforced;
+  const shadowLabel = enforced ? '' : ' [shadow]';
+  const message = `Boundary Guard${shadowLabel}: ${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`;
+  return { blocking, message };
+}
+
 interface BoundaryException {
   id: string; operation: string; class: string; reason: string; owner: string; expires: string; approval?: string;
 }
 
-interface Policy {
+export interface Policy {
   version: 1;
   default_profile: WorkflowProfile;
   shadow_mode?: boolean;
@@ -107,7 +135,7 @@ function schemaErrors(errors: typeof validatePolicy.errors): string {
   return (errors ?? []).map(error => `${error.instancePath || '/'} ${error.message}`).join('; ');
 }
 
-function loadPolicy(cwd: string, path: string): Policy {
+export function loadPolicy(cwd: string, path: string): Policy {
   if (!existsSync(path)) throw new Error(`CDD policy not found: ${relative(cwd, path)}`);
   const value = parseYaml<Policy>(path);
   if (!validatePolicy(value)) throw new Error(`Invalid CDD policy: ${schemaErrors(validatePolicy.errors)}`);
@@ -126,11 +154,25 @@ function git(cwd: string, args: string[]): string | null {
   return result.status === 0 ? (result.stdout ?? '').trimEnd() : null;
 }
 
-function changedFiles(cwd: string, base?: string, head = 'HEAD'): string[] {
+/**
+ * Resolve exactly ONE effective base revision per Boundary Guard invocation —
+ * the first of: an explicit `--base`, `CDD_BASE_SHA`, `GITHUB_BASE_SHA`, a
+ * derived `origin/<GITHUB_BASE_REF>`, or (inside CI, with no other input)
+ * `HEAD^` — so `runBoundaryGuard` can reuse the identical value for BOTH
+ * changed-file detection and the changed-contract-operation snapshot
+ * (contracts/ci/ci-gate-contract.md `## Boundary Guard Enforcement Semantics`
+ * AC-4). Resolving this in two places independently is exactly how a
+ * `CDD_BASE_SHA`-only run used to select every contracted operation instead of
+ * the ones that actually changed.
+ */
+export function resolveEffectiveBase(cwd: string, base?: string): string | undefined {
   const ciBase = process.env.CDD_BASE_SHA || process.env.GITHUB_BASE_SHA
     || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined)
     || (process.env.CI && git(cwd, ['rev-parse', 'HEAD^']) ? 'HEAD^' : undefined);
-  const resolvedBase = base ?? ciBase;
+  return base ?? ciBase;
+}
+
+function changedFiles(cwd: string, resolvedBase: string | undefined, head = 'HEAD'): string[] {
   const args = resolvedBase ? ['diff', '--name-only', `${resolvedBase}...${head}`] : ['diff', '--name-only', 'HEAD'];
   const output = git(cwd, args);
   const files = new Set((output ?? '').split(/\r?\n/).filter(Boolean));
@@ -267,7 +309,8 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
 
   const contractText = readFileSync(contractPath, 'utf8');
   const contractDigest = sha256(contractText);
-  const files = changedFiles(cwd, options.base, options.head);
+  const effectiveBase = resolveEffectiveBase(cwd, options.base);
+  const files = changedFiles(cwd, effectiveBase, options.head);
   const body = stripFrontmatter(contractText).body;
   const endpoints = parseEndpoints(body);
   const schemas = parseContractSchemas(body);
@@ -281,7 +324,7 @@ export function runBoundaryGuard(options: BoundaryGuardOptions = {}): BoundaryGu
   for (const operation of options.operations ?? []) selected.add(operation.trim().replace(/^([a-z]+)/, method => method.toUpperCase()));
   if (!options.all) {
     if (files.includes(contractRel)) {
-      const previous = options.base ? contractAtRevision(cwd, options.base, contractRel) : null;
+      const previous = effectiveBase ? contractAtRevision(cwd, effectiveBase, contractRel) : null;
       for (const key of changedContractOperations(endpoints, previous)) selected.add(key);
     }
     for (const [key, operation] of manifestOps) {

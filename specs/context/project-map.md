@@ -3,8 +3,8 @@ artifact: project-map
 generated-by: cdd-kit context-scan
 schema-version: 1
 root: contract-driven-delivery-kit
-visible-dirs: 71
-visible-files: 380
+visible-dirs: 77
+visible-files: 410
 omitted-dirs: 0
 truncated-dirs: 2
 inputs-digest: 62598949ece3c44e11cc87b1d5fb79466bcb39ac84b8b8b34c84bfd456da8fe7
@@ -40,6 +40,8 @@ contract-driven-delivery-kit/
 |           \-- SKILL.md
 |-- .cdd/
 |   |-- approval-policy.yml
+|   |-- code-graph.index.json
+|   |-- code-map.index.json
 |   |-- code-map.yml
 |   |-- conformance.json
 |   |-- context-policy.json
@@ -89,6 +91,8 @@ contract-driven-delivery-kit/
 |   |   |-- .env.example.template
 |   |   |-- env-contract.md
 |   |   \-- env.schema.json
+|   |-- upgrade/
+|   |   \-- upgrade-reconciliation-contract.md
 |   \-- CHANGELOG.md
 |-- docs/
 |   |-- adr/
@@ -104,7 +108,8 @@ contract-driven-delivery-kit/
 |   |   |-- 0010-acceptance-oracle.md
 |   |   |-- 0011-not-applicable-contract-marker.md
 |   |   |-- 0012-interaction-design-loop.md
-|   |   \-- 0013-agent-native-delivery-runtime.md
+|   |   |-- 0013-agent-native-delivery-runtime.md
+|   |   \-- 0014-reconciliation-framework-write-guard.md
 |   |-- examples/
 |   |   \-- bug-fix/
 |   |       |-- bug-fix-engineer.sample.yml
@@ -121,6 +126,8 @@ contract-driven-delivery-kit/
 |   |   \-- agent-native-cdd-runtime-contracts.md
 |   |-- api-conformance.md
 |   |-- boundary-guard.md
+|   |-- glossary.md
+|   |-- interaction-design-guide.md
 |   |-- loosening-the-harness.md
 |   |-- machine-readable-change-design.md
 |   |-- openapi-export.md
@@ -172,6 +179,7 @@ contract-driven-delivery-kit/
 |       |   |-- acceptance.loader.ts
 |       |   \-- README.md
 |       |-- acceptance.yml
+|       |-- agent-log.example.yml
 |       |-- archive.md
 |       |-- change-classification.md
 |       |-- change-request.md
@@ -274,9 +282,9 @@ contract-driven-delivery-kit/
 |   |   |-- parallel-arm.ts
 |   |   |-- parallel-shared.ts
 |   |   |-- policy.ts
+|   |   |-- reconcile.ts
 |   |   |-- refresh.ts
-|   |   |-- report.ts
-|   |   \-- ... (10 more entries truncated; cap=50)
+|   |   \-- ... (11 more entries truncated; cap=50)
 |   |-- contracts/
 |   |   \-- parser.ts
 |   |-- mcp/
@@ -286,6 +294,16 @@ contract-driven-delivery-kit/
 |   |-- providers/
 |   |   |-- registry.ts
 |   |   \-- types.ts
+|   |-- reconcile/
+|   |   |-- reconcilers/
+|   |   |   |-- behavior-report.ts
+|   |   |   |-- index.ts
+|   |   |   |-- learnings-region.ts
+|   |   |   \-- policy-keys.ts
+|   |   |-- classifier.ts
+|   |   |-- guard.ts
+|   |   |-- invariants.ts
+|   |   \-- registry.ts
 |   |-- runtime/
 |   |   |-- agent.ts
 |   |   |-- checks.ts
@@ -304,6 +322,7 @@ contract-driven-delivery-kit/
 |   |   |-- change-metadata.schema.ts
 |   |   |-- design-lock.schema.ts
 |   |   |-- execution-capsule.schema.ts
+|   |   |-- reconciliation.schema.ts
 |   |   |-- reservations.schema.ts
 |   |   |-- runtime-evidence.schema.ts
 |   |   |-- runtime-state.schema.ts
@@ -329,6 +348,7 @@ contract-driven-delivery-kit/
 |       |-- mcp-hint.ts
 |       |-- mock-of-sut-scan.ts
 |       |-- paths.ts
+|       |-- plan-tables.ts
 |       |-- provider.ts
 |       |-- stack-detect.ts
 |       |-- tier-floor.ts
@@ -336,9 +356,11 @@ contract-driven-delivery-kit/
 |-- test/
 |   |-- acceptance/
 |   |   |-- acceptance-oracle.driver.test.ts
+|   |   |-- boundary-ci-adopter-parity.driver.test.ts
 |   |   |-- enforce-human-confirmation.driver.test.ts
 |   |   |-- interaction-design-loop.driver.test.ts
-|   |   \-- not-applicable-contracts.driver.test.ts
+|   |   |-- not-applicable-contracts.driver.test.ts
+|   |   \-- reconcile-framework.driver.test.ts
 |   |-- agents/
 |   |   \-- code-map-rule.test.ts
 |   |-- cli/
@@ -392,7 +414,7 @@ contract-driven-delivery-kit/
 |   |   |-- install-hooks.test.ts
 |   |   |-- lifecycle-json.test.ts
 |   |   |-- lint-agents.test.ts
-|   |   \-- ... (32 more entries truncated; cap=50)
+|   |   \-- ... (34 more entries truncated; cap=50)
 |   |-- code-graph/
 |   |   \-- queries.test.ts
 |   |-- code-map/
@@ -404,19 +426,26 @@ contract-driven-delivery-kit/
 |   |-- commands/
 |   |   |-- changelog-build.test.ts
 |   |   |-- gate-agents.test.ts
+|   |   |-- gate-v2-classification.test.ts
 |   |   |-- metadata-build.test.ts
 |   |   |-- parallel-shared.test.ts
 |   |   |-- reserve-integrate.test.ts
-|   |   \-- test-impact-build.test.ts
+|   |   |-- test-impact-build.test.ts
+|   |   |-- v2-round5.test.ts
+|   |   \-- v2-round8.test.ts
 |   |-- contracts/
 |   |   |-- agent-prompt-content.test.ts
 |   |   |-- applicability-agreement.test.ts
 |   |   |-- applicability-reader.test.ts
 |   |   |-- ci-workflow.test.ts
 |   |   |-- doctrine-ledger.test.ts
+|   |   |-- glossary.test.ts
 |   |   |-- interaction-design-template.test.ts
 |   |   |-- parser.test.ts
+|   |   |-- reconciliation-invariants.test.ts
 |   |   \-- skill-workflow-order.test.ts
+|   |-- e2e/
+|   |   \-- reconcile-plan.e2e.test.ts
 |   |-- fixtures/
 |   |   \-- code-map/
 |   |       |-- broken.py
@@ -428,8 +457,12 @@ contract-driven-delivery-kit/
 |   |       |-- sample.tsx
 |   |       |-- sample.vue
 |   |       \-- types-only.ts
+|   |-- monkey/
+|   |   \-- reconcile-adversarial.test.ts
 |   |-- policy/
 |   |   \-- profile.test.ts
+|   |-- reconcile/
+|   |   \-- hard-links.test.ts
 |   |-- runtime/
 |   |   |-- parity.test.ts
 |   |   \-- router.test.ts
@@ -473,6 +506,7 @@ contract-driven-delivery-kit/
 |-- tools/
 |   |-- check-lockfile-sync.mjs
 |   \-- check-mojibake.mjs
+|-- .cdd-retest.log
 |-- .gitattributes
 |-- .gitignore
 |-- AGENTS.template.md
@@ -484,7 +518,9 @@ contract-driven-delivery-kit/
 |-- install.md
 |-- package-lock.json
 |-- package.json
+|-- project-profile.generated.md
 |-- README.md
+|-- skill.zip
 |-- tsconfig.json
 \-- vitest.config.ts
 ```

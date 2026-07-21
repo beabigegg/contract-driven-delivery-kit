@@ -7,6 +7,7 @@ import { queryEntries } from './index-query.js';
 import { getStagedPaths } from '../utils/git-paths.js';
 import { sectionBody } from '../utils/markdown-section.js';
 import { log } from '../utils/logger.js';
+import { readPlanSourceText } from './gate-artifacts.js';
 
 export interface BugSuspectsOptions {
   symptom?: string;
@@ -69,9 +70,9 @@ function parseAllowedPaths(changeId: string): string[] {
 }
 
 function parseTestPlanFiles(changeId: string): string[] {
-  const testPlanPath = join(readChangeDir(changeId), 'test-plan.md');
-  if (!existsSync(testPlanPath)) return [];
-  const content = readFileSync(testPlanPath, 'utf8');
+  // v1's test-plan.md or v2's folded `## Test Plan` section (readPlanSourceText).
+  const content = readPlanSourceText(readChangeDir(changeId), 'Test Plan');
+  if (!content) return [];
   // Extract file paths mentioned in the test-plan (lines with paths like test/..., tests/..., spec/...)
   const pathRe = /(?:^|\s)((?:test|tests|spec|specs)\/[\w/.:-]+\.(?:py|ts|tsx|js|jsx|rb|java|go|rs))/gm;
   const paths: string[] = [];

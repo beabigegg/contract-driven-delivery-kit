@@ -1,0 +1,15 @@
+{
+  "change_id": "reconcile-framework",
+  "phase": "full",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/reconcile-plan.test.ts test/cli/refresh.test.ts test/contracts/reconciliation-invariants.test.ts test/contracts/ci-workflow.test.ts test/cli/gate.test.ts test/cli/validate.test.ts",
+  "duration_ms": 160271,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/reconcile-framework/test-runs/20260715-081522/summary.json",
+    "stdout": "specs/changes/reconcile-framework/test-runs/20260715-081522/stdout.log",
+    "stderr": "specs/changes/reconcile-framework/test-runs/20260715-081522/stderr.log"
+  },
+  "next_action": "all phases green"
+}

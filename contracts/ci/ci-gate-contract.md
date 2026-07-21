@@ -3,8 +3,8 @@ contract: ci
 summary: CI gate inventory, artifact retention, and rollback requirements.
 owner: platform-team
 surface: delivery-pipeline
-schema-version: 0.10.0
-last-changed: 2026-07-13
+schema-version: 0.14.0
+last-changed: 2026-07-21
 breaking-change-policy: deprecate-2-minors
 ---
 
@@ -34,6 +34,7 @@ future check tempted to use it wants `ci-or-strict`.
 | enforceAcceptanceOracle | 1 | pull_request; local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/acceptance.yml`, `.cdd/acceptance-lock.json`, `test-evidence.yml` (`acceptance` phase) |
 | enforceInteractionDesign | 1 | pull_request; push to default branch (`--strict`); local (`cdd-kit gate`) | yes | `cdd-kit gate` | platform-team | `specs/changes/<id>/interaction-design.md`, `.cdd/design-lock.json` |
 | enforceConfirmationHookInstallation | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `.claude/settings.json` (git-tracked) |
+| enforceReconciliationInvariants | 1 | pull_request; push to default branch (`--strict`); local | ci-or-strict | `cdd-kit gate` AND `cdd-kit validate` | platform-team | `contracts/upgrade/upgrade-reconciliation-contract.md`, `src/reconcile/guard.ts`, `test-evidence.yml` (guard-refusal + fail-open + safe-default + narrow-channel test runs) |
 
 ### Trigger truthfulness (corrected by interaction-design-loop, ADR 0012)
 
@@ -50,6 +51,25 @@ with an inventory row, so no other claim needed correcting.
 `--strict` is applied on `push` to the default branch, not on `pull_request`: a PR
 is legitimately opened mid-change with tasks still pending, whereas a merged change
 with pending tasks is a defect.
+
+### Archive-only push robustness (corrected by boundary-ci-adopter-parity, #61)
+
+The "Determine changed spec directories" step in `github-workflows/contract-driven-gates.yml`
+(adopter template) and this repo's own `.github/workflows/contract-driven-gates.yml` filters
+candidate change ids down to directories that still exist at the checked-out head using a
+structured `if` form — never a chained `[ -n "$id" ] && [ -d ... ] && printf` list. Both
+workflows run under `shell: bash`, which the GitHub-hosted runner executes with `-o pipefail`
+and `-e`; a chained `&&` list whose middle test (`[ -d "specs/changes/$id" ]`) legitimately
+evaluates false — exactly what happens on an archive-only push, where `/cdd-close` has moved
+every touched change directory out of `specs/changes/` into `specs/archive/` — exits that
+list, and therefore the step, non-zero, and red-lines a push that changed nothing
+gate-relevant.
+
+**AC-6.** An archive-only push — every change id present in the `specs/changes/` diff
+resolves to a directory that no longer exists under `specs/changes/` at the checked-out head —
+exits the step 0 with an empty `ids` output, identical in shape to a push that touched no
+`specs/changes/` path at all. This must hold under `bash -eo pipefail`, not merely under a
+lenient local shell.
 
 ## Required Check Policy
 
@@ -379,6 +399,156 @@ can set all three. Prevention-grade closure would need a signature only the huma
 environment can produce — a hardware key, or the lock committed under the human's
 authenticated remote git identity. That is a new trust boundary. It is deferred, and
 it is not claimed anywhere in this contract.
+
+### enforceReconciliationInvariants (added by reconcile-framework, ADR 0014)
+
+Enforces the two write-safety invariants of
+`contracts/upgrade/upgrade-reconciliation-contract.md` — INV-1 (fail-open safe
+defaults for new surfaces/keys) and INV-2 (never flip / never overwrite existing
+ground truth) — for every kit upgrade path (`refresh`, `upgrade`, `update`,
+`reconcile`). Hosted by BOTH `cdd-kit gate` and `cdd-kit validate`, same "two
+host commands" shape as `enforceConfirmationHookInstallation` above: `gate`
+runs it directly and passes `reconciliationCheck: false` into its nested
+`validate` call so it does not run twice within one `gate`; the standalone
+`cdd-kit validate` (which runs unconditionally in CI on every event) is the
+second host.
+
+This check is about THIS KIT'S OWN implementation source and test suite, not an
+adopter project's application code — an adopter has no `src/reconcile/`
+directory of its own. It is a no-op (zero findings) whenever
+`src/reconcile/guard.ts` or `contracts/upgrade/upgrade-reconciliation-contract.md`
+is absent from the project being gated, mirroring `validate`'s opt-in policy
+bone-audit (`### Loosening policy — bone-audit`), which only runs when
+`.cdd/policy.yml` exists.
+
+**Five checks** (seven scans — clauses #4 AND #5 are two independent scans
+each), per `contracts/upgrade/upgrade-reconciliation-contract.md`
+`## Mechanical Enforcement`. This list previously said "four" and omitted the
+narrow-channel checks entirely, which shipped in the same change; the first
+correction then wrote "six scans", crediting only clause #4 with being two —
+while clause #5's `narrow-channel-refusal` and `container-fail-open` are run as
+two equally independent scans in the same shape. A binding contract describing
+less than the code enforces is the same drift as one describing more, and only
+one of the two directions is caught by a red build.
+
+1. the guard's bucket-1 matcher (`src/reconcile/guard.ts` `BUCKET_1_RULES`)
+   COVERS every surface enumerated in the contract's
+   `## Bucket 1 — Never-Overwrite Ground Truth` table — an enumerated surface
+   with no matching guard rule is a HARD failure, not a warning, and names the
+   uncovered surface;
+2. no reconciler or bucket-2 apply path writes to the filesystem through any
+   capability other than the single guarded writer — a static scan over
+   `src/reconcile/**` (excluding `guard.ts` itself) and `refresh.ts`'s bucket-2
+   `applyPlan()` function body for a raw `fs.write*`/`copyFile*`/`rm*` call
+   site;
+3. a recorded, PASSED test proves a bucket-1 write attempt is physically
+   REFUSED by the guard (raises/throws) — a static presence check for a named
+   `guard-refusal` test under `test/cli/reconcile-plan.test.ts` or
+   `test/reconcile/**` whose body asserts a `toThrow`;
+4. clause #4 of the upgrade contract has TWO halves, and so is TWO scans — a
+   single scan would let either half be deleted while the other kept the check
+   green:
+   - a named `fail-open` test under the same paths whose body asserts the
+     resulting bucket is `keep` (malformed/unknown/unreadable classifier input);
+   - a named `safe-default` test, additionally searched under
+     `test/cli/reconcile-bucket3.test.ts`, whose body inspects `safeDefault` —
+     proving a newly-added surface or `.cdd/policy.yml` key arrives at a
+     NON-enforcing value, which is what INV-1 actually requires. Bucket routing
+     alone does not prove it: a key correctly routed to `reconcile` and then
+     added at an enforcing default still newly blocks the adopter;
+5. each of the two narrow channels into a bucket-1 container has a recorded
+   test — a named `narrow-channel-refusal` (an adopter-set value survives a
+   channel write) and a named `container-fail-open` whose body asserts a
+   `toThrow` (a malformed/unreadable/ambiguous container is refused rather than
+   guessed at), under `test/cli/reconcile-bucket3.test.ts` or
+   `test/reconcile/**`.
+
+**Pass/fail shape** (`ci-or-strict`, same vocabulary as
+`enforceConfirmationHookInstallation`): a HARD failure on stderr (`log.error`)
+whenever the gate runs inside CI (any event) or under `--strict`; a WARNING on
+stdout (`log.warn`) in a default local run. "Inside CI" is the same
+`contracts/env/env-contract.md` `CI` variable test already defined above.
+
+**NOT gated on `isNewChange`, and carries NO shadow-mode knob.** Hook
+installation and reconciliation write-safety are both properties of the
+codebase's write path, not of one change directory's vintage — a legacy change
+and a brand-new one see the identical shape, exactly as `[ci 0.9.0]`
+established for `enforceConfirmationHookInstallation`. Unlike Boundary Guard's
+`shadow_mode` rollout stage (`## Boundary Guard Enforcement Semantics` below),
+this check has no `.cdd/policy.yml` toggle: INV-2 (never-overwrite) is
+contract-binding and non-negotiable, so introducing a shadow/advisory phase for
+it would silently reopen the exact hole this change exists to close. This is a
+deliberate, permanent divergence from the Boundary Guard precedent, not an
+oversight.
+
+**Honest limit.** This check is static-analysis evidence that the named
+tests EXIST and assert the right things, and that the guard/contract text
+agree — it does not itself re-run those tests. What proves they currently PASS
+is the repository CI's `test` workflow (`.github/workflows/test.yml` runs the
+full vitest suite on every push/PR); a suite failure there blocks the
+merge independently of this check. This sentence previously cited a
+"`full vitest suite` row above" that exists only in a per-change scratch file,
+not in this contract's Gate Inventory — a dangling reference the
+reconcile-framework contract review caught.
+
+## Boundary Guard Enforcement Semantics (added by boundary-ci-adopter-parity)
+
+Boundary Guard (`cdd-kit boundary check`; `runBoundaryGuard`, `src/boundary/guard.ts`) does
+**not** get a row in the Gate Inventory table above: neither `yes` nor `ci-or-strict`
+describes it, because whether an `error`-level finding blocks is governed by project policy
+(`.cdd/policy.yml` `shadow_mode`) and, for the standalone command only, an explicit
+`--enforce` flag — not by "inside CI or --strict". Introducing a third `required`-column value
+for this one check would repeat the `strict-only` mistake this file already retired (see the
+vocabulary note under `## Gate Inventory`). This section is Boundary Guard's own
+enforcement-semantics reference instead.
+
+**One shared decision, two callers.** `cdd-kit gate <id>` and standalone `cdd-kit boundary
+check` both compute Boundary Guard findings via the same `runBoundaryGuard`. Whether an
+`error`-level finding is treated as advisory or blocking is a SEPARATE decision layered on top
+of that result, and both callers MUST derive it from one shared enforcement-semantics source —
+never two independently-maintained copies of the shadow-mode check.
+
+Pass/fail conditions:
+
+1. **AC-1** — `.cdd/policy.yml` `shadow_mode: true` (the shipped default; an absent
+   `shadow_mode` key also reads as `true`) — an `error`-level Boundary Guard finding is printed
+   as an advisory `Boundary Guard [shadow]: ...` message and does NOT fail the check. Both
+   `cdd-kit gate <id>` and standalone `cdd-kit boundary check` (without `--enforce`) behave
+   identically: the finding is visible, and the command exits 0 (gate: no gate error added;
+   standalone: exit code 0, never 1). A `warning`- or `info`-level finding is always advisory in
+   every mode; shadow mode only changes the treatment of `error`-level findings.
+2. **AC-2** — `cdd-kit boundary check --enforce` overrides `shadow_mode` for that standalone
+   invocation only: any `error`-level finding (`BoundaryGuardResult.status === 'failed'`) exits
+   1, whatever `.cdd/policy.yml` `shadow_mode` says. `--enforce` is a standalone-only escape
+   hatch; the integrated `cdd-kit gate <id>` has no equivalent per-invocation flag — a project
+   promotes gate-side enforcement only by setting `.cdd/policy.yml` `shadow_mode: false`
+   project-wide.
+3. **AC-1** — `.cdd/policy.yml` `shadow_mode: false` — an `error`-level finding fails BOTH
+   paths: `cdd-kit gate <id>` adds it to the gate's blocking errors, and standalone `cdd-kit
+   boundary check` exits 1 whether or not `--enforce` is also passed.
+4. **AC-4** — `src/boundary/guard.ts` resolves exactly ONE effective base revision per
+   invocation — the first of: an explicit `--base`, `CDD_BASE_SHA`, `GITHUB_BASE_SHA`, a derived
+   `origin/<GITHUB_BASE_REF>`, or (inside CI, with no other input) `HEAD^` — and reuses that same
+   resolved value for BOTH changed-file detection and the changed-contract-operation snapshot. A
+   Boundary Guard run given only `CDD_BASE_SHA` (no `--base`) against an API contract change
+   MUST select only the operations that actually changed between the resolved base and head,
+   never every contracted operation.
+5. **AC-5** — the shipped adopter workflow template (`github-workflows/contract-driven-gates.yml`)
+   passes the base revision the "Determine changed spec directories" step computed to the
+   Boundary Guard step as BOTH the `CDD_BASE_SHA` env var and an explicit `--base` CLI argument,
+   so the shipped workflow's own invocation exercises condition 4 above rather than relying on
+   environment-only resolution.
+
+**Shadow mode is a rollout stage, not a permanent exemption.** A project ships with
+`shadow_mode: true` so a fresh adopter's first API-affecting PR is never blocked by findings
+accumulated before its Boundary Guard manifest is populated. The `## Loosening policy —
+bone-audit` section below governs the *reverse* direction — disabling `boundary_guard.enabled`
+entirely — which is a distinct decision from leaving an enabled guard in its default shadow
+stage.
+
+See also `docs/boundary-guard.md`, which documents only the gate-side shadow-mode default and
+must be updated in the same change to state that standalone `cdd-kit boundary check` honors the
+identical default and describe `--enforce`.
 
 ## Provenance Reconciliation Policy (ADR 0012 §2)
 

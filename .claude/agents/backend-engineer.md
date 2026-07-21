@@ -42,8 +42,8 @@ See `references/code-map-protocol.md` for the full protocol.
 - Preserve backward compatibility unless the spec explicitly marks a breaking change.
 - Follow `implementation-plan.md` for scope, non-goals, required changes, and file-level plan.
 - Do not expand scope beyond the implementation plan unless a Context Expansion Request is approved and the plan is updated.
-- **TDD**: Read `specs/changes/<id>/test-plan.md` first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.yml` items 3.1–3.2 are your responsibility.
-- Update CI/CD workflows when required by `ci-gates.md`.
+- **TDD**: Read `specs/changes/<id>/implementation-plan.md`'s `## Test Plan` section first. Write failing unit, contract, and integration tests BEFORE writing feature code. Tests in `tasks.yml` items 3.1–3.2 are your responsibility.
+- Update CI/CD workflows when required by `implementation-plan.md`'s `## CI Gates` section.
 
 ## Solution minimalism (reuse-first)
 

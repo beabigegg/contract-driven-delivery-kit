@@ -15,9 +15,10 @@ addFormats(ajv);
 const validate = ajv.compile(testEvidenceSchema);
 
 const root = process.cwd();
+// specs/templates/ is the only template source. The skill used to ship a second
+// copy; the two drifted, and agents were pointed at the stale one.
 const TEMPLATES = [
   join(root, 'specs', 'templates', 'test-evidence.yml'),
-  join(root, '.claude', 'skills', 'contract-driven-delivery', 'templates', 'test-evidence.yml'),
 ];
 
 // ADR 0005 §7: these may never appear in evidence.

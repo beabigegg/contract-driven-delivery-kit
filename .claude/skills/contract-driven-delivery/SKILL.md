@@ -17,7 +17,10 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
      (`references/requirement-discovery.md`) to refine intent and decide whether
      the work should be split into independent (optionally parallel) changes.
    - Use `references/workflow-router.md`.
-   - Create or update `change-classification.md`.
+   - Record the classification in `tasks.yml`: the `classification:` frontmatter
+     block (types, risk, impact, and architecture-review with a real reason if true)
+     plus the top-level `tier:`. Under `context-governance: v1` this lived in a
+     separate `change-classification.md`; do not create that file for a new change.
    - Invoke change-classifier to perform classification.
 2. Scan project context.
    - Use `scripts/detect_project_profile.py` when useful.
@@ -25,8 +28,19 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
    - Invoke repo-context-scanner to capture project profile and standardization gaps.
    - Refresh the structural index before any planning agent reads it: run `cdd-kit code-map`. The planning agents (`test-strategist`, `spec-architect`, `implementation-planner`) have no shell access and read `.cdd/code-map.yml` as a static snapshot, so a stale map hands them wrong file/line ranges. Implementation agents (backend/frontend/bug-fix) auto-refresh via their own `cdd-kit graph/index` queries, so this one refresh covers the no-shell planning stage.
 3. Select required artifacts.
-   - Use templates in `templates/`.
-   - Do not force every artifact for tiny changes, but do require `change-classification.md`, `implementation-plan.md`, `test-plan.md`, and `ci-gates.md` for implementation changes.
+   - Templates live in the repo at `specs/templates/`, and `cdd-kit new` scaffolds
+     from there. This skill deliberately ships no second copy: it had one, the two
+     drifted, and agents were being pointed at the stale set — the exact failure the
+     "one authoritative artifact" rule below exists to prevent.
+   - Do not force every artifact for tiny changes, but do require
+     `change-request.md`, `implementation-plan.md` (including its `## Test Plan` and
+     `## CI Gates` sections), and `tasks.yml` (including its `classification:`
+     frontmatter block) for implementation changes.
+   - `change-classification.md`, `test-plan.md`, and `ci-gates.md` are the OLD
+     (`context-governance: v1`) shape. Do not create them for a new change:
+     `cdd-kit new` no longer scaffolds them and the gate no longer asks for them, so
+     a hand-written one is an orphan nothing reads. An existing v1 change directory
+     keeps them — never migrate one by hand.
    - Keep each fact in one authoritative artifact. Later artifacts should
      reference earlier artifacts by path, section, criterion id, decision id, or
      gate name instead of duplicating full prose.
@@ -47,7 +61,7 @@ Use this skill to turn software requests into traceable, testable, CI/CD-gated c
 5. Apply SDD + TDD discipline and commission test engineers.
    - Use `references/sdd-tdd-policy.md`.
    - Tests should be planned before implementation and should fail first when feasible.
-   - `test-strategist` authors the test plan (write target: specs/changes/<id>/test-plan.md only).
+   - `test-strategist` authors the test plan (write target: the `## Test Plan` section of specs/changes/<id>/implementation-plan.md only).
    - `e2e-resilience-engineer` implements E2E, failure-injection, and data-boundary tests.
    - `monkey-test-engineer` implements adversarial-input, fuzz, and rapid-UI-action tests.
    - `stress-soak-engineer` implements load, soak, and long-running stability tests.
@@ -160,10 +174,10 @@ CI policy, design rationale, or contract prose across artifacts.
 ## Scripts
 
 - `scripts/detect_project_profile.py`: inspect a repository and emit a Markdown project profile.
-- `scripts/generate_change_scaffold.py`: create a change folder from templates.
+- `scripts/generate_change_scaffold.py`: DEPRECATED — it kept a second copy of the artifact list and drifted. Use `cdd-kit new <change-id>`, the only scaffolder.
 - `scripts/validate_contracts.py`: check for required contract files.
 - `scripts/validate_env_contract.py`: check env contract basics.
-- `scripts/validate_ci_gates.py`: check `ci-gates.md` structure.
+- `scripts/validate_ci_gates.py`: check CI-gate structure — `ci-gates.md` when a change has one (v1), otherwise the `## CI Gates` section of `implementation-plan.md` (v2). Each shape is checked against the terms it actually declares; whether the section is authored at all is the gate's job (`v2PlanSectionFinding`).
 - `scripts/validate_spec_traceability.py`: check coarse traceability between spec, tasks, tests, and CI gates.
 
 Run scripts with Python 3 from the repository root.

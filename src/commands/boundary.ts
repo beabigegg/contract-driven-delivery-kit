@@ -4,13 +4,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import yaml from 'js-yaml';
 import { DEFAULT_CONTRACT_PATH, normalizeApiPath, parseEndpoints, parseSchemaCellRef, stripFrontmatter } from '../contracts/parser.js';
-import { runBoundaryGuard, type BoundaryGuardOptions } from '../boundary/guard.js';
+import { runBoundaryGuard, classifyBoundaryFinding, loadPolicy, type BoundaryGuardOptions } from '../boundary/guard.js';
 import { log } from '../utils/logger.js';
 import { executeRegisteredCapture } from '../boundary/adapters.js';
 import type { BoundaryOperation } from '../runtime/types.js';
 
 export interface BoundaryCheckOptions extends Omit<BoundaryGuardOptions, 'cwd'> {
   json?: boolean;
+  /** Fail on any error-level finding even under .cdd/policy.yml shadow_mode. */
+  enforce?: boolean;
 }
 
 export interface BoundaryInitOptions {
@@ -88,6 +90,18 @@ export function boundaryCapture(options: BoundaryCaptureOptions): number {
 export function boundaryCheck(options: BoundaryCheckOptions = {}): number {
   try {
     const result = runBoundaryGuard(options);
+    // Same enforcement-semantics source `cdd-kit gate` uses (contracts/ci/
+    // ci-gate-contract.md `## Boundary Guard Enforcement Semantics`): shadow
+    // mode by default, an explicit --enforce overrides it for this invocation
+    // only. Re-loading the policy here (already validated by the
+    // runBoundaryGuard call above, which throws first on a bad/missing file)
+    // reuses the existing loader instead of surfacing shadow_mode on
+    // BoundaryGuardResult, which would change the --json output shape.
+    const cwd = process.cwd();
+    const policy = loadPolicy(cwd, join(cwd, options.policy ?? '.cdd/policy.yml'));
+    const enforced = options.enforce === true || policy.shadow_mode === false;
+    const blockingCount = result.findings.filter(finding => finding.level === 'error' && enforced).length;
+
     if (options.json) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     } else {
@@ -95,17 +109,21 @@ export function boundaryCheck(options: BoundaryCheckOptions = {}): number {
       log.info(`Boundary Guard: ${result.status} (${result.profile})`);
       log.info(`Changed operations: ${result.changed_operations.length}`);
       for (const finding of result.findings) {
-        const text = `${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`;
-        if (finding.level === 'error') log.error(text);
-        else if (finding.level === 'warning') log.warn(text);
-        else log.info(text);
+        if (finding.level === 'info') {
+          log.info(`${finding.operation ? `${finding.operation}: ` : ''}${finding.message}`);
+          continue;
+        }
+        const { blocking, message } = classifyBoundaryFinding(finding, enforced);
+        if (blocking) log.error(message);
+        else log.warn(message);
       }
-      if (result.status === 'passed') log.ok('Boundary Guard passed.');
+      if (blockingCount > 0) log.error(`Boundary Guard failed with ${blockingCount} error(s).`);
       else if (result.status === 'not-applicable') log.info('No applicable changed boundary operations.');
-      else log.error(`Boundary Guard failed with ${result.summary.errors} error(s).`);
+      else if (result.status === 'failed') log.warn('Boundary Guard has advisory finding(s) under shadow mode; not blocking.');
+      else log.ok('Boundary Guard passed.');
       log.blank();
     }
-    return result.status === 'failed' ? 1 : 0;
+    return blockingCount > 0 ? 1 : 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (options.json) process.stdout.write(JSON.stringify({ schema_version: '1.0.0', status: 'error', error: message }, null, 2) + '\n');

@@ -1,0 +1,41 @@
+change-id: reconcile-framework
+status: in-progress
+tier: 0
+context-governance: v1
+archive-tasks:
+  - "7.1"
+  - "7.2"
+depends-on: []
+
+tasks:
+  # status: pending | done | skipped   (optional: note: "reason or context")
+  - { id: "1.1", section: Preparation, title: "Confirm classification and required artifacts", status: done }
+  - { id: "1.2", section: Preparation, title: "Confirm contracts to update", status: done, note: "NEW contracts/upgrade/upgrade-reconciliation-contract.md written (0.1.0); ci-gate 0.12.0 row+subsection + CHANGELOG HELD for the validator-landing phase (avoid hollow guarantee)" }
+  - { id: "1.3", section: Preparation, title: "Confirm design decisions if required", status: done, note: "spec-architect: design.md (3-bucket taxonomy, src/reconcile/ registry, single GuardedWrite bucket-1 chokepoint, fail-open-to-keep, reuse digest/asset-manifest, cdd-kit reconcile [--plan]) + ADR 0014" }
+  - { id: "1.4", section: Preparation, title: "Confirm CI/CD gate plan", status: done, note: "ci-gates.md: enforceReconciliationInvariants (ci-or-strict, no shadow knob) lands atomically with guard code; 2 linchpin red-turns-green tests (guard-refusal, fail-open)" }
+  - { id: "1.5", section: Preparation, title: "Confirm implementation plan", status: done, note: "implementation-plan.md IP-1..IP-12; backend owns IP-1..10 atomic (module+guard+classifier+registry+reconcile cmd+schema+refresh wiring+validator+contract row/CHANGELOG+tests); e2e IP-11; monkey IP-12" }
+  - { id: "2.1", section: "Contract Updates", title: "API contract", status: skipped, note: "no HTTP API surface" }
+  - { id: "2.2", section: "Contract Updates", title: "CSS/UI contract", status: skipped, note: "CLI-only, no UI" }
+  - { id: "2.3", section: "Contract Updates", title: "Env contract", status: skipped, note: "no env/secret/runtime-config change" }
+  - { id: "2.4", section: "Contract Updates", title: "Data shape contract", status: skipped, note: "no tabular/row data surface" }
+  - { id: "2.5", section: "Contract Updates", title: "Business logic contract", status: skipped, note: "no domain decision tables" }
+  - { id: "2.6", section: "Contract Updates", title: "CI/CD contract", status: done, note: "NEW contracts/upgrade/ 0.1.0 + ci-gate-contract.md 0.12.0 (enforceReconciliationInvariants row+subsection) + CHANGELOG [upgrade 0.1.0]/[ci 0.12.0] — landed atomically with the validator (no hollow guarantee)" }
+  - { id: "3.1", section: "Tests First", title: "Unit/contract tests", status: done, note: "test/cli/reconcile-plan.test.ts (56: guard/classifier/registry, guard-refusal+fail-open red-turns-green) + test/contracts/reconciliation-invariants.test.ts (12)" }
+  - { id: "3.2", section: "Tests First", title: "Integration tests", status: done, note: "plan/apply over fixture repo (mutates-nothing); refresh bucket-2 backup-before-overwrite (structural assertion — Windows copyFileSync preserves mtime)" }
+  - { id: "3.3", section: "Tests First", title: "E2E/resilience tests", status: done, note: "test/e2e/reconcile-plan.e2e.test.ts (16 tests): plan whole-repo-hash-mutates-nothing; fail-open on malformed/corrupt/missing/unknown/real-Windows-icacls-deny; apply backup-before-overwrite + bucket-1 byte-identical + guard-refusal" }
+  - { id: "3.4", section: "Tests First", title: "Data-boundary/monkey tests", status: done, note: "test/monkey/reconcile-adversarial.test.ts (53 cases, 9 failure-mode classes) FOUND 2 real guard holes (case-variation + directory-junction), routed back, guard hardened (case-fold + realpath + TOCTOU re-check); corpus now 0 failed. AC-2 physically-refused now holds" }
+  - { id: "3.5", section: "Tests First", title: "Stress/soak tests if required", status: skipped, note: "plan/dry-run classifier is not load/soak-shaped" }
+  - { id: "4.1", section: Implementation, title: "Backend", status: done, note: "src/reconcile/{guard,classifier,registry,invariants}.ts + reconciliation.schema.ts + commands/reconcile.ts + cli registration + refresh.ts guarded + gate/validate wiring; full suite 1638 passed/0 failed; 2 linchpin mutation-red proven" }
+  - { id: "4.2", section: Implementation, title: "Frontend", status: skipped, note: "no UI surface" }
+  - { id: "4.3", section: Implementation, title: "Env/deploy", status: skipped, note: "no env/deploy change" }
+  - { id: "4.4", section: Implementation, title: "CI/CD workflows", status: done, note: "enforceReconciliationInvariants wired into src/commands/gate.ts + validate.ts (ci-or-strict, two-host pattern like enforceConfirmationHookInstallation)" }
+  - { id: "5.1", section: Review, title: "UI/UX review", status: skipped, note: "no UI surface" }
+  - { id: "5.2", section: Review, title: "Visual review", status: skipped, note: "no UI surface" }
+  - { id: "5.3", section: Review, title: "Contract review", status: done, note: "contract-reviewer 2026-07-21: approve-with-notes; claims-wider-than-validator does NOT reproduce (all 5 Mechanical-Enforcement claims match invariants.ts, BUCKET_1_RULES match contract 1:1); 6 findings fixed in-change (upgrade family wired into validate_contract_versions.py + stale last-changed + model-policy disposition + dangling row ref + scan count + stale contracts-index); guard-routing gap stays deliberately unclaimed. See agent-log/contract-reviewer.yml" }
+  - { id: "5.4", section: Review, title: "QA review", status: done, note: "qa-reviewer: blocked-then-resolved. Found the monkey corpus non-vacuous (mutation red/green), enforcement real; 3 review-time blockers (tier-floor, fabricated autonomous-receipt claim, acceptance-phase evidence) all resolved. approved-with-risk (human hash-lock for --strict/merge)" }
+  - { id: "6.1", section: Verification, title: "Local gates", status: done, note: "cdd-kit gate reconcile-framework exit 0 (tier 0; autonomous acceptance surfaced; lean-path evidence). Full suite 1706 passed/0 failed post-guard-fix" }
+  - { id: "6.2", section: Verification, title: "PR required gates", status: done, note: "enforceReconciliationInvariants (ci-or-strict) wired into gate+validate; runs on PR/push via the existing workflow. Verified locally green" }
+  - { id: "6.3", section: Verification, title: "Informational gates", status: done, note: "none added; enforceReconciliationInvariants is required (ci-or-strict) from day one — no shadow-mode knob, INV-2 non-negotiable" }
+  - { id: "6.4", section: Verification, title: "Nightly/weekly/manual gates if required", status: skipped, note: "none added by this change" }
+  - { id: "7.1", section: Archive, title: "Archive change", status: pending }
+  - { id: "7.2", section: Archive, title: "Promote durable learnings to contracts or CLAUDE.md", status: pending }

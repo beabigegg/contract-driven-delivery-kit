@@ -1,0 +1,39 @@
+change-id: boundary-ci-adopter-parity
+schema-version: 0.1.0
+generated-by: cdd-kit test run
+required-phases:
+  - collect
+  - targeted
+  - changed-area
+runs:
+  - phase: collect
+    status: passed
+    command: node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144559/summary.json
+  - phase: targeted
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts
+      test/contracts/ci-workflow.test.ts
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144639/summary.json
+  - phase: changed-area
+    status: passed
+    command: node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144701/summary.json
+  - phase: quality
+    status: passed
+    command: npm run typecheck
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-144714/summary.json
+  - phase: full
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts test/cli/gate.test.ts
+      test/contracts/ci-workflow.test.ts
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145620/summary.json
+  - phase: acceptance
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run test/acceptance/boundary-ci-adopter-parity.driver.test.ts
+      test/cli/boundary.test.ts
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260721-183153/summary.json
+final-status: passed

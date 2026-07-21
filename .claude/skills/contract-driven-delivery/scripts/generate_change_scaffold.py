@@ -1,48 +1,42 @@
 #!/usr/bin/env python3
-"""Generate a specs/changes/<change-id> scaffold from bundled templates."""
-from pathlib import Path
+"""Deprecated. `cdd-kit new <change-id>` is the only change scaffolder.
+
+This script kept its own copy of the required/optional artifact lists, and that
+copy went stale the moment `context-governance: v2` folded three artifacts away.
+It emitted a `tasks.yml` marked v2 alongside the legacy v1
+`change-classification.md` / `test-plan.md` / `ci-gates.md`, and omitted
+`acceptance.yml` and `interaction-design.md` — which are separately gate-enforced,
+so its output could not pass.
+
+A second scaffolder means a second artifact list, and a second list drifts.
+`src/commands/new-change.ts` is the single source; this file points at it rather
+than racing it. Exits non-zero so a script calling it fails loudly instead of
+continuing over a half-built change directory.
+"""
 import argparse
-import shutil
+import sys
+
 
 def main():
-    ap=argparse.ArgumentParser()
-    ap.add_argument('change_id')
+    ap = argparse.ArgumentParser(description='Deprecated — use `cdd-kit new`.')
+    ap.add_argument('change_id', nargs='?')
     ap.add_argument('--root', default='.')
     ap.add_argument('--templates', default=None)
-    ap.add_argument('--all', action='store_true', help='also copy optional report/spec templates')
-    args=ap.parse_args()
-    root=Path(args.root).resolve()
-    templates=Path(args.templates).resolve() if args.templates else Path(__file__).resolve().parents[1]/'templates'
-    dest=root/'specs'/'changes'/args.change_id
-    dest.mkdir(parents=True, exist_ok=False)
-    required={
-        'change-request.md':'change-request.md',
-        'change-classification.md':'change-classification.md',
-        'implementation-plan.md':'implementation-plan.md',
-        'test-plan.md':'test-plan.md',
-        'ci-gates.md':'ci-gates.md',
-        'tasks.yml':'tasks.yml',
-    }
-    optional={
-        'current-behavior.md':'current-behavior.md',
-        'proposal.md':'proposal.md',
-        'spec.md':'spec.md',
-        'design.md':'design.md',
-        'contracts.md':'contracts.md',
-        'qa-report.md':'qa-report.md',
-        'regression-report.md':'regression-report.md',
-        'visual-review-report.md':'visual-review-report.md',
-        'monkey-test-report.md':'monkey-test-report.md',
-        'stress-soak-report.md':'stress-soak-report.md',
-        'archive.md':'archive.md',
-    }
-    mapping=dict(required)
-    if args.all:
-        mapping.update(optional)
-    for src,dst in mapping.items():
-        s=templates/src
-        if s.exists():
-            shutil.copyfile(s, dest/dst)
-    print(f'created {dest}')
+    ap.add_argument('--all', action='store_true')
+    args = ap.parse_args()
+
+    target = args.change_id or '<change-id>'
+    suffix = ' --all' if args.all else ''
+    print('This scaffolder is deprecated and deliberately writes nothing.')
+    print()
+    print(f'  Use:  cdd-kit new {target}{suffix}')
+    print()
+    print('It shipped a second copy of the artifact list, which drifted from the one')
+    print('`cdd-kit new` uses: it emitted the legacy v1 files alongside a v2 tasks.yml')
+    print('and omitted the separately-enforced acceptance.yml / interaction-design.md,')
+    print('so the change it produced could not pass the gate. One scaffolder, one list.')
+    sys.exit(1)
+
+
 if __name__ == '__main__':
     main()

@@ -132,6 +132,10 @@ describe('buildChangeMetadata', () => {
     expect(data['required-agents']).toEqual(['change-classifier', 'backend-engineer', 'qa-reviewer']);
     // required = the canonical required set; optional = the optional artifacts present.
     expect(data.artifacts.required).toContain('tasks.yml');
+    // This fixture carries no `context-governance` marker, so it is legacy and
+    // is reported against the v1 set — which still includes the manifest. The
+    // required set is per-change, not a static default: reporting the v2 set for
+    // a v1 directory would describe requirements it is not actually under.
     expect(data.artifacts.required).toContain('context-manifest.md');
     expect(data.artifacts.optional).toEqual(['design.md']);
     expect(data.context.manifest).toBe('specs/changes/add-jwt-auth/context-manifest.md');
@@ -142,6 +146,26 @@ describe('buildChangeMetadata', () => {
     for (const ref of Object.values(data['generated-from'])) {
       expect(ref).toMatch(/^sha256:[0-9a-f]{64}$/);
     }
+  });
+
+  it('reports the required set PER CHANGE: v2 drops the three folded artifacts and the manifest', () => {
+    write('tasks.yml', 'change-id: add-jwt-auth\nstatus: in-progress\ncontext-governance: v2\ntier: 1\ntasks: []\n');
+    const { data } = buildChangeMetadata(changeDir, tmpRepo);
+    expect(data.artifacts.required).toEqual(['change-request.md', 'implementation-plan.md', 'tasks.yml']);
+    for (const gone of ['change-classification.md', 'test-plan.md', 'ci-gates.md', 'context-manifest.md']) {
+      expect(data.artifacts.required).not.toContain(gone);
+    }
+  });
+
+  it('a manifest is still read and reported when present, even though v2 does not require one', () => {
+    // Optional is not ignored. The demotion removed a requirement, not the
+    // ability to honour a manifest an author chose to write.
+    write('tasks.yml', 'change-id: add-jwt-auth\nstatus: in-progress\ncontext-governance: v2\ntier: 1\ntasks: []\n');
+    write('context-manifest.md', '# Context Manifest\n\n## Allowed Paths\n\n- src/auth/**\n- tests/auth/**\n');
+    const { data } = buildChangeMetadata(changeDir, tmpRepo);
+    expect(data.artifacts.required).not.toContain('context-manifest.md');
+    expect(data.context.manifest).toBe('specs/changes/add-jwt-auth/context-manifest.md');
+    expect(data.context['allowed-paths-count']).toBe(2);
   });
 
   it('omits classification-lane when no `## Lane` is declared', () => {
