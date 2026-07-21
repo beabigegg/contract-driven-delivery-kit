@@ -10,9 +10,26 @@ that nothing you own changes without you seeing it first.
 npm install -g contract-driven-delivery   # 4.0.0
 cdd-kit reconcile --plan                  # read-only: what would change, per surface
 cdd-kit reconcile --yes                   # apply: refresh kit-managed files (backup first) + typed migrations
+cdd-kit init --hooks                      # ONLY if upgrading from ≤3.6.x — see "Hooks" below
 cat .cdd/migration/behavior-change-report.md   # what moved between YOUR old version and 4.0.0
 cdd-kit doctor --strict                   # confirm chokepoints are live
 ```
+
+## Hooks: upgrading from 3.6.x or older needs one extra step
+
+Installs from before the `.cdd/.hooks-installed` marker existed (≤3.6.x) are
+invisible to `refresh`/`reconcile` hook maintenance: both skip the hooks step,
+so the `.claude/hooks/*.sh` scripts stay frozen at the version that installed
+them — including any security fixes shipped since (4.0.0 fixes a fail-open
+truncation in the test-runner hook on jq-less machines, i.e. most Windows
+installs). Run `cdd-kit init --hooks` once; it updates the scripts, registers
+the newer design-write/acceptance-write hooks, and writes the marker so future
+upgrades maintain hooks automatically.
+
+**Caveat (measured in the 3.6.0→4.0.0 rehearsal):** `init --hooks` currently
+overwrites a locally MODIFIED hook script without a backup or warning — unlike
+`reconcile`/`refresh`, which preserve your modified copies. If you have edited
+anything under `.claude/hooks/`, copy it aside before running it.
 
 `reconcile` supersedes the old "run `refresh`, then `upgrade`, then `migrate`
 and hope the order was right" sequencing for version upgrades. Those commands

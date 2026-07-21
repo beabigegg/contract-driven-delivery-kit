@@ -654,13 +654,16 @@ semantics moved since the version that last installed into your repo:
 npm install -g contract-driven-delivery   # 4.0.0
 cdd-kit reconcile --plan                  # read-only preview, per surface
 cdd-kit reconcile --yes                   # apply refresh + typed migrations
+cdd-kit init --hooks                      # only if upgrading from ≤3.6.x (pre-marker installs)
 cat .cdd/migration/behavior-change-report.md
 cdd-kit doctor --strict
 ```
 
 New changes also scaffold 5 files instead of 9 (`context-governance: v2`);
 existing change directories are grandfathered on v1 forever — no migration.
-Full notes: [docs/upgrading-to-4.md](docs/upgrading-to-4.md).
+Upgrading from ≤3.6.x: your `.claude/hooks/` scripts are frozen until you run
+`cdd-kit init --hooks` once (and back up any hook you hand-edited first — see
+the guide). Full notes: [docs/upgrading-to-4.md](docs/upgrading-to-4.md).
 
 #### Upgrading to 2.2.0
 
