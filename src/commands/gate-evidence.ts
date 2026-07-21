@@ -4,7 +4,7 @@ import { PHASES, isPytestCommand, hasShellControl } from './test-run.js';
 import { testEvidenceSchema, PROHIBITED_WAIVER_FIELDS, DEFAULT_REQUIRED_PHASES } from '../schemas/test-evidence.schema.js';
 import { agentLogSchema } from '../schemas/agent-log.schema.js';
 import { BEHAVIOR_FIX_REPRODUCTION_STATUSES } from '../schemas/bug-fix-evidence.schema.js';
-import { ajv, ajvErrorsToMessages, loadYamlFile, type TasksFile } from './gate-shared.js';
+import { ajv, ajvErrorsToMessages, classificationObject, loadYamlFile, type TasksFile } from './gate-shared.js';
 
 const validateTestEvidence = ajv.compile(testEvidenceSchema);
 const validateAgentLog = ajv.compile(agentLogSchema);
@@ -414,7 +414,11 @@ function laneSectionPresent(changeDir: string): boolean {
   const tasksPath = join(changeDir, 'tasks.yml');
   if (existsSync(tasksPath)) {
     const { data } = loadYamlFile<TasksFile>(tasksPath);
-    if (data?.classification && 'lane' in data.classification) return true;
+    // `'lane' in classification` throws on a primitive; a schema-invalid
+    // `classification: bug-fix` used to crash the gate here. classificationObject
+    // returns null for any non-object, so the `in` only runs on a real mapping.
+    const c = classificationObject(data);
+    if (c && 'lane' in c) return true;
   }
   const classifPath = join(changeDir, 'change-classification.md');
   if (!existsSync(classifPath)) return false;

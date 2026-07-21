@@ -50,6 +50,30 @@ export function loadYamlFile<T>(path: string): { data: T | null; parseError: str
   }
 }
 
+/**
+ * The `classification` block only as a keyed mapping — `null` for every other
+ * shape YAML can produce there.
+ *
+ * `lintTasksFile` records a schema error for a malformed `classification:` but
+ * still RETURNS the raw parsed data, so gate steps run against it. A scalar
+ * (`classification: bug-fix`) or a list then reaches code that assumes an
+ * object: `'lane' in classification` throws on a primitive, and reading a
+ * sub-field off it silently yields nonsense. Both crash the gate with a raw
+ * TypeError *before* it can print the schema errors it already collected — the
+ * user sees a stack trace instead of "classification must be a mapping".
+ * Route every `classification` sub-field access through this guard so an invalid
+ * shape degrades to "no classification object" and the schema error is what
+ * surfaces. Arrays are objects to `typeof`, hence the explicit exclusion.
+ */
+export function classificationObject(
+  tasks: TasksFile | null,
+): NonNullable<TasksFile['classification']> | null {
+  const c = tasks?.classification as unknown;
+  return c && typeof c === 'object' && !Array.isArray(c)
+    ? (c as NonNullable<TasksFile['classification']>)
+    : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // enforceConfirmationHookInstallation (ci-gate-contract.md
 // `### enforceConfirmationHookInstallation`, added by enforce-human-confirmation).

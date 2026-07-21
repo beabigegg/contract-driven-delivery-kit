@@ -15,6 +15,7 @@ the gate's job -- `v2PlanSectionFinding` in src/commands/gate-artifacts.ts.
 """
 from pathlib import Path
 import argparse, re, sys
+from applicability import strip_inline_comment
 
 REQUIRED_TERMS_V1 = ['required gates', 'tier', 'trigger', 'workflow', 'promotion policy', 'rollback policy']
 REQUIRED_TERMS_V2 = ['gate', 'trigger', 'required', 'merge eligibility', 'rollback']
@@ -59,7 +60,14 @@ def _governance(d):
     try:
         for line in p.read_text(encoding='utf-8', errors='ignore').splitlines():
             if line.startswith('context-governance:'):
-                return line.split(':', 1)[1].strip().strip('\'"')
+                # strip_inline_comment FIRST: a legal `context-governance: v2 #
+                # folded` otherwise reads as `v2 # folded`, matches neither
+                # marker, and this validator falls back to a stale ci-gates.md
+                # while the TS gate reads the same file as v2 -- the two disagree
+                # on identical input. Fourth reader of this field; the round-7
+                # sweep fixed three and missed this one by enumerating on guessed
+                # filenames instead of grepping the field name.
+                return strip_inline_comment(line.split(':', 1)[1]).strip('\'"')
     except OSError:
         return ''
     return ''

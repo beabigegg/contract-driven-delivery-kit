@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import { tasksSchema } from '../schemas/tasks.schema.js';
-import { ajv, ajvErrorsToMessages, loadYamlFile, type TasksFile } from './gate-shared.js';
+import { ajv, ajvErrorsToMessages, classificationObject, loadYamlFile, type TasksFile } from './gate-shared.js';
 import { sectionBody, stripHtmlComments } from '../utils/markdown-section.js';
 import { findMappingTable, columnIndex, CRITERION_COLUMN, TARGET_COLUMN } from '../utils/plan-tables.js';
 
@@ -336,7 +336,10 @@ export function enforceClassificationSubstance(
   errors: string[],
 ): void {
   if (governanceVersion(changeDir) !== 'v2') return;
-  const c = tasks?.classification;
+  // A scalar/list `classification:` is a schema error lintTasksFile already
+  // recorded; here it degrades to null so every `c[...]` below is a safe object
+  // access, not a TypeError on a primitive.
+  const c = classificationObject(tasks);
   // Only the two things the JSON schema structurally cannot do. The shape of
   // `types`/`risk`/`impact` is already enforced by tasksSchema whenever the
   // block is present -- restating it here would just print every failure twice.
@@ -360,7 +363,13 @@ export function enforceClassificationSubstance(
       'change earns. v1 carried it in change-classification.md `## Tier`; v2 keeps it as a top-level key.',
     );
   }
-  if (c['architecture-review'] === true && !(c['architecture-review-reason'] ?? '').trim()) {
+  const reason = c['architecture-review-reason'];
+  // `false ?? ''` is `false`, not `''` — nullish coalescing does not catch a
+  // boolean, so `.trim()` on a schema-invalid `architecture-review-reason: false`
+  // threw a TypeError and crashed the gate before it could report that schema
+  // error. Treat any non-string reason as "no reason given".
+  const reasonText = typeof reason === 'string' ? reason.trim() : '';
+  if (c['architecture-review'] === true && !reasonText) {
     errors.push(
       'tasks.yml: `classification.architecture-review: true` requires a non-empty ' +
       '`architecture-review-reason` — a bare yes with no reason is not a decision.',
