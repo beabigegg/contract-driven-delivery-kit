@@ -1,0 +1,1 @@
+node node_modules/vitest/vitest.mjs run test/acceptance/boundary-ci-adopter-parity.driver.test.ts test/cli/boundary.test.ts

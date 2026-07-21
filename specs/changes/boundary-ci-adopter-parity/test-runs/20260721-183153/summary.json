@@ -1,0 +1,15 @@
+{
+  "change_id": "boundary-ci-adopter-parity",
+  "phase": "acceptance",
+  "status": "passed",
+  "exit_code": 0,
+  "command": "node node_modules/vitest/vitest.mjs run test/acceptance/boundary-ci-adopter-parity.driver.test.ts test/cli/boundary.test.ts",
+  "duration_ms": 11664,
+  "first_failure": null,
+  "artifacts": {
+    "summary": "specs/changes/boundary-ci-adopter-parity/test-runs/20260721-183153/summary.json",
+    "stdout": "specs/changes/boundary-ci-adopter-parity/test-runs/20260721-183153/stdout.log",
+    "stderr": "specs/changes/boundary-ci-adopter-parity/test-runs/20260721-183153/stderr.log"
+  },
+  "next_action": "proceed to the next phase"
+}

@@ -30,4 +30,10 @@ runs:
       node node_modules/vitest/vitest.mjs run --reporter=verbose test/cli/boundary.test.ts test/cli/gate.test.ts
       test/contracts/ci-workflow.test.ts
     summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260714-145620/summary.json
+  - phase: acceptance
+    status: passed
+    command: >-
+      node node_modules/vitest/vitest.mjs run test/acceptance/boundary-ci-adopter-parity.driver.test.ts
+      test/cli/boundary.test.ts
+    summary: specs/changes/boundary-ci-adopter-parity/test-runs/20260721-183153/summary.json
 final-status: passed

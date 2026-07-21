@@ -43,4 +43,8 @@ runs:
       test/cli/gate.test.ts test/cli/validate.test.ts test/e2e/reconcile-plan.e2e.test.ts
       test/monkey/reconcile-adversarial.test.ts
     summary: specs/changes/reconcile-framework/test-runs/20260715-093340/summary.json
+  - phase: acceptance
+    status: passed
+    command: node node_modules/vitest/vitest.mjs run test/acceptance/reconcile-framework.driver.test.ts
+    summary: specs/changes/reconcile-framework/test-runs/20260721-182316/summary.json
 final-status: passed
