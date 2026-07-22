@@ -7,6 +7,7 @@ import { detectStack, type StackKind } from '../utils/stack-detect.js';
 import { suggestCodegenScript } from './suggest-codegen.js';
 import { logRecommendedMcpSetup } from '../utils/mcp-hint.js';
 import { mappedDestinationFiles, stampUserAssets } from '../utils/user-asset-manifest.js';
+import { stampAssetManifest } from '../utils/asset-manifest.js';
 
 export interface InitOptions {
   globalOnly: boolean;
@@ -348,7 +349,15 @@ export async function init(opts: InitOptions): Promise<void> {
           modified = true;
         }
 
-        if (modified) writeFileSync(ciYmlDest, current, 'utf8');
+        if (modified) {
+          writeFileSync(ciYmlDest, current, 'utf8');
+          // Re-stamp with what was ACTUALLY written. refresh stamps the shipped
+          // asset text; this in-place patch just changed the bytes, and without
+          // a fresh stamp `doctor` reports the file as hand-modified forever
+          // while the reconcile classifier demotes it to keep — freezing all
+          // future updates of a file no human ever touched (#73).
+          stampAssetManifest(cwd, readKitVersion(), ['.github/workflows/contract-driven-gates.yml']);
+        }
       }
 
       // ── Contract→client codegen wiring (consumer half of the OpenAPI seam) ──

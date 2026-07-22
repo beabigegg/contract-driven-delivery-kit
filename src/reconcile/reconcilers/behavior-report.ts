@@ -117,7 +117,12 @@ export function planBehaviorReport(cwd: string): BehaviorDelta {
 }
 
 function renderReport(cwd: string, delta: BehaviorDelta, shipped: string, previousKitVersion?: string | null): string {
-  const from = previousKitVersion ?? lastInstalledKitVersion(cwd);
+  // `null` is a LEGAL pre-refresh answer ("no manifest existed before this
+  // run") — `??` would swallow it and re-read the manifest refresh stamped
+  // moments ago, making the very first report claim `current -> current` while
+  // its own body says "first report" (#72). Only an ABSENT argument may fall
+  // back to reading the manifest.
+  const from = previousKitVersion !== undefined ? previousKitVersion : lastInstalledKitVersion(cwd);
   const to = readKitVersion();
   const lines: string[] = [
     '# Behaviour-change report',

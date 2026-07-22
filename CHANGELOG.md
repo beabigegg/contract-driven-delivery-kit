@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-07-22
+
+Everything in this release was found by the registry-based 3.6.0 → 4.0.0
+adopter upgrade rehearsal (issues #71, #72, #73) plus the i18n directive (#70).
+
+### Added
+
+- **`refresh` (and therefore `reconcile --yes`) now maintains `.claude/hooks/`**:
+  a hook script the asset manifest proves kit-owned-and-unmodified is updated
+  to the shipped version (previous copy backed up to `.cdd/.refresh-backup/`);
+  a locally modified hook is the adopter's and is kept; a hook installed before
+  stamping existed (≤3.6.x installs) is announced with the one-time
+  `cdd-kit install-agent-hooks` remedy instead of being silently skipped.
+  Until now NO upgrade path ever updated an installed hook — security fixes
+  included (#71).
+- **i18n phase 1 (#70)**: `.cdd/policy.yml` gains a `locale:` key
+  (`en` | `zh-TW`, default `en` — offered to upgrading adopters by the
+  policy-keys reconciler at its safe default). `accept confirm` — the surface a
+  human signs — speaks the configured locale; machine-parsed grammar (YAML
+  keys, ids, flags, the `given:`/`when:`/`then:` labels) stays English by
+  binding boundary rule.
+- `docs/proposals/delegated-autonomy-mode.md`: the delegated-autonomy design
+  proposal with its human-only open decisions.
+
+### Fixed
+
+- `install-agent-hooks` (and `init --hooks`) no longer silently clobbers a
+  locally modified hook script: the differing copy is backed up to
+  `.cdd/.refresh-backup/<ts>/` first and the backup path is printed (#71).
+- The behaviour-change report header no longer claims `current -> current` on a
+  first report: a pre-refresh capture of "no manifest existed" (`null`) is now
+  honored instead of being swallowed by `??` and re-read from the manifest the
+  refresh had just stamped (#72).
+- `init`'s in-place fast-gate patch re-stamps the workflow with the bytes it
+  actually wrote, and `doctor` no longer reports merge-written surfaces
+  (`.github/workflows/contract-driven-gates.yml`) as stale against the shipped
+  asset — previously the file was flagged as hand-modified forever and the
+  reconcile classifier would have frozen its future updates (#73).
+
 ## [4.0.0] - 2026-07-21
 
 ### Upgrading

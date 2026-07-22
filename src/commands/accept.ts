@@ -16,6 +16,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { createInterface } from 'readline';
 import { log } from '../utils/logger.js';
+import { t } from '../utils/i18n.js';
 import { isSafeChangeId } from '../utils/change-id.js';
 import { ajv, loadYamlFile } from './gate-shared.js';
 import { acceptanceSchema } from '../schemas/acceptance.schema.js';
@@ -85,12 +86,15 @@ export async function acceptRelock(changeId: string): Promise<void> {
   log.info('.cdd/acceptance-lock.json updated. Commit it alongside the acceptance.yml change.');
 }
 
-function printCriteria(data: AcceptanceFile): void {
-  log.info('Acceptance criteria awaiting your approval:');
+function printCriteria(cwd: string, data: AcceptanceFile): void {
+  log.info(t(cwd, 'confirm.title'));
   log.blank();
   for (const c of Array.isArray(data.cases) ? data.cases : []) {
     const id = typeof c.id === 'string' ? c.id : '(unnamed case)';
     log.info(`  • ${id}`);
+    // The `given:`/`when:`/`then:` labels echo the acceptance.yml keys the
+    // human is approving — grammar tokens, so they stay English (#70 boundary);
+    // the VALUES are the human's own prose in whatever language they wrote.
     for (const field of ['given', 'when', 'then'] as const) {
       const value = (c as Record<string, unknown>)[field];
       if (typeof value === 'string' && value.trim()) log.info(`      ${field}: ${value.trim()}`);
@@ -115,9 +119,9 @@ export async function acceptConfirm(
   if (opts.autonomous) {
     const reason = (opts.reason ?? '').trim() || 'loop mode: run explicitly delegated to the agent';
     writeAcceptanceLock(cwd, changeId, hash, { mode: 'autonomous', reason });
-    log.warn(`Recorded AUTONOMOUS acceptance for ${changeId} — no human reviewed the criteria.`);
-    log.info(`Reason: ${reason}`);
-    log.info('The gate will surface this as an agent-delegated acceptance, not a human sign-off.');
+    log.warn(t(cwd, 'confirm.autonomous-recorded', { id: changeId }));
+    log.info(t(cwd, 'confirm.autonomous-reason', { reason }));
+    log.info(t(cwd, 'confirm.autonomous-note'));
     return;
   }
 
@@ -125,20 +129,20 @@ export async function acceptConfirm(
   // shelling out) has no TTY and cannot silently satisfy this — it must either
   // route the human to a terminal or use the explicit --autonomous delegation.
   if (!process.stdin.isTTY) {
-    log.error('cdd-kit accept confirm needs an interactive terminal so a human can review the criteria.');
-    log.info(`A person should run \`cdd-kit accept confirm ${changeId}\` in a terminal, or, for an explicitly`);
-    log.info(`delegated loop run, use \`cdd-kit accept confirm ${changeId} --autonomous --reason "..."\`.`);
+    log.error(t(cwd, 'confirm.needs-tty'));
+    log.info(t(cwd, 'confirm.needs-tty-hint1', { id: changeId }));
+    log.info(t(cwd, 'confirm.needs-tty-hint2', { id: changeId }));
     process.exit(1);
   }
 
-  printCriteria(data);
-  const answer = await promptLine(`Type "${changeId}" to confirm you have read and approve these criteria (Ctrl-C to abort): `);
+  printCriteria(cwd, data);
+  const answer = await promptLine(t(cwd, 'confirm.prompt', { id: changeId }));
   if (answer.trim() !== changeId) {
-    log.error('Input did not match the change id — acceptance NOT recorded.');
+    log.error(t(cwd, 'confirm.mismatch'));
     process.exit(1);
   }
 
   writeAcceptanceLock(cwd, changeId, hash, { mode: 'human' });
-  log.ok(`Recorded human acceptance for ${changeId}.`);
-  log.info('.cdd/acceptance-lock.json updated. Commit it alongside the acceptance.yml change.');
+  log.ok(t(cwd, 'confirm.recorded', { id: changeId }));
+  log.info(t(cwd, 'confirm.commit-hint'));
 }

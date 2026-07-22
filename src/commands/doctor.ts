@@ -216,6 +216,9 @@ function packagedPathFor(relpath: string): string | null {
  * read-only, and advisory: a repo that never ran refresh/upgrade/
  * install-agent-hooks carries no manifest and reports nothing here.
  */
+/** Kit-written files whose content is a MERGE of the shipped asset and repo-specific patches (fast-gate step, version pin). */
+const MERGE_WRITTEN_SURFACES = new Set(['.github/workflows/contract-driven-gates.yml']);
+
 function checkAssetManifestDrift(cwd: string): Finding[] {
   const manifest = readAssetManifest(cwd);
   const relpaths = Object.keys(manifest);
@@ -241,6 +244,13 @@ function checkAssetManifestDrift(cwd: string): Finding[] {
       });
       continue; // already flagged as drifted; the packaged comparison below would be redundant
     }
+
+    // Surfaces the kit writes by MERGING (patching in repo-specific content)
+    // rather than copying verbatim legitimately differ from the packaged asset
+    // forever, so the staleness comparison below would warn on every healthy
+    // install (#73). The manifest-vs-disk comparison above still covers them —
+    // that is the one that detects an actual hand edit.
+    if (MERGE_WRITTEN_SURFACES.has(rel)) continue;
 
     const packagedAbs = packagedPathFor(rel);
     if (packagedAbs && existsSync(packagedAbs)) {

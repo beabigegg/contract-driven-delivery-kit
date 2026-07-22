@@ -11,6 +11,10 @@ export const cddPolicySchema = {
     version: { const: 1 },
     default_profile: { type: 'string', enum: PROFILE },
     shadow_mode: { type: 'boolean', default: true },
+    // Human-facing prose locale (#70). Machine-parsed grammar stays English;
+    // `default: 'en'` makes the policy-keys reconciler offer this to upgrading
+    // adopters at the safe default — which IS the current behavior (INV-1).
+    locale: { type: 'string', enum: ['en', 'zh-TW'], default: 'en' },
     boundary_guard: {
       type: 'object',
       additionalProperties: false,

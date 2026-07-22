@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, writeFileSync, copyFileSync, chmodSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { dirname, join, relative } from 'path';
 import { ASSET, readKitVersion } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { stampAssetManifest } from '../utils/asset-manifest.js';
+import { ensureGitignoreEntry } from '../utils/gitignore.js';
 
 export type HookMode = 'advisory' | 'strict';
 /** Back-compat alias for the original (graph-first-only) public name. */
@@ -278,9 +279,27 @@ export async function installAgentHooks(opts: InstallAgentHooksOptions = {}): Pr
   // command under `hooks` as a `{ type: 'command' }` handler — the shape Claude
   // Code actually executes. Writing `command` on the matcher group directly
   // leaves the chokepoint silently dormant.
+  let backupRoot: string | null = null;
   for (const { def, mode } of requested) {
     const destHook = join(cwd, hookRelPath(def.filename));
-    copyFileSync(join(ASSET.hooks, def.filename), destHook);
+    const srcHook = join(ASSET.hooks, def.filename);
+    // An explicit install may overwrite, but never silently: reconcile/refresh
+    // treat a locally modified hook as the adopter's (kept), so this command
+    // must not be the one path that destroys local edits without a trace (#71).
+    if (existsSync(destHook)) {
+      const existing = readFileSync(destHook);
+      if (!existing.equals(readFileSync(srcHook))) {
+        if (backupRoot === null) {
+          backupRoot = join(cwd, '.cdd', '.refresh-backup', new Date().toISOString().replace(/[:.]/g, '-'));
+          ensureGitignoreEntry(cwd, '.cdd/.refresh-backup/');
+        }
+        const backupPath = join(backupRoot, hookRelPath(def.filename));
+        mkdirSync(dirname(backupPath), { recursive: true });
+        writeFileSync(backupPath, existing);
+        log.warn(`${def.id}: existing ${hookRelPath(def.filename)} differed from the shipped script — backed up to ${relative(cwd, backupPath).replace(/\\/g, '/')}`);
+      }
+    }
+    copyFileSync(srcHook, destHook);
     try {
       chmodSync(destHook, 0o755);
     } catch { /* ignore on Windows */ }

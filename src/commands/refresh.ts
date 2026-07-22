@@ -11,6 +11,9 @@
  *     specs/templates/**, tests/templates/**, ci-templates/**,
  *     .github/workflows/contract-driven-gates.yml
  *
+ *   TOUCH — update in place ONLY when digest-proven unmodified (backup first):
+ *     .claude/hooks/*.sh already installed in the repo (never installs new ones)
+ *
  *   TOUCH — resync from authoritative source:
  *     .cdd/model-policy.json roles map ← ~/.claude/agents/<name>.md frontmatter
  *
@@ -26,13 +29,14 @@
  *     CLAUDE.md, AGENTS.md, CODEX.md, package.json, .git/, node_modules/,
  *     dist/, build/
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { createHash } from 'crypto';
 import { ASSET, AGENTS_HOME, readKitVersion } from '../utils/paths.js';
 import { log } from '../utils/logger.js';
 import { ensureGitignoreEntry } from '../utils/gitignore.js';
-import { stampAssetManifest } from '../utils/asset-manifest.js';
+import { readAssetManifest, stampAssetManifest } from '../utils/asset-manifest.js';
+import { sha256OfFileNormalized } from '../utils/digest.js';
 import { guardedCopyFile } from '../reconcile/guard.js';
 import { update } from './update.js';
 import { upgrade } from './upgrade.js';
@@ -331,6 +335,52 @@ export async function refresh(opts: RefreshOptions): Promise<void> {
     // manifest so `doctor` has a baseline to compare against.
     if (apply) {
       stampAssetManifest(cwd, readKitVersion(), total.map(i => i.rel));
+    }
+
+    // Agent hook scripts (.claude/hooks) — execute the classifier's bucket-2
+    // verdict. Until 4.1.0 no refresh step touched these, so an installed hook
+    // stayed at whatever version wrote it, security fixes included (#71).
+    // Only a hook the manifest proves kit-owned-and-unmodified is updated
+    // (backup first); a modified hook is the adopter's and is kept; a hook
+    // installed before stamping existed is announced, never guessed at.
+    const hookAssets = existsSync(ASSET.hooks) ? readdirSync(ASSET.hooks).filter(f => f.endsWith('.sh')) : [];
+    const hookManifest = readAssetManifest(cwd);
+    const unmanagedHooks: string[] = [];
+    const updatedHooks: string[] = [];
+    for (const f of hookAssets) {
+      const rel = `.claude/hooks/${f}`;
+      const dest = join(cwd, rel);
+      if (!existsSync(dest)) continue; // hooks are opt-in; refresh never installs new ones
+      const stamp = hookManifest[rel];
+      if (!stamp) { unmanagedHooks.push(rel); continue; }
+      const currentDigest = sha256OfFileNormalized(dest);
+      if (currentDigest !== stamp.digest) { log.dim(`  ${rel}: locally modified — kept (yours)`); continue; }
+      const assetPath = join(ASSET.hooks, f);
+      if (sha256OfFileNormalized(assetPath) === currentDigest) continue; // already current
+      if (apply) {
+        if (backupRoot === null) {
+          backupRoot = join(cwd, '.cdd', '.refresh-backup', new Date().toISOString().replace(/[:.]/g, '-'));
+          if (ensureGitignoreEntry(cwd, '.cdd/.refresh-backup/')) {
+            log.info('  added `.cdd/.refresh-backup/` to .gitignore');
+          }
+        }
+        const backupPath = join(backupRoot, rel);
+        mkdirSync(dirname(backupPath), { recursive: true });
+        writeFileSync(backupPath, readFileSync(dest));
+        copyFileSync(assetPath, dest);
+        try { chmodSync(dest, 0o755); } catch { /* ignore on Windows */ }
+        updatedHooks.push(rel);
+        log.info(`  ~ ${rel} (hook updated; previous copy backed up)`);
+      } else {
+        log.info(`  ~ ${rel} (hook would update — digest-proven unmodified)`);
+      }
+    }
+    if (apply && updatedHooks.length > 0) {
+      stampAssetManifest(cwd, readKitVersion(), updatedHooks);
+      log.ok(`  ${updatedHooks.length} agent hook script(s) updated`);
+    }
+    if (unmanagedHooks.length > 0) {
+      log.warn(`  ${unmanagedHooks.length} agent hook script(s) predate install stamping and are NOT auto-updated: ${unmanagedHooks.join(', ')} — run \`cdd-kit install-agent-hooks\` (or \`cdd-kit init --hooks\`) once to adopt them; local edits are backed up first`);
     }
   } else {
     log.dim('[3/6] skipped (--no-templates)');
